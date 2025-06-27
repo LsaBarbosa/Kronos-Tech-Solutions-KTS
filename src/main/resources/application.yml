@@ -31,3 +31,7 @@ management:
     export:
       prometheus:
         enabled: true
+jwt:
+  secret: G45B1pM7W3H2YbVx8lZqD3YcR9sXf+Ab7K0nT4zFaUQ=
+  expiration: 3600000         # 1 hora em milissegundos
+  refreshExpiration: 86400000 # 24 horas em milissegundos
