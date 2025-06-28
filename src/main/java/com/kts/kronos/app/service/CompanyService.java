@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -34,7 +33,7 @@ public class CompanyService implements CompanyUseCase {
     @Override
     public Company getCompany(String cnpj) {
         return companyRepository.findByCnpj(cnpj)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada: " + cnpj));
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
     }
 
     @Override
@@ -47,7 +46,7 @@ public class CompanyService implements CompanyUseCase {
     @Override
     public void updateCompany(String cnpj, UpdateCompanyCommand cmd) {
         var existing = companyRepository.findByCnpj(cnpj)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         Company updated = new Company(
                 existing.companyId(),
                 cmd.name()    != null ? cmd.name()    : existing.name(),
