@@ -1,12 +1,10 @@
 package com.kts.kronos;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.adapter.in.web.dto.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.UpdateCompanyCommand;
 import com.kts.kronos.app.exceptions.BadRequestException;
 import com.kts.kronos.app.exceptions.ResourceNotFoundException;
-import com.kts.kronos.app.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.app.port.out.repository.CompanyRepository;
 import com.kts.kronos.app.service.CompanyService;
 import com.kts.kronos.domain.model.Company;
@@ -17,9 +15,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,8 +22,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
 public class CompanyServiceTest {
