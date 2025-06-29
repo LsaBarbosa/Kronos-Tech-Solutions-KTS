@@ -1,12 +1,12 @@
-package com.kts.kronos.app.service;
+package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;
-import com.kts.kronos.app.exceptions.BadRequestException;
-import com.kts.kronos.app.exceptions.ResourceNotFoundException;
-import com.kts.kronos.app.port.in.usecase.CompanyUseCase;
-import com.kts.kronos.app.port.out.repository.AddressLookupPort;
-import com.kts.kronos.app.port.out.repository.CompanyRepository;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
+import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.out.repository.AddressLookupPort;
+import com.kts.kronos.application.port.out.repository.CompanyRepository;
 import com.kts.kronos.domain.model.Company;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,13 +20,14 @@ import java.util.List;
 public class CompanyService implements CompanyUseCase {
 
     public static final String COMPANY_NOT_FOUND = "Empresa não encontrada: ";
+    public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     private final CompanyRepository companyRepository;
     private final AddressLookupPort viaCep;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
         if (companyRepository.findByCnpj(request.cnpj()).isPresent()) {
-            throw new BadRequestException("Empresa já cadastrada");
+            throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
         var address = viaCep.lookup(request.address().postalCode())
@@ -52,25 +53,25 @@ public class CompanyService implements CompanyUseCase {
     }
 
     @Override
-    public void updateCompany(String cnpj, UpdateCompanyCommand cmd) {
+    public void updateCompany(String cnpj, UpdateCompanyRequest request) {
         var existing = companyRepository.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         var updateAddress = existing.address();
-        if (cmd.address() != null) {
-            var lookup = viaCep.lookup(cmd.address().postalCode());
-            updateAddress = lookup.withNumber(cmd.address().number());
+        if (request.address() != null) {
+            var lookup = viaCep.lookup(request.address().postalCode());
+            updateAddress = lookup.withNumber(request.address().number());
         }
 
-        Company updated = new Company(
+        Company updatedCompany = new Company(
                 existing.companyId(),
-                cmd.name() != null ? cmd.name() : existing.name(),
+                request.name() != null ? request.name() : existing.name(),
                 existing.cnpj(),
-                cmd.email() != null ? cmd.email() : existing.email(),
-                cmd.active() != null ? cmd.active() : existing.active(),
+                request.email() != null ? request.email() : existing.email(),
+                request.active() != null ? request.active() : existing.active(),
                 updateAddress
         );
-        companyRepository.save(updated);
+        companyRepository.save(updatedCompany);
     }
 
     @Override

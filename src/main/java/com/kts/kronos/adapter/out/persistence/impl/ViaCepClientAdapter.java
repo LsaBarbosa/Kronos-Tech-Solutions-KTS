@@ -1,8 +1,8 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.kts.kronos.app.exceptions.ResourceNotFoundException;
-import com.kts.kronos.app.port.out.repository.AddressLookupPort;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.out.repository.AddressLookupPort;
 import com.kts.kronos.domain.model.Address;
 import lombok.Getter;
 import lombok.Setter;
@@ -42,13 +42,12 @@ public class ViaCepClientAdapter implements AddressLookupPort {
         } catch (WebClientResponseException.NotFound e) {
             throw new ResourceNotFoundException("CEP não encontrado: " + postalCode);
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao consultar ViaCEP: " + e.getMessage());
+            throw new InternalError("Erro ao consultar ViaCEP: " + e.getMessage());
         }
     }
 
     @Getter @Setter
     private static class ViaCepResponse {
-        // getters e setters (pode usar Lombok ou IDE para gerar)
         @JsonProperty("cep")
         private String cep;
         @JsonProperty("logradouro")

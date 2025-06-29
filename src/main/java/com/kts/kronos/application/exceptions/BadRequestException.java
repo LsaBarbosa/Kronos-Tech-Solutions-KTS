@@ -1,4 +1,4 @@
-package com.kts.kronos.app.exceptions;
+package com.kts.kronos.application.exceptions;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
