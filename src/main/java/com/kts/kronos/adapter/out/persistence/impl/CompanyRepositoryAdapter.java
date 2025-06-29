@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.CompanyEntity;
 import com.kts.kronos.adapter.out.persistence.SpringDataCompanyRepository;
 import com.kts.kronos.app.port.out.repository.CompanyRepository;
@@ -17,7 +18,7 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
 
     @Override
     public Company save(Company company) {
-        var entity = toEntity(company);
+        var entity = CompanyEntity.fromDomain(company);
         var saved = repository.save(entity);
         return saved.toDomain();
     }
@@ -51,13 +52,13 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
     }
 
     private CompanyEntity toEntity(Company company) {
-        return new CompanyEntity(
-                company.companyId(),
-                company.name(),
-                company.cnpj(),
-                company.email(),
-                company.active(),
-                company.addressId()
-        );
+        return CompanyEntity.builder()
+                .id(company.companyId())
+                .name(company.name())
+                .cnpj(company.cnpj())
+                .email(company.email())
+                .active(company.active())
+                .address(AddressEmbeddable.fromDomain(company.address()))
+                .build();
     }
 }

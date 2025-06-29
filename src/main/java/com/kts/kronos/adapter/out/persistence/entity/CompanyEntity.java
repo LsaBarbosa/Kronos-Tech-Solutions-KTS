@@ -2,9 +2,11 @@ package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Company;
 import jakarta.persistence.*;
-import java.util.UUID;
-
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.UUID;
 @Entity
 @Table(name = "tb_company")
 @AllArgsConstructor
@@ -14,7 +16,8 @@ import lombok.*;
 @Builder
 public class CompanyEntity {
     @Id
-    @Column(name = "company_id", columnDefinition = "BINARY(16)")
+    @Column(name = "company_id", length = 36, nullable = false)
+    @JdbcTypeCode(SqlTypes.CHAR)
     private UUID id;
 
     @Column(name = "name_company", length = 50, nullable = false)
@@ -29,12 +32,22 @@ public class CompanyEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    @Column(name = "address_id", columnDefinition = "BINARY(16)")
-    private UUID addressId;
+    @Embedded
+    private AddressEmbeddable address;
 
     public Company toDomain(){
         return new Company(
-                id, name, cnpj, email, active, addressId
+                id, name, cnpj, email, active,  address.toDomain()
         );
+    }
+    public static CompanyEntity fromDomain(Company company) {
+        return CompanyEntity.builder()
+                .id(company.companyId())
+                .name(company.name())
+                .cnpj(company.cnpj())
+                .email(company.email())
+                .active(company.active())
+                .address(AddressEmbeddable.fromDomain(company.address()))
+                .build();
     }
 }
