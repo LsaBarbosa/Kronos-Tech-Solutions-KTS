@@ -1,12 +1,15 @@
 package com.kts.kronos;
 
 
-import com.kts.kronos.adapter.in.web.dto.CreateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.UpdateCompanyCommand;
+import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
+import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;
 import com.kts.kronos.app.exceptions.BadRequestException;
 import com.kts.kronos.app.exceptions.ResourceNotFoundException;
+import com.kts.kronos.app.port.out.repository.AddressLookupPort;
 import com.kts.kronos.app.port.out.repository.CompanyRepository;
 import com.kts.kronos.app.service.CompanyService;
+import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,47 +33,73 @@ public class CompanyServiceTest {
 
     @InjectMocks
     private CompanyService service;
-
+    @Mock
+    private AddressLookupPort viaCep;
     private UUID companyId;
-    private UUID addressId;
     private String name;
     private String cnpj;
     private String email;
     private Company existingCompany;
+    private Address existingAddress;
+
 
     @BeforeEach
     void setUp() {
         companyId = UUID.randomUUID();
-        addressId = UUID.randomUUID();
         name = "Acme Corp";
         cnpj = "12345678901234";
         email = "acme@example.com";
-        existingCompany = new Company(companyId, name, cnpj, email, true, addressId);
+        existingAddress = new Address("Old St", "10", "87654321", "OldCity", "OldState");
+        existingCompany = new Company(companyId, name, cnpj, email, true, existingAddress);
     }
 
     @Test
     void createCompany_success() {
-        var req = new CreateCompanyRequest(name, cnpj, email, addressId);
+        String postalCode = "12345678";
+        String number     = "100";
+        var addrReq = new AddressRequest(postalCode, number);
+        var req = new CreateCompanyRequest(name, cnpj, email, addrReq);
+
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.empty());
-        var saved = new Company(companyId, name, cnpj, email, true, addressId);
+        // stub do lookup viaCep
+        var lookupAddr = new Address("Street Name", null, postalCode, "City", "State");
+        when(viaCep.lookup(postalCode)).thenReturn(lookupAddr);
+        // stub do save final, retornando a company já salva
+        var saved = new Company(companyId, name, cnpj, email, true, lookupAddr.withNumber(number));
         when(repository.save(any(Company.class))).thenReturn(saved);
 
-         service.createCompany(req);
-        verify(repository).findByCnpj(cnpj);
+        // executa o create
+        service.createCompany(req);
 
+        // valida que procurou por CNPJ e lookup de CEP
+        verify(repository).findByCnpj(cnpj);
+        verify(viaCep).lookup(postalCode);
+
+        // captura o objeto passado para save
         var captor = ArgumentCaptor.forClass(Company.class);
         verify(repository).save(captor.capture());
         Company toSave = captor.getValue();
+
         assertEquals(name, toSave.name());
         assertTrue(toSave.active());
+        assertEquals("Street Name", toSave.address().street());
+        assertEquals(number, toSave.address().number());
+        assertEquals(postalCode, toSave.address().postalCode());
     }
 
     @Test
     void createCompany_duplicate_throws() {
-        var req = new CreateCompanyRequest(name, cnpj, email, addressId);
+        String postalCode = "12345678";
+        String number     = "100";
+        var addrReq = new AddressRequest(postalCode, number);
+        var req = new CreateCompanyRequest(name, cnpj, email, addrReq);
+
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.of(existingCompany));
 
         assertThrows(BadRequestException.class, () -> service.createCompany(req));
+
+        // não deve chamar nem save nem lookup
+        verify(viaCep, never()).lookup(anyString());
         verify(repository, never()).save(any());
     }
 
@@ -90,7 +119,7 @@ public class CompanyServiceTest {
     }
 
     @Test
-    void listCompanies_nullActive_returnsAll() {
+    void listCompanies_Actived_nullActive_returnsAll() {
         var list = List.of(existingCompany);
         when(repository.findAll()).thenReturn(list);
 
@@ -100,7 +129,7 @@ public class CompanyServiceTest {
     }
 
     @Test
-    void listCompanies_activeTrue() {
+    void listCompanies_Actived_activeTrue() {
         var activeList = List.of(existingCompany);
         when(repository.findByActive(true)).thenReturn(activeList);
 
@@ -110,8 +139,8 @@ public class CompanyServiceTest {
     }
 
     @Test
-    void listCompanies_activeFalse() {
-        var inactive = new Company(companyId, name, cnpj, email, false, addressId);
+    void listCompanies_Actived_activeFalse() {
+        var inactive = new Company(companyId, name, cnpj, email, false, existingAddress);
         when(repository.findByActive(false)).thenReturn(List.of(inactive));
 
         List<Company> result = service.listCompanies(false);
@@ -123,11 +152,14 @@ public class CompanyServiceTest {
     void updateCompany_success() {
         var cmd = new UpdateCompanyCommand("NewName", null, null, null);
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.of(existingCompany));
-        var updatedDomain = new Company(companyId, "NewName", cnpj, email, true, addressId);
+        var updatedDomain = new Company(companyId, "NewName", cnpj, email, true, existingAddress);
         when(repository.save(any(Company.class))).thenReturn(updatedDomain);
 
-         service.updateCompany(cnpj, cmd);
+        service.updateCompany(cnpj, cmd);
+
         verify(repository).save(any(Company.class));
+        // como não forneceu address no comando, não deve chamar lookup
+        verify(viaCep, never()).lookup(anyString());
     }
 
     @Test
@@ -137,6 +169,7 @@ public class CompanyServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> service.updateCompany(cnpj, cmd));
     }
+
 
     @Test
     void deactivateCompany_success() {
