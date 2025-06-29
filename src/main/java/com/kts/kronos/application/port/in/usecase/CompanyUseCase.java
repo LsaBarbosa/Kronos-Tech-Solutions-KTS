@@ -1,4 +1,4 @@
-package com.kts.kronos.app.port.in.usecase;
+package com.kts.kronos.application.port.in.usecase;
 
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;

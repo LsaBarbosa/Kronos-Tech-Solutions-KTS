@@ -1,7 +1,5 @@
-create database mydatabase;
-
 CREATE TABLE IF NOT EXISTS tb_company (
-    company_id     BINARY(16) PRIMARY KEY,
+    company_id     CHAR(36) PRIMARY KEY NOT NULL,
     name_company   VARCHAR(50)  NOT NULL,
     company_cnpj   VARCHAR(17)  NOT NULL,
     company_email  VARCHAR(50)  NOT NULL,
@@ -14,7 +12,7 @@ CREATE TABLE IF NOT EXISTS tb_company (
 );
 
 CREATE TABLE IF NOT EXISTS tb_employee (
-    employee_id    BINARY(16) PRIMARY KEY,
+    employee_id    CHAR(36) PRIMARY KEY NOT NULL,
     full_name      VARCHAR(50)  NOT NULL,
     cpf            VARCHAR(14)  NOT NULL,
     job_position   VARCHAR(50)  NOT NULL,
@@ -28,7 +26,7 @@ CREATE TABLE IF NOT EXISTS tb_employee (
     postal_code VARCHAR(20) NOT NULL,
     city        VARCHAR(100),
     state       VARCHAR(100),
-    company_id     BINARY(16)    NOT NULL,
+    company_id     CHAR(36)    NOT NULL,
     CONSTRAINT fk_company_company FOREIGN KEY (company_id)
         REFERENCES tb_company(company_id)
 );
@@ -40,22 +38,21 @@ CREATE TABLE IF NOT EXISTS tb_time_records (
     status_record  VARCHAR(10),
     is_edite       BOOLEAN       NOT NULL DEFAULT TRUE,
     is_active      BOOLEAN       NOT NULL DEFAULT TRUE,
-    employee_id    BINARY(16)    NOT NULL,
+    employee_id    CHAR(36)    NOT NULL,
     CONSTRAINT fk_time_record_employee FOREIGN KEY (employee_id)
         REFERENCES tb_employee(employee_id)
 );
 
 CREATE TABLE IF NOT EXISTS tb_user (
-    user_id     BINARY(16) PRIMARY KEY,
+    user_id     CHAR(36) PRIMARY KEY NOT NULL,
     username    VARCHAR(50)  NOT NULL UNIQUE,
     password    VARCHAR(200) NOT NULL,
     role        VARCHAR(50)  NOT NULL,
     enabled     BOOLEAN      NOT NULL DEFAULT TRUE,
-    employee_id BINARY(16),
+    employee_id CHAR(36),
     CONSTRAINT fk_user_employee FOREIGN KEY (employee_id)
         REFERENCES tb_employee(employee_id)
 );
 
--- Índices importantes
 CREATE INDEX idx_company_cnpj ON tb_company(company_cnpj);
 CREATE INDEX idx_company_name ON tb_company(name_company);
