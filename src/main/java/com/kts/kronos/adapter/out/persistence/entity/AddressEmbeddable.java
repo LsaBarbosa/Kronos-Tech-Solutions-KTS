@@ -1,18 +1,13 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Address;
-import com.kts.kronos.domain.model.Company;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.*;
-
-import java.util.UUID;
 
 @Embeddable @AllArgsConstructor @NoArgsConstructor @Data @EqualsAndHashCode @Builder
 public class AddressEmbeddable {
-    @Column(name = "street", length = 255)
+    @Column(name = "street")
     private String street;
 
     @Column(name = "number", length = 20)

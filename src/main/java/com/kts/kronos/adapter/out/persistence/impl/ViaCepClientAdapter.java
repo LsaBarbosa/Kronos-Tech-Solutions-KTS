@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kts.kronos.app.exceptions.ResourceNotFoundException;
 import com.kts.kronos.app.port.out.repository.AddressLookupPort;
 import com.kts.kronos.domain.model.Address;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -45,7 +46,9 @@ public class ViaCepClientAdapter implements AddressLookupPort {
         }
     }
 
+    @Getter @Setter
     private static class ViaCepResponse {
+        // getters e setters (pode usar Lombok ou IDE para gerar)
         @JsonProperty("cep")
         private String cep;
         @JsonProperty("logradouro")
@@ -56,17 +59,5 @@ public class ViaCepClientAdapter implements AddressLookupPort {
         private String uf;
         @JsonProperty("erro")
         private Boolean erro;
-
-        // getters e setters (pode usar Lombok ou IDE para gerar)
-        public String getCep() { return cep; }
-        public void setCep(String cep) { this.cep = cep; }
-        public String getLogradouro() { return logradouro; }
-        public void setLogradouro(String logradouro) { this.logradouro = logradouro; }
-        public String getLocalidade() { return localidade; }
-        public void setLocalidade(String localidade) { this.localidade = localidade; }
-        public String getUf() { return uf; }
-        public void setUf(String uf) { this.uf = uf; }
-        public Boolean getErro() { return erro; }
-        public void setErro(Boolean erro) { this.erro = erro; }
     }
 }
