@@ -8,9 +8,9 @@ public record Company(
         String cnpj,
         String email,
         boolean active,
-        UUID addressId
+        Address address
 ) {
-    public Company(String name, String cnpj, String email, UUID addressId) {
-        this(UUID.randomUUID(), name, cnpj, email, true, addressId);
+    public Company(String name, String cnpj, String email,  Address address) {
+        this(UUID.randomUUID(), name, cnpj, email, true, address);
     }
 }
