@@ -1,4 +1,4 @@
-package com.kts.kronos.app.port.out.repository;
+package com.kts.kronos.application.port.out.repository;
 
 import com.kts.kronos.domain.model.Company;
 

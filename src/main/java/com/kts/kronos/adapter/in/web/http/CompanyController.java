@@ -4,7 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.CompanyListResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
-import com.kts.kronos.app.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

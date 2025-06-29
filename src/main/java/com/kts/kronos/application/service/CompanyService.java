@@ -1,12 +1,12 @@
-package com.kts.kronos.app.service;
+package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;
-import com.kts.kronos.app.exceptions.BadRequestException;
-import com.kts.kronos.app.exceptions.ResourceNotFoundException;
-import com.kts.kronos.app.port.in.usecase.CompanyUseCase;
-import com.kts.kronos.app.port.out.repository.AddressLookupPort;
-import com.kts.kronos.app.port.out.repository.CompanyRepository;
+import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.out.repository.AddressLookupPort;
+import com.kts.kronos.application.port.out.repository.CompanyRepository;
 import com.kts.kronos.domain.model.Company;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,13 +20,14 @@ import java.util.List;
 public class CompanyService implements CompanyUseCase {
 
     public static final String COMPANY_NOT_FOUND = "Empresa não encontrada: ";
+    public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     private final CompanyRepository companyRepository;
     private final AddressLookupPort viaCep;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
         if (companyRepository.findByCnpj(request.cnpj()).isPresent()) {
-            throw new BadRequestException("Empresa já cadastrada");
+            throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
         var address = viaCep.lookup(request.address().postalCode())
@@ -62,7 +63,7 @@ public class CompanyService implements CompanyUseCase {
             updateAddress = lookup.withNumber(cmd.address().number());
         }
 
-        Company updated = new Company(
+        Company updatedCompany = new Company(
                 existing.companyId(),
                 cmd.name() != null ? cmd.name() : existing.name(),
                 existing.cnpj(),
@@ -70,7 +71,7 @@ public class CompanyService implements CompanyUseCase {
                 cmd.active() != null ? cmd.active() : existing.active(),
                 updateAddress
         );
-        companyRepository.save(updated);
+        companyRepository.save(updatedCompany);
     }
 
     @Override
