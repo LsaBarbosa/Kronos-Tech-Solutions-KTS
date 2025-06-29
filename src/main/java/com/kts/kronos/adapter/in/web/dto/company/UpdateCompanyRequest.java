@@ -18,7 +18,5 @@ public record UpdateCompanyRequest(
         @Valid
         UpdateAddressRequest address  // pode ser null se não quiser alterar endereço
 ) {
-    public static UpdateCompanyCommand toCommand(UpdateCompanyRequest updateCompanyRequest) {
-        return UpdateCompanyCommand.fromRequest(updateCompanyRequest);
-    }
+
 }

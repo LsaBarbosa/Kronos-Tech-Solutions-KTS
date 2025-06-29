@@ -44,8 +44,7 @@ public class CompanyController {
             @PathVariable String cnpj,
             @Valid @RequestBody UpdateCompanyRequest dto
     ) {
-        var cmd = UpdateCompanyRequest.toCommand(dto);
-        useCase.updateCompany(cnpj, cmd);
+        useCase.updateCompany(cnpj, dto);
         return ResponseEntity.noContent().build();
     }
 

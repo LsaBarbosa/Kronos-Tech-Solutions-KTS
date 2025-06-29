@@ -1,7 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
@@ -53,22 +53,22 @@ public class CompanyService implements CompanyUseCase {
     }
 
     @Override
-    public void updateCompany(String cnpj, UpdateCompanyCommand cmd) {
+    public void updateCompany(String cnpj, UpdateCompanyRequest request) {
         var existing = companyRepository.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         var updateAddress = existing.address();
-        if (cmd.address() != null) {
-            var lookup = viaCep.lookup(cmd.address().postalCode());
-            updateAddress = lookup.withNumber(cmd.address().number());
+        if (request.address() != null) {
+            var lookup = viaCep.lookup(request.address().postalCode());
+            updateAddress = lookup.withNumber(request.address().number());
         }
 
         Company updatedCompany = new Company(
                 existing.companyId(),
-                cmd.name() != null ? cmd.name() : existing.name(),
+                request.name() != null ? request.name() : existing.name(),
                 existing.cnpj(),
-                cmd.email() != null ? cmd.email() : existing.email(),
-                cmd.active() != null ? cmd.active() : existing.active(),
+                request.email() != null ? request.email() : existing.email(),
+                request.active() != null ? request.active() : existing.active(),
                 updateAddress
         );
         companyRepository.save(updatedCompany);
