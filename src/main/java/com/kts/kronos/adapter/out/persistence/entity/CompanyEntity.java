@@ -2,12 +2,11 @@ package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Company;
 import jakarta.persistence.*;
-import java.util.UUID;
-
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.Type;
-import org.hibernate.type.*;
+import org.hibernate.type.SqlTypes;
+
+import java.util.UUID;
 @Entity
 @Table(name = "tb_company")
 @AllArgsConstructor
