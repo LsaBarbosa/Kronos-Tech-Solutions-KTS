@@ -1,9 +1,9 @@
 package com.kts.kronos.adapter.in.web.http;
 
-import com.kts.kronos.adapter.in.web.dto.CompanyListResponse;
-import com.kts.kronos.adapter.in.web.dto.CompanyResponse;
-import com.kts.kronos.adapter.in.web.dto.CreateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.UpdateCompanyRequest;
+import com.kts.kronos.adapter.in.web.dto.company.CompanyListResponse;
+import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
+import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.app.port.in.usecase.CompanyUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +18,7 @@ public class CompanyController {
     private final CompanyUseCase useCase;
 
     @PostMapping
-    public ResponseEntity<Void> createCompany(
-            @Valid @RequestBody CreateCompanyRequest dto
-    ) {
+    public ResponseEntity<Void> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -32,7 +30,7 @@ public class CompanyController {
     }
 
     @GetMapping
-    public ResponseEntity<CompanyListResponse> listCompanies(
+    public ResponseEntity<CompanyListResponse> allCompanies(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
         var companies = useCase.listCompanies(active);
@@ -54,6 +52,11 @@ public class CompanyController {
     @PatchMapping("/{cnpj}/deactivate")
     public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
         useCase.deactivateCompany(cnpj);
+        return ResponseEntity.noContent().build();
+    }
+    @PatchMapping("/{cnpj}/activate")
+    public ResponseEntity<Void> activateCompany(@PathVariable String cnpj) {
+        useCase.activateCompany(cnpj);
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/{cnpj}")
