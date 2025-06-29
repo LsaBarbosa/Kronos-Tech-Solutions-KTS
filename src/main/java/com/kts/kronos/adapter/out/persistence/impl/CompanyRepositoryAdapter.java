@@ -3,7 +3,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.CompanyEntity;
 import com.kts.kronos.adapter.out.persistence.SpringDataCompanyRepository;
-import com.kts.kronos.app.port.out.repository.CompanyRepository;
+import com.kts.kronos.application.port.out.repository.CompanyRepository;
 import com.kts.kronos.domain.model.Company;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
