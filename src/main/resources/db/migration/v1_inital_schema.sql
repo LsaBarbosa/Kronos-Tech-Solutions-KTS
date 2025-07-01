@@ -13,13 +13,12 @@ CREATE TABLE IF NOT EXISTS tb_company (
 
 CREATE TABLE IF NOT EXISTS tb_employee (
     employee_id    CHAR(36) PRIMARY KEY NOT NULL,
-    full_name      VARCHAR(50)  NOT NULL,
+    full_name      VARCHAR(200)  NOT NULL,
     cpf            VARCHAR(14)  NOT NULL,
     job_position   VARCHAR(50)  NOT NULL,
     email          VARCHAR(50)  NOT NULL,
-    password       VARCHAR(200) NOT NULL,
-    role           VARCHAR(50)  NOT NULL,
     salary         DOUBLE       NOT NULL,
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
     phone          VARCHAR(15),
     street      VARCHAR(255),
     number      VARCHAR(20),
@@ -48,11 +47,12 @@ CREATE TABLE IF NOT EXISTS tb_user (
     username    VARCHAR(50)  NOT NULL UNIQUE,
     password    VARCHAR(200) NOT NULL,
     role        VARCHAR(50)  NOT NULL,
-    enabled     BOOLEAN      NOT NULL DEFAULT TRUE,
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
     employee_id CHAR(36),
     CONSTRAINT fk_user_employee FOREIGN KEY (employee_id)
         REFERENCES tb_employee(employee_id)
 );
 
+-- Índices importantes
 CREATE INDEX idx_company_cnpj ON tb_company(company_cnpj);
 CREATE INDEX idx_company_name ON tb_company(name_company);
