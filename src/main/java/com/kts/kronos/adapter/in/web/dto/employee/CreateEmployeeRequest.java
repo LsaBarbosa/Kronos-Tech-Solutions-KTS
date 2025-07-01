@@ -12,9 +12,6 @@ public record CreateEmployeeRequest(@NotBlank @Size(max = 50)
                                     String jobPosition,
                                     @NotBlank @Email(message = "Email inválido") @Size(max = 50)
                                     String email,
-                                    @NotBlank(message = "Senha obrigatória")
-                                    @Size(min = 6, message = "Senha deve ter ao menos 6 caracteres")
-                                    String password,
                                     @Positive(message = "Salário deve ser positivo")
                                     double salary, String phone,
                                     @Valid

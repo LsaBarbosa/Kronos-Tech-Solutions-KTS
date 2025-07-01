@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Email;
 public record UpdateEmployeePartnerRequest(
         @Email String email,
         String phone,
-        String password,
         @Valid UpdateAddressRequest address
 
 ) {

@@ -3,7 +3,7 @@ package com.kts.kronos;
 
 import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyCommand;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.repository.AddressLookupPort;
@@ -150,7 +150,7 @@ public class CompanyServiceTest {
 
     @Test
     void updateCompany_success() {
-        var cmd = new UpdateCompanyCommand("NewName", null, null, null);
+        var cmd = new UpdateCompanyRequest("NewName", null, null, null);
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.of(existingCompany));
         var updatedDomain = new Company(companyId, "NewName", cnpj, email, true, existingAddress);
         when(repository.save(any(Company.class))).thenReturn(updatedDomain);
@@ -164,7 +164,7 @@ public class CompanyServiceTest {
 
     @Test
     void updateCompany_notFound_throws() {
-        var cmd = new UpdateCompanyCommand("NewName", null, null, null);
+        var cmd = new UpdateCompanyRequest("NewName", null, null, null);
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.updateCompany(cnpj, cmd));
