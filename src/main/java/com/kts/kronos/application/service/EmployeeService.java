@@ -47,7 +47,6 @@ public class EmployeeService implements EmployeeUseCase {
                 req.cpf(),
                 req.jobPosition(),
                 req.email(),
-                req.password(),
                 req.salary(),
                 req.phone(),
                 address,
@@ -63,6 +62,7 @@ public class EmployeeService implements EmployeeUseCase {
                 : employeeRepository.findByActive(active);
     }
     @Override
+
     public Employee getEmployee(UUID employeeId) {
         return employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + employeeId));
@@ -82,7 +82,6 @@ public class EmployeeService implements EmployeeUseCase {
                 req.cpf() != null ? req.cpf() : existing.cpf(),
                 req.jobPosition() != null ? req.jobPosition() : existing.jobPosition(),
                 req.email() != null ? req.email() : existing.email(),
-                existing.password(),
                 req.salary() != null ? req.salary() : existing.salary(),
                 req.phone() != null ? req.phone() : existing.phone(),
                 updateAddress,
@@ -101,7 +100,6 @@ public class EmployeeService implements EmployeeUseCase {
                 existing.cpf(),
                 existing.jobPosition(),
                 existing.email(),
-                existing.password(),
                 existing.salary(),
                 existing.phone(),
                 false,
@@ -121,7 +119,6 @@ public class EmployeeService implements EmployeeUseCase {
                 existing.cpf(),
                 existing.jobPosition(),
                 existing.email(),
-                existing.password(),
                 existing.salary(),
                 existing.phone(),
                 true,
@@ -158,7 +155,6 @@ public class EmployeeService implements EmployeeUseCase {
         }
         var updated = existing
                 .withEmail    (req.email()    != null ? req.email()    : existing.email())
-                .withPassword(req.password() != null ? req.password() : existing.password())
                 .withPhone    (req.phone()    != null ? req.phone()    : existing.phone())
                 .withAddress  (updateAddress);
         employeeRepository.save(updated);

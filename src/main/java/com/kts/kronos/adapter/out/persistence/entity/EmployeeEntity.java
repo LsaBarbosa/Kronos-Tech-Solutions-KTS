@@ -35,9 +35,6 @@ public class EmployeeEntity {
     @Column(name = "email", length = 50, nullable = false)
     private String email;
 
-    @Column(name = "password", length = 200, nullable = false)
-    private String password;
-
     @Column(name = "salary", nullable = false)
     private double salary;
 
@@ -55,7 +52,7 @@ public class EmployeeEntity {
     private UUID companyId;
     public Employee toDomain(){
         return new Employee(
-                employeeId, fullName, cpf, jobPosition, email, password,
+                employeeId, fullName, cpf, jobPosition, email,
                 salary, phone, active, address.toDomain(), companyId
         );
     }
@@ -66,7 +63,6 @@ public class EmployeeEntity {
                 .cpf(employee.cpf())
                 .jobPosition(employee.jobPosition())
                 .email(employee.email())
-                .password(employee.password())
                 .salary(employee.salary())
                 .phone(employee.phone())
                 .active(employee.active())

@@ -8,7 +8,6 @@ public record Employee(
         String cpf,
         String jobPosition,
         String email,
-        String password,
         double salary,
         String phone,
         boolean active,
@@ -17,12 +16,12 @@ public record Employee(
 ) {
     public Employee(
             String fullName, String cpf, String jobPosition,
-            String email, String password, double salary,
+            String email, double salary,
             String phone, Address address, UUID companyId
     ) {
         this(
                 UUID.randomUUID(),
-                fullName, cpf, jobPosition, email, password,
+                fullName, cpf, jobPosition, email,
                 salary, phone, true, address, companyId
         );
     }
@@ -30,28 +29,28 @@ public record Employee(
     public Employee withEmail(String email) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, password, salary, phone, active, address, companyId
+                email, salary, phone, active, address, companyId
+        );
+    }
+    public Employee withActive(boolean active) {
+        return new Employee(
+                employeeId, fullName, cpf, jobPosition,
+                email, salary, phone, active, address, companyId
         );
     }
 
-    public Employee withPassword(String password) {
-        return new Employee(
-                employeeId, fullName, cpf, jobPosition,
-                email, password, salary, phone, active, address, companyId
-        );
-    }
 
     public Employee withPhone(String phone) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, password, salary, phone, active, address, companyId
+                email, salary, phone, active, address, companyId
         );
     }
 
     public Employee withAddress(Address address) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, password, salary, phone, active, address, companyId
+                email, salary, phone, active, address, companyId
         );
     }
 }
