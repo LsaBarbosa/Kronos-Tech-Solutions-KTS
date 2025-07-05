@@ -23,16 +23,19 @@ public class TimeRecordController {
     public void checkin(@Valid @RequestBody CreateTimeRecordRequest request) {
         useCase.checkin(request);
     }
+
     @PostMapping("/checkout")
     @ResponseStatus(HttpStatus.CREATED)
     public void checkout(@Valid @RequestBody CreateTimeRecordRequest request) {
         useCase.checkout(request);
     }
+
     @GetMapping("/report/{employeeId}")
     public List<TimeRecordResponse> report(
             @PathVariable UUID employeeId,
-            @RequestParam String reference
+            @RequestParam String reference,
+            @RequestParam(value = "active", required = false) Boolean active
     ) {
-        return useCase.listReport(employeeId, reference);
+        return useCase.listReport(employeeId, reference,active );
     }
 }

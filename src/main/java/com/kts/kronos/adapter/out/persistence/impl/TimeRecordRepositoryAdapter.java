@@ -44,4 +44,11 @@ public class TimeRecordRepositoryAdapter implements TimeRecordRepository {
                 .map(TimeRecordEntity::toDomain)
                 .toList();
     }
+    @Override
+    public List<TimeRecord> findByEmployeeId(UUID employeeId) {
+        return jpa.findByEmployeeId(employeeId)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 }

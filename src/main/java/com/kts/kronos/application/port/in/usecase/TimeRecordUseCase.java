@@ -9,6 +9,6 @@ import java.util.UUID;
 public interface TimeRecordUseCase {
     void checkin(CreateTimeRecordRequest request);
     void checkout(CreateTimeRecordRequest request);
-    List<TimeRecordResponse> listReport(UUID employeeId, String reference);
+    List<TimeRecordResponse> listReport(UUID employeeId, String reference,Boolean active);
 }
 
