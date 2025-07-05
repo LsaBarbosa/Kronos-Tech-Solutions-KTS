@@ -1,3 +1,5 @@
+create database mydatabase;
+
 CREATE TABLE IF NOT EXISTS tb_company (
     company_id     CHAR(36) PRIMARY KEY NOT NULL,
     name_company   VARCHAR(50)  NOT NULL,
@@ -35,7 +37,7 @@ CREATE TABLE IF NOT EXISTS tb_time_records (
     start_work     TIMESTAMP,
     end_work       TIMESTAMP,
     status_record  VARCHAR(10),
-    is_edite       BOOLEAN       NOT NULL DEFAULT TRUE,
+    is_edite       BOOLEAN       NOT NULL DEFAULT FALSE,
     is_active      BOOLEAN       NOT NULL DEFAULT TRUE,
     employee_id    CHAR(36)    NOT NULL,
     CONSTRAINT fk_time_record_employee FOREIGN KEY (employee_id)
