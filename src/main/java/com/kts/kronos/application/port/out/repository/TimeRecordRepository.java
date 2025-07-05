@@ -11,4 +11,5 @@ public interface TimeRecordRepository {
     Optional<TimeRecord> findTopByEmployeeIdOrderByStartWorkDesc(UUID employeeId);
     Optional<TimeRecord> findOpenByEmployeeId(UUID employeeId);
     List<TimeRecord> findByEmployeeIdAndActive(UUID employeeId, boolean active);
+    List<TimeRecord> findByEmployeeId(UUID employeeId);
 }

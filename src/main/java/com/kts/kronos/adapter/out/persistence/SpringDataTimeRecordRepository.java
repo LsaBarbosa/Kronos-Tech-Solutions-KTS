@@ -21,4 +21,6 @@ public interface SpringDataTimeRecordRepository extends JpaRepository<TimeRecord
     Optional<TimeRecordEntity> findLatestByEmployeeId(@Param("employeeId") UUID employeeId);
     Optional<TimeRecordEntity>  findFirstByEmployeeIdAndEndWorkIsNullOrderByStartWorkDesc(UUID employeeId);
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
+    List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
+
 }

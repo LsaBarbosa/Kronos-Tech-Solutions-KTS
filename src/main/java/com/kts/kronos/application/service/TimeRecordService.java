@@ -74,21 +74,19 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public List<TimeRecordResponse> listReport(UUID employeeId, String reference) {
-        // valida employee
+    public List<TimeRecordResponse> listReport(UUID employeeId, String reference, Boolean active) {
         employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + employeeId));
 
-        // parse da referência "HH:mm" → Duration
         String[] parts = reference.split(":");
-        var refDur = Duration.ofHours(Long.parseLong(parts[0]))
+        Duration refDur = Duration.ofHours(Long.parseLong(parts[0]))
                 .plusMinutes(Long.parseLong(parts[1]));
 
-        // busca todos os registros (pode usar findByEmployeeIdAndActive ou findAll)
-        var records = timeRecordRepo.findByEmployeeIdAndActive(employeeId, true);
+        var recs = active == null
+                ? timeRecordRepo.findByEmployeeId(employeeId)
+                : timeRecordRepo.findByEmployeeIdAndActive(employeeId, active);
 
-        // mapeia p/ report, calculando HH:mm e balance
-        return records.stream()
+        return recs.stream()
                 .map(tr -> TimeRecordResponse.fromDomain(tr, refDur))
                 .toList();
     }
