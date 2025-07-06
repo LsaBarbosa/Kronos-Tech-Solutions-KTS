@@ -1,29 +1,55 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.domain.model.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 public record TimeRecordResponse(
         Long timeRecordId,
+        @JsonFormat(pattern = "dd-MM-yyyy")
         LocalDateTime startWork,
-        LocalDateTime  endWork,
+        String startHour,
+        @JsonFormat(pattern = "dd-MM-yyyy")
+        LocalDateTime endWork,
+        String endHour,
+        String hoursWork,
+        String balance,
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
-        UUID employeeId,
-        String hoursWork,
-        String balance
+        UUID employeeId
 ) {
-    public static TimeRecordResponse fromDomain(TimeRecord tr, Duration reference) {
 
-        var worked = Duration.between(tr.startWork(), tr.endWork());
-        long hours = worked.toHours();
-        long minutes = worked.toMinutes();
-        String hoursWorked = String.format("%02d:%02d",hours,minutes);
+
+    public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
+
+    public static TimeRecordResponse fromDomain(TimeRecord timeRecord, Duration reference) {
+
+        var getStartData = timeRecord.startWork().atZone(SAO_PAULO);
+        var startDate = getStartData.toLocalDateTime();
+        var startHour = startDate.toLocalTime().format(TIME_FORMATTER);
+
+        LocalDateTime endDate = null;
+        String endHour = "";
+        if (timeRecord.endWork() != null) {
+            var getEndData = timeRecord.endWork().atZone(SAO_PAULO);
+            endDate = getEndData.toLocalDateTime();
+            endHour = endDate.toLocalTime().format(TIME_FORMATTER);
+        }
+
+        var worked = timeRecord.endWork() != null
+                ? Duration.between(timeRecord.startWork(), timeRecord.endWork())
+                : Duration.ZERO;
+
+        var hoursWorked = String.format("%02d:%02d",
+                worked.toHours(),
+                worked.toMinutesPart()
+        );
 
         var balance = worked.minus(reference);
         long balanceHours = Math.abs(balance.toHours());
@@ -32,15 +58,17 @@ public record TimeRecordResponse(
         String balanceResult = sign + String.format("%02d:%02d", balanceHours, balanceMinutes);
 
         return new TimeRecordResponse(
-                tr.timeRecordId(),
-                tr.startWork(),
-                tr.endWork(),
-                tr.statusRecord(),
-                tr.edited(),
-                tr.active(),
-                tr.employeeId(),
+                timeRecord.timeRecordId(),
+                startDate,
+                startHour,
+                endDate,
+                endHour,
                 hoursWorked,
-                balanceResult
+                balanceResult,
+                timeRecord.statusRecord(),
+                timeRecord.edited(),
+                timeRecord.active(),
+                timeRecord.employeeId()
         );
     }
 }
