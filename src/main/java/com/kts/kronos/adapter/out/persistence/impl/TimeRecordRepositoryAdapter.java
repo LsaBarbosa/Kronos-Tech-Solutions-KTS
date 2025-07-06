@@ -24,6 +24,12 @@ public class TimeRecordRepositoryAdapter implements TimeRecordRepository {
     }
 
     @Override
+    public Optional<TimeRecord> findById(Long id) {
+        return jpa.findById(id)
+                .map(TimeRecordEntity::toDomain);
+    }
+
+    @Override
     public Optional<TimeRecord> findTopByEmployeeIdOrderByStartWorkDesc(UUID employeeId) {
         return jpa.findLatestByEmployeeId(employeeId)
                 .map(TimeRecordEntity::toDomain);

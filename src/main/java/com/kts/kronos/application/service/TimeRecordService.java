@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -26,12 +28,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void checkin(CreateTimeRecordRequest req) {
-        var employeeId = req.employeeId();
-
-        employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Employee não encontrado: " + employeeId
-                ));
+        var employeeId = getEmployee(req.employeeId());
 
         if (timeRecordRepo.findOpenByEmployeeId(employeeId).isPresent()) {
             throw new BadRequestException("Check-out obrigatório antes de novo check-in");
@@ -55,15 +52,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void checkout(CreateTimeRecordRequest req) {
-        UUID empId = req.employeeId();
-        employeeRepository.findById(empId)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + empId));
-
-        TimeRecord open = timeRecordRepo.findOpenByEmployeeId(empId)
+        var employeeId = getEmployee(req.employeeId());
+        var open = timeRecordRepo.findOpenByEmployeeId(employeeId)
                 .orElseThrow(() -> new BadRequestException("Nenhum registro de check-in pendente encontrado"));
 
         var now = LocalDateTime.now(SAO_PAULO);
-        TimeRecord updated = open
+        var updated = open
                 .withCheckout(now)
                 .withStatus(StatusRecord.CREATED);
 
@@ -71,9 +65,47 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
+    public TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req) {
+        getEmployee(req.employeeId());
+
+        var existing = timeRecordRepo.findById(req.timeRecordId()).
+                orElseThrow(() -> new ResourceNotFoundException(
+                "TimeRecord não encontrado: " + req.timeRecordId()));
+
+        if (!existing.employeeId().equals(req.employeeId())) {
+            throw new BadRequestException("Registro não pertence ao funcionário informado");
+        }
+
+        var timeFormatt = DateTimeFormatter.ofPattern("HH:mm");
+        var start = LocalDateTime.of(
+                req.startDate(),
+                LocalTime.parse(req.startHour(),timeFormatt));
+        var end = LocalDateTime.of(
+                req.endDate(),
+                LocalTime.parse(req.endHour(), timeFormatt));
+
+        var now =LocalDateTime.now(SAO_PAULO);
+        if (start.isAfter(now) || end.isAfter(now)) {
+            throw new BadRequestException("Não é possível usar data/hora futura");
+        }
+
+        if (req.startDate().equals(req.endDate()) &&
+                LocalTime.parse(req.startHour(), timeFormatt).isAfter(LocalTime.parse(req.endHour(), timeFormatt))) {
+            throw new BadRequestException(
+                    "Hora de início não pode ser posterior que hora final na mesma data");
+        }
+        var updated = existing
+                .withCheckin(start)
+                .withCheckout(end)
+                .withEdited(true)
+                .withStatus(StatusRecord.UPDATED);
+        var saved = timeRecordRepo.save(updated);
+        return TimeRecordResponse.fromDomain(saved, Duration.ZERO);
+    }
+
+    @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, String reference, Boolean active, StatusRecord status, LocalDate[] dates) {
-        employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + employeeId));
+        getEmployee(employeeId);
 
         String[] parts = reference.split(":");
         var duration = Duration.ofHours(Long.parseLong(parts[0]))
@@ -96,6 +128,12 @@ public class TimeRecordService implements TimeRecordUseCase {
         return records.stream()
                 .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration))
                 .toList();
+    }
+
+    private UUID getEmployee(UUID uuid) {
+        employeeRepository.findById(uuid)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + uuid));
+        return uuid;
     }
 
 }

@@ -39,6 +39,10 @@ public record TimeRecord(
     public TimeRecord withActive(boolean isActive) {
         return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, isActive, employeeId);
     }
+
+    public TimeRecord withEdited(boolean edited) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId);
+    }
     public TimeRecord withStatus(StatusRecord status) {
         return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId);
     }
