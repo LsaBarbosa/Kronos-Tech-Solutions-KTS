@@ -2,12 +2,14 @@ package com.kts.kronos.adapter.in.web.http;
 
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
 import com.kts.kronos.domain.model.StatusRecord;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
@@ -18,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/time-records")
+@RequestMapping("/records")
 @RequiredArgsConstructor
 public class TimeRecordController {
     private final TimeRecordUseCase useCase;
@@ -34,6 +36,15 @@ public class TimeRecordController {
     public void checkout(@Valid @RequestBody CreateTimeRecordRequest request) {
         useCase.checkout(request);
     }
+
+    @PutMapping("/update/time-record")
+    public ResponseEntity<TimeRecordResponse> updateTimeRecord(
+            @Valid @RequestBody UpdateTimeRecordRequest req
+    ){
+        var updated = useCase.updateTimeRecord(req);
+        return ResponseEntity.ok(updated);
+    }
+
 
     @GetMapping("/report/{employeeId}")
     public List<TimeRecordResponse> report(
