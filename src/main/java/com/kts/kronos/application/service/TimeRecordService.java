@@ -10,20 +10,17 @@ import com.kts.kronos.application.port.out.repository.TimeRecordRepository;
 import com.kts.kronos.domain.model.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.*;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class TimeRecordService implements TimeRecordUseCase {
-
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
     private final TimeRecordRepository timeRecordRepo;
     private final EmployeeRepository employeeRepository;
 
@@ -40,10 +37,10 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Check-out obrigatório antes de novo check-in");
         }
 
-        var nowSp = getLocalDateTime();
+        var now = LocalDateTime.now(SAO_PAULO);
         TimeRecord tr = new TimeRecord(
                 null,
-                nowSp,
+                now,
                 null,
                 StatusRecord.PENDING,
                 false,
@@ -65,7 +62,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         TimeRecord open = timeRecordRepo.findOpenByEmployeeId(empId)
                 .orElseThrow(() -> new BadRequestException("Nenhum registro de check-in pendente encontrado"));
 
-        var now = getLocalDateTime();
+        var now = LocalDateTime.now(SAO_PAULO);
         TimeRecord updated = open
                 .withCheckout(now)
                 .withStatus(StatusRecord.CREATED);
@@ -74,24 +71,31 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public List<TimeRecordResponse> listReport(UUID employeeId, String reference, Boolean active) {
+    public List<TimeRecordResponse> listReport(UUID employeeId, String reference, Boolean active, StatusRecord status, LocalDate[] dates) {
         employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + employeeId));
 
         String[] parts = reference.split(":");
-        Duration refDur = Duration.ofHours(Long.parseLong(parts[0]))
+        var duration = Duration.ofHours(Long.parseLong(parts[0]))
                 .plusMinutes(Long.parseLong(parts[1]));
 
-        var recs = active == null
+        var records = active == null
                 ? timeRecordRepo.findByEmployeeId(employeeId)
                 : timeRecordRepo.findByEmployeeIdAndActive(employeeId, active);
 
-        return recs.stream()
-                .map(tr -> TimeRecordResponse.fromDomain(tr, refDur))
+        if (status != null) {
+            records = records.stream().filter(record -> record.statusRecord() == status).toList();
+        }
+        if (dates != null && dates.length > 0) {
+            var dateList = Arrays.asList(dates);
+            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
+            records = records.stream()
+                    .filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())
+                    ).toList();
+        }
+        return records.stream()
+                .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration))
                 .toList();
     }
 
-    private static LocalDateTime getLocalDateTime() {
-        return LocalDateTime.now(ZoneId.of("America/Sao_Paulo"));
-    }
 }
