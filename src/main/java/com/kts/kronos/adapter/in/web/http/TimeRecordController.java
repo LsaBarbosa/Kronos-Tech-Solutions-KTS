@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
 import com.kts.kronos.domain.model.StatusRecord;
@@ -40,9 +41,16 @@ public class TimeRecordController {
     @PutMapping("/update/time-record")
     public ResponseEntity<TimeRecordResponse> updateTimeRecord(
             @Valid @RequestBody UpdateTimeRecordRequest req
-    ){
+    ) {
         var updated = useCase.updateTimeRecord(req);
         return ResponseEntity.ok(updated);
+    }
+
+    @PutMapping("/update/status")
+    public void updateStatus(
+            @Valid @RequestBody UpdateTimeRecordStatusRequest req
+    ) {
+        useCase.updateStatus(req);
     }
 
 

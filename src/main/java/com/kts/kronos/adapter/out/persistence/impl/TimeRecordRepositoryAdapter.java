@@ -7,6 +7,7 @@ import com.kts.kronos.domain.model.TimeRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,5 +57,12 @@ public class TimeRecordRepositoryAdapter implements TimeRecordRepository {
                 .stream()
                 .map(TimeRecordEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date) {
+        var dayStart = date.atStartOfDay();
+        var dayEnd   = date.atTime(23, 59, 59);
+        return jpa.existsByEmployeeIdAndDate(employeeId, dayStart, dayEnd);
     }
 }
