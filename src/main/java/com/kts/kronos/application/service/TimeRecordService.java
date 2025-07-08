@@ -1,8 +1,6 @@
 package com.kts.kronos.application.service;
 
-import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
@@ -59,7 +57,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var now = LocalDateTime.now(SAO_PAULO);
         var updated = open
                 .withCheckout(now)
-                .withStatus(StatusRecord.CREATED);
+                .withStatus(open.statusRecord().onCheckout());
 
         timeRecordRepo.save(updated);
     }
@@ -98,7 +96,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withCheckin(start)
                 .withCheckout(end)
                 .withEdited(true)
-                .withStatus(StatusRecord.UPDATED);
+                .withStatus(existing.statusRecord().onUpdate());
         var saved = timeRecordRepo.save(updated);
         return TimeRecordResponse.fromDomain(saved, Duration.ZERO);
     }
@@ -130,10 +128,28 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .toList();
     }
 
+    @Override
+    public void updateStatus(UpdateTimeRecordStatusRequest req) {
+        getEmployee(req.employeeId());
+
+        var existing = timeRecordRepo.findById(req.timeRecordId()).
+                orElseThrow(() -> new ResourceNotFoundException(
+                        "TimeRecord não encontrado: " + req.timeRecordId()));
+
+        if (!existing.employeeId().equals(req.employeeId())) {
+            throw new BadRequestException("Registro não pertence ao funcionário informado");
+        }
+        var updateStatus = existing
+                .withStatus(req.statusRecord());
+        timeRecordRepo.save(updateStatus);
+    }
+
+
     private UUID getEmployee(UUID uuid) {
         employeeRepository.findById(uuid)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + uuid));
         return uuid;
+
     }
 
 }
