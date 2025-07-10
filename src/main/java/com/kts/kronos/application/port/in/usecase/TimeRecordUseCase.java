@@ -14,6 +14,7 @@ public interface TimeRecordUseCase {
     void toggleActivate(ToggleActivate toggleActivate);
     SimpleReportResponse reportResumido(SimpleReportRequest req);
     TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req);
+    void deleteTimeRecord(DeleteTimeRecordRequest req);
     List<TimeRecordResponse> listReport(UUID employeeId,
                                         String reference,
                                         Boolean active,

@@ -76,4 +76,14 @@ public class TimeRecordController {
         var resp = useCase.reportResumido(request);
         return ResponseEntity.ok(resp);
     }
+
+    @DeleteMapping("records/{employeeId}/{timeRecordId}")
+    public ResponseEntity<Void> deleteTimeRecord(
+            @PathVariable UUID employeeId,
+            @PathVariable Long timeRecordId
+    ) {
+        var req = new DeleteTimeRecordRequest(employeeId, timeRecordId);
+        useCase.deleteTimeRecord(req);
+        return ResponseEntity.noContent().build();
+    }
 }
