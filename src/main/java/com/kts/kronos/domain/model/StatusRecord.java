@@ -18,7 +18,7 @@ public enum StatusRecord {
     }
 
     public StatusRecord onUpdate() {
-        if (this == CREATED || this == UPDATED) {
+        if (this == CREATED || this == UPDATED || this == PENDING) {
             return UPDATED;
         }
         throw new IllegalStateException(

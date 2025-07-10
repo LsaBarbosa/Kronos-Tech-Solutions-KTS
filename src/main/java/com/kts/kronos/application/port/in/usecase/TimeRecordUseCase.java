@@ -11,6 +11,8 @@ public interface TimeRecordUseCase {
     void checkin(CreateTimeRecordRequest request);
     void checkout(CreateTimeRecordRequest request);
     void updateStatus(UpdateTimeRecordStatusRequest request);
+    void toggleActivate(ToggleActivate toggleActivate);
+    SimpleReportResponse reportResumido(SimpleReportRequest req);
     TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req);
     List<TimeRecordResponse> listReport(UUID employeeId,
                                         String reference,

@@ -1,11 +1,8 @@
 package com.kts.kronos.adapter.in.web.http;
 
 
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
 import com.kts.kronos.domain.model.StatusRecord;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,8 +48,15 @@ public class TimeRecordController {
         useCase.updateStatus(req);
     }
 
+    @PutMapping("/update/toggle-activate")
+    public void deactivate(
+            @Valid @RequestBody ToggleActivate toggleActivate
+    ) {
+        useCase.toggleActivate(toggleActivate);
+    }
 
-    @GetMapping("/report/{employeeId}")
+
+    @GetMapping("/report/total/{employeeId}")
     public List<TimeRecordResponse> report(
             @PathVariable UUID employeeId,
             @RequestParam String reference,
@@ -65,5 +67,13 @@ public class TimeRecordController {
             LocalDate[] dates
     ) {
         return useCase.listReport(employeeId, reference, active, status, dates);
+    }
+
+    @GetMapping("/report/simple")
+    public ResponseEntity<SimpleReportResponse> simpleReport(
+            @Valid @RequestBody SimpleReportRequest request
+    ) {
+        var resp = useCase.reportResumido(request);
+        return ResponseEntity.ok(resp);
     }
 }
