@@ -36,6 +36,12 @@ public class TimeRecordRepositoryAdapter implements TimeRecordRepository {
                 .map(TimeRecordEntity::toDomain);
     }
 
+    @Override
+    public void deleteTimeRecord(TimeRecord timeRecord) {
+        var entity = TimeRecordEntity.fromDomain(timeRecord);
+        jpa.delete(entity);
+    }
+
 
     @Override
     public Optional<TimeRecord> findOpenByEmployeeId(UUID employeeId) {

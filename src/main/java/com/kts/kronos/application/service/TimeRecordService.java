@@ -64,9 +64,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req) {
         getEmployee(req.employeeId());
 
-        var existing = timeRecordRepo.findById(req.timeRecordId()).
-                orElseThrow(() -> new ResourceNotFoundException(
-                        "TimeRecord não encontrado: " + req.timeRecordId()));
+        var existing = getTimeRecord(req.timeRecordId());
 
         if (!existing.employeeId().equals(req.employeeId())) {
             throw new BadRequestException("Registro não pertence ao funcionário informado");
@@ -97,6 +95,18 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withStatus(existing.statusRecord().onUpdate());
         var saved = timeRecordRepo.save(updated);
         return TimeRecordResponse.fromDomain(saved, Duration.ZERO);
+    }
+
+    @Override
+    public void deleteTimeRecord(DeleteTimeRecordRequest req) {
+        getEmployee(req.employeeId());
+        var existing = getTimeRecord(req.timeRecordId());
+
+        if (!existing.employeeId().equals(req.employeeId())) {
+            throw new BadRequestException(
+                    "Registro não pertence ao funcionário informado");
+        }
+        timeRecordRepo.deleteTimeRecord(existing);
     }
 
     @Override
@@ -136,10 +146,11 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Registro não pertence ao funcionário informado");
         }
 
-        TimeRecord  toggle = existing.withActive(!existing.active());
+        TimeRecord toggle = existing.withActive(!existing.active());
 
         timeRecordRepo.save(toggle);
     }
+
     @Override
     public void updateStatus(UpdateTimeRecordStatusRequest req) {
         getEmployee(req.employeeId());
@@ -262,6 +273,12 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + uuid));
         return uuid;
 
+    }
+
+    private TimeRecord getTimeRecord(Long timeRecordId) {
+        return timeRecordRepo.findById(timeRecordId).
+                orElseThrow(() -> new ResourceNotFoundException(
+                        "TimeRecord não encontrado: " + timeRecordId));
     }
 
     private static Duration getDuration(String reference) {
