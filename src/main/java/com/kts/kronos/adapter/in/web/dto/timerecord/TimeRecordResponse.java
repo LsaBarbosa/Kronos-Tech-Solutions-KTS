@@ -51,11 +51,18 @@ public record TimeRecordResponse(
                 worked.toMinutesPart()
         );
 
-        var balance = worked.minus(reference);
-        long balanceHours = Math.abs(balance.toHours());
-        long balanceMinutes = Math.abs(balance.toMinutesPart());
-        String sign = balance.isNegative() ? "-" : "+";
-        String balanceResult = sign + String.format("%02d:%02d", balanceHours, balanceMinutes);
+        String balanceStr;
+        if (timeRecord.statusRecord() == StatusRecord.DAY_OFF || timeRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT) {
+            balanceStr = "+00:00";
+        } else {
+            Duration work = Duration.between(timeRecord.startWork(), timeRecord.endWork());
+            Duration balance = work.minus(reference);
+            String sign = balance.isNegative() ? "-" : "+";
+            balanceStr = sign + String.format("%02d:%02d",
+                    Math.abs(balance.toHours()),
+                    Math.abs(balance.toMinutesPart()));
+        }
+
 
         return new TimeRecordResponse(
                 timeRecord.timeRecordId(),
@@ -64,7 +71,7 @@ public record TimeRecordResponse(
                 endDate,
                 endHour,
                 hoursWorked,
-                balanceResult,
+                balanceStr,
                 timeRecord.statusRecord(),
                 timeRecord.edited(),
                 timeRecord.active(),
