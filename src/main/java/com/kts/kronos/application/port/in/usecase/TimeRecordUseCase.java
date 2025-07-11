@@ -12,9 +12,9 @@ public interface TimeRecordUseCase {
     void checkout(CreateTimeRecordRequest request);
     void updateStatus(UpdateTimeRecordStatusRequest request);
     void toggleActivate(ToggleActivate toggleActivate);
+    void deleteTimeRecord(DeleteTimeRecordRequest req);
     SimpleReportResponse reportResumido(SimpleReportRequest req);
     TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req);
-    void deleteTimeRecord(DeleteTimeRecordRequest req);
     List<TimeRecordResponse> listReport(UUID employeeId,
                                         String reference,
                                         Boolean active,

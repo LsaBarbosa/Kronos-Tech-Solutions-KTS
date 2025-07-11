@@ -4,5 +4,6 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
-public record CreateTimeRecordRequest(@NotNull(message = "Employee ID é obrigatório") UUID employeeId
+public record CreateTimeRecordRequest(
+        @NotNull(message = "Employee ID é obrigatório") UUID employeeId
 ) {}
