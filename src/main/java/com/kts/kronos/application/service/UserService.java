@@ -23,6 +23,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public void createUser(CreateUserRequest req) {
+
         if (userRepository.findByUsername(req.username()).isPresent()) {
             throw new BadRequestException("Username já existe");
         }
