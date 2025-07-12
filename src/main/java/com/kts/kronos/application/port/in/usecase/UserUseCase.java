@@ -15,7 +15,7 @@ public interface UserUseCase {
     List<User> listUsers(Boolean enabled);
     void updateUser(UUID userId, UpdateUserRequest req);
     void deleteUser(UUID userId);
-    void activateUser(UUID userId);
-    void deactivateUser(UUID userId);
+    void toggleActivate(UUID userId);
+
 
 }

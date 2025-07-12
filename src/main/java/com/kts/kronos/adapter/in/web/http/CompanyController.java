@@ -48,16 +48,12 @@ public class CompanyController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{cnpj}/deactivate")
+    @PatchMapping("/{cnpj}/toggle-activate")
     public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
-        useCase.deactivateCompany(cnpj);
+        useCase.toggleActivate(cnpj);
         return ResponseEntity.noContent().build();
     }
-    @PatchMapping("/{cnpj}/activate")
-    public ResponseEntity<Void> activateCompany(@PathVariable String cnpj) {
-        useCase.activateCompany(cnpj);
-        return ResponseEntity.noContent().build();
-    }
+
     @DeleteMapping("/{cnpj}")
     public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
