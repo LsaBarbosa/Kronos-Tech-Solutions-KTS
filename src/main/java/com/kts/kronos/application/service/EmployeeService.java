@@ -23,12 +23,10 @@ import java.util.UUID;
 public class EmployeeService implements EmployeeUseCase {
 
     private final EmployeeRepository employeeRepository;
-    private final CompanyRepository companyRepository;      // para buscar Company
-    private final AddressLookupPort viaCep; // para lookup de CEP
-    // private final PasswordEncoder encoder;  // para hashear senha
+    private final CompanyRepository companyRepository;
+    private final AddressLookupPort viaCep;
 
     // MANAGER
-
     @Override
     public void createEmployee(CreateEmployeeRequest req) {
         if (employeeRepository.findByCpf(req.cpf()).isPresent())
@@ -61,6 +59,7 @@ public class EmployeeService implements EmployeeUseCase {
                 ? employeeRepository.findAll()
                 : employeeRepository.findByActive(active);
     }
+
     @Override
 
     public Employee getEmployee(UUID employeeId) {
@@ -91,44 +90,6 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     @Override
-    public void deactivateEmployee(UUID employeeId) {
-        var existing = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colaborador não encontrado"));
-        var updated = new Employee(
-                existing.employeeId(),
-                existing.fullName(),
-                existing.cpf(),
-                existing.jobPosition(),
-                existing.email(),
-                existing.salary(),
-                existing.phone(),
-                false,
-                existing.address(),
-                existing.companyId()
-        );
-        employeeRepository.save(updated);
-    }
-
-    @Override
-    public void activateEmployee(UUID employeeId) {
-        var existing = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colaborador não encontrado"));
-        var updated = new Employee(
-                existing.employeeId(),
-                existing.fullName(),
-                existing.cpf(),
-                existing.jobPosition(),
-                existing.email(),
-                existing.salary(),
-                existing.phone(),
-                true,
-                existing.address(),
-                existing.companyId()
-        );
-        employeeRepository.save(updated);
-    }
-
-    @Override
     public void deleteEmployee(UUID id) {
         if (employeeRepository.findById(id).isEmpty())
             throw new ResourceNotFoundException("Employee não encontrado");
@@ -136,7 +97,6 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     // PARTNER
-
     @Override
     public Employee getOwnProfile(UUID id) {
         return employeeRepository.findById(id)
@@ -154,18 +114,9 @@ public class EmployeeService implements EmployeeUseCase {
             updateAddress = lookup.withNumber(req.address().number());
         }
         var updated = existing
-                .withEmail    (req.email()    != null ? req.email()    : existing.email())
-                .withPhone    (req.phone()    != null ? req.phone()    : existing.phone())
-                .withAddress  (updateAddress);
+                .withEmail(req.email() != null ? req.email() : existing.email())
+                .withPhone(req.phone() != null ? req.phone() : existing.phone())
+                .withAddress(updateAddress);
         employeeRepository.save(updated);
     }
-
-//    @Override
-//    public void recoverPassword(RecoverPasswordRequest req) {
-//        var e = employeeRepository.findByCpf(req.cpf())
-//                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
-//        if (!e.email().equals(req.email()))
-//            throw new BadRequestException("Email não confere");
-//        // lógica de recuperação (e.g. enviar e-mail)
-//    }
 }

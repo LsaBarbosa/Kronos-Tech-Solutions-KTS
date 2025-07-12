@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.out.repository.EmployeeRepository;
 import com.kts.kronos.application.port.out.repository.UserRepository;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.Role;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
+@Transactional
 public class UserService implements UserUseCase {
     private final UserRepository userRepository;
     private final EmployeeRepository employeeRepository;
@@ -89,23 +91,12 @@ public class UserService implements UserUseCase {
     }
 
     @Override
-    public void activateUser(UUID userId) {
+    public void toggleActivate(UUID userId) {
         var existing = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
-        var active = existing.withActive(true);
+        var active = existing.withActive(!existing.active());
         userRepository.save(active);
         employeeRepository.findById(existing.employeeId())
-                .ifPresent(emp -> employeeRepository.save(emp.withActive(true)));
-    }
-
-    @Override
-    public void deactivateUser(UUID userId) {
-        var existing = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
-        var deactiveUser = existing.withActive(false);
-        userRepository.save(deactiveUser);
-
-      employeeRepository.findById(existing.employeeId())
-                .ifPresent(emp -> employeeRepository.save(emp.withActive(false)));
+                .ifPresent(emp -> employeeRepository.save(emp.withActive(!existing.active())));
     }
 }
