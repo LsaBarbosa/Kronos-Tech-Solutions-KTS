@@ -55,14 +55,9 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @PatchMapping("/deactivate/{id}")
-    public ResponseEntity<Void> deactivateUser(@PathVariable UUID id) {
-        useCase.deactivateUser(id);
-        return ResponseEntity.noContent().build();
-    }
-    @PatchMapping("/activate/{id}")
+    @PatchMapping("/toggle-activate/{id}")
     public ResponseEntity<Void> activateUser(@PathVariable UUID id) {
-        useCase.activateUser(id);
+        useCase.toggleActivate(id);
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/{id}")

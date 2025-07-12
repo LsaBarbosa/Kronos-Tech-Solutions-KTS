@@ -175,7 +175,7 @@ public class CompanyServiceTest {
     void deactivateCompany_success() {
         when(repository.findByCnpj(cnpj)).thenReturn(Optional.of(existingCompany));
 
-        service.deactivateCompany(cnpj);
+        service.toggleActivate(cnpj);
 
         var captor = ArgumentCaptor.forClass(Company.class);
         verify(repository).save(captor.capture());
