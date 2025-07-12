@@ -53,18 +53,6 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/deactivate/{id}")
-    public ResponseEntity<Void> deactivateEmployee(@PathVariable UUID id) {
-        useCase.deactivateEmployee(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/activate/{id}")
-    public ResponseEntity<Void> activateEmployee(@PathVariable UUID id) {
-        useCase.activateEmployee(id);
-        return ResponseEntity.noContent().build();
-    }
-
     @DeleteMapping("/{cnpj}")
     public ResponseEntity<Void> deleteCompany(@PathVariable UUID id) {
         useCase.deleteEmployee(id);

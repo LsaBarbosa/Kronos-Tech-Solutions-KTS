@@ -10,7 +10,14 @@ public record Company(
         boolean active,
         Address address
 ) {
-    public Company(String name, String cnpj, String email,  Address address) {
+    public Company(String name, String cnpj, String email, Address address) {
         this(UUID.randomUUID(), name, cnpj, email, true, address);
+    }
+
+    public Company withActive(boolean active) {
+        return new Company(
+                companyId, name, cnpj, email,
+                active, address
+        );
     }
 }
