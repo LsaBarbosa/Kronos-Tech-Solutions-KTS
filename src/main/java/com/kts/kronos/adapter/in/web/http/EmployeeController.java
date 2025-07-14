@@ -33,10 +33,11 @@ public class EmployeeController {
     }
 
     @GetMapping("/{employeeId}")
-    public ResponseEntity<EmployeeResponse> getCompany(@PathVariable UUID employeeId) {
+    public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
+
     @PatchMapping("/manager/update-employee/{employeeId}")
     public ResponseEntity<Void> updateEmployee(@PathVariable UUID employeeId,
                                                @Valid @RequestBody UpdateEmployeeManagerRequest dto
