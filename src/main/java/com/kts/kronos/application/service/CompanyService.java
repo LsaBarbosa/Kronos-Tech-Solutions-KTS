@@ -75,36 +75,15 @@ public class CompanyService implements CompanyUseCase {
     }
 
     @Override
-    public void deactivateCompany(String cnpj) {
+    public void toggleActivate(String cnpj) {
         var existing = getCompany(cnpj);
-        var updated = new Company(
-                existing.companyId(),
-                existing.name(),
-                existing.cnpj(),
-                existing.email(),
-                false,
-                existing.address()
-        );
-        companyRepository.save(updated);
-    }
-
-    @Override
-    public void activateCompany(String cnpj) {
-        var existing = getCompany(cnpj);
-        var updated = new Company(
-                existing.companyId(),
-                existing.name(),
-                existing.cnpj(),
-                existing.email(),
-                true,
-                existing.address()
-        );
-        companyRepository.save(updated);
+        var toggleActivate = existing.withActive(!existing.active());
+        companyRepository.save(toggleActivate);
     }
 
     @Override
     public void deleteByCnpj(String cnpj) {
-        getCompany(cnpj);                              // dispara 404 se não existir
+        getCompany(cnpj);
         companyRepository.deleteByCnpj(cnpj);
     }
 }
