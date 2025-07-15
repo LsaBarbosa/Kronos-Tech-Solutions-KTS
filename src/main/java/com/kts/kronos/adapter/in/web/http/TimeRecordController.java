@@ -7,10 +7,10 @@ import com.kts.kronos.domain.model.StatusRecord;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -73,9 +73,27 @@ public class TimeRecordController {
     public ResponseEntity<SimpleReportResponse> simpleReport(
             @Valid @RequestBody SimpleReportRequest request
     ) {
-        var resp = useCase.reportResumido(request);
+        var resp = useCase.simpleReport(request);
         return ResponseEntity.ok(resp);
     }
+    @GetMapping("report/simple/pdf")
+    public ResponseEntity<byte[]> downloadSimpleReportPdf(
+            @Valid @RequestBody SimpleReportRequest req) throws IOException {
+
+        var resp = useCase.simpleReport(req);
+        byte[] pdfBytes = useCase.simpleReportPDF(resp);
+
+        var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+                ContentDisposition.attachment()
+                        .filename("simple-report.pdf")
+                        .build()
+        );
+
+        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+    }
+
 
     @DeleteMapping("records/{employeeId}/{timeRecordId}")
     public ResponseEntity<Void> deleteTimeRecord(
@@ -86,4 +104,6 @@ public class TimeRecordController {
         useCase.deleteTimeRecord(req);
         return ResponseEntity.noContent().build();
     }
+
+
 }

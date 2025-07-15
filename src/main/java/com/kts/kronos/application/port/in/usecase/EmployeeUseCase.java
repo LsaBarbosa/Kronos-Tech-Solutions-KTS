@@ -14,12 +14,10 @@ public interface EmployeeUseCase {
     List<Employee> listEmployees(Boolean active);
     Employee getEmployee(UUID employeeId);
     void updateEmployee(UUID employeeId, UpdateEmployeeManagerRequest req);
-    void deactivateEmployee(UUID employeeId);
-    void activateEmployee(UUID employeeId);
     void deleteEmployee(UUID employeeId);
 
     // PARTNER
     Employee getOwnProfile(UUID employeeId);
     void updateOwnProfile(UUID employeeId, UpdateEmployeePartnerRequest req);
-    //void recoverPassword(RecoverPasswordRequest req);
+
 }
