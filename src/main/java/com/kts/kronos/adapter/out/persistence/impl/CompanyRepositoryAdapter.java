@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @RequiredArgsConstructor
 @Component
@@ -34,6 +35,12 @@ public class CompanyRepositoryAdapter implements CompanyRepository {
                 .stream()
                 .map(CompanyEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Optional<Company> findById(UUID company) {
+        return repository.findById(company).map(CompanyEntity::toDomain);
+
     }
 
     @Override
