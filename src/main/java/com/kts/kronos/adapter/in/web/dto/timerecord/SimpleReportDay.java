@@ -6,7 +6,8 @@ import java.time.LocalDate;
 
 public record SimpleReportDay(
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy")
-        LocalDate date,
+        LocalDate startDate,
+        LocalDate endDate,
         String totalHours,
         String balance
 ) {}
