@@ -9,8 +9,7 @@ import java.util.List;
 public interface CompanyUseCase {
     void createCompany(CreateCompanyRequest companyRequest);
     void updateCompany(String cnpj, UpdateCompanyRequest request);
-    void deactivateCompany(String cnpj);
-    void activateCompany(String cnpj);
+    void toggleActivate(String cnpj);
     void deleteByCnpj(String cnpj);
     Company getCompany(String cnpj);
     List<Company> listCompanies(Boolean active);

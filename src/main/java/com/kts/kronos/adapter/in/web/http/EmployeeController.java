@@ -33,10 +33,11 @@ public class EmployeeController {
     }
 
     @GetMapping("/{employeeId}")
-    public ResponseEntity<EmployeeResponse> getCompany(@PathVariable UUID employeeId) {
+    public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
+
     @PatchMapping("/manager/update-employee/{employeeId}")
     public ResponseEntity<Void> updateEmployee(@PathVariable UUID employeeId,
                                                @Valid @RequestBody UpdateEmployeeManagerRequest dto
@@ -50,18 +51,6 @@ public class EmployeeController {
                                                  @Valid @RequestBody UpdateEmployeePartnerRequest dto
     ) {
         useCase.updateOwnProfile(employeeId, dto);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/deactivate/{id}")
-    public ResponseEntity<Void> deactivateEmployee(@PathVariable UUID id) {
-        useCase.deactivateEmployee(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PatchMapping("/activate/{id}")
-    public ResponseEntity<Void> activateEmployee(@PathVariable UUID id) {
-        useCase.activateEmployee(id);
         return ResponseEntity.noContent().build();
     }
 
