@@ -21,14 +21,17 @@ public record TimeRecordResponse(
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
-        UUID employeeId
+        UUID employeeId,
+       EmployeeData employeeData
 ) {
 
 
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
-    public static TimeRecordResponse fromDomain(TimeRecord timeRecord, Duration reference) {
+    public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
+                                                Duration reference,
+                                                EmployeeData employeeData) {
 
         var getStartData = timeRecord.startWork().atZone(SAO_PAULO);
         var startDate = getStartData.toLocalDateTime();
@@ -36,6 +39,7 @@ public record TimeRecordResponse(
 
         LocalDateTime endDate = null;
         String endHour = "";
+
         if (timeRecord.endWork() != null) {
             var getEndData = timeRecord.endWork().atZone(SAO_PAULO);
             endDate = getEndData.toLocalDateTime();
@@ -51,18 +55,17 @@ public record TimeRecordResponse(
                 worked.toMinutesPart()
         );
 
-        String balanceStr;
+        String balanceString;
         if (timeRecord.statusRecord() == StatusRecord.DAY_OFF || timeRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT) {
-            balanceStr = "+00:00";
+            balanceString = "+00:00";
         } else {
-            Duration work = Duration.between(timeRecord.startWork(), timeRecord.endWork());
-            Duration balance = work.minus(reference);
-            String sign = balance.isNegative() ? "-" : "+";
-            balanceStr = sign + String.format("%02d:%02d",
+            var work = Duration.between(timeRecord.startWork(), timeRecord.endWork());
+            var balance = work.minus(reference);
+            var sign = balance.isNegative() ? "-" : "+";
+            balanceString = sign + String.format("%02d:%02d",
                     Math.abs(balance.toHours()),
                     Math.abs(balance.toMinutesPart()));
         }
-
 
         return new TimeRecordResponse(
                 timeRecord.timeRecordId(),
@@ -71,11 +74,13 @@ public record TimeRecordResponse(
                 endDate,
                 endHour,
                 hoursWorked,
-                balanceStr,
+                balanceString,
                 timeRecord.statusRecord(),
                 timeRecord.edited(),
                 timeRecord.active(),
-                timeRecord.employeeId()
+                timeRecord.employeeId(),
+                employeeData
+                
         );
     }
 }
