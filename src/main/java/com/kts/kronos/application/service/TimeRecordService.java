@@ -9,6 +9,7 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -34,6 +35,22 @@ import java.util.stream.Collectors;
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
+    public static final String CHECKIN_EXCEPTION = "Realize a saída antes de realizar uma nova entrada";
+    public static final String IS_RECORD_BELONG_EMPLOYEE = "Registro não pertence ao Colaborador informado";
+    public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
+    public static final String COMPANY_NOT_FOUND = "Empresa não enconrada";
+    public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
+    public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";
+    public static final StatusRecord CREATED = StatusRecord.CREATED;
+    public static final StatusRecord UPDATED = StatusRecord.UPDATED;
+    public static final StatusRecord DAY_OFF = StatusRecord.DAY_OFF;
+    public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
+    public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
+    public static final StatusRecord PENDING = StatusRecord.PENDING;
+    public static final String EMPLOYEE_NOT_FOUND = "Employee não encontrado: ";
     private final TimeRecordRepository recordRepository;
     private final EmployeeRepository employeeRepository;
     private final CompanyRepository companyRepository;
@@ -43,124 +60,105 @@ public class TimeRecordService implements TimeRecordUseCase {
         var employee = getEmployee(req.employeeId());
 
         if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
-            throw new BadRequestException("Check-out obrigatório antes de novo check-in");
+            throw new BadRequestException(CHECKIN_EXCEPTION);
         }
 
-        var now = LocalDateTime.now(SAO_PAULO);
-        TimeRecord tr = new TimeRecord(null, now, null, StatusRecord.PENDING, false, true, employee.employeeId());
-        recordRepository.save(tr);
-
-
+        var record = new TimeRecord(
+                null, TIME_ZONE_BRAZIL, null, PENDING, false, true, employee.employeeId());
+        recordRepository.save(record);
     }
 
     @Override
     public void checkout(CreateTimeRecordRequest req) {
         var employee = getEmployee(req.employeeId());
-        var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException("Nenhum registro de check-in pendente encontrado"));
+        var open = recordRepository.findOpenByEmployeeId(
+                employee.employeeId()).orElseThrow(() -> new BadRequestException("Nenhum registro de check-in pendente encontrado"));
 
-        var now = LocalDateTime.now(SAO_PAULO);
-        var updated = open.withCheckout(now).withStatus(open.statusRecord().onCheckout());
+        var updated = open.withCheckout(TIME_ZONE_BRAZIL).withStatus(open.statusRecord().onCheckout());
 
         recordRepository.save(updated);
     }
 
     @Override
     public TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req) {
-        getEmployee(req.employeeId());
+        var employee = getEmployee(req.employeeId());
+        var employeeData = getEmployeeData(employee.employeeId());
+        var record = getTimeRecord(req.timeRecordId());
 
-        var existing = getTimeRecord(req.timeRecordId());
+        isRecordBelongsEmployee(employee.employeeId(), record);
 
-        if (!existing.employeeId().equals(req.employeeId())) {
-            throw new BadRequestException("Registro não pertence ao funcionário informado");
+        var parseStartTime = LocalTime.parse(req.startHour(), TIME_FORMATTER);
+        var parseEndTime = LocalTime.parse(req.endHour(), TIME_FORMATTER);
+
+        var start = LocalDateTime.of(req.startDate(), parseStartTime);
+        var end = LocalDateTime.of(req.endDate(), parseEndTime);
+
+        if (start.isAfter(TIME_ZONE_BRAZIL) || end.isAfter(TIME_ZONE_BRAZIL)) {
+            throw new BadRequestException(FUTURE_TIME_EXCEPTION);
         }
 
-        var timeFormatt = DateTimeFormatter.ofPattern("HH:mm");
-        var start = LocalDateTime.of(req.startDate(), LocalTime.parse(req.startHour(), timeFormatt));
-        var end = LocalDateTime.of(req.endDate(), LocalTime.parse(req.endHour(), timeFormatt));
-
-        var now = LocalDateTime.now(SAO_PAULO);
-        if (start.isAfter(now) || end.isAfter(now)) {
-            throw new BadRequestException("Não é possível usar data/hora futura");
+        if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
+            throw new BadRequestException(HOURS_EXCEPTIONS);
         }
 
-        if (req.startDate().equals(req.endDate()) && LocalTime.parse(req.startHour(), timeFormatt).isAfter(LocalTime.parse(req.endHour(), timeFormatt))) {
-            throw new BadRequestException("Hora de início não pode ser posterior que hora final na mesma data");
-        }
-        var updated = existing.withCheckin(start).withCheckout(end).withEdited(true).withStatus(existing.statusRecord().onUpdate());
+        var statusUpdate = record.statusRecord().onUpdate();
+
+        var updated = record.withCheckin(start).withCheckout(end).withEdited(true).withStatus(statusUpdate);
         var saved = recordRepository.save(updated);
-        return TimeRecordResponse.fromDomain(saved, Duration.ZERO);
+
+        return TimeRecordResponse.fromDomain(saved, Duration.ZERO, employeeData);
     }
 
     @Override
     public void deleteTimeRecord(DeleteTimeRecordRequest req) {
-        getEmployee(req.employeeId());
-        var existing = getTimeRecord(req.timeRecordId());
+        var employee = getEmployee(req.employeeId());
+        var record = getTimeRecord(req.timeRecordId());
 
-        if (!existing.employeeId().equals(req.employeeId())) {
-            throw new BadRequestException("Registro não pertence ao funcionário informado");
-        }
-        recordRepository.deleteTimeRecord(existing);
+        isRecordBelongsEmployee(employee.employeeId(), record);
+
+        recordRepository.deleteTimeRecord(record);
     }
 
     @Override
-    public List<TimeRecordResponse> listReport(UUID employeeId, String reference, Boolean active, StatusRecord status, LocalDate[] dates) {
-        getEmployee(employeeId);
-        var duration = getDuration(reference);
-        var records = getRecords(employeeId, active);
+    public void toggleActivate(ToggleActivate req) {
+        var employee = getEmployee(req.employeeId());
 
-        if (status != null) {
-            records = records.stream().filter(record -> record.statusRecord() == status).toList();
-        }
-        if (dates != null && dates.length > 0) {
-            var dateList = Arrays.asList(dates);
-            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
-            records = records.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
-        }
-        return records.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration)).toList();
-    }
+        var record = recordRepository.findById(req.timeRecordId())
+                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + req.timeRecordId()));
 
-    @Override
-    public void toggleActivate(ToggleActivate toggleActivate) {
-        getEmployee(toggleActivate.employeeId());
+        isRecordBelongsEmployee(employee.employeeId(), record);
 
-        var existing = recordRepository.findById(toggleActivate.timeRecordId()).orElseThrow(() -> new ResourceNotFoundException("TimeRecord não encontrado: " + toggleActivate.timeRecordId()));
-
-        if (!existing.employeeId().equals(toggleActivate.employeeId())) {
-            throw new BadRequestException("Registro não pertence ao funcionário informado");
-        }
-
-        TimeRecord toggle = existing.withActive(!existing.active());
-
+        var toggle = record.withActive(!record.active());
         recordRepository.save(toggle);
     }
 
     @Override
     public void updateStatus(UpdateTimeRecordStatusRequest req) {
-        getEmployee(req.employeeId());
+      var employee = getEmployee(req.employeeId());
 
-        var existing = recordRepository.findById(req.timeRecordId()).orElseThrow(() -> new ResourceNotFoundException("TimeRecord não encontrado: " + req.timeRecordId()));
+        var record = recordRepository.findById(req.timeRecordId())
+                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + req.timeRecordId()));
 
-        if (!existing.employeeId().equals(req.employeeId())) {
-            throw new BadRequestException("Registro não pertence ao funcionário informado");
-        }
-        var updateStatus = existing.withStatus(req.statusRecord());
+        isRecordBelongsEmployee(employee.employeeId(), record);
+
+        var updateStatus = record.withStatus(req.statusRecord());
         recordRepository.save(updateStatus);
     }
 
     @Override
-    public SimpleReportResponse simpleReport(SimpleReportRequest req) {
-        var employee = getEmployee(req.employeeId());
-      var employeeName = employee.fullName();
-     var company  = companyRepository.findById(employee.companyId()).orElseThrow(()-> new ResourceNotFoundException("Empresa não enconrada"));
-     var companyName = company.name();
+    public SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req) {
+        var employeeData = getEmployeeData(employeeId);
 
         String[] parts = req.reference().split(":");
 
-        var reference = Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
+        var reference = Duration
+                .ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
 
-        var allStatuses = Set.of(StatusRecord.CREATED, StatusRecord.UPDATED, StatusRecord.DAY_OFF, StatusRecord.DOCTOR_APPOINTMENT, StatusRecord.ABSENCE);
+        var allStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
 
-        var recordsById = recordRepository.findByEmployeeIdAndActive(req.employeeId(), true).stream().filter(tr -> allStatuses.contains(tr.statusRecord())).toList();
+        var recordsById = recordRepository
+                .findByEmployeeIdAndActive(employeeId, true).stream().filter(
+                        tr -> allStatuses.contains(tr.statusRecord())).toList();
 
         var dateSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
         recordsById = recordsById.stream().filter(tr -> {
@@ -168,14 +166,16 @@ public class TimeRecordService implements TimeRecordUseCase {
             return dateSet.contains(day);
         }).toList();
 
-        Map<LocalDate, List<TimeRecord>> recordByDay = recordsById.stream().collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(), TreeMap::new, Collectors.toList()));
+        Map<LocalDate, List<TimeRecord>> recordByDay = recordsById.stream().collect(Collectors.groupingBy(
+                tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(), TreeMap::new, Collectors.toList()));
 
         List<SimpleReportDay> days = new ArrayList<>();
         var totalWorked = Duration.ZERO;
         var totalBalance = Duration.ZERO;
 
+
         for (var entry : recordByDay.entrySet()) {
-            var date = entry.getKey();
+            var startDate = entry.getKey();
             List<TimeRecord> entryValueRecords = entry.getValue();
 
             var dailyWorked = entryValueRecords.stream().map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
@@ -183,6 +183,11 @@ public class TimeRecordService implements TimeRecordUseCase {
             Duration dailyBalance;
 
             boolean onlyDayOff = entryValueRecords.stream().allMatch(tr -> tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT);
+
+            var endDate = entryValueRecords.stream()
+                    .map(tr -> tr.endWork().atZone(SAO_PAULO).toLocalDate())
+                    .max(LocalDate::compareTo)
+                    .orElse(startDate);
 
             if (onlyDayOff) {
                 dailyBalance = Duration.ZERO;
@@ -202,18 +207,18 @@ public class TimeRecordService implements TimeRecordUseCase {
             totalWorked = totalWorked.plus(dailyWorked);
             totalBalance = totalBalance.plus(dailyBalance);
 
-            days.add(new SimpleReportDay(date, totalHours, balance));
+            days.add(new SimpleReportDay(startDate, endDate, totalHours, balance));
         }
 
         var finalWorked = String.format("%02d:%02d", totalWorked.toHours(), totalWorked.toMinutesPart());
         var signAll = totalBalance.isNegative() ? "-" : "+";
         var finalBalance = signAll + String.format("%02d:%02d", Math.abs(totalBalance.toHours()), Math.abs(totalBalance.toMinutesPart()));
 
-        return new SimpleReportResponse(employeeName,companyName,days, finalWorked, finalBalance);
+        return new SimpleReportResponse(employeeData.employeeName(), employeeData.companyName(), days, finalWorked, finalBalance);
     }
 
     @Override
-    public byte[] simpleReportPDF(SimpleReportResponse report) {
+    public byte[] simpleReportPDF(UUID employeeId, SimpleReportResponse report) {
         var baos = new ByteArrayOutputStream();
         var writer = new PdfWriter(baos);
         var pdfDoc = new PdfDocument(writer);
@@ -227,18 +232,23 @@ public class TimeRecordService implements TimeRecordUseCase {
         document.add(employee.setFontSize(26).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
 
         float[] columnWidths = {1, 1, 1};
-        var table = new Table(columnWidths)
-                .setPadding(10)
-                .setHorizontalAlignment(HorizontalAlignment.CENTER)
-                .setFontSize(20)
-                .setTextAlignment(TextAlignment.CENTER);
+        var table = new Table(columnWidths).setPadding(5).
+                setHorizontalAlignment(HorizontalAlignment.CENTER)
+                .setFontSize(24).
+                setTextAlignment(TextAlignment.CENTER)
+                .setWidth(UnitValue.createPercentValue(100))
+                .setHorizontalAlignment(HorizontalAlignment.CENTER);
 
         table.addHeaderCell(new Cell().add(new Paragraph("Data")));
         table.addHeaderCell(new Cell().add(new Paragraph("Horas Trabalhadas")));
         table.addHeaderCell(new Cell().add(new Paragraph("Saldo")));
 
         for (SimpleReportDay day : report.days()) {
-            table.addCell(day.date().format(DATE_FORMATTER));
+            var startDate = day.startDate().format(DATE_FORMATTER);
+            var endDate = day.endDate() != null
+                    ? day.endDate().format(DATE_FORMATTER)
+                    : "";
+            table.addCell(startDate + "\n" + endDate);
             table.addCell(day.totalHours());
             var balance = day.balance();
             var balancePara = new Paragraph(balance);
@@ -267,24 +277,98 @@ public class TimeRecordService implements TimeRecordUseCase {
         return baos.toByteArray();
     }
 
-    private Employee getEmployee(UUID uuid) {
-      return   employeeRepository.findById(uuid).orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado: " + uuid));
+    @Override
+    public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
+        var employeeData = getEmployeeData( employeeId);
+        var duration = getDuration(req.reference());
+        var records = getRecords(employeeId, req.active());
 
+        if (req.status() != null) {
+            records = records.stream().filter(record -> record.statusRecord() == req.status()).toList();
+        }
+        if (req.dates() != null && req.dates().length > 0) {
+            var dateList = Arrays.asList(req.dates());
+            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
+            records = records.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
+        }
+        return records.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).toList();
+    }
+
+    @Override
+    public byte[] listReportPDF(List<TimeRecordResponse> records) {
+        var baos = new ByteArrayOutputStream();
+        var writer = new PdfWriter(baos);
+        var pdfDoc = new PdfDocument(writer);
+        var document = new Document(pdfDoc);
+        var title = new Paragraph("Relatório de Horas detalhado");
+        var employeeData = getEmployeeData(records.getLast().employeeId());
+        var employee = new Paragraph("Colaborador: " + employeeData.employeeName());
+        var company = new Paragraph("Empresa: " + employeeData.companyName());
+
+        document.add(title.setFontSize(36).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
+        document.add(company.setFontSize(28).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
+        document.add(employee.setFontSize(28).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
+
+        float[] columnWidths = {1, 1, 1, 1, 1};
+        Table table = new Table(columnWidths).setPadding(5).
+                setHorizontalAlignment(HorizontalAlignment.CENTER)
+                .setFontSize(24).
+                setTextAlignment(TextAlignment.CENTER)
+                .setWidth(UnitValue.createPercentValue(100))
+                .setHorizontalAlignment(HorizontalAlignment.CENTER);
+        table.addHeaderCell(new Cell().add(new Paragraph("Entrada")));
+        table.addHeaderCell(new Cell().add(new Paragraph("Saída")));
+        table.addHeaderCell(new Cell().add(new Paragraph("Status")));
+        table.addHeaderCell(new Cell().add(new Paragraph("Diária")));
+        table.addHeaderCell(new Cell().add(new Paragraph("Saldo")));
+
+        for (TimeRecordResponse tr : records) {
+            table.addCell(tr.startWork().format(DATE_FORMATTER) + "\n" + tr.startWork().format(TIME_FORMATTER)).setFontSize(16);
+            table.addCell(tr.endWork().format(DATE_FORMATTER) + "\n" + tr.endWork().format(TIME_FORMATTER)).setFontSize(16);
+            table.addCell(tr.statusRecord().name()).setFontSize(16);
+            table.addCell(tr.hoursWork()).setFontSize(16);
+
+            var balance = new Paragraph(tr.balance());
+            if (tr.balance().startsWith("+")) {
+                balance.setFontColor(ColorConstants.GREEN);
+            } else if (tr.balance().startsWith("-")) {
+                balance.setFontColor(ColorConstants.RED);
+            }
+            table.addCell(new Cell().add(balance)).setFontSize(16);
+        }
+        document.add(table);
+        document.close();
+        return baos.toByteArray();
 
     }
 
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-
-    private TimeRecord getTimeRecord(Long timeRecordId) {
-        return recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException("TimeRecord não encontrado: " + timeRecordId));
+    private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
+        if (!record.employeeId().equals(employeeId)) {
+            throw new BadRequestException(IS_RECORD_BELONG_EMPLOYEE);
+        }
     }
-
     private static Duration getDuration(String reference) {
         String[] parts = reference.split(":");
         return Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
     }
-
+    private Employee getEmployee(UUID uuid) {
+        return employeeRepository.findById(uuid).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + uuid));
+    }
+    private EmployeeData getEmployeeData(UUID employeeId) {
+        var employee = getEmployee(employeeId);
+        var company = companyRepository.findById(employee.companyId()).orElseThrow(
+                () -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        var employeeName = employee.fullName();
+        var companyName = company.name();
+        return new EmployeeData(employeeName, companyName);
+    }
+    private TimeRecord getTimeRecord(Long timeRecordId) {
+        return recordRepository.findById(timeRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
+    }
     private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
-        return active == null ? recordRepository.findByEmployeeId(employeeId) : recordRepository.findByEmployeeIdAndActive(employeeId, active);
+        return active == null ?
+                recordRepository.findByEmployeeId(employeeId) :
+                recordRepository.findByEmployeeIdAndActive(employeeId, active);
     }
 }
