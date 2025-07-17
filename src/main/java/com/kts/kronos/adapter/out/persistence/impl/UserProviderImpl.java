@@ -1,8 +1,8 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
-import com.kts.kronos.adapter.out.persistence.SpringDataUserRepository;
+import com.kts.kronos.adapter.out.persistence.UserRepository;
 import com.kts.kronos.adapter.out.persistence.entity.UserEntity;
-import com.kts.kronos.application.port.out.repository.UserRepository;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class UserRepositoryAdapter implements UserRepository {
-    private final SpringDataUserRepository jpa;
+public class UserProviderImpl implements UserProvider {
+    private final UserRepository jpa;
 
     @Override
     public User save(User user) {

@@ -1,8 +1,8 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
-import com.kts.kronos.adapter.out.persistence.SpringDataEmployeeRepository;
+import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
-import com.kts.kronos.application.port.out.repository.EmployeeRepository;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @RequiredArgsConstructor
 @Component
-public class EmployeeRepositoryAdapter implements EmployeeRepository {
-    private final SpringDataEmployeeRepository repository;
+public class EmployeeProviderImpl implements EmployeeProvider {
+    private final EmployeeRepository repository;
     @Override
     public Employee save(Employee employee) {
         var entity = EmployeeEntity.fromDomain(employee);

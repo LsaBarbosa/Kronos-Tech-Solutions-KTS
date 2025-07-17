@@ -2,7 +2,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
-import com.kts.kronos.application.port.out.repository.AddressLookupPort;
+import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.domain.model.Address;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,10 +11,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 @Component
-public class ViaCepClientAdapter implements AddressLookupPort {
+public class ViaCepClientImpl implements AddressLookupProvider {
 
     private final WebClient webClient;
-    public ViaCepClientAdapter(WebClient.Builder builder) {
+    public ViaCepClientImpl(WebClient.Builder builder) {
         this.webClient = builder
                 .baseUrl("https://viacep.com.br/ws")
                 .build();

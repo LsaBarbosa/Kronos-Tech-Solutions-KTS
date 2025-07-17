@@ -1,7 +1,7 @@
 package com.kts.kronos.application.scheduler;
 
-import com.kts.kronos.application.port.out.repository.EmployeeRepository;
-import com.kts.kronos.application.port.out.repository.TimeRecordRepository;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
@@ -19,8 +19,8 @@ import java.util.UUID;
 public class DayOffScheduler {
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
-    private final EmployeeRepository empRepo;
-    private final TimeRecordRepository trRepo;
+    private final EmployeeProvider empRepo;
+    private final TimeRecordProvider trRepo;
 
     @Scheduled(cron = "0 59 23 * * *", zone = "America/Sao_Paulo")
     public void ensureDayOffRecords() {

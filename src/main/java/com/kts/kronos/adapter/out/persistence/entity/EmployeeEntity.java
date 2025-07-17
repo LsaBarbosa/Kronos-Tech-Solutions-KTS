@@ -42,7 +42,7 @@ public class EmployeeEntity {
     private String phone;
 
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    private final boolean active = true;
 
     @Embedded
     private AddressEmbeddable address;
@@ -50,6 +50,7 @@ public class EmployeeEntity {
     @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
     @JdbcTypeCode(SqlTypes.CHAR)
     private UUID companyId;
+
     public Employee toDomain(){
         return new Employee(
                 employeeId, fullName, cpf, jobPosition, email,
@@ -65,7 +66,6 @@ public class EmployeeEntity {
                 .email(employee.email())
                 .salary(employee.salary())
                 .phone(employee.phone())
-                .active(employee.active())
                 .address(AddressEmbeddable.fromDomain(employee.address()))
                 .companyId(employee.companyId())
                 .build();

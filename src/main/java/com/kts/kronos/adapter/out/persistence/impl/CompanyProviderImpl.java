@@ -2,8 +2,8 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.CompanyEntity;
-import com.kts.kronos.adapter.out.persistence.SpringDataCompanyRepository;
-import com.kts.kronos.application.port.out.repository.CompanyRepository;
+import com.kts.kronos.adapter.out.persistence.CompanyRepository;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.domain.model.Company;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,8 +14,8 @@ import java.util.UUID;
 
 @RequiredArgsConstructor
 @Component
-public class CompanyRepositoryAdapter implements CompanyRepository {
-    private final SpringDataCompanyRepository repository;
+public class CompanyProviderImpl implements CompanyProvider {
+    private final CompanyRepository repository;
 
     @Override
     public Company save(Company company) {

@@ -1,4 +1,4 @@
-package com.kts.kronos.application.port.out.repository;
+package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.TimeRecord;
 
@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface TimeRecordRepository {
+public interface TimeRecordProvider {
     TimeRecord save(TimeRecord timeRecord);
 
     Optional<TimeRecord> findById(Long id);
