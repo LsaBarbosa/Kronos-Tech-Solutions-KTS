@@ -5,8 +5,8 @@ import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
-import com.kts.kronos.application.port.out.repository.EmployeeRepository;
-import com.kts.kronos.application.port.out.repository.UserRepository;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.Role;
 import jakarta.transaction.Transactional;
@@ -20,17 +20,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 public class UserService implements UserUseCase {
-    private final UserRepository userRepository;
-    private final EmployeeRepository employeeRepository;
+    private final UserProvider userProvider;
+    private final EmployeeProvider employeeProvider;
 
     @Override
     public void createUser(CreateUserRequest req) {
 
-        if (userRepository.findByUsername(req.username()).isPresent()) {
+        if (userProvider.findByUsername(req.username()).isPresent()) {
             throw new BadRequestException("Username já existe");
         }
         // valida employee
-        employeeRepository.findById(req.employeeId())
+        employeeProvider.findById(req.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
 
         User u = new User(
@@ -39,36 +39,36 @@ public class UserService implements UserUseCase {
                 Role.valueOf(req.role()),
                 req.employeeId()
         );
-        userRepository.save(u);
+        userProvider.save(u);
     }
 
     @Override
     public User getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
+        return userProvider.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
     }
 
     @Override
     public User getUserById(UUID userId) {
-        return userRepository.findById(userId)
+        return userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + userId));
     }
     @Override
     public User getUserByEmployee(UUID employeeId) {
-        return userRepository.findByEmployeeId(employeeId)
+        return userProvider.findByEmployeeId(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + employeeId));
     }
 
     @Override
     public List<User> listUsers(Boolean active) {
         return active == null
-                ? userRepository.findAll()
-                : userRepository.findByActive(active);
+                ? userProvider.findAll()
+                : userProvider.findByActive(active);
     }
 
     @Override
     public void updateUser(UUID userId, UpdateUserRequest req) {
-        User existing = userRepository.findById(userId)
+        User existing = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
         User updated = new User(
                 userId,
@@ -78,25 +78,25 @@ public class UserService implements UserUseCase {
                 req.enabled() != null ? req.enabled() : existing.active(),
                 existing.employeeId()
         );
-        userRepository.save(updated);
+        userProvider.save(updated);
     }
 
     @Override
     public void deleteUser(UUID userId) {
-        var existing = userRepository.findById(userId)
+        var existing = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
-        userRepository.deleteById(userId);
-        employeeRepository.findById(existing.employeeId())
-                .ifPresent(emp -> employeeRepository.deleteById(emp.employeeId()));
+        userProvider.deleteById(userId);
+        employeeProvider.findById(existing.employeeId())
+                .ifPresent(emp -> employeeProvider.deleteById(emp.employeeId()));
     }
 
     @Override
     public void toggleActivate(UUID userId) {
-        var existing = userRepository.findById(userId)
+        var existing = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
         var active = existing.withActive(!existing.active());
-        userRepository.save(active);
-        employeeRepository.findById(existing.employeeId())
-                .ifPresent(emp -> employeeRepository.save(emp.withActive(!existing.active())));
+        userProvider.save(active);
+        employeeProvider.findById(existing.employeeId())
+                .ifPresent(emp -> employeeProvider.save(emp.withActive(!existing.active())));
     }
 }
