@@ -6,9 +6,9 @@ import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
-import com.kts.kronos.application.port.out.repository.AddressLookupPort;
-import com.kts.kronos.application.port.out.repository.CompanyRepository;
-import com.kts.kronos.application.port.out.repository.EmployeeRepository;
+import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,20 +22,20 @@ import java.util.UUID;
 @Transactional
 public class EmployeeService implements EmployeeUseCase {
 
-    private final EmployeeRepository employeeRepository;
-    private final CompanyRepository companyRepository;
-    private final AddressLookupPort viaCep;
+    private final EmployeeProvider employeeProvider;
+    private final CompanyProvider companyProvider;
+    private final AddressLookupProvider viaCep;
 
     // MANAGER
     @Override
     public void createEmployee(CreateEmployeeRequest req) {
-        if (employeeRepository.findByCpf(req.cpf()).isPresent())
+        if (employeeProvider.findByCpf(req.cpf()).isPresent())
             throw new BadRequestException("CPF já cadastrado");
 
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
 
-        var company = companyRepository.findByCnpj(req.companyCnpj())
+        var company = companyProvider.findByCnpj(req.companyCnpj())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Empresa não encontrada para o CNPJ: " + req.companyCnpj()
                 ));
@@ -50,33 +50,33 @@ public class EmployeeService implements EmployeeUseCase {
                 address,
                 company.companyId()
         );
-        employeeRepository.save(employee);
+        employeeProvider.save(employee);
     }
 
     @Override
     public List<Employee> listEmployees(Boolean active) {
         return active == null
-                ? employeeRepository.findAll()
-                : employeeRepository.findByActive(active);
+                ? employeeProvider.findAll()
+                : employeeProvider.findByActive(active);
     }
 
     @Override
 
     public Employee getEmployee(UUID employeeId) {
-        return employeeRepository.findById(employeeId)
+        return employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + employeeId));
     }
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
-        var existing = employeeRepository.findById(id)
+        var existing = employeeProvider.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
         var updateAddress = existing.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
             updateAddress = lookup.withNumber(req.address().number());
         }
-        Employee updatedEmployee = new Employee(
+        var updatedEmployee = new Employee(
                 req.fullName() != null ? req.fullName() : existing.fullName(),
                 req.cpf() != null ? req.cpf() : existing.cpf(),
                 req.jobPosition() != null ? req.jobPosition() : existing.jobPosition(),
@@ -86,26 +86,26 @@ public class EmployeeService implements EmployeeUseCase {
                 updateAddress,
                 existing.companyId()
         );
-        employeeRepository.save(updatedEmployee);
+        employeeProvider.save(updatedEmployee);
     }
 
     @Override
     public void deleteEmployee(UUID id) {
-        if (employeeRepository.findById(id).isEmpty())
+        if (employeeProvider.findById(id).isEmpty())
             throw new ResourceNotFoundException("Employee não encontrado");
-        employeeRepository.deleteById(id);
+        employeeProvider.deleteById(id);
     }
 
     // PARTNER
     @Override
     public Employee getOwnProfile(UUID id) {
-        return employeeRepository.findById(id)
+        return employeeProvider.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
     }
 
     @Override
     public void updateOwnProfile(UUID id, UpdateEmployeePartnerRequest req) {
-        var existing = employeeRepository.findById(id)
+        var existing = employeeProvider.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
 
         var updateAddress = existing.address();
@@ -117,6 +117,6 @@ public class EmployeeService implements EmployeeUseCase {
                 .withEmail(req.email() != null ? req.email() : existing.email())
                 .withPhone(req.phone() != null ? req.phone() : existing.phone())
                 .withAddress(updateAddress);
-        employeeRepository.save(updated);
+        employeeProvider.save(updated);
     }
 }

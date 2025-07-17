@@ -1,4 +1,4 @@
-package com.kts.kronos.application.port.out.repository;
+package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.Company;
 
@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface CompanyRepository {
+public interface CompanyProvider {
     Company save(Company company);
     Optional<Company> findByCnpj(String cnpj);
     List<Company> findAll();
