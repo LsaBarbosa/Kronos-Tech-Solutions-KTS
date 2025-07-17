@@ -1,8 +1,8 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
-import com.kts.kronos.adapter.out.persistence.SpringDataTimeRecordRepository;
+import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
-import com.kts.kronos.application.port.out.repository.TimeRecordRepository;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.TimeRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,8 +14,8 @@ import java.util.UUID;
 
 @RequiredArgsConstructor
 @Component
-public class TimeRecordRepositoryAdapter implements TimeRecordRepository {
-    private final SpringDataTimeRecordRepository jpa;
+public class TimeRecordProviderImpl implements TimeRecordProvider {
+    private final TimeRecordRepository jpa;
 
     @Override
     public TimeRecord save(TimeRecord tr) {

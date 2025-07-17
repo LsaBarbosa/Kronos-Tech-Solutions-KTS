@@ -6,8 +6,8 @@ import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
-import com.kts.kronos.application.port.out.repository.AddressLookupPort;
-import com.kts.kronos.application.port.out.repository.CompanyRepository;
+import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.service.CompanyService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
@@ -29,12 +29,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class CompanyServiceTest {
     @Mock
-    private CompanyRepository repository;
+    private CompanyProvider repository;
 
     @InjectMocks
     private CompanyService service;
     @Mock
-    private AddressLookupPort viaCep;
+    private AddressLookupProvider viaCep;
     private UUID companyId;
     private String name;
     private String cnpj;
