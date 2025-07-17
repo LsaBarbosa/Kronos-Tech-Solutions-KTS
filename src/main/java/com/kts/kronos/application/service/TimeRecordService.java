@@ -14,9 +14,9 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.application.port.out.repository.CompanyRepository;
-import com.kts.kronos.application.port.out.repository.EmployeeRepository;
-import com.kts.kronos.application.port.out.repository.TimeRecordRepository;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
@@ -51,9 +51,9 @@ public class TimeRecordService implements TimeRecordUseCase {
     public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
     public static final StatusRecord PENDING = StatusRecord.PENDING;
     public static final String EMPLOYEE_NOT_FOUND = "Employee não encontrado: ";
-    private final TimeRecordRepository recordRepository;
-    private final EmployeeRepository employeeRepository;
-    private final CompanyRepository companyRepository;
+    private final TimeRecordProvider recordRepository;
+    private final EmployeeProvider employeeProvider;
+    private final CompanyProvider companyProvider;
 
     @Override
     public void checkin(CreateTimeRecordRequest req) {
@@ -352,11 +352,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         return Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
     }
     private Employee getEmployee(UUID uuid) {
-        return employeeRepository.findById(uuid).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + uuid));
+        return employeeProvider.findById(uuid).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + uuid));
     }
     private EmployeeData getEmployeeData(UUID employeeId) {
         var employee = getEmployee(employeeId);
-        var company = companyRepository.findById(employee.companyId()).orElseThrow(
+        var company = companyProvider.findById(employee.companyId()).orElseThrow(
                 () -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         var employeeName = employee.fullName();
         var companyName = company.name();

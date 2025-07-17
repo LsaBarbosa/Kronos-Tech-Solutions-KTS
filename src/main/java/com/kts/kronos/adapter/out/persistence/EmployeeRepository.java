@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface SpringDataEmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
+public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
     Optional<EmployeeEntity> findByEmployeeIdAndActiveTrue(UUID employeeId);
     Optional<EmployeeEntity> findByCpf(String cpf);
     List<EmployeeEntity> findByActiveTrue();
