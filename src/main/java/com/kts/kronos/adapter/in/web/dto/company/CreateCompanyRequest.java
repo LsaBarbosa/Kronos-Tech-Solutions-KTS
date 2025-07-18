@@ -6,16 +6,22 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
+import static com.kts.kronos.constants.Messages.MUST_HAVE_14_CHARACTERES;
+import static com.kts.kronos.constants.Messages.COMPANY_NAME_NOT_BLANK;
+import static com.kts.kronos.constants.Messages.CNPJ_NOT_BLANK;
+import static com.kts.kronos.constants.Messages.EMAIL_NOT_BLANK;
+import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
+
 public record CreateCompanyRequest (
-        @NotBlank(message = "O nome da empresa é obrigatório")
+        @NotBlank(message = COMPANY_NAME_NOT_BLANK)
         String name,
 
-        @NotBlank(message = "O CNPJ é obrigatório")
-        @Pattern(regexp = "\\d{14}", message = "CNPJ deve conter exatamente 14 dígitos numéricos")
+        @NotBlank(message = CNPJ_NOT_BLANK)
+        @Pattern(regexp = "\\d{14}", message = MUST_HAVE_14_CHARACTERES)
         String cnpj,
 
-        @NotBlank(message = "O e-mail é obrigatório")
-        @Email(message = "Formato de e-mail inválido")
+        @NotBlank(message = EMAIL_NOT_BLANK)
+        @Email(message = INVALID_EMAIL_FORMAT)
         String email,
 
         @Valid AddressRequest address

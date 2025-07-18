@@ -1,12 +1,10 @@
 package com.kts.kronos.adapter.in.web.http;
 
 
-import com.kts.kronos.adapter.in.web.dto.timerecord.CreateTimeRecordRequest;
+
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.ToggleActivate;
-import com.kts.kronos.adapter.in.web.dto.timerecord.DeleteTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportResponse;
@@ -50,36 +48,37 @@ public class TimeRecordController {
 
     @PostMapping(CHECKIN)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkin(@Valid @RequestBody CreateTimeRecordRequest req) {
-        useCase.checkin(req);
+    public void checkin(@PathVariable UUID employeeId) {
+        useCase.checkin(employeeId);
     }
 
     @PostMapping(CHECKOUT)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkout(@Valid @RequestBody CreateTimeRecordRequest req) {
-        useCase.checkout(req);
+    public void checkout(@PathVariable UUID employeeId) {
+        useCase.checkout(employeeId);
     }
 
     @PutMapping(UPDATE_TIME_RECORD)
-    public ResponseEntity<TimeRecordResponse> updateTimeRecord(@Valid @RequestBody UpdateTimeRecordRequest req) {
-        var updated = useCase.updateTimeRecord(req);
+    public ResponseEntity<TimeRecordResponse> updateTimeRecord(@PathVariable UUID employeeId,
+                                                               @PathVariable Long timeRecordId,
+                                                               @Valid @RequestBody UpdateTimeRecordRequest req) {
+        var updated = useCase.updateTimeRecord(employeeId,timeRecordId,req);
         return ResponseEntity.ok(updated);
     }
 
     @PutMapping(UPDATE_STATUS)
-    public void updateStatus(@Valid @RequestBody UpdateTimeRecordStatusRequest req) {
-        useCase.updateStatus(req);
+    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId,@Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+        useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
-    public void toggleActivate(@PathVariable Long timeRecordId, @Valid @RequestBody ToggleActivate toggleActivate) {
-        useCase.toggleActivate(toggleActivate,timeRecordId );
+    public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+        useCase.toggleActivate(employeeId,timeRecordId );
     }
 
     @DeleteMapping(DELETE_RECORD)
     public ResponseEntity<Void> deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
-        var req = new DeleteTimeRecordRequest(employeeId, timeRecordId);
-        useCase.deleteTimeRecord(req);
+        useCase.deleteTimeRecord(employeeId,timeRecordId );
         return ResponseEntity.noContent().build();
     }
 
