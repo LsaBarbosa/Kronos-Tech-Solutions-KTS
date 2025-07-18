@@ -15,12 +15,42 @@ public class Messages {
     public static final String USER_NOT_FOUND = "Usuário não encontrado";
     public static final String DOCUMENT_NOT_FOUND = "Documento não encontrado";
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
+    public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
 
     //400
     public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     public static final String DOCUMENT_AND_EMPLOYEE_NOT_SAME = "Documento não pertence ao Colaborador";
     public static final String USERNAME_ALREADY_EXIST = "Username já existe";
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
+    public static final String CHECKIN_EXCEPTION = "Realize a saída antes de realizar uma nova entrada";
+    public static final String CHECKOUT_EXCEPTION = "Realize a entrada antes de realizar uma nova saída";
+    public static final String IS_RECORD_BELONG_EMPLOYEE = "Registro não pertence ao Colaborador informado";
+    public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
+    public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";
+    public static final String ADDRESS_NUMBER = "O Número é obrigatório";
+    public static final String MUST_HAVE_8_CHARACTERES = "Deve ter exatamente 8 dígitos";
+    public static final String MUST_HAVE_11_CHARACTERES = "Deve ter exatamente 11 dígitos";
+    public static final String MUST_HAVE_14_CHARACTERES = "Deve ter exatamente 14 dígitos";
+    public static final String MUST_HAVE_50_CHARACTERES = "Deve ter até 50 dígitos";
+    public static final String MUST_HAVE_200_CHARACTERES = "Deve ter até 200 dígitos";
+    public static final String POSTAL_CODE_NOT_BLANK = "O CEP é obrigatório";
+    public static final String COMPANY_NAME_NOT_BLANK = "O nome da empresa é obrigatório";
+    public static final String EMPLOYEE_NAME_NOT_BLANK = "O nome do colaborador é obrigatório";
+    public static final String JOB_POSITION_NOT_BLANK = "O cargo do colaborador é obrigatório";
+    public static final String ID_NOT_BLANK = "ID é obrigatório";
+    public static final String CNPJ_NOT_BLANK = "O CNPJ é obrigatório";
+    public static final String CPF_NOT_BLANK = "O CPF é obrigatório";
+    public static final String EMAIL_NOT_BLANK = "O Email é obrigatório";
+    public static final String INVALID_EMAIL_FORMAT = "O deve ter o formato correto: 'email@dominio.com' ";
+    public static final String SALARY_MUST_BE_POSITIVE = "Salário deve ser positivo";
+    public static final String DATE_NOT_NULL = "Data do registro é obrigatória";
+    public static final String TIME_NOT_NULL = "Hora de início é obrigatória";
+    public static final String INVALID_FORMAT = "Formato inválido: use HH:mm";
+    public static final String STATUS_NOT_BLANK = "Status é obrigatório";
+    public static final String USERNAME_NOT_BLANK = "Username é obrigatório";
+    public static final String PASSWORD_NOT_BLANK = "Senha é obrigatória";
+    public static final String ROLE_NOT_BLANK = "Role é obrigatória";
+    public static final String INVALID_ROLE = "Role inválida";
 
     //500
     public static final String INTERNAL_SERVER_ERROR = "Erro inesperado";
@@ -30,11 +60,6 @@ public class Messages {
     public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-    public static final String CHECKIN_EXCEPTION = "Realize a saída antes de realizar uma nova entrada";
-    public static final String IS_RECORD_BELONG_EMPLOYEE = "Registro não pertence ao Colaborador informado";
-    public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
-    public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
-    public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";
 
     //Status
     public static final StatusRecord CREATED = StatusRecord.CREATED;

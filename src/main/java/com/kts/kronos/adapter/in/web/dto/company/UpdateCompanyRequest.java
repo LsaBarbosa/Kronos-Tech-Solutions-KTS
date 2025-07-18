@@ -5,12 +5,15 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 
+import static com.kts.kronos.constants.Messages.MUST_HAVE_50_CHARACTERES;
+import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
+
 public record UpdateCompanyRequest(
-        @Size(max = 50, message = "O nome deve ter no máximo 50 caracteres")
+        @Size(max = 50, message = MUST_HAVE_50_CHARACTERES)
         String name,
 
-        @Email(message = "Formato de e-mail inválido")
-        @Size(max = 50, message = "O e-mail deve ter no máximo 50 caracteres")
+        @Email(message = INVALID_EMAIL_FORMAT)
+        @Size(max = 50, message = MUST_HAVE_50_CHARACTERES)
         String email,
 
         Boolean active,
