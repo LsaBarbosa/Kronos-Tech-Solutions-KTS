@@ -10,13 +10,17 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import static com.kts.kronos.constants.ApiPaths.API_VIA_CEP;
+import static com.kts.kronos.constants.Messages.INTERNAL_SERVER_ERROR;
+import static com.kts.kronos.constants.Messages.ZIPCODE_NOT_FOUND;
+
 @Component
 public class ViaCepClientImpl implements AddressLookupProvider {
 
     private final WebClient webClient;
     public ViaCepClientImpl(WebClient.Builder builder) {
         this.webClient = builder
-                .baseUrl("https://viacep.com.br/ws")
+                .baseUrl(API_VIA_CEP)
                 .build();
     }
 
@@ -30,7 +34,7 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     .block();
 
             if (resp == null || Boolean.TRUE.equals(resp.erro)) {
-                throw new ResourceNotFoundException("CEP não encontrado: " + postalCode);
+                throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
             }
             return new Address(
                     resp.logradouro,
@@ -40,9 +44,9 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     resp.uf
             );
         } catch (WebClientResponseException.NotFound e) {
-            throw new ResourceNotFoundException("CEP não encontrado: " + postalCode);
+            throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
         } catch (Exception e) {
-            throw new InternalError("Erro ao consultar ViaCEP: " + e.getMessage());
+            throw new InternalError(INTERNAL_SERVER_ERROR+ e.getMessage());
         }
     }
 

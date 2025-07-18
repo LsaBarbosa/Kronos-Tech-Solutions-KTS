@@ -9,7 +9,7 @@ public interface TimeRecordUseCase {
     void checkout(CreateTimeRecordRequest request);
     void updateStatus(UpdateTimeRecordStatusRequest request);
     void deleteTimeRecord(DeleteTimeRecordRequest req);
-    void toggleActivate(ToggleActivate toggleActivate);
+    void toggleActivate(ToggleActivate toggleActivate, Long timeRecordId);
     SimpleReportResponse simpleReport(UUID employeeId,SimpleReportRequest req);
     byte[] simpleReportPDF(UUID employeeId,SimpleReportResponse report);
     TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req);

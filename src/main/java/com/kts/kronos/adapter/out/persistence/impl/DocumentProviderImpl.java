@@ -10,16 +10,17 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import static com.kts.kronos.constants.Messages.DOCUMENT_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
+
 @RequiredArgsConstructor
 @Component
 public class DocumentProviderImpl implements DocumentProvider {
-    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
-    public static final String DOCUMENT_NOT_FOUND = "Documento não encontrado";
+
     private final DocumentRepository repository;
 
     @Override
