@@ -17,10 +17,10 @@ public class UserProviderImpl implements UserProvider {
     private final UserRepository jpa;
 
     @Override
-    public User save(User user) {
-        UserEntity entity = UserEntity.fromDomain(user);
-        UserEntity saved  = jpa.save(entity);
-        return saved.toDomain();
+    public void save(User user) {
+        var entity = UserEntity.fromDomain(user);
+        var saved  = jpa.save(entity);
+         saved.toDomain();
     }
 
     @Override

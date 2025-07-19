@@ -93,7 +93,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public TimeRecordResponse updateTimeRecord(UUID employeeId, Long timeRecordId, UpdateTimeRecordRequest req) {
+    public void updateTimeRecord(UUID employeeId, Long timeRecordId, UpdateTimeRecordRequest req) {
         var employee = getEmployee(employeeId);
         var employeeData = getEmployeeData(employee.employeeId());
         var record = getTimeRecord(timeRecordId);
@@ -117,9 +117,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         var statusUpdate = record.statusRecord().onUpdate();
 
         var updated = record.withCheckin(start).withCheckout(end).withEdited(true).withStatus(statusUpdate);
-        var saved = recordRepository.save(updated);
+        recordRepository.save(updated);
 
-        return TimeRecordResponse.fromDomain(saved, Duration.ZERO, employeeData);
     }
 
     @Override
