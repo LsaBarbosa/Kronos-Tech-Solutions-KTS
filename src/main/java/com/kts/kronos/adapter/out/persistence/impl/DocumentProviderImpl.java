@@ -70,7 +70,7 @@ public class DocumentProviderImpl implements DocumentProvider {
        var doc =  findById(documentId);
 
        if (!doc.employeeId().equals(employee.getEmployeeId())){
-           throw new BadRequestException(DOCUMENT_NOT_BELONGS__EMPLOYEE);
+           throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
        }
 
        documentRepository.deleteById(doc.documentId());
