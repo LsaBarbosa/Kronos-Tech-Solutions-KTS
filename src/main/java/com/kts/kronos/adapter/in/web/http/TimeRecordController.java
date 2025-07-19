@@ -1,7 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
 
-
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
@@ -25,6 +24,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+
 import static com.kts.kronos.constants.ApiPaths.RECORDS;
 import static com.kts.kronos.constants.ApiPaths.CHECKIN;
 import static com.kts.kronos.constants.ApiPaths.CHECKOUT;
@@ -59,27 +59,28 @@ public class TimeRecordController {
     }
 
     @PutMapping(UPDATE_TIME_RECORD)
-    public ResponseEntity<TimeRecordResponse> updateTimeRecord(@PathVariable UUID employeeId,
-                                                               @PathVariable Long timeRecordId,
-                                                               @Valid @RequestBody UpdateTimeRecordRequest req) {
-        var updated = useCase.updateTimeRecord(employeeId,timeRecordId,req);
-        return ResponseEntity.ok(updated);
+    @ResponseStatus(HttpStatus.OK)
+    public void updateTimeRecord(@PathVariable UUID employeeId,
+                                 @PathVariable Long timeRecordId,
+                                 @Valid @RequestBody UpdateTimeRecordRequest req) {useCase.updateTimeRecord(employeeId, timeRecordId, req);
     }
 
     @PutMapping(UPDATE_STATUS)
-    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId,@Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+    @ResponseStatus(HttpStatus.OK)
+    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
+    @ResponseStatus(HttpStatus.OK)
     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
-        useCase.toggleActivate(employeeId,timeRecordId );
+        useCase.toggleActivate(employeeId, timeRecordId);
     }
 
     @DeleteMapping(DELETE_RECORD)
-    public ResponseEntity<Void> deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
-        useCase.deleteTimeRecord(employeeId,timeRecordId );
-        return ResponseEntity.noContent().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+        useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
 
     @GetMapping(REPORT)
@@ -88,7 +89,7 @@ public class TimeRecordController {
     }
 
     @GetMapping(REPORT_PDF)
-    public ResponseEntity<byte[]> reportPdf(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req){
+    public ResponseEntity<byte[]> reportPdf(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req) {
 
         var records = useCase.listReport(employeeId, req);
         byte[] pdf = useCase.listReportPDF(records);

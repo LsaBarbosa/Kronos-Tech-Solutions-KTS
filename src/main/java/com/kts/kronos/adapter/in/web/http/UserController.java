@@ -9,15 +9,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
+
 import static com.kts.kronos.constants.ApiPaths.USER;
 import static com.kts.kronos.constants.ApiPaths.USERS;
 import static com.kts.kronos.constants.ApiPaths.USER_BY_USERNAME;
@@ -36,9 +29,9 @@ public class UserController {
     private final UserUseCase useCase;
 
     @PostMapping
-    public ResponseEntity<Void> registerUser(@Valid @RequestBody CreateUserRequest dto) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @GetMapping(USER_BY_USERNAME)
@@ -63,23 +56,20 @@ public class UserController {
     }
 
     @PatchMapping(UPDATE_USER)
-    public ResponseEntity<Void> updateUser(
-            @PathVariable UUID userId,
-            @Valid @RequestBody UpdateUserRequest dto
-    ) {
+    @ResponseStatus(HttpStatus.OK)
+    public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
-        return ResponseEntity.ok().build();
     }
 
     @PatchMapping(TOGGLE_ACTIVATE_USER)
-    public ResponseEntity<Void> activateUser(@PathVariable UUID id) {
+    @ResponseStatus(HttpStatus.OK)
+    public void activateUser(@PathVariable UUID id) {
         useCase.toggleActivate(id);
-        return ResponseEntity.noContent().build();
     }
     @DeleteMapping(DELETE_USER)
-    public ResponseEntity<Void> deleteCompany(@PathVariable UUID id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCompany(@PathVariable UUID id) {
         useCase.deleteUser(id);
-        return ResponseEntity.noContent().build();
     }
 
 }

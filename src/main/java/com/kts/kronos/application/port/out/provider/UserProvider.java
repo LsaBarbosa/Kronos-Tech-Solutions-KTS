@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserProvider {
-    User save(User user);
+    void save(User user);
     Optional<User> findByUsername(String username);
     Optional<User> findById(UUID userId);
     List<User> findAll();
