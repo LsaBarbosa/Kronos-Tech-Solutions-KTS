@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
 import static com.kts.kronos.constants.Messages.POSTAL_CODE_NOT_BLANK;
-import static com.kts.kronos.constants.Messages.ADDRESS_NUMBER;
+import static com.kts.kronos.constants.Messages.ADDRESS_NUMBER_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.MUST_HAVE_8_CHARACTERES;
 
 public record UpdateAddressRequest(
@@ -12,7 +12,7 @@ public record UpdateAddressRequest(
         @Pattern(regexp = "\\d{8}", message = MUST_HAVE_8_CHARACTERES)
         String postalCode,
 
-        @NotBlank(message = ADDRESS_NUMBER)
+        @NotBlank(message = ADDRESS_NUMBER_NOT_BLANK)
         String number
 ) {
 }

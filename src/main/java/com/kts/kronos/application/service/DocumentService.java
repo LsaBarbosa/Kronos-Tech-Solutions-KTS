@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 
-import static com.kts.kronos.constants.Messages.DOCUMENT_AND_EMPLOYEE_NOT_SAME;
+import static com.kts.kronos.constants.Messages.DOCUMENT_NOT_BELONGS__EMPLOYEE;
 import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
 import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
 
@@ -50,7 +50,7 @@ public class DocumentService implements DocumentUseCase {
                .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
        if (!doc.employeeId().equals(employee.employeeId())){
-           throw new BadRequestException(DOCUMENT_AND_EMPLOYEE_NOT_SAME);
+           throw new BadRequestException(DOCUMENT_NOT_BELONGS__EMPLOYEE);
        }
        return doc;
     }

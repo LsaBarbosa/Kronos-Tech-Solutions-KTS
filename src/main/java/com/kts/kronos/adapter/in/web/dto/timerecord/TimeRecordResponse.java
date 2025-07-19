@@ -8,15 +8,14 @@ import java.time.*;
 
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
-import static com.kts.kronos.constants.Messages.SAO_PAULO;
+import static com.kts.kronos.constants.Messages.*;
 
 public record TimeRecordResponse(
         Long timeRecordId,
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern = DATE_PATTERN)
         LocalDateTime startWork,
         String startHour,
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern = DATE_PATTERN)
         LocalDateTime endWork,
         String endHour,
         String hoursWork,
@@ -27,7 +26,6 @@ public record TimeRecordResponse(
         UUID employeeId,
        EmployeeData employeeData
 ) {
-
 
 
 

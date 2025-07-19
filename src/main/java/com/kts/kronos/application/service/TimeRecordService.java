@@ -47,7 +47,7 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
 import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
 import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
-import static com.kts.kronos.constants.Messages.IS_RECORD_BELONG_EMPLOYEE;
+import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
 import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
 import static com.kts.kronos.constants.Messages.FUTURE_TIME_EXCEPTION;
 import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
@@ -357,7 +357,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
-            throw new BadRequestException(IS_RECORD_BELONG_EMPLOYEE);
+            throw new BadRequestException(RECORD_NOT_BELONGS_EMPLOYEE);
         }
     }
     private static Duration getDuration(String reference) {

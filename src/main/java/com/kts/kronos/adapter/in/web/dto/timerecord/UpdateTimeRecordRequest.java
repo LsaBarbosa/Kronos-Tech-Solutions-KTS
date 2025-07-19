@@ -9,15 +9,16 @@ import java.time.LocalDate;
 
 import static com.kts.kronos.constants.Messages.DATE_NOT_NULL;
 import static com.kts.kronos.constants.Messages.TIME_NOT_NULL;
+import static com.kts.kronos.constants.Messages.DATE_PATTERN;
 import static com.kts.kronos.constants.Messages.INVALID_FORMAT;
 
 public record UpdateTimeRecordRequest(
         @NotNull(message = DATE_NOT_NULL)
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern = DATE_PATTERN)
         LocalDate startDate,
 
         @NotNull(message = DATE_NOT_NULL)
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern =DATE_PATTERN)
         LocalDate endDate,
 
         @NotBlank(message = TIME_NOT_NULL)
