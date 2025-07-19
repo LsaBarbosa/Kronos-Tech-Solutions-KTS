@@ -14,13 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
+import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class CompanyService implements CompanyUseCase {
 
-    public static final String COMPANY_NOT_FOUND = "Empresa não encontrada: ";
-    public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
 
@@ -54,21 +55,21 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void updateCompany(String cnpj, UpdateCompanyRequest request) {
-        var existing = companyProvider.findByCnpj(cnpj)
+        var company = companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        var updateAddress = existing.address();
+        var updateAddress = company.address();
         if (request.address() != null) {
             var lookup = viaCep.lookup(request.address().postalCode());
             updateAddress = lookup.withNumber(request.address().number());
         }
 
-        Company updatedCompany = new Company(
-                existing.companyId(),
-                request.name() != null ? request.name() : existing.name(),
-                existing.cnpj(),
-                request.email() != null ? request.email() : existing.email(),
-                request.active() != null ? request.active() : existing.active(),
+        var updatedCompany = new Company(
+                company.companyId(),
+                request.name() != null ? request.name() : company.name(),
+                company.cnpj(),
+                request.email() != null ? request.email() : company.email(),
+                request.active() != null ? request.active() : company.active(),
                 updateAddress
         );
         companyProvider.save(updatedCompany);
@@ -76,8 +77,8 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void toggleActivate(String cnpj) {
-        var existing = getCompany(cnpj);
-        var toggleActivate = existing.withActive(!existing.active());
+        var company = getCompany(cnpj);
+        var toggleActivate = company.withActive(!company.active());
         companyProvider.save(toggleActivate);
     }
 

@@ -2,6 +2,8 @@ package com.kts.kronos.domain.model;
 
 import java.util.Objects;
 
+import static com.kts.kronos.constants.Messages.POSTAL_CODE_NOT_BLANK;
+
 public record Address(String street,
                       String number,
                       String postalCode,
@@ -9,7 +11,7 @@ public record Address(String street,
                       String state) {
 
     public Address{
-        Objects.requireNonNull(postalCode,"cep não pode ser nulo");
+        Objects.requireNonNull(postalCode,POSTAL_CODE_NOT_BLANK);
     }
     public Address withNumber(String number) {
         return new Address(street, number, postalCode, city, state);

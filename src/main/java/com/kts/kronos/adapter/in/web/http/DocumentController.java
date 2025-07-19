@@ -9,7 +9,14 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -17,8 +24,12 @@ import java.net.URI;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.ApiPaths.DOCUMENTS;
+import static com.kts.kronos.constants.ApiPaths.DOCUMENT_ID;
+
+
 @RestController
-@RequestMapping("/documents/{employeeId}")
+@RequestMapping(DOCUMENTS)
 @RequiredArgsConstructor
 public class DocumentController {
     private final DocumentUseCase useCase;
@@ -52,7 +63,7 @@ public class DocumentController {
                 DocumentResponse::fromDomain).toList()));
     }
 
-    @GetMapping("/{documentId}")
+    @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
             @PathVariable UUID employeeId,
             @PathVariable UUID documentId

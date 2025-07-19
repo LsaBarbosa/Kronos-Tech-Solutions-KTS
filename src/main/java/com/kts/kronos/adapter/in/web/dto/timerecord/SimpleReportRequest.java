@@ -5,8 +5,10 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
 
+import static com.kts.kronos.constants.Messages.DATE_PATTERN;
+
 public record SimpleReportRequest(
         @NotNull String reference,
-        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = DATE_PATTERN)
         LocalDate[] dates
 ){}

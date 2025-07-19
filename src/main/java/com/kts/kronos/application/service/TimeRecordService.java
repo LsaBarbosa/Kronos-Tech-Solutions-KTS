@@ -25,39 +25,52 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.time.ZoneId;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.time.LocalDateTime;
+import java.time.LocalDate;
+
+import java.util.UUID;
+import java.util.Set;
+import java.util.Arrays;
+import java.util.TreeMap;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.List;
 import java.util.stream.Collectors;
+
+import static com.kts.kronos.constants.Messages.CHECKIN_EXCEPTION;
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
+import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
+import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
+import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
+import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
+import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.FUTURE_TIME_EXCEPTION;
+import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
+import static com.kts.kronos.constants.Messages.CREATED;
+import static com.kts.kronos.constants.Messages.UPDATED;
+import static com.kts.kronos.constants.Messages.DAY_OFF;
+import static com.kts.kronos.constants.Messages.DOCTOR_APPOINTMENT;
+import static com.kts.kronos.constants.Messages.ABSENCE;
+import static com.kts.kronos.constants.Messages.CHECKOUT_EXCEPTION;
+import static com.kts.kronos.constants.Messages.PENDING;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
-    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
-    public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
-    public static final String CHECKIN_EXCEPTION = "Realize a saída antes de realizar uma nova entrada";
-    public static final String IS_RECORD_BELONG_EMPLOYEE = "Registro não pertence ao Colaborador informado";
-    public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
-    public static final String COMPANY_NOT_FOUND = "Empresa não enconrada";
-    public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
-    public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";
-    public static final StatusRecord CREATED = StatusRecord.CREATED;
-    public static final StatusRecord UPDATED = StatusRecord.UPDATED;
-    public static final StatusRecord DAY_OFF = StatusRecord.DAY_OFF;
-    public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
-    public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
-    public static final StatusRecord PENDING = StatusRecord.PENDING;
-    public static final String EMPLOYEE_NOT_FOUND = "Employee não encontrado: ";
+
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
 
     @Override
-    public void checkin(CreateTimeRecordRequest req) {
-        var employee = getEmployee(req.employeeId());
+    public void checkin(UUID employeeId) {
+        var employee = getEmployee(employeeId);
 
         if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
             throw new BadRequestException(CHECKIN_EXCEPTION);
@@ -69,10 +82,10 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void checkout(CreateTimeRecordRequest req) {
-        var employee = getEmployee(req.employeeId());
+    public void checkout(UUID employeeId) {
+        var employee = getEmployee(employeeId);
         var open = recordRepository.findOpenByEmployeeId(
-                employee.employeeId()).orElseThrow(() -> new BadRequestException("Nenhum registro de check-in pendente encontrado"));
+                employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
 
         var updated = open.withCheckout(TIME_ZONE_BRAZIL).withStatus(open.statusRecord().onCheckout());
 
@@ -80,10 +93,10 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public TimeRecordResponse updateTimeRecord(UpdateTimeRecordRequest req) {
-        var employee = getEmployee(req.employeeId());
+    public TimeRecordResponse updateTimeRecord(UUID employeeId, Long timeRecordId, UpdateTimeRecordRequest req) {
+        var employee = getEmployee(employeeId);
         var employeeData = getEmployeeData(employee.employeeId());
-        var record = getTimeRecord(req.timeRecordId());
+        var record = getTimeRecord(timeRecordId);
 
         isRecordBelongsEmployee(employee.employeeId(), record);
 
@@ -110,9 +123,9 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void deleteTimeRecord(DeleteTimeRecordRequest req) {
-        var employee = getEmployee(req.employeeId());
-        var record = getTimeRecord(req.timeRecordId());
+    public void deleteTimeRecord(UUID employeeId, Long recordId) {
+        var employee = getEmployee(employeeId);
+        var record = getTimeRecord(recordId);
 
         isRecordBelongsEmployee(employee.employeeId(), record);
 
@@ -120,11 +133,11 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void toggleActivate(ToggleActivate req) {
-        var employee = getEmployee(req.employeeId());
+    public void toggleActivate(UUID employeeId, Long timeRecordId) {
+        var employee = getEmployee(employeeId);
 
-        var record = recordRepository.findById(req.timeRecordId())
-                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + req.timeRecordId()));
+        var record = recordRepository.findById(timeRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
         isRecordBelongsEmployee(employee.employeeId(), record);
 
@@ -133,11 +146,11 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void updateStatus(UpdateTimeRecordStatusRequest req) {
-      var employee = getEmployee(req.employeeId());
+    public void updateStatus(UUID employeeId, Long timeRecordId,UpdateTimeRecordStatusRequest req) {
+      var employee = getEmployee(employeeId);
 
-        var record = recordRepository.findById(req.timeRecordId())
-                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + req.timeRecordId()));
+        var record = recordRepository.findById(timeRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
         isRecordBelongsEmployee(employee.employeeId(), record);
 
@@ -344,7 +357,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
-            throw new BadRequestException(IS_RECORD_BELONG_EMPLOYEE);
+            throw new BadRequestException(RECORD_NOT_BELONGS_EMPLOYEE);
         }
     }
     private static Duration getDuration(String reference) {

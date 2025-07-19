@@ -13,26 +13,28 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+
+
+import static com.kts.kronos.constants.Messages.DOCUMENT_NOT_BELONGS__EMPLOYEE;
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
+
+
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class DocumentService implements DocumentUseCase {
-    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
-    public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
-    public static final String EMPLOYEE_NOT_FOUND = "Colaborador não encontrado";
-    public static final String DOCUMENT_AND_EMPLOYEE_NOT_SAME = "Documento não pertence ao Colaborador";
+
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
+
     @Override
     public Document uploadDocument(UUID employeeId, MultipartFile file) throws IOException {
         var employee = employeeProvider.findById(employeeId).orElseThrow(
-                ()-> new ResourceNotFoundException("Colaborador não encontrado"));
-
+                ()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         var bytes = file.getBytes();
         var doc = new Document(
@@ -46,8 +48,9 @@ public class DocumentService implements DocumentUseCase {
        var doc = documentProvider.findById(documentId);
        var employee = employeeProvider.findById(employeeId)
                .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
        if (!doc.employeeId().equals(employee.employeeId())){
-           throw new BadRequestException(DOCUMENT_AND_EMPLOYEE_NOT_SAME);
+           throw new BadRequestException(DOCUMENT_NOT_BELONGS__EMPLOYEE);
        }
        return doc;
     }

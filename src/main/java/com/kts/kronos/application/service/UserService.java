@@ -16,6 +16,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.USER_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.USERNAME_ALREADY_EXIST;
+
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -27,11 +31,11 @@ public class UserService implements UserUseCase {
     public void createUser(CreateUserRequest req) {
 
         if (userProvider.findByUsername(req.username()).isPresent()) {
-            throw new BadRequestException("Username já existe");
+            throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
         // valida employee
         employeeProvider.findById(req.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         User u = new User(
                 req.username(),
@@ -45,18 +49,18 @@ public class UserService implements UserUseCase {
     @Override
     public User getUserByUsername(String username) {
         return userProvider.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
     }
 
     @Override
     public User getUserById(UUID userId) {
         return userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + userId));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND + userId));
     }
     @Override
     public User getUserByEmployee(UUID employeeId) {
         return userProvider.findByEmployeeId(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + employeeId));
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId));
     }
 
     @Override
@@ -69,7 +73,7 @@ public class UserService implements UserUseCase {
     @Override
     public void updateUser(UUID userId, UpdateUserRequest req) {
         User existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         User updated = new User(
                 userId,
                 req.username(),
@@ -84,7 +88,7 @@ public class UserService implements UserUseCase {
     @Override
     public void deleteUser(UUID userId) {
         var existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         userProvider.deleteById(userId);
         employeeProvider.findById(existing.employeeId())
                 .ifPresent(emp -> employeeProvider.deleteById(emp.employeeId()));
@@ -93,7 +97,7 @@ public class UserService implements UserUseCase {
     @Override
     public void toggleActivate(UUID userId) {
         var existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         var active = existing.withActive(!existing.active());
         userProvider.save(active);
         employeeProvider.findById(existing.employeeId())
