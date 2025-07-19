@@ -4,23 +4,18 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentResponse;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
+import com.kts.kronos.domain.model.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.*;
 
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -35,20 +30,13 @@ public class DocumentController {
     private final DocumentUseCase useCase;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentResponse> upload(
+    @ResponseStatus(HttpStatus.CREATED)
+    public void upload(
             @PathVariable UUID employeeId,
+            @RequestParam("type") DocumentType type,
             @RequestPart("file") MultipartFile file
     ) throws Exception {
-        var doc = useCase.uploadDocument(employeeId, file);
-        var dto = new DocumentResponse(
-                doc.documentId(),
-                doc.fileName(),
-                doc.contentType(),
-                doc.uploadeAt()
-        );
-        return ResponseEntity
-                .created(URI.create("/api/employees/" + employeeId + "/documents/" + doc.documentId()))
-                .body(dto);
+        useCase.uploadDocument(type,employeeId, file);
     }
 
     @GetMapping
@@ -56,9 +44,10 @@ public class DocumentController {
             @PathVariable UUID employeeId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date
+            LocalDate date,
+            @RequestParam("type") DocumentType type
     ) {
-        var docs = useCase.listDocuments(employeeId, date);
+        var docs = useCase.listDocuments(type, employeeId, date);
         return ResponseEntity.ok(new DocumentResponseList(docs.stream().map(
                 DocumentResponse::fromDomain).toList()));
     }
@@ -66,8 +55,7 @@ public class DocumentController {
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
             @PathVariable UUID employeeId,
-            @PathVariable UUID documentId
-    ) throws IOException {
+            @PathVariable UUID documentId) throws IOException {
         Document doc = useCase.downloadDocument(employeeId, documentId);
 
         return ResponseEntity.ok()
@@ -76,4 +64,6 @@ public class DocumentController {
                         "attachment; filename=\"" + doc.fileName() + "\"")
                 .body(doc.data());
     }
+
+
 }

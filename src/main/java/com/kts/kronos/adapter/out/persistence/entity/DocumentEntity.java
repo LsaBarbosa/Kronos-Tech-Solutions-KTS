@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Document;
+import com.kts.kronos.domain.model.DocumentType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -17,8 +18,7 @@ import java.util.UUID;
 @EqualsAndHashCode
 @Builder
 public class DocumentEntity {
-    @Id    @GeneratedValue(generator = "UUID")
-
+    @Id @GeneratedValue(generator = "UUID")
     @Column(name = "document_id", length = 36, nullable = false)
     @JdbcTypeCode(SqlTypes.CHAR)
     private UUID documentId;
@@ -45,9 +45,13 @@ public class DocumentEntity {
     )
     private LocalDateTime uploadedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name="document_type", nullable=false)
+    private DocumentType type;
+
     public Document toDomain(){
         return new Document(
-                documentId,fileName, contentType,data,uploadedAt,employeeId
+                documentId,fileName, contentType,data,uploadedAt,employeeId,type
         );
     }
     public static DocumentEntity fromDomain(Document document){
@@ -58,6 +62,7 @@ public class DocumentEntity {
                 .contentType(document.contentType())
                 .data(document.data())
                 .uploadedAt(document.uploadeAt())
+                .type(document.type())
                 .build();
     }
 }

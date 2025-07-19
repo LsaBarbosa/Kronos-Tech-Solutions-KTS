@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TimeRecordProvider {
-    TimeRecord save(TimeRecord timeRecord);
+    void save(TimeRecord timeRecord);
 
     Optional<TimeRecord> findById(Long id);
 
