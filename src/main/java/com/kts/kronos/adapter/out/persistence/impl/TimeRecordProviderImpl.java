@@ -18,10 +18,10 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     private final TimeRecordRepository jpa;
 
     @Override
-    public TimeRecord save(TimeRecord tr) {
+    public void save(TimeRecord tr) {
         var entity = TimeRecordEntity.fromDomain(tr);
         var saved = jpa.save(entity);
-        return saved.toDomain().withId(saved.getTimeRecordId());
+        saved.toDomain().withId(saved.getTimeRecordId());
     }
 
     @Override

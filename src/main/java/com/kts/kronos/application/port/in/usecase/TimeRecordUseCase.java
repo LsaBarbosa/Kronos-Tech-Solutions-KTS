@@ -20,7 +20,7 @@ public interface TimeRecordUseCase {
 
     byte[] simpleReportPDF(UUID employeeId, SimpleReportResponse report);
 
-    TimeRecordResponse updateTimeRecord(UUID employeeId, Long timeRecordId,UpdateTimeRecordRequest req);
+    void updateTimeRecord(UUID employeeId, Long timeRecordId,UpdateTimeRecordRequest req);
 
     List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req);
 

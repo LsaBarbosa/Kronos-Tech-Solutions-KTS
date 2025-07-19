@@ -18,10 +18,10 @@ public class CompanyProviderImpl implements CompanyProvider {
     private final CompanyRepository repository;
 
     @Override
-    public Company save(Company company) {
+    public void save(Company company) {
         var entity = CompanyEntity.fromDomain(company);
         var saved = repository.save(entity);
-        return saved.toDomain();
+        saved.toDomain();
     }
 
     @Override

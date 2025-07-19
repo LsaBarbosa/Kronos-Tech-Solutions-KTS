@@ -5,6 +5,7 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Document;
+import com.kts.kronos.domain.model.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
 import org.springframework.stereotype.Service;
@@ -21,8 +22,6 @@ import static com.kts.kronos.constants.Messages.DOCUMENT_NOT_BELONGS__EMPLOYEE;
 import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
 import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
 
-
-
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -32,15 +31,21 @@ public class DocumentService implements DocumentUseCase {
     private final EmployeeProvider employeeProvider;
 
     @Override
-    public Document uploadDocument(UUID employeeId, MultipartFile file) throws IOException {
+    public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
         var employee = employeeProvider.findById(employeeId).orElseThrow(
                 ()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         var bytes = file.getBytes();
         var doc = new Document(
-                null, file.getOriginalFilename(),file.getContentType(),bytes,TIME_ZONE_BRAZIL, employee.employeeId()
+                null,
+                file.getOriginalFilename(),
+                file.getContentType(),
+                bytes,
+                TIME_ZONE_BRAZIL,
+                employee.employeeId(),
+                type
         );
-        return documentProvider.save(doc);
+      documentProvider.save(doc);
     }
 
     @Override
@@ -56,10 +61,15 @@ public class DocumentService implements DocumentUseCase {
     }
 
     @Override
-    public List<Document> listDocuments(UUID employeeId, LocalDate date) {
+    public List<Document> listDocuments(DocumentType type,UUID employeeId, LocalDate date) {
         return date == null
-                ? documentProvider.findAllByEmployee(employeeId)
-                : documentProvider.findByEmployeeAndDate(employeeId, date);
+                ? documentProvider.findByEmployeeAndType(employeeId, type)
+                : documentProvider.findByEmployeeAndDateAndType(employeeId, date,type );
+    }
+
+    @Override
+    public void deleteDocument(UUID employeeId, UUID documentId) {
+        documentProvider.delete(employeeId,documentId);
     }
 
 }
