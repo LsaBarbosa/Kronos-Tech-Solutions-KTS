@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface CompanyProvider {
-    Company save(Company company);
+    void save(Company company);
     Optional<Company> findByCnpj(String cnpj);
     List<Company> findAll();
     Optional<Company> findById(UUID company);

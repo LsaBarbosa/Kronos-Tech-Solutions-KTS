@@ -9,15 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
 
 import static com.kts.kronos.constants.ApiPaths.COMPANIES;
@@ -32,9 +24,9 @@ public class CompanyController {
     private final CompanyUseCase useCase;
 
     @PostMapping
-    public ResponseEntity<Void> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @GetMapping(BY_CNPJ)
@@ -54,24 +46,24 @@ public class CompanyController {
     }
 
     @PatchMapping(BY_CNPJ)
-    public ResponseEntity<Void> updateCompany(
+    @ResponseStatus(HttpStatus.OK)
+    public void updateCompany(
             @PathVariable String cnpj,
             @Valid @RequestBody UpdateCompanyRequest dto
     ) {
         useCase.updateCompany(cnpj, dto);
-        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping(TOGGLE_ACTIVATE_EMPLOYEE)
-    public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
+    @ResponseStatus(HttpStatus.OK)
+    public void deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
-        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping(BY_CNPJ)
-    public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
-        return ResponseEntity.noContent().build();
     }
 
 }
