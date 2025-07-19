@@ -1,6 +1,5 @@
 package com.kts.kronos.domain.model;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
