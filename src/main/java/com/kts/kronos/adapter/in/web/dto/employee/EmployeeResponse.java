@@ -31,7 +31,6 @@ public record EmployeeResponse(
     }
 
     private static String maskCpf(String cpf) {
-        // exibe 3 primeiros + “...” + 2 últimos
         return cpf.substring(0, 3) + "..." + cpf.substring(cpf.length() - 2);
     }
 }

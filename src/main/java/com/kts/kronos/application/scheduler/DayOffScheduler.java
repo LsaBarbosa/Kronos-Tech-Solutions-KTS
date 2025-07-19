@@ -10,14 +10,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
 
 @Component
 @RequiredArgsConstructor
 public class DayOffScheduler {
-    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
     private final EmployeeProvider empRepo;
     private final TimeRecordProvider trRepo;

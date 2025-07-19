@@ -19,12 +19,12 @@ public class ApiPaths {
     public static final String UPDATE_OWN_PROFILE = "/update-own-profile/{employeeId}";
 
     // Recods
-    public static final String RECORDS = "/recods";
-    public static final String CHECKIN = "/checkin";
-    public static final String CHECKOUT = "/checkout";
-    public static final String UPDATE_TIME_RECORD = "/update/time-record";
-    public static final String UPDATE_STATUS = "/update/status";
-    public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{timeRecordId}";
+    public static final String RECORDS = "/records";
+    public static final String CHECKIN = "/checkin/{employeeId}";
+    public static final String CHECKOUT = "/checkout/{employeeId}";
+    public static final String UPDATE_TIME_RECORD = "/update/time-record/{employeeId}/{timeRecordId}";
+    public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
+    public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
     public static final String DELETE_RECORD = "records/{employeeId}/{timeRecordId}";
     public static final String REPORT = "/report/{employeeId}";
     public static final String SIMPLE_REPORT = "/report/simple/{employeeId}";

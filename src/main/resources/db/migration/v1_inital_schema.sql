@@ -1,5 +1,3 @@
-create database mydatabase;
-
 CREATE TABLE IF NOT EXISTS tb_company (
     company_id     CHAR(36) PRIMARY KEY NOT NULL,
     name_company   VARCHAR(50)  NOT NULL,
@@ -44,14 +42,28 @@ CREATE TABLE IF NOT EXISTS tb_time_records (
         REFERENCES tb_employee(employee_id)
 );
 
-CREATE TABLE IF NOT EXISTS tb_user (
-    user_id     CHAR(36) PRIMARY KEY NOT NULL,
-    username    VARCHAR(50)  NOT NULL UNIQUE,
-    password    VARCHAR(200) NOT NULL,
-    role        VARCHAR(50)  NOT NULL,
-    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
-    employee_id CHAR(36),
-    CONSTRAINT fk_user_employee FOREIGN KEY (employee_id)
+CREATE TABLE IF NOT EXISTS tb_document (
+    document_id   CHAR(36)      PRIMARY KEY NOT NULL,
+    employee_id   CHAR(36)      NOT NULL,
+    file_name     VARCHAR(255)  NOT NULL,
+    content_type  VARCHAR(100)  NOT NULL,
+    data          LONGBLOB      NOT NULL,
+    uploaded_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_document_employee
+        FOREIGN KEY (employee_id)
+        REFERENCES tb_employee(employee_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS tb_document (
+    document_id   CHAR(36)      PRIMARY KEY NOT NULL,
+    employee_id   CHAR(36)      NOT NULL,
+    file_name     VARCHAR(255)  NOT NULL,
+    content_type  VARCHAR(100)  NOT NULL,
+    data          LONGBLOB      NOT NULL,
+    uploaded_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_document_employee
+        FOREIGN KEY (employee_id)
         REFERENCES tb_employee(employee_id)
 );
 
