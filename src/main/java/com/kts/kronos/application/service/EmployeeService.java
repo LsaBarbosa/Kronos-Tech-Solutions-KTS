@@ -17,6 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.CPF_ALREADY_EXIST;
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -30,14 +34,14 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public void createEmployee(CreateEmployeeRequest req) {
         if (employeeProvider.findByCpf(req.cpf()).isPresent())
-            throw new BadRequestException("CPF já cadastrado");
+            throw new BadRequestException(CPF_ALREADY_EXIST);
 
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
 
         var company = companyProvider.findByCnpj(req.companyCnpj())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Empresa não encontrada para o CNPJ: " + req.companyCnpj()
+                        COMPANY_NOT_FOUND   + req.companyCnpj()
                 ));
 
         var employee = new Employee(
@@ -64,35 +68,35 @@ public class EmployeeService implements EmployeeUseCase {
 
     public Employee getEmployee(UUID employeeId) {
         return employeeProvider.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colborador não encontrado" + employeeId));
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId));
     }
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
-        var existing = employeeProvider.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
-        var updateAddress = existing.address();
+        var employee = getEmployeeData(id);
+        var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
             updateAddress = lookup.withNumber(req.address().number());
         }
         var updatedEmployee = new Employee(
-                req.fullName() != null ? req.fullName() : existing.fullName(),
-                req.cpf() != null ? req.cpf() : existing.cpf(),
-                req.jobPosition() != null ? req.jobPosition() : existing.jobPosition(),
-                req.email() != null ? req.email() : existing.email(),
-                req.salary() != null ? req.salary() : existing.salary(),
-                req.phone() != null ? req.phone() : existing.phone(),
+                req.fullName() != null ? req.fullName() : employee.fullName(),
+                req.cpf() != null ? req.cpf() : employee.cpf(),
+                req.jobPosition() != null ? req.jobPosition() : employee.jobPosition(),
+                req.email() != null ? req.email() : employee.email(),
+                req.salary() != null ? req.salary() : employee.salary(),
+                req.phone() != null ? req.phone() : employee.phone(),
                 updateAddress,
-                existing.companyId()
+                employee.companyId()
         );
         employeeProvider.save(updatedEmployee);
     }
 
+
     @Override
     public void deleteEmployee(UUID id) {
         if (employeeProvider.findById(id).isEmpty())
-            throw new ResourceNotFoundException("Employee não encontrado");
+            throw new ResourceNotFoundException(EMPLOYEE_NOT_FOUND);
         employeeProvider.deleteById(id);
     }
 
@@ -100,23 +104,28 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public Employee getOwnProfile(UUID id) {
         return employeeProvider.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
 
     @Override
     public void updateOwnProfile(UUID id, UpdateEmployeePartnerRequest req) {
-        var existing = employeeProvider.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee não encontrado"));
+        var employee = getEmployeeData(id);
 
-        var updateAddress = existing.address();
+        var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
             updateAddress = lookup.withNumber(req.address().number());
         }
-        var updated = existing
-                .withEmail(req.email() != null ? req.email() : existing.email())
-                .withPhone(req.phone() != null ? req.phone() : existing.phone())
+        var updated = employee
+                .withEmail(req.email() != null ? req.email() : employee.email())
+                .withPhone(req.phone() != null ? req.phone() : employee.phone())
                 .withAddress(updateAddress);
         employeeProvider.save(updated);
+    }
+
+
+    private Employee getEmployeeData(UUID id) {
+        return employeeProvider.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
 }
