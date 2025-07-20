@@ -8,6 +8,8 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +38,7 @@ import static com.kts.kronos.constants.ApiPaths.REPORT;
 import static com.kts.kronos.constants.ApiPaths.SIMPLE_REPORT;
 import static com.kts.kronos.constants.ApiPaths.REPORT_PDF;
 import static com.kts.kronos.constants.ApiPaths.REPORT_SIMPLE_PDF;
+import static com.kts.kronos.constants.Swagger.*;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,52 +46,63 @@ import java.util.UUID;
 @RestController
 @RequestMapping(RECORDS)
 @RequiredArgsConstructor
+@Tag(name = TIMERECORD_API, description = TIMERECORD_DESCRIPTION_API)
 public class TimeRecordController {
     private final TimeRecordUseCase useCase;
 
     @PostMapping(CHECKIN)
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = CREATE, description = CHECKIN_DESCRIPTION)
     public void checkin(@PathVariable UUID employeeId) {
         useCase.checkin(employeeId);
     }
 
     @PostMapping(CHECKOUT)
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = CREATE, description = CHECKOUT_DESCRIPTION)
     public void checkout(@PathVariable UUID employeeId) {
         useCase.checkout(employeeId);
     }
 
     @PutMapping(UPDATE_TIME_RECORD)
     @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = UPDATE, description = UPDATE_RECORD_DESCRIPTION)
     public void updateTimeRecord(@PathVariable UUID employeeId,
                                  @PathVariable Long timeRecordId,
-                                 @Valid @RequestBody UpdateTimeRecordRequest req) {useCase.updateTimeRecord(employeeId, timeRecordId, req);
+                                 @Valid @RequestBody UpdateTimeRecordRequest req) {
+        useCase.updateTimeRecord(employeeId, timeRecordId, req);
     }
 
     @PutMapping(UPDATE_STATUS)
     @ResponseStatus(HttpStatus.OK)
-    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+    @Operation(summary = UPDATE, description = UPDATE_STATUS_DESCRIPTION)
+    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId,
+                             @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
     @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = TOGGLE, description = TOGGLE_DESCRIPTION)
     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
     }
 
     @DeleteMapping(DELETE_RECORD)
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = DELETE, description = DELETEE_TIMERECORD_DESCRIPTION)
     public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
 
     @GetMapping(REPORT)
+    @Operation(summary = GET_ALL, description = ALL_OBJECTS_DESCRIPTION)
     public List<TimeRecordResponse> report(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req) {
         return useCase.listReport(employeeId, req);
     }
 
     @GetMapping(REPORT_PDF)
+    @Operation(summary = GET_ALL, description = TIMERECORD_DOWNLOAD_DESCRIPTION)
     public ResponseEntity<byte[]> reportPdf(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req) {
 
         var records = useCase.listReport(employeeId, req);
@@ -106,6 +120,7 @@ public class TimeRecordController {
     }
 
     @GetMapping(SIMPLE_REPORT)
+    @Operation(summary = GET_ALL, description = ALL_OBJECTS_DESCRIPTION)
     public ResponseEntity<SimpleReportResponse> simpleReport(@PathVariable UUID employeeId,
                                                              @Valid @RequestBody SimpleReportRequest req) {
         var resp = useCase.simpleReport(employeeId, req);
@@ -113,6 +128,7 @@ public class TimeRecordController {
     }
 
     @GetMapping(REPORT_SIMPLE_PDF)
+    @Operation(summary = GET_ALL, description = TIMERECORD_DOWNLOAD_DESCRIPTION)
     public ResponseEntity<byte[]> simpleReportPdf(@PathVariable UUID employeeId,
                                                   @Valid @RequestBody SimpleReportRequest req) {
 

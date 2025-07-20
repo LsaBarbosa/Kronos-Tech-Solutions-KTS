@@ -85,4 +85,5 @@ public class Messages {
     public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
     public static final StatusRecord PENDING = StatusRecord.PENDING;
     public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
+
 }
