@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.DocumentType;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -21,16 +23,18 @@ import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.DOCUMENTS;
 import static com.kts.kronos.constants.ApiPaths.DOCUMENT_ID;
-
+import static com.kts.kronos.constants.Swagger.*;
 
 @RestController
 @RequestMapping(DOCUMENTS)
 @RequiredArgsConstructor
+@Tag(name = DOCUMENT_API, description = DOCUMENT_DESCRIPTION_API)
 public class DocumentController {
     private final DocumentUseCase useCase;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = CREATE, description = CREATE_DESCRIPTION)
     public void upload(
             @PathVariable UUID employeeId,
             @RequestParam("type") DocumentType type,
@@ -40,6 +44,7 @@ public class DocumentController {
     }
 
     @GetMapping
+    @Operation(summary = GET_ALL, description = ALL_OBJECTS_DESCRIPTION)
     public ResponseEntity<DocumentResponseList> list(
             @PathVariable UUID employeeId,
             @RequestParam(required = false)
@@ -53,6 +58,7 @@ public class DocumentController {
     }
 
     @GetMapping(DOCUMENT_ID)
+    @Operation(summary = GET_BY_PARAMETER, description = DOCUMENT_DESCRIPTION)
     public ResponseEntity<byte[]> download(
             @PathVariable UUID employeeId,
             @PathVariable UUID documentId) throws IOException {
