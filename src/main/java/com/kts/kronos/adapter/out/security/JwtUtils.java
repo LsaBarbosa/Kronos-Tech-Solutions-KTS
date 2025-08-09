@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtils {
@@ -24,10 +25,12 @@ public class JwtUtils {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String username) {
+    public String generateToken(UUID userId, String username, String roleName) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
+                .claim("uid", userId.toString()) // <— user id
+                .claim("role", roleName)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -41,6 +44,25 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public UUID getUserIdFromToken(String token) {
+        String id = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("userId", String.class);
+        return UUID.fromString(id);
+    }
+
+    public String getRoleFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("role", String.class);
     }
 
     public boolean validateToken(String token) {
