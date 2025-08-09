@@ -33,7 +33,7 @@ public class UserEntity {
     private Role role;
 
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    private final boolean active = true;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)")
     @JdbcTypeCode(SqlTypes.CHAR)
@@ -56,8 +56,8 @@ public class UserEntity {
                 .username(user.username())
                 .password(user.password())
                 .role(user.role())
-                .active(user.active())
                 .employeeId(user.employeeId())
                 .build();
     }
+
 }
