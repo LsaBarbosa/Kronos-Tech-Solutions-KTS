@@ -1,5 +1,6 @@
 package com.kts.kronos.application.port.in.usecase;
 
+import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.domain.model.User;
@@ -16,6 +17,7 @@ public interface UserUseCase {
     void updateUser(UUID userId, UpdateUserRequest req);
     void deleteUser(UUID userId);
     void toggleActivate(UUID userId);
+    void changeOwnPassword(UUID userId, ChangePasswordRequest req);
 
 
 }

@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -11,6 +12,7 @@ import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.Role;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,6 +28,7 @@ import static com.kts.kronos.constants.Messages.USERNAME_ALREADY_EXIST;
 public class UserService implements UserUseCase {
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -37,13 +40,16 @@ public class UserService implements UserUseCase {
         employeeProvider.findById(req.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
-        User u = new User(
+        validatePasswordPolicy(req.password()); // política (abaixo)
+        var hashed = passwordEncoder.encode(req.password());
+
+        var user = new User(
                 req.username(),
-                req.password(),
+                hashed,
                 Role.valueOf(req.role()),
                 req.employeeId()
         );
-        userProvider.save(u);
+        userProvider.save(user);
     }
 
     @Override
@@ -57,6 +63,7 @@ public class UserService implements UserUseCase {
         return userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND + userId));
     }
+
     @Override
     public User getUserByEmployee(UUID employeeId) {
         return userProvider.findByEmployeeId(employeeId)
@@ -72,16 +79,21 @@ public class UserService implements UserUseCase {
 
     @Override
     public void updateUser(UUID userId, UpdateUserRequest req) {
-        User existing = userProvider.findById(userId)
+        var existing = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
-        User updated = new User(
-                userId,
-                req.username(),
-                req.password() != null ? req.password() : existing.password(),
-                Role.valueOf(req.role() != null ? req.role() : existing.role().name()),
-                req.enabled() != null ? req.enabled() : existing.active(),
-                existing.employeeId()
-        );
+
+        var username = req.username() != null ? req.username() : existing.username();
+        var password = existing.password();
+
+        if (req.password() != null && !req.password().isBlank()) {
+            validatePasswordPolicy(req.password());
+            password = passwordEncoder.encode(req.password());
+        }
+
+        Role role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
+        boolean active = req.enabled() != null ? req.enabled() : existing.active();
+        var updated = new User(userId, username, password, role, active, existing.employeeId());
+
         userProvider.save(updated);
     }
 
@@ -102,5 +114,38 @@ public class UserService implements UserUseCase {
         userProvider.save(active);
         employeeProvider.findById(existing.employeeId())
                 .ifPresent(emp -> employeeProvider.save(emp.withActive(!existing.active())));
+    }
+
+    @Override
+    public void changeOwnPassword(UUID userId, ChangePasswordRequest req) {
+        User user = userProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
+        if (!passwordEncoder.matches(req.currentPassword(), user.password())) {
+            throw new BadRequestException("Senha atual incorreta.");
+        }
+        if (req.newPassword() == null || !req.newPassword().equals(req.confirmPassword())) {
+            throw new BadRequestException("Confirmação de senha não confere.");
+        }
+        // política
+        if (!req.newPassword().matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
+            throw new BadRequestException("Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.");
+        }
+
+        String hashed = passwordEncoder.encode(req.newPassword());
+        userProvider.save(new User(
+                user.userId(),
+                user.username(),
+                hashed,
+                user.role(),
+                user.active(),
+                user.employeeId()
+        ));
+    }
+    private void validatePasswordPolicy(String raw) {
+        // exemplo simples: 8+ chars, 1 maiúscula, 1 minúscula, 1 dígito
+        if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
+            throw new BadRequestException("Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.");
+        }
     }
 }
