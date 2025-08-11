@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtils {
@@ -20,14 +21,16 @@ public class JwtUtils {
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long expirationMs
     ) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String username) {
+    public String generateToken(UUID employeeId, String username, String roleName) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
+                .claim("role", roleName)
+                .claim("employeeId", employeeId != null ? employeeId.toString() : null)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -41,6 +44,29 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public UUID getEmployeeIdFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        String employeeIdStr = claims.get("employeeId", String.class);
+        if (employeeIdStr == null || employeeIdStr.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(employeeIdStr);
+    }
+
+    public String getRoleFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("role", String.class);
     }
 
     public boolean validateToken(String token) {
