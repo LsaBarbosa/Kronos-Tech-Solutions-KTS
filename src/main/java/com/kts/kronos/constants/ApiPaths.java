@@ -16,13 +16,14 @@ public class ApiPaths {
     public static final String EMPLOYEE = "/employee";
     public static final String EMPLOYEE_ID = "/{employeeId}";
     public static final String UPDATE_EMPLOYEE = "/manager/update-employee/{employeeId}";
-    public static final String UPDATE_OWN_PROFILE = "/update-own-profile/{employeeId}";
+    public static final String UPDATE_OWN_PROFILE = "/update-own-profile";
+    public static final String OWN_PROFILE = "/own-profile";
 
     // Recods
     public static final String RECORDS = "/records";
-    public static final String CHECKIN = "/checkin/{employeeId}";
-    public static final String CHECKOUT = "/checkout/{employeeId}";
-    public static final String UPDATE_TIME_RECORD = "/update/time-record/{employeeId}/{timeRecordId}";
+    public static final String CHECKIN = "/checkin";
+    public static final String CHECKOUT = "/checkout";
+    public static final String UPDATE_TIME_RECORD = "/update/time-record/{timeRecordId}";
     public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
     public static final String DELETE_RECORD = "records/{employeeId}/{timeRecordId}";
@@ -30,7 +31,6 @@ public class ApiPaths {
     public static final String SIMPLE_REPORT = "/report/simple/{employeeId}";
     public static final String REPORT_PDF = "report/{employeeId}/pdf";
     public static final String REPORT_SIMPLE_PDF = "report/simple/{employeeId}/pdf";
-
 
     //User
     public static final String USER = "/users";

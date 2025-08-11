@@ -11,6 +11,7 @@ import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
@@ -67,9 +68,11 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @Override
-    public void checkin(UUID employeeId) {
+    public void checkin() {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
 
         if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
@@ -82,7 +85,8 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void checkout(UUID employeeId) {
+    public void checkout() {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var open = recordRepository.findOpenByEmployeeId(
                 employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
@@ -93,7 +97,8 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void updateTimeRecord(UUID employeeId, Long timeRecordId, UpdateTimeRecordRequest req) {
+    public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var record = getTimeRecord(timeRecordId);
 

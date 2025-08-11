@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface TimeRecordUseCase {
-    void checkin(UUID employeeId);
+    void checkin();
 
-    void checkout(UUID employeeId);
+    void checkout();
 
     void updateStatus(UUID employeeId, Long recordId,UpdateTimeRecordStatusRequest request);
 
@@ -20,7 +20,7 @@ public interface TimeRecordUseCase {
 
     byte[] simpleReportPDF(UUID employeeId, SimpleReportResponse report);
 
-    void updateTimeRecord(UUID employeeId, Long timeRecordId,UpdateTimeRecordRequest req);
+    void updateTimeRecord(Long timeRecordId,UpdateTimeRecordRequest req);
 
     List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req);
 
