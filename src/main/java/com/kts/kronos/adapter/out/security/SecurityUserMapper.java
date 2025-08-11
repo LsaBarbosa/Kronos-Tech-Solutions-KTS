@@ -10,11 +10,15 @@ public class SecurityUserMapper {
     private SecurityUserMapper() {}
 
     public static UserDetails toSpringUser(User domain) {
-        return org.springframework.security.core.userdetails.User
-                .withUsername(domain.username())
-                .password(domain.password())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_" + domain.role().name())))
-                .disabled(!domain.active())
-                .build();
+        return new SecurityUser(
+                domain.employeeId(),
+                domain.username(),
+                domain.password(),
+                List.of(new SimpleGrantedAuthority("ROLE_" + domain.role().name())),
+                domain.active(),
+                true,
+                true,
+                true
+        );
     }
 }

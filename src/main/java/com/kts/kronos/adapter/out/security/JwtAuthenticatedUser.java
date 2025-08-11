@@ -1,37 +1,40 @@
 package com.kts.kronos.adapter.out.security;
 
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
+import org.springframework.security.core.userdetails.UserDetails;
+
 
 import java.util.UUID;
 
 @Component
-@RequiredArgsConstructor
 public class JwtAuthenticatedUser {
-    private final JwtUtils jwtUtils;
-    private final HttpServletRequest request;
 
     public UUID getEmployeeId() {
-        String token = extractToken();
-        UUID id = jwtUtils.getEmployeeIdFromToken(token);
-        if (id == null) {
-            // token sem claim ou inválido => tratamos como 401/400 de forma clara
-            throw new IllegalArgumentException("JWT sem employeeId.");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated() || !(authentication.getPrincipal() instanceof SecurityUser)) {
+            throw new IllegalStateException("Usuário não autenticado ou detalhes de usuário inválidos.");
         }
-        return id;
+
+        SecurityUser securityUser = (SecurityUser) authentication.getPrincipal();
+        return securityUser.getEmployeeId();
     }
 
     public String getUsername() {
-        String token = extractToken();
-        return jwtUtils.getUsernameFromToken(token);
-    }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-    private String extractToken() {
-        String bearer = request.getHeader("Authorization");
-        if (bearer != null && bearer.startsWith("Bearer ")) {
-            return bearer.substring(7);
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException("Usuário não autenticado.");
         }
-        throw new IllegalArgumentException("Token JWT não encontrado no header Authorization.");
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof UserDetails) {
+            return ((UserDetails) principal).getUsername();
+        } else {
+            return principal.toString();
+        }
     }
 }
