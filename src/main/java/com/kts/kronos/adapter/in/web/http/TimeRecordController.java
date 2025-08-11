@@ -48,21 +48,20 @@ public class TimeRecordController {
 
     @PostMapping(CHECKIN)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkin(@PathVariable UUID employeeId) {
-        useCase.checkin(employeeId);
+    public void checkin() {
+        useCase.checkin();
     }
 
     @PostMapping(CHECKOUT)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkout(@PathVariable UUID employeeId) {
-        useCase.checkout(employeeId);
+    public void checkout() {
+        useCase.checkout();
     }
 
     @PutMapping(UPDATE_TIME_RECORD)
     @ResponseStatus(HttpStatus.OK)
-    public void updateTimeRecord(@PathVariable UUID employeeId,
-                                 @PathVariable Long timeRecordId,
-                                 @Valid @RequestBody UpdateTimeRecordRequest req) {useCase.updateTimeRecord(employeeId, timeRecordId, req);
+    public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
+        useCase.updateTimeRecord(timeRecordId, req);
     }
 
     @PutMapping(UPDATE_STATUS)
