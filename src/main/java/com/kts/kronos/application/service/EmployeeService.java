@@ -10,6 +10,7 @@ import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,9 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.CPF_ALREADY_EXIST;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.*;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +27,7 @@ import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
 public class EmployeeService implements EmployeeUseCase {
 
     private final EmployeeProvider employeeProvider;
+    private final UserProvider userProvider;
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
@@ -104,12 +104,12 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     // PARTNER
+
     @Override
     public Employee getOwnProfile() {
-        UUID employeeId = jwtAuthenticatedUser.getEmployeeId(); // agora confiável
-       return getEmployeeData(employeeId);
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        return getEmployeeData(employeeId);
     }
-
 
     @Override
     public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
