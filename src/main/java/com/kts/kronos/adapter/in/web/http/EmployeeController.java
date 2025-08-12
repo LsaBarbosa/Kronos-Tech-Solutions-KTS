@@ -1,12 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
-import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeListResponse;
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeResponse;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,6 +40,7 @@ public class EmployeeController {
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
 
+
     @PatchMapping(UPDATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void updateEmployee(@PathVariable UUID employeeId,
@@ -52,6 +48,7 @@ public class EmployeeController {
     ) {
         useCase.updateEmployee(employeeId, dto);
     }
+
 
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeResponse> getOwnProfile() {
