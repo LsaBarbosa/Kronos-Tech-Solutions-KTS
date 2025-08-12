@@ -15,9 +15,8 @@ public interface EmployeeUseCase {
     Employee getEmployee(UUID employeeId);
     void updateEmployee(UUID employeeId, UpdateEmployeeManagerRequest req);
     void deleteEmployee(UUID employeeId);
-
     // PARTNER
-    Employee getOwnProfile(UUID employeeId);
-    void updateOwnProfile(UUID employeeId, UpdateEmployeePartnerRequest req);
+    Employee getOwnProfile();
+    void updateOwnProfile(UpdateEmployeePartnerRequest req);
 
 }

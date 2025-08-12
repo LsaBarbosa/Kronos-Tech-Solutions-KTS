@@ -3,12 +3,14 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,9 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.CPF_ALREADY_EXIST;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.*;
 
 @Service
 @RequiredArgsConstructor
@@ -27,8 +27,11 @@ import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
 public class EmployeeService implements EmployeeUseCase {
 
     private final EmployeeProvider employeeProvider;
+    private final UserProvider userProvider;
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
+
 
     // MANAGER
     @Override
@@ -101,15 +104,17 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     // PARTNER
+
     @Override
-    public Employee getOwnProfile(UUID id) {
-        return employeeProvider.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+    public Employee getOwnProfile() {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        return getEmployeeData(employeeId);
     }
 
     @Override
-    public void updateOwnProfile(UUID id, UpdateEmployeePartnerRequest req) {
-        var employee = getEmployeeData(id);
+    public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployeeData(employeeId);
 
         var updateAddress = employee.address();
         if (req.address() != null) {

@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
@@ -72,4 +73,10 @@ public class UserController {
         useCase.deleteUser(id);
     }
 
+    @PutMapping("/{userId}/password")
+    public ResponseEntity<Void> changePassword(@PathVariable UUID userId,
+                                               @RequestBody ChangePasswordRequest req) {
+        useCase.changeOwnPassword(userId, req);
+        return ResponseEntity.noContent().build();
+    }
 }

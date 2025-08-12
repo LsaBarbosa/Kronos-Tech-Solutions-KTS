@@ -1,24 +1,16 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
-import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeListResponse;
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeResponse;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import static com.kts.kronos.constants.ApiPaths.EMPLOYEE;
-import static com.kts.kronos.constants.ApiPaths.EMPLOYEE_ID;
-import static com.kts.kronos.constants.ApiPaths.UPDATE_EMPLOYEE;
-import static com.kts.kronos.constants.ApiPaths.UPDATE_OWN_PROFILE;
-
 import java.util.UUID;
+
+import static com.kts.kronos.constants.ApiPaths.*;
 
 @RestController
 @RequestMapping(EMPLOYEE)
@@ -48,6 +40,7 @@ public class EmployeeController {
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
 
+
     @PatchMapping(UPDATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void updateEmployee(@PathVariable UUID employeeId,
@@ -56,12 +49,18 @@ public class EmployeeController {
         useCase.updateEmployee(employeeId, dto);
     }
 
+
+    @GetMapping(OWN_PROFILE)
+    public ResponseEntity<EmployeeResponse> getOwnProfile() {
+        var employee = useCase.getOwnProfile();
+        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
+    }
+
     @PatchMapping(UPDATE_OWN_PROFILE)
     @ResponseStatus(HttpStatus.OK)
-    public void updateOwnProfile(@PathVariable UUID employeeId,
-                                                 @Valid @RequestBody UpdateEmployeePartnerRequest dto
+    public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
     ) {
-        useCase.updateOwnProfile(employeeId, dto);
+        useCase.updateOwnProfile(dto);
     }
 
     @DeleteMapping(EMPLOYEE_ID)
