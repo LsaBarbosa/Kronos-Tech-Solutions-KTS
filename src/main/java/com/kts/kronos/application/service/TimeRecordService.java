@@ -163,7 +163,8 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req) {
-        var employeeData = getEmployeeData(employeeId);
+        var targetEmployeeId = isWithEmployeeId(employeeId);
+        var employeeData = getEmployeeData(targetEmployeeId);
 
         String[] parts = req.reference().split(":");
 
@@ -173,7 +174,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var allStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
 
         var recordsById = recordRepository
-                .findByEmployeeIdAndActive(employeeId, true).stream().filter(
+                .findByEmployeeIdAndActive(targetEmployeeId, true).stream().filter(
                         tr -> allStatuses.contains(tr.statusRecord())).toList();
 
         var dateSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
@@ -295,9 +296,11 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
-        var employeeData = getEmployeeData( employeeId);
+        var targetEmployeeId = isWithEmployeeId(employeeId);
+
+        var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
-        var records = getRecords(employeeId, req.active());
+        var records = getRecords(targetEmployeeId, req.active());
 
         if (req.status() != null) {
             records = records.stream().filter(record -> record.statusRecord() == req.status()).toList();
@@ -386,5 +389,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         return active == null ?
                 recordRepository.findByEmployeeId(employeeId) :
                 recordRepository.findByEmployeeIdAndActive(employeeId, active);
+    }
+    private UUID isWithEmployeeId(UUID employeeId) {
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+
+        return switch (userRole) {
+            case "PARTNER" -> loggedInEmployeeId;
+            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
+            default ->
+                    (employeeId != null) ? employeeId : loggedInEmployeeId;
+        };
     }
 }
