@@ -27,10 +27,10 @@ public class ApiPaths {
     public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
     public static final String DELETE_RECORD = "records/{employeeId}/{timeRecordId}";
-    public static final String REPORT = "/report/{employeeId}";
-    public static final String SIMPLE_REPORT = "/report/simple/{employeeId}";
-    public static final String REPORT_PDF = "report/{employeeId}/pdf";
-    public static final String REPORT_SIMPLE_PDF = "report/simple/{employeeId}/pdf";
+    public static final String REPORT = "/report";
+    public static final String SIMPLE_REPORT = "/report/simple";
+    public static final String REPORT_PDF = "report/pdf";
+    public static final String REPORT_SIMPLE_PDF = "report/simple/pdf";
 
     //User
     public static final String USER = "/users";
