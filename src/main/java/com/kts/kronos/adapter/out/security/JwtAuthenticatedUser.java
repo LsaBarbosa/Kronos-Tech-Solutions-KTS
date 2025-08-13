@@ -26,6 +26,10 @@ public class JwtAuthenticatedUser {
         String token = extractToken();
         return jwtUtils.getUsernameFromToken(token);
     }
+    public String getRoleFromToken() {
+        String token = extractToken();
+        return jwtUtils.getRoleFromToken(token);
+    }
 
     private String extractToken() {
         String bearer = request.getHeader("Authorization");

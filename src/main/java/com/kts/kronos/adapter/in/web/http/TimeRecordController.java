@@ -15,15 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ContentDisposition;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.*;
 
 import static com.kts.kronos.constants.ApiPaths.RECORDS;
 import static com.kts.kronos.constants.ApiPaths.CHECKIN;
@@ -83,12 +75,12 @@ public class TimeRecordController {
     }
 
     @GetMapping(REPORT)
-    public List<TimeRecordResponse> report(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req) {
+    public List<TimeRecordResponse> report(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
         return useCase.listReport(employeeId, req);
     }
 
     @GetMapping(REPORT_PDF)
-    public ResponseEntity<byte[]> reportPdf(@PathVariable UUID employeeId, @Valid @RequestBody ListReportRequest req) {
+    public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
 
         var records = useCase.listReport(employeeId, req);
         byte[] pdf = useCase.listReportPDF(records);
@@ -105,14 +97,14 @@ public class TimeRecordController {
     }
 
     @GetMapping(SIMPLE_REPORT)
-    public ResponseEntity<SimpleReportResponse> simpleReport(@PathVariable UUID employeeId,
+    public ResponseEntity<SimpleReportResponse> simpleReport( @RequestParam(required = false) UUID employeeId,
                                                              @Valid @RequestBody SimpleReportRequest req) {
         var resp = useCase.simpleReport(employeeId, req);
         return ResponseEntity.ok(resp);
     }
 
     @GetMapping(REPORT_SIMPLE_PDF)
-    public ResponseEntity<byte[]> simpleReportPdf(@PathVariable UUID employeeId,
+    public ResponseEntity<byte[]> simpleReportPdf(@RequestParam(required = false) UUID employeeId,
                                                   @Valid @RequestBody SimpleReportRequest req) {
 
         var resp = useCase.simpleReport(employeeId, req);
