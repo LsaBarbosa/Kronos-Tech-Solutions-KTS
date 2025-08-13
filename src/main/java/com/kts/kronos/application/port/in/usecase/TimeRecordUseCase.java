@@ -3,6 +3,7 @@ package com.kts.kronos.application.port.in.usecase;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TimeRecordUseCase {
