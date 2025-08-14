@@ -9,7 +9,7 @@ public class ApiPaths {
     public static final String TOGGLE_ACTIVATE_EMPLOYEE = "/{cnpj}/toggle-activate";
 
     // Documents
-    public static final String DOCUMENTS = "/documents/{employeeId}";
+    public static final String DOCUMENTS = "/documents";
     public static final String DOCUMENT_ID = "/{documentId}";
 
     // Employee

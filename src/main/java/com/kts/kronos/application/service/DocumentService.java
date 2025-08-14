@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -29,10 +30,12 @@ public class DocumentService implements DocumentUseCase {
 
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
-        var employee = employeeProvider.findById(employeeId).orElseThrow(
+        var employeeIdWith = isWithEmployeeId(employeeId);
+        var employee = employeeProvider.findById(employeeIdWith).orElseThrow(
                 ()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         var bytes = file.getBytes();
@@ -50,8 +53,10 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public Document downloadDocument(UUID employeeId,UUID documentId) throws IOException {
-       var doc = documentProvider.findById(documentId);
-       var employee = employeeProvider.findById(employeeId)
+        var employeeIdWith = isWithEmployeeId(employeeId);
+
+        var doc = documentProvider.findById(documentId);
+       var employee = employeeProvider.findById(employeeIdWith)
                .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
        if (!doc.employeeId().equals(employee.employeeId())){
@@ -62,14 +67,27 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public List<Document> listDocuments(DocumentType type,UUID employeeId, LocalDate date) {
+        var employeeIdWith = isWithEmployeeId(employeeId);
         return date == null
-                ? documentProvider.findByEmployeeAndType(employeeId, type)
-                : documentProvider.findByEmployeeAndDateAndType(employeeId, date,type );
+                ? documentProvider.findByEmployeeAndType(employeeIdWith, type)
+                : documentProvider.findByEmployeeAndDateAndType(employeeIdWith, date,type );
     }
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        documentProvider.delete(employeeId,documentId);
+        var employeeIdWith = isWithEmployeeId(employeeId);
+        documentProvider.delete(employeeIdWith,documentId);
     }
 
+    private UUID isWithEmployeeId(UUID employeeId) {
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+
+        return switch (userRole) {
+            case "PARTNER" -> loggedInEmployeeId;
+            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
+            default ->
+                    (employeeId != null) ? employeeId : loggedInEmployeeId;
+        };
+    }
 }
