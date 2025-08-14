@@ -19,8 +19,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.ApiPaths.DOCUMENTS;
-import static com.kts.kronos.constants.ApiPaths.DOCUMENT_ID;
+import static com.kts.kronos.constants.ApiPaths.*;
 
 
 @RestController
@@ -32,7 +31,7 @@ public class DocumentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public void upload(
-            @PathVariable UUID employeeId,
+            @RequestParam(required = false) UUID employeeId,
             @RequestParam("type") DocumentType type,
             @RequestPart("file") MultipartFile file
     ) throws Exception {
@@ -41,7 +40,7 @@ public class DocumentController {
 
     @GetMapping
     public ResponseEntity<DocumentResponseList> list(
-            @PathVariable UUID employeeId,
+            @RequestParam(required = false) UUID employeeId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date,
@@ -54,7 +53,7 @@ public class DocumentController {
 
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
-            @PathVariable UUID employeeId,
+            @RequestParam(required = false) UUID employeeId,
             @PathVariable UUID documentId) throws IOException {
         Document doc = useCase.downloadDocument(employeeId, documentId);
 
@@ -65,5 +64,10 @@ public class DocumentController {
                 .body(doc.data());
     }
 
+    @DeleteMapping(DOCUMENT_ID)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
+        useCase.deleteDocument(employeeId, documentId);
+    }
 
 }
