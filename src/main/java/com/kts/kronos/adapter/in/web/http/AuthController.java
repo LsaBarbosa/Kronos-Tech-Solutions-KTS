@@ -15,13 +15,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.kts.kronos.constants.ApiPaths.AUTH;
+import static com.kts.kronos.constants.ApiPaths.LOGIN;
+
 @RestController
-@RequestMapping("/auth")
+@RequestMapping(AUTH)
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthUseCase authUseCase;
 
-    @PostMapping("/login")
+    @PostMapping(LOGIN)
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
         String token = authUseCase.login(req.username(), req.password());
         return ResponseEntity.ok(new LoginResponse(token));

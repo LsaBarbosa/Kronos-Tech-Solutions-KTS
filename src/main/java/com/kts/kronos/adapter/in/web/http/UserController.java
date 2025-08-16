@@ -12,16 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import static com.kts.kronos.constants.ApiPaths.USER;
-import static com.kts.kronos.constants.ApiPaths.USERS;
-import static com.kts.kronos.constants.ApiPaths.USER_BY_USERNAME;
-import static com.kts.kronos.constants.ApiPaths.USER_BY_ID;
-import static com.kts.kronos.constants.ApiPaths.UPDATE_USER;
-import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE_USER;
-import static com.kts.kronos.constants.ApiPaths.DELETE_USER;
-
 
 import java.util.UUID;
+
+import static com.kts.kronos.constants.ApiPaths.*;
 
 @RestController
 @RequestMapping(USER)
@@ -67,16 +61,17 @@ public class UserController {
     public void activateUser(@PathVariable UUID id) {
         useCase.toggleActivate(id);
     }
+
     @DeleteMapping(DELETE_USER)
     @ResponseStatus(HttpStatus.NO_CONTENT)
+
     public void deleteCompany(@PathVariable UUID id) {
         useCase.deleteUser(id);
     }
 
-    @PutMapping("/{userId}/password")
-    public ResponseEntity<Void> changePassword(@PathVariable UUID userId,
-                                               @RequestBody ChangePasswordRequest req) {
-        useCase.changeOwnPassword(userId, req);
+    @PutMapping(PASSWORD)
+    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest req) {
+        useCase.changeOwnPassword(req);
         return ResponseEntity.noContent().build();
     }
 }

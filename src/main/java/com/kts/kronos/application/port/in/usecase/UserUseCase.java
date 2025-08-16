@@ -17,7 +17,7 @@ public interface UserUseCase {
     void updateUser(UUID userId, UpdateUserRequest req);
     void deleteUser(UUID userId);
     void toggleActivate(UUID userId);
-    void changeOwnPassword(UUID userId, ChangePasswordRequest req);
+    void changeOwnPassword(ChangePasswordRequest req);
 
 
 }

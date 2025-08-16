@@ -34,7 +34,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
-        var employeeIdWith = isWithEmployeeId(employeeId);
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var employee = employeeProvider.findById(employeeIdWith).orElseThrow(
                 ()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
@@ -53,7 +53,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public Document downloadDocument(UUID employeeId,UUID documentId) throws IOException {
-        var employeeIdWith = isWithEmployeeId(employeeId);
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
 
         var doc = documentProvider.findById(documentId);
        var employee = employeeProvider.findById(employeeIdWith)
@@ -67,7 +67,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public List<Document> listDocuments(DocumentType type,UUID employeeId, LocalDate date) {
-        var employeeIdWith = isWithEmployeeId(employeeId);
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         return date == null
                 ? documentProvider.findByEmployeeAndType(employeeIdWith, type)
                 : documentProvider.findByEmployeeAndDateAndType(employeeIdWith, date,type );
@@ -75,19 +75,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var employeeIdWith = isWithEmployeeId(employeeId);
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         documentProvider.delete(employeeIdWith,documentId);
-    }
-
-    private UUID isWithEmployeeId(UUID employeeId) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
-        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-
-        return switch (userRole) {
-            case "PARTNER" -> loggedInEmployeeId;
-            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
-            default ->
-                    (employeeId != null) ? employeeId : loggedInEmployeeId;
-        };
     }
 }
