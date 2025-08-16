@@ -17,6 +17,9 @@ public class Messages {
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
     public static final String EMPLOYEE_NOT_FOUND = "Colaborador não encontrado";
     public static final String DOCUMENT_NOT_FOUND = "Documento não encontrado";
+    public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
+    public static final String JWT_EMPLOYEE_ID_NOT_FOUND = "JWT sem employeeId.";
+    public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no header Authorization.";
 
     // Exists
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
@@ -34,6 +37,9 @@ public class Messages {
     public static final String INVALID_ROLE = "Role inválida";
     public static final String INVALID_FORMAT = "Formato inválido: use HH:mm";
     public static final String INVALID_EMAIL_FORMAT = "O deve ter o formato correto: 'email@dominio.com' ";
+    public static final String INVALID_PASSWORD = "Senha atual incorreta.";
+    public static final String INVALID_CONFIRM_PASSWORD = "Confirmação de senha não confere.";
+    public static final String INVALID_PASSWORD_POLICY = "Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.";
 
     // Not Blank
     public static final String ID_NOT_BLANK = "ID é obrigatório";

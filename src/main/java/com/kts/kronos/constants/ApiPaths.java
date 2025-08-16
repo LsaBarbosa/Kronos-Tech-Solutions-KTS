@@ -40,6 +40,11 @@ public class ApiPaths {
     public static final String UPDATE_USER = "/search/{userId}";
     public static final String TOGGLE_ACTIVATE_USER = "/toggle-activate/{userId}";
     public static final String DELETE_USER = "/{userId}";
+    public static final String PASSWORD = "/password";
+
+    //Auth
+    public static final String AUTH = "/auth";
+    public static final String LOGIN = "/login";
 
     //Cep
     public static final String API_VIA_CEP = "https://viacep.com.br/ws";
