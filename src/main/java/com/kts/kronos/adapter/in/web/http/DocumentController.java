@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -27,7 +28,7 @@ import static com.kts.kronos.constants.ApiPaths.*;
 @RequiredArgsConstructor
 public class DocumentController {
     private final DocumentUseCase useCase;
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public void upload(
@@ -37,7 +38,7 @@ public class DocumentController {
     ) throws Exception {
         useCase.uploadDocument(type,employeeId, file);
     }
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping
     public ResponseEntity<DocumentResponseList> list(
             @RequestParam(required = false) UUID employeeId,
@@ -50,7 +51,7 @@ public class DocumentController {
         return ResponseEntity.ok(new DocumentResponseList(docs.stream().map(
                 DocumentResponse::fromDomain).toList()));
     }
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
             @RequestParam(required = false) UUID employeeId,
@@ -63,7 +64,7 @@ public class DocumentController {
                         "attachment; filename=\"" + doc.fileName() + "\"")
                 .body(doc.data());
     }
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @DeleteMapping(DOCUMENT_ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {

@@ -61,7 +61,8 @@ public class UserService implements UserUseCase {
 
     @Override
     public User getUserById(UUID userId) {
-        return userProvider.findById(userId)
+        var targetUserId = jwtAuthenticatedUser.isWithEmployeeId(userId);
+        return userProvider.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND + userId));
     }
 
