@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -25,16 +26,19 @@ public class CompanyController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('CTO')")
     public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
     }
 
+    @PreAuthorize("hasRole('CTO')")
     @GetMapping(BY_CNPJ)
     public ResponseEntity<CompanyResponse> getCompany(@PathVariable String cnpj) {
         var company = useCase.getCompany(cnpj);
         return ResponseEntity.ok(CompanyResponse.fromDomain(company));
     }
 
+    @PreAuthorize("hasRole('CTO')")
     @GetMapping
     public ResponseEntity<CompanyListResponse> allCompanies(
             @RequestParam(value = "active", required = false) Boolean active
@@ -45,6 +49,7 @@ public class CompanyController {
         ));
     }
 
+    @PreAuthorize("hasRole('CTO')")
     @PatchMapping(BY_CNPJ)
     @ResponseStatus(HttpStatus.OK)
     public void updateCompany(
@@ -54,12 +59,14 @@ public class CompanyController {
         useCase.updateCompany(cnpj, dto);
     }
 
+    @PreAuthorize("hasRole('CTO')")
     @PatchMapping(TOGGLE_ACTIVATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
     }
 
+    @PreAuthorize("hasRole('CTO')")
     @DeleteMapping(BY_CNPJ)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCompany(@PathVariable String cnpj) {

@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ContentDisposition;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import static com.kts.kronos.constants.ApiPaths.RECORDS;
@@ -38,47 +39,55 @@ import java.util.UUID;
 public class TimeRecordController {
     private final TimeRecordUseCase useCase;
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @PostMapping(CHECKIN)
     @ResponseStatus(HttpStatus.CREATED)
     public void checkin() {
         useCase.checkin();
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @PostMapping(CHECKOUT)
     @ResponseStatus(HttpStatus.CREATED)
     public void checkout() {
         useCase.checkout();
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @PutMapping(UPDATE_TIME_RECORD)
     @ResponseStatus(HttpStatus.OK)
     public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
     }
 
+    @PreAuthorize("hasRole('MANAGER')")
     @PutMapping(UPDATE_STATUS)
     @ResponseStatus(HttpStatus.OK)
     public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
+    @PreAuthorize("hasRole('MANAGER')")
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
     @ResponseStatus(HttpStatus.OK)
     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
     }
 
+    @PreAuthorize("hasRole('MANAGER')")
     @DeleteMapping(DELETE_RECORD)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(REPORT)
     public List<TimeRecordResponse> report(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
         return useCase.listReport(employeeId, req);
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(REPORT_PDF)
     public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
 
@@ -96,13 +105,15 @@ public class TimeRecordController {
         return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(SIMPLE_REPORT)
-    public ResponseEntity<SimpleReportResponse> simpleReport( @RequestParam(required = false) UUID employeeId,
+    public ResponseEntity<SimpleReportResponse> simpleReport(@RequestParam(required = false) UUID employeeId,
                                                              @Valid @RequestBody SimpleReportRequest req) {
         var resp = useCase.simpleReport(employeeId, req);
         return ResponseEntity.ok(resp);
     }
 
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(REPORT_SIMPLE_PDF)
     public ResponseEntity<byte[]> simpleReportPdf(@RequestParam(required = false) UUID employeeId,
                                                   @Valid @RequestBody SimpleReportRequest req) {
