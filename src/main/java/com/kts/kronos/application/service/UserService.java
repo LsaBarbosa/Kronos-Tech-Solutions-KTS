@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
@@ -18,17 +19,17 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.USER_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.USERNAME_ALREADY_EXIST;
+import static com.kts.kronos.constants.Messages.*;
 
 @Component
 @RequiredArgsConstructor
 @Transactional
 public class UserService implements UserUseCase {
+
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
     private final PasswordEncoder passwordEncoder;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -117,20 +118,18 @@ public class UserService implements UserUseCase {
     }
 
     @Override
-    public void changeOwnPassword(UUID userId, ChangePasswordRequest req) {
+    public void changeOwnPassword(ChangePasswordRequest req) {
+        var userId = jwtAuthenticatedUser.getuserId();
         User user = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
         if (!passwordEncoder.matches(req.currentPassword(), user.password())) {
-            throw new BadRequestException("Senha atual incorreta.");
+            throw new BadRequestException(INVALID_PASSWORD);
         }
         if (req.newPassword() == null || !req.newPassword().equals(req.confirmPassword())) {
-            throw new BadRequestException("Confirmação de senha não confere.");
+            throw new BadRequestException(INVALID_CONFIRM_PASSWORD);
         }
-        // política
-        if (!req.newPassword().matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
-            throw new BadRequestException("Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.");
-        }
+        validatePasswordPolicy(req.newPassword());
 
         String hashed = passwordEncoder.encode(req.newPassword());
         userProvider.save(new User(
@@ -142,10 +141,11 @@ public class UserService implements UserUseCase {
                 user.employeeId()
         ));
     }
+
     private void validatePasswordPolicy(String raw) {
         // exemplo simples: 8+ chars, 1 maiúscula, 1 minúscula, 1 dígito
         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
-            throw new BadRequestException("Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.");
+            throw new BadRequestException(INVALID_PASSWORD_POLICY);
         }
     }
 }

@@ -27,10 +27,11 @@ public class JwtUtils {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UUID employeeId, String username, String roleName) {
+    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
+                .claim("userId", userId != null ? userId.toString() : null)
                 .claim("role", roleName)
                 .claim("employeeId", employeeId != null ? employeeId.toString() : null)
                 .setIssuedAt(now)
@@ -60,6 +61,19 @@ public class JwtUtils {
             return null;
         }
         return UUID.fromString(employeeIdStr);
+    }
+    public UUID getUserIdFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        String userIdStr = claims.get("userId", String.class);
+        if (userIdStr == null || userIdStr.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(userIdStr);
     }
 
     public String getRoleFromToken(String token) {
