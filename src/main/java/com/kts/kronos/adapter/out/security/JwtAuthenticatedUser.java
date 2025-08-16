@@ -6,9 +6,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.*;
+
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticatedUser {
+
     private final JwtUtils jwtUtils;
     private final HttpServletRequest request;
 
@@ -17,7 +20,17 @@ public class JwtAuthenticatedUser {
         UUID id = jwtUtils.getEmployeeIdFromToken(token);
         if (id == null) {
             // token sem claim ou inválido => tratamos como 401/400 de forma clara
-            throw new IllegalArgumentException("JWT sem employeeId.");
+            throw new IllegalArgumentException(JWT_EMPLOYEE_ID_NOT_FOUND);
+        }
+        return id;
+    }
+
+    public UUID getuserId() {
+        String token = extractToken();
+        UUID id = jwtUtils.getUserIdFromToken(token);
+        if (id == null) {
+            // token sem claim ou inválido => tratamos como 401/400 de forma clara
+            throw new IllegalArgumentException(JWT_USER_ID_NOT_FOUND);
         }
         return id;
     }
@@ -26,9 +39,21 @@ public class JwtAuthenticatedUser {
         String token = extractToken();
         return jwtUtils.getUsernameFromToken(token);
     }
+
     public String getRoleFromToken() {
         String token = extractToken();
         return jwtUtils.getRoleFromToken(token);
+    }
+    public UUID isWithEmployeeId(UUID employeeId) {
+        var userRole = getRoleFromToken();
+        var loggedInEmployeeId = getEmployeeId();
+
+        return switch (userRole) {
+            case "PARTNER" -> loggedInEmployeeId;
+            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
+            default ->
+                    (employeeId != null) ? employeeId : loggedInEmployeeId;
+        };
     }
 
     private String extractToken() {
@@ -36,6 +61,6 @@ public class JwtAuthenticatedUser {
         if (bearer != null && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
         }
-        throw new IllegalArgumentException("Token JWT não encontrado no header Authorization.");
+        throw new IllegalArgumentException(HEADER_AUTHORIZATION_NOT_FOUND);
     }
 }

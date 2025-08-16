@@ -163,7 +163,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req) {
-        var targetEmployeeId = isWithEmployeeId(employeeId);
+        var targetEmployeeId =jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var employeeData = getEmployeeData(targetEmployeeId);
 
         String[] parts = req.reference().split(":");
@@ -296,7 +296,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
-        var targetEmployeeId = isWithEmployeeId(employeeId);
+        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
 
         var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
@@ -389,16 +389,5 @@ public class TimeRecordService implements TimeRecordUseCase {
         return active == null ?
                 recordRepository.findByEmployeeId(employeeId) :
                 recordRepository.findByEmployeeIdAndActive(employeeId, active);
-    }
-    private UUID isWithEmployeeId(UUID employeeId) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
-        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-
-        return switch (userRole) {
-            case "PARTNER" -> loggedInEmployeeId;
-            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
-            default ->
-                    (employeeId != null) ? employeeId : loggedInEmployeeId;
-        };
     }
 }
