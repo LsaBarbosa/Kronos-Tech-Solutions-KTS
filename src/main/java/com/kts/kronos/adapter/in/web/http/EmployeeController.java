@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -20,6 +21,7 @@ public class EmployeeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('MANAGER')")
     public void registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
         useCase.createEmployee(dto);
     }
@@ -33,14 +35,14 @@ public class EmployeeController {
                 employees.stream().map(EmployeeResponse::fromDomain).toList()
         ));
     }
-
+    @PreAuthorize("hasRole('MANAGER')")
     @GetMapping(EMPLOYEE_ID)
     public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
 
-
+    @PreAuthorize("hasRole('MANAGER')")
     @PatchMapping(UPDATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void updateEmployee(@PathVariable UUID employeeId,
@@ -49,13 +51,13 @@ public class EmployeeController {
         useCase.updateEmployee(employeeId, dto);
     }
 
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeResponse> getOwnProfile() {
         var employee = useCase.getOwnProfile();
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
-
+    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
     @PatchMapping(UPDATE_OWN_PROFILE)
     @ResponseStatus(HttpStatus.OK)
     public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
@@ -63,6 +65,7 @@ public class EmployeeController {
         useCase.updateOwnProfile(dto);
     }
 
+    @PreAuthorize("hasRole('MANAGER')")
     @DeleteMapping(EMPLOYEE_ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteEmployee(@PathVariable UUID id) {
