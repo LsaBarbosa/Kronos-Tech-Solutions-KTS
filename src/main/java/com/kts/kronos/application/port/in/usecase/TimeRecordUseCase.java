@@ -26,5 +26,8 @@ public interface TimeRecordUseCase {
     List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req);
 
     byte[] listReportPDF(List<TimeRecordResponse> records);
+
+    void approveTimeRecordChange(Long timeRecordId);
+    void rejectTimeRecordChange(Long timeRecordId);
 }
 
