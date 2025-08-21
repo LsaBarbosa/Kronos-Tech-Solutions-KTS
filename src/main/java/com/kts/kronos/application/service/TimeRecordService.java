@@ -110,10 +110,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         var start = LocalDateTime.of(req.startDate(), parseStartTime);
         var end = LocalDateTime.of(req.endDate(), parseEndTime);
 
-        if (start.isAfter(TIME_ZONE_BRAZIL) || end.isAfter(TIME_ZONE_BRAZIL)) {
-            throw new BadRequestException(FUTURE_TIME_EXCEPTION);
-        }
-
         if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
         }
