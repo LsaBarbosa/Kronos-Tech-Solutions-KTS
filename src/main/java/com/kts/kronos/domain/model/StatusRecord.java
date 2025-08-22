@@ -7,8 +7,10 @@ public enum StatusRecord {
     CREATED,
     PENDING,
     UPDATED,
+    UPDATE_REJECTED,
     DAY_OFF,
     ABSENCE,
+    PENDING_APPROVAL,
     DOCTOR_APPOINTMENT;
 
 
@@ -22,7 +24,7 @@ public enum StatusRecord {
     }
 
     public StatusRecord onUpdate() {
-        if (this == CREATED || this == UPDATED || this == PENDING) {
+        if (this == CREATED || this == UPDATED || this == PENDING || this == PENDING_APPROVAL) {
             return UPDATED;
         }
         throw new IllegalStateException(

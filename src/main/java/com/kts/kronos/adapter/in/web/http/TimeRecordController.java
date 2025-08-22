@@ -132,4 +132,18 @@ public class TimeRecordController {
         return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
     }
 
+    @PreAuthorize("hasRole('MANAGER')")
+    @PatchMapping("/approve/{timeRecordId}")
+    @ResponseStatus(HttpStatus.OK)
+    public void approveChange(@PathVariable Long timeRecordId) {
+        useCase.approveTimeRecordChange(timeRecordId);
+    }
+
+    @PreAuthorize("hasRole('MANAGER')")
+    @PatchMapping("/reject/{timeRecordId}")
+    @ResponseStatus(HttpStatus.OK)
+    public void rejectChange(@PathVariable Long timeRecordId) {
+        useCase.rejectTimeRecordChange(timeRecordId);
+    }
+
 }
