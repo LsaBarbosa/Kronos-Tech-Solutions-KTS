@@ -107,7 +107,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+          var userRole = jwtAuthenticatedUser.getRoleFromToken();
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var record = getTimeRecord(timeRecordId);

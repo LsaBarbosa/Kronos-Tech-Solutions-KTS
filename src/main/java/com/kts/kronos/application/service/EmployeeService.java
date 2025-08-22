@@ -36,16 +36,15 @@ public class EmployeeService implements EmployeeUseCase {
     // MANAGER
     @Override
     public void createEmployee(CreateEmployeeRequest req) {
+        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var managerEmployee = employeeProvider.findById(managerEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
         if (employeeProvider.findByCpf(req.cpf()).isPresent())
             throw new BadRequestException(CPF_ALREADY_EXIST);
 
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
-
-        var company = companyProvider.findByCnpj(req.companyCnpj())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        COMPANY_NOT_FOUND   + req.companyCnpj()
-                ));
 
         var employee = new Employee(
                 req.fullName(),
@@ -55,7 +54,7 @@ public class EmployeeService implements EmployeeUseCase {
                 req.salary(),
                 req.phone(),
                 address,
-                company.companyId()
+               managerEmployee.companyId()
         );
         employeeProvider.save(employee);
     }
