@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tb_time_records (
     time_record_id BIGINT       PRIMARY KEY AUTO_INCREMENT,
     start_work     TIMESTAMP,
     end_work       TIMESTAMP,
-    status_record  VARCHAR(10),
+    status_record  VARCHAR(30),
     is_edite       BOOLEAN       NOT NULL DEFAULT FALSE,
     is_active      BOOLEAN       NOT NULL DEFAULT TRUE,
     employee_id    CHAR(36)    NOT NULL,

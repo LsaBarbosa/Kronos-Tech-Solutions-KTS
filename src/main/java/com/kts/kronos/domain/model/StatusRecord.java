@@ -7,6 +7,7 @@ public enum StatusRecord {
     CREATED,
     PENDING,
     UPDATED,
+    UPDATE_REJECTED,
     DAY_OFF,
     ABSENCE,
     PENDING_APPROVAL,
