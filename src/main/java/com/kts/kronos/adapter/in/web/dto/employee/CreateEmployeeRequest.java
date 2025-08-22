@@ -34,14 +34,10 @@ public record CreateEmployeeRequest(
         @Size(max = 50)
         String email,
 
-        @Positive(message =SALARY_MUST_BE_POSITIVE )
+        @Positive(message = SALARY_MUST_BE_POSITIVE)
         Double salary,
 
         String phone,
         @Valid AddressRequest
-        address,
-
-        @NotBlank(message = CNPJ_NOT_BLANK)
-        @Pattern(regexp = "\\d{14}", message =MUST_HAVE_14_CHARACTERES)
-        String companyCnpj) {
+        address) {
 }
