@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
@@ -73,6 +74,7 @@ import static com.kts.kronos.constants.Messages.PENDING;
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
     private static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
@@ -389,13 +391,18 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = findRecordAndCheckStatus(timeRecordId);
         String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;
 
-        // Busca a solicitação no Redis
-        TimeRecordChangeRequestMessage approvalData = (TimeRecordChangeRequestMessage) redisTemplate.opsForValue().get(redisKey);
+        // Busca a solicitação no Redis como um objeto genérico
+        Object approvalDataObject = redisTemplate.opsForValue().get(redisKey);
 
-        if (approvalData == null) {
+        if (approvalDataObject == null) {
             throw new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId);
         }
 
+        // Usa o ObjectMapper para converter o objeto (que é um Map) para a sua classe específica
+        TimeRecordChangeRequestMessage approvalData = objectMapper.convertValue(
+                approvalDataObject,
+                TimeRecordChangeRequestMessage.class
+        );
         // Aplica as alterações e atualiza o status
         var approvedRecord = record
                 .withCheckin(approvalData.newStartWork())
@@ -418,7 +425,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Reverte o status do registro.
         // Aqui, revertemos para CREATED e `edited` para false, mas poderia ser outra lógica.
-        var rejectedRecord = record.withStatus(StatusRecord.CREATED).withEdited(false);
+        var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
         recordRepository.save(rejectedRecord);
 
         // Limpa a chave do Redis
