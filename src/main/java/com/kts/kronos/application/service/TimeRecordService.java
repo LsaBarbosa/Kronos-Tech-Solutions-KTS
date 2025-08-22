@@ -59,7 +59,6 @@ import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
 import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
 import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
 import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.FUTURE_TIME_EXCEPTION;
 import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
 import static com.kts.kronos.constants.Messages.CREATED;
 import static com.kts.kronos.constants.Messages.UPDATED;
@@ -121,9 +120,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var start = LocalDateTime.of(req.startDate(), parseStartTime);
         var end = LocalDateTime.of(req.endDate(), parseEndTime);
 
-        if (start.isAfter(TIME_ZONE_BRAZIL) || end.isAfter(TIME_ZONE_BRAZIL)) {
-            throw new BadRequestException(FUTURE_TIME_EXCEPTION);
-        }
+
 
         if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
