@@ -54,7 +54,7 @@ public class EmployeeController {
         useCase.updateEmployee(employeeId, dto);
     }
 
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeResponse> getOwnProfile() {
         var employee = useCase.getOwnProfile();
