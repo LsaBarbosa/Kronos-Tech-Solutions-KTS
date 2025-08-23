@@ -12,16 +12,19 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
+import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
+import static com.kts.kronos.constants.Messages.MANAGER;
 
 @RestController
 @RequestMapping(EMPLOYEE)
 @RequiredArgsConstructor
 public class EmployeeController {
+
     private final EmployeeUseCase useCase;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize(MANAGER)
     public void registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
         useCase.createEmployee(dto);
     }
@@ -35,14 +38,14 @@ public class EmployeeController {
                 employees.stream().map(EmployeeResponse::fromDomain).toList()
         ));
     }
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize(MANAGER)
     @GetMapping(EMPLOYEE_ID)
     public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
 
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize(MANAGER)
     @PatchMapping(UPDATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void updateEmployee(@PathVariable UUID employeeId,
@@ -57,7 +60,7 @@ public class EmployeeController {
         var employee = useCase.getOwnProfile();
         return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
     }
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
     @ResponseStatus(HttpStatus.OK)
     public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
@@ -65,7 +68,7 @@ public class EmployeeController {
         useCase.updateOwnProfile(dto);
     }
 
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize(MANAGER)
     @DeleteMapping(EMPLOYEE_ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteEmployee(@PathVariable UUID id) {
