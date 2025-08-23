@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import static com.kts.kronos.constants.ApiPaths.COMPANIES;
 import static com.kts.kronos.constants.ApiPaths.BY_CNPJ;
 import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE_EMPLOYEE;
+import static com.kts.kronos.constants.Messages.KRONOS;
 
 @RestController
 @RequestMapping(COMPANIES)
@@ -26,19 +27,19 @@ public class CompanyController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
     }
 
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     @GetMapping(BY_CNPJ)
     public ResponseEntity<CompanyResponse> getCompany(@PathVariable String cnpj) {
         var company = useCase.getCompany(cnpj);
         return ResponseEntity.ok(CompanyResponse.fromDomain(company));
     }
 
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     @GetMapping
     public ResponseEntity<CompanyListResponse> allCompanies(
             @RequestParam(value = "active", required = false) Boolean active
@@ -49,7 +50,7 @@ public class CompanyController {
         ));
     }
 
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     @PatchMapping(BY_CNPJ)
     @ResponseStatus(HttpStatus.OK)
     public void updateCompany(
@@ -59,14 +60,14 @@ public class CompanyController {
         useCase.updateCompany(cnpj, dto);
     }
 
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     @PatchMapping(TOGGLE_ACTIVATE_EMPLOYEE)
     @ResponseStatus(HttpStatus.OK)
     public void deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
     }
 
-    @PreAuthorize("hasRole('CTO')")
+    @PreAuthorize(KRONOS)
     @DeleteMapping(BY_CNPJ)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCompany(@PathVariable String cnpj) {

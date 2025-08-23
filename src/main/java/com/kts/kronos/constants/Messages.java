@@ -9,7 +9,10 @@ import java.time.format.DateTimeFormatter;
 public class Messages {
     private Messages() {
     }
-
+    // Roles
+    public static final String KRONOS = "hasRole('CTO')";
+    public static final String ANY_EMPLOYEE = "hasAnyRole('MANAGER', 'PARTNER')";
+    public static final String MANAGER = "hasRole('MANAGER')";
     // Not found
     public static final String USER_NOT_FOUND = "Usuário não encontrado";
     public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
@@ -20,6 +23,10 @@ public class Messages {
     public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
     public static final String JWT_EMPLOYEE_ID_NOT_FOUND = "JWT sem employeeId.";
     public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no header Authorization.";
+    public static final String PARTNER_NOT_FOUND = "Funcionário (parceiro) não encontrado: ";
+    public static final String USER_MANAGER_NOT_FOUND = "Usuário (manager) não encontrado: ";
+    public static final String MANAGER_NOT_FOUND = "Funcionário (manager) não encontrado: ";
+
 
     // Exists
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
@@ -74,6 +81,7 @@ public class Messages {
     public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    public static final String DATE_TIME = "dd/MM/yyyy 'às' HH:mm";
 
     // Time exceptions
     public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";
@@ -91,4 +99,10 @@ public class Messages {
     public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
     public static final StatusRecord PENDING = StatusRecord.PENDING;
     public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
+
+    //RabbitMQ
+    public static final String TIME_RECORD_EXCHANGE = "time-record-exchange";
+    public static final String TIME_RECORD_CHANGE_QUEUE = "time-record-change-queue";
+    public static final String ROUTING_KEY = "change.request";
+
 }
