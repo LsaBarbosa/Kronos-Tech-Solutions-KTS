@@ -8,20 +8,20 @@ import org.springframework.amqp.core.TopicExchange;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import static com.kts.kronos.constants.Messages.*;
+
 @Configuration
 public class RabbitMQConfig {
-    public static final String EXCHANGE_NAME = "time-record-exchange";
-    public static final String QUEUE_NAME = "time-record-change-queue";
-    public static final String ROUTING_KEY = "change.request";
+
 
     @Bean
     public Queue queue() {
-        return new Queue(QUEUE_NAME, true); // durable queue
+        return new Queue(TIME_RECORD_CHANGE_QUEUE, true); // durable queue
     }
 
     @Bean
     public TopicExchange exchange() {
-        return new TopicExchange(EXCHANGE_NAME);
+        return new TopicExchange(TIME_RECORD_EXCHANGE);
     }
 
     @Bean

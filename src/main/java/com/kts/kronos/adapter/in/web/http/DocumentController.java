@@ -21,14 +21,16 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
+import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
 
 
 @RestController
 @RequestMapping(DOCUMENTS)
 @RequiredArgsConstructor
 public class DocumentController {
+
     private final DocumentUseCase useCase;
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public void upload(
@@ -38,7 +40,7 @@ public class DocumentController {
     ) throws Exception {
         useCase.uploadDocument(type,employeeId, file);
     }
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping
     public ResponseEntity<DocumentResponseList> list(
             @RequestParam(required = false) UUID employeeId,
@@ -51,7 +53,7 @@ public class DocumentController {
         return ResponseEntity.ok(new DocumentResponseList(docs.stream().map(
                 DocumentResponse::fromDomain).toList()));
     }
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
             @RequestParam(required = false) UUID employeeId,
@@ -64,7 +66,7 @@ public class DocumentController {
                         "attachment; filename=\"" + doc.fileName() + "\"")
                 .body(doc.data());
     }
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
