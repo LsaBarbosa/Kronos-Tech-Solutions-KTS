@@ -24,6 +24,7 @@ import static com.kts.kronos.constants.Messages.MANAGER;
 @RequestMapping(USER)
 @RequiredArgsConstructor
 public class UserController {
+
     private final UserUseCase useCase;
 
     @PostMapping
@@ -41,7 +42,7 @@ public class UserController {
     }
 
     @GetMapping(USER_BY_ID)
-    @PreAuthorize("hasAnyRole('MANAGER', 'PARTNER')")
+    @PreAuthorize(ANY_EMPLOYEE)
     public ResponseEntity<UserResponse> getUserId(@RequestParam(required = false) UUID userId) {
         var user = useCase.getUserById(userId);
         return ResponseEntity.ok(UserResponse.fromDomain(user));
@@ -78,6 +79,13 @@ public class UserController {
         useCase.deleteUser(id);
     }
 
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(OWN_USER_PROFILE)
+    public ResponseEntity<UserResponse> getOwnProfile() {
+        var user = useCase.getOwnProfile();
+        return ResponseEntity.ok(UserResponse.fromDomain(user));
+    }
+    
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(PASSWORD)
     public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest req) {
