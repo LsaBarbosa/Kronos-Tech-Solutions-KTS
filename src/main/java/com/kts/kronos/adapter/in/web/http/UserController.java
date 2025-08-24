@@ -24,7 +24,6 @@ import static com.kts.kronos.constants.Messages.MANAGER;
 @RequestMapping(USER)
 @RequiredArgsConstructor
 public class UserController {
-
     private final UserUseCase useCase;
 
     @PostMapping
@@ -36,14 +35,14 @@ public class UserController {
 
     @GetMapping(USER_BY_USERNAME)
     @PreAuthorize(MANAGER)
-    public ResponseEntity<UserResponse> getUser(@PathVariable String userName) {
+    public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String userName) {
         var user = useCase.getUserByUsername(userName);
         return ResponseEntity.ok(UserResponse.fromDomain(user));
     }
 
     @GetMapping(USER_BY_ID)
     @PreAuthorize(ANY_EMPLOYEE)
-    public ResponseEntity<UserResponse> getUserId(@RequestParam(required = false) UUID userId) {
+    public ResponseEntity<UserResponse> getUserById(@PathVariable UUID userId) {
         var user = useCase.getUserById(userId);
         return ResponseEntity.ok(UserResponse.fromDomain(user));
     }
@@ -68,15 +67,15 @@ public class UserController {
     @PatchMapping(TOGGLE_ACTIVATE_USER)
     @ResponseStatus(HttpStatus.OK)
     @PreAuthorize(MANAGER)
-    public void activateUser(@PathVariable UUID id) {
-        useCase.toggleActivate(id);
+    public void activateUser(@PathVariable UUID userId) {
+        useCase.toggleActivate(userId);
     }
 
     @DeleteMapping(DELETE_USER)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize(MANAGER)
-    public void deleteCompany(@PathVariable UUID id) {
-        useCase.deleteUser(id);
+    public void deleteUser(@PathVariable UUID userId) {
+        useCase.deleteUser(userId);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -85,7 +84,7 @@ public class UserController {
         var user = useCase.getOwnProfile();
         return ResponseEntity.ok(UserResponse.fromDomain(user));
     }
-    
+
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(PASSWORD)
     public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest req) {
