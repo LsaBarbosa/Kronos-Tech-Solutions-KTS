@@ -116,14 +116,14 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(MANAGER)
-    @PatchMapping("/approve/{timeRecordId}")
+    @PatchMapping(APPROVE_UPDATE)
     @ResponseStatus(HttpStatus.OK)
     public void approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
     }
 
     @PreAuthorize(MANAGER)
-    @PatchMapping("/reject/{timeRecordId}")
+    @PatchMapping(REJECT_UPDATE)
     @ResponseStatus(HttpStatus.OK)
     public void rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);

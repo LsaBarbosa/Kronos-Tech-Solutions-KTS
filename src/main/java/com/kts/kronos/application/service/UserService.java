@@ -67,12 +67,6 @@ public class UserService implements UserUseCase {
     }
 
     @Override
-    public User getUserByEmployee(UUID employeeId) {
-        return userProvider.findByEmployeeId(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId));
-    }
-
-    @Override
     public List<User> listUsers(Boolean active) {
         return active == null
                 ? userProvider.findAll()
@@ -141,6 +135,13 @@ public class UserService implements UserUseCase {
                 user.active(),
                 user.employeeId()
         ));
+    }
+
+    @Override
+    public User getOwnProfile() {
+        var userId = jwtAuthenticatedUser.getuserId();
+        return userProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
     }
 
     private void validatePasswordPolicy(String raw) {

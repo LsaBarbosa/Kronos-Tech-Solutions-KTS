@@ -31,6 +31,8 @@ public class ApiPaths {
     public static final String SIMPLE_REPORT = "/report/simple";
     public static final String REPORT_PDF = "report/pdf";
     public static final String REPORT_SIMPLE_PDF = "report/simple/pdf";
+    public static final String REJECT_UPDATE = "/reject/{timeRecordId}";
+    public static final String APPROVE_UPDATE = "/approve/{timeRecordId}";
 
     //User
     public static final String USER = "/users";
@@ -41,6 +43,8 @@ public class ApiPaths {
     public static final String TOGGLE_ACTIVATE_USER = "/toggle-activate/{userId}";
     public static final String DELETE_USER = "/{userId}";
     public static final String PASSWORD = "/password";
+    public static final String OWN_USER_PROFILE = "/own-profile";
+
 
     //Auth
     public static final String AUTH = "/auth";

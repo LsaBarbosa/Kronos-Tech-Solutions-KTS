@@ -12,7 +12,7 @@ public interface UserUseCase {
     void createUser(CreateUserRequest req);
     User getUserByUsername(String username);
     User getUserById(UUID userId);
-    User getUserByEmployee(UUID employeeId);
+    User getOwnProfile();
     List<User> listUsers(Boolean enabled);
     void updateUser(UUID userId, UpdateUserRequest req);
     void deleteUser(UUID userId);
