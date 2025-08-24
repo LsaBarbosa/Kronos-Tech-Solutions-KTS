@@ -89,7 +89,6 @@ public class Messages {
     public static final String CHECKOUT_EXCEPTION = "Realize a entrada antes de realizar uma nova saída";
     public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
     public static final String SALARY_MUST_BE_POSITIVE = "Salário deve ser positivo";
-
     //Status
     public static final String STATUS_CHECKOUT = "Só é possível fazer checkout de um registro PENDING (atual=";
     public static final String STATUS_UPDATE = "Só é possível editar um registro CREATED/UPDATED (atual=";
@@ -103,6 +102,7 @@ public class Messages {
     //RabbitMQ
     public static final String TIME_RECORD_EXCHANGE = "time-record-exchange";
     public static final String TIME_RECORD_CHANGE_QUEUE = "time-record-change-queue";
+    public static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
     public static final String ROUTING_KEY = "change.request";
 
 }
