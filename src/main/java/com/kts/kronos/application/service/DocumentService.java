@@ -7,6 +7,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-        var employee = employeeProvider.findById(employeeIdWith).orElseThrow(
-                ()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var employee = getEmployee(employeeId);
 
         var bytes = file.getBytes();
         var doc = new Document(
@@ -53,12 +52,9 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public Document downloadDocument(UUID employeeId,UUID documentId) throws IOException {
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var employee = getEmployee(employeeId);
 
         var doc = documentProvider.findById(documentId);
-       var employee = employeeProvider.findById(employeeIdWith)
-               .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
        if (!doc.employeeId().equals(employee.employeeId())){
            throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
        }
@@ -77,5 +73,11 @@ public class DocumentService implements DocumentUseCase {
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         documentProvider.delete(employeeIdWith,documentId);
+    }
+
+    private Employee getEmployee(UUID employeeId) {
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        return employeeProvider.findById(employeeIdWith)
+                .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
 }

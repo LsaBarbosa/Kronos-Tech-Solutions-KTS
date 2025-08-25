@@ -9,7 +9,6 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
   jpa:
-    database-platform: org.hibernate.dialect.MySQL8Dialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -26,7 +25,9 @@ spring:
     port: 5672
     username: myuser
     password: secret
-
+    amqp:
+      deserialization:
+        trust-all: true
 management:
   endpoints:
     web:

@@ -27,8 +27,6 @@ import static com.kts.kronos.constants.Messages.*;
 public class EmployeeService implements EmployeeUseCase {
 
     private final EmployeeProvider employeeProvider;
-    private final UserProvider userProvider;
-    private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
@@ -75,7 +73,7 @@ public class EmployeeService implements EmployeeUseCase {
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
-        var employee = getEmployeeData(id);
+        var employee = getEmployee(id);
         var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
@@ -97,9 +95,8 @@ public class EmployeeService implements EmployeeUseCase {
 
     @Override
     public void deleteEmployee(UUID id) {
-        if (employeeProvider.findById(id).isEmpty())
-            throw new ResourceNotFoundException(EMPLOYEE_NOT_FOUND);
-        employeeProvider.deleteById(id);
+        var employee = getEmployee(id);
+        employeeProvider.deleteById(employee.employeeId());
     }
 
     // PARTNER
@@ -107,14 +104,12 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public Employee getOwnProfile() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-        return getEmployeeData(employeeId);
+        return getEmployee(employeeId);
     }
 
     @Override
     public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = getEmployeeData(employeeId);
-
+        var employee = getOwnProfile();
         var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
@@ -127,9 +122,4 @@ public class EmployeeService implements EmployeeUseCase {
         employeeProvider.save(updated);
     }
 
-
-    private Employee getEmployeeData(UUID id) {
-        return employeeProvider.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-    }
 }

@@ -38,8 +38,7 @@ public class UserService implements UserUseCase {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
         // valida employee
-        employeeProvider.findById(req.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        findById(req.employeeId());
 
         validatePasswordPolicy(req.password()); // política (abaixo)
         var hashed = passwordEncoder.encode(req.password());
@@ -75,8 +74,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public void updateUser(UUID userId, UpdateUserRequest req) {
-        var existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        var existing = getUserId(userId);
 
         var username = req.username() != null ? req.username() : existing.username();
         var password = existing.password();
@@ -95,17 +93,16 @@ public class UserService implements UserUseCase {
 
     @Override
     public void deleteUser(UUID userId) {
-        var existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        var existing = getUserId(userId);
         userProvider.deleteById(userId);
         employeeProvider.findById(existing.employeeId())
                 .ifPresent(emp -> employeeProvider.deleteById(emp.employeeId()));
     }
 
+
     @Override
     public void toggleActivate(UUID userId) {
-        var existing = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        var existing = getUserId(userId);
         var active = existing.withActive(!existing.active());
         userProvider.save(active);
         employeeProvider.findById(existing.employeeId())
@@ -115,8 +112,7 @@ public class UserService implements UserUseCase {
     @Override
     public void changeOwnPassword(ChangePasswordRequest req) {
         var userId = jwtAuthenticatedUser.getuserId();
-        User user = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        User user = getUserId(userId);
 
         if (!passwordEncoder.matches(req.currentPassword(), user.password())) {
             throw new BadRequestException(INVALID_PASSWORD);
@@ -140,8 +136,7 @@ public class UserService implements UserUseCase {
     @Override
     public User getOwnProfile() {
         var userId = jwtAuthenticatedUser.getuserId();
-        return userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        return getUserId(userId);
     }
 
     private void validatePasswordPolicy(String raw) {
@@ -149,5 +144,13 @@ public class UserService implements UserUseCase {
         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
             throw new BadRequestException(INVALID_PASSWORD_POLICY);
         }
+    }
+    private void findById(UUID userId) {
+        employeeProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+    }
+    private User getUserId(UUID userId) {
+        return userProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
     }
 }

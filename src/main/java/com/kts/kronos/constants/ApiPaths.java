@@ -37,8 +37,8 @@ public class ApiPaths {
     //User
     public static final String USER = "/users";
     public static final String USERS = "/search";
-    public static final String USER_BY_USERNAME = "/search/{userName}";
-    public static final String USER_BY_ID = "/search/{userId}";
+    public static final String USER_BY_USERNAME = "/search/username/{userName}";
+    public static final String USER_BY_ID = "/search/id/{userId}";
     public static final String UPDATE_USER = "/search/{userId}";
     public static final String TOGGLE_ACTIVATE_USER = "/toggle-activate/{userId}";
     public static final String DELETE_USER = "/{userId}";
