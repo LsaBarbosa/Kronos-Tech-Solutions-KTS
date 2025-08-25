@@ -30,6 +30,7 @@ public class EmployeeController {
     }
 
     @GetMapping
+    @PreAuthorize(MANAGER)
     public ResponseEntity<EmployeeListResponse> allEmployees(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
