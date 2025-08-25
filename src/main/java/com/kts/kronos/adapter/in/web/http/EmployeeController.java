@@ -30,6 +30,7 @@ public class EmployeeController {
     }
 
     @GetMapping
+    @PreAuthorize(MANAGER)
     public ResponseEntity<EmployeeListResponse> allEmployees(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
@@ -69,9 +70,9 @@ public class EmployeeController {
     }
 
     @PreAuthorize(MANAGER)
-    @DeleteMapping(EMPLOYEE_ID)
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteEmployee(@PathVariable UUID id) {
-        useCase.deleteEmployee(id);
+    @DeleteMapping(EMPLOYEE_ID)
+    public void deleteEmployee(@PathVariable UUID employeeId) {
+        useCase.deleteEmployee(employeeId);
     }
 }

@@ -11,9 +11,8 @@ import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
+import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -23,51 +22,24 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.Role;
 import com.kts.kronos.domain.model.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
-import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
-import com.kts.kronos.domain.model.Role;
 
 import java.io.ByteArrayOutputStream;
-import java.time.ZoneId;
-import java.time.Duration;
-import java.time.LocalTime;
-import java.time.LocalDateTime;
-import java.time.LocalDate;
-
-import java.util.UUID;
-import java.util.Set;
-import java.util.Arrays;
-import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.List;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.springframework.data.redis.core.RedisTemplate;
+import static com.kts.kronos.constants.Messages.*;
 
-import java.util.concurrent.TimeUnit;
-
-import static com.kts.kronos.constants.Messages.CHECKIN_EXCEPTION;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.SAO_PAULO;
-import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
-import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
-import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
-import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
-import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
-import static com.kts.kronos.constants.Messages.CREATED;
-import static com.kts.kronos.constants.Messages.UPDATED;
-import static com.kts.kronos.constants.Messages.DAY_OFF;
-import static com.kts.kronos.constants.Messages.DOCTOR_APPOINTMENT;
-import static com.kts.kronos.constants.Messages.ABSENCE;
-import static com.kts.kronos.constants.Messages.CHECKOUT_EXCEPTION;
-import static com.kts.kronos.constants.Messages.PENDING;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -75,7 +47,6 @@ import static com.kts.kronos.constants.Messages.PENDING;
 public class TimeRecordService implements TimeRecordUseCase {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
@@ -109,7 +80,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
-          var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var record = getTimeRecord(timeRecordId);
@@ -123,13 +94,12 @@ public class TimeRecordService implements TimeRecordUseCase {
         var end = LocalDateTime.of(req.endDate(), parseEndTime);
 
 
-
         if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
         }
 
         // Lógica condicional baseada na Role
-        if ("PARTNER".equals(userRole)) {
+        if ("PARTNER" .equals(userRole)) {
             if (req.managerId() == null) {
                 throw new BadRequestException("O ID do manager é obrigatório para parceiros.");
             }
@@ -159,9 +129,9 @@ public class TimeRecordService implements TimeRecordUseCase {
             recordRepository.save(updatedRecord);
 
             // Envia a mensagem para a fila de forma assíncrona
-            rabbitTemplate.convertAndSend("time-record-exchange", "change.request", approvalData);
+            rabbitTemplate.convertAndSend(TIME_RECORD_EXCHANGE, ROUTING_KEY, approvalData);
 
-        } else if ("MANAGER".equals(userRole)) {
+        } else if ("MANAGER" .equals(userRole)) {
             // Lógica original para o MANAGER (aprovação direta)
             var statusUpdate = record.statusRecord().onUpdate();
             var updated = record.withCheckin(start).withCheckout(end).withEdited(true).withStatus(statusUpdate);
@@ -183,24 +153,14 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void toggleActivate(UUID employeeId, Long timeRecordId) {
-        var employee = getEmployee(employeeId);
-
-        var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
-
-        isRecordBelongsEmployee(employee.employeeId(), record);
-
+        var record = getRecord(employeeId, timeRecordId);
         var toggle = record.withActive(!record.active());
         recordRepository.save(toggle);
     }
 
     @Override
     public void updateStatus(UUID employeeId, Long timeRecordId, UpdateTimeRecordStatusRequest req) {
-        var employee = getEmployee(employeeId);
-
-        var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
-
-        isRecordBelongsEmployee(employee.employeeId(), record);
-
+        var record = getRecord(employeeId, timeRecordId);
         var updateStatus = record.withStatus(req.statusRecord());
         recordRepository.save(updateStatus);
     }
@@ -474,5 +434,13 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
         return active == null ? recordRepository.findByEmployeeId(employeeId) : recordRepository.findByEmployeeIdAndActive(employeeId, active);
+    }
+
+    private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
+        var employee = getEmployee(employeeId);
+        var record = getTimeRecord(timeRecordId);
+
+        isRecordBelongsEmployee(employee.employeeId(), record);
+        return record;
     }
 }
