@@ -57,6 +57,7 @@ public class EmployeeEntity {
                 salary, phone, active, address.toDomain(), companyId
         );
     }
+
     public static EmployeeEntity fromDomain(Employee employee) {
         return EmployeeEntity.builder()
                 .employeeId(employee.employeeId())

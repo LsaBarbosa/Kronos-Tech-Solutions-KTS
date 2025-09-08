@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface EmployeeUseCase {
     // MANAGER
-    void createEmployee(CreateEmployeeRequest req);
+    Employee createEmployee(CreateEmployeeRequest req);
     List<Employee> listEmployees(Boolean active);
     Employee getEmployee(UUID employeeId);
     void updateEmployee(UUID employeeId, UpdateEmployeeManagerRequest req);

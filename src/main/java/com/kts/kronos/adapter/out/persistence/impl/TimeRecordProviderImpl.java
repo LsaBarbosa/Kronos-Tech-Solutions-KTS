@@ -71,4 +71,9 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
         var dayEnd   = date.atTime(23, 59, 59);
         return jpa.existsByEmployeeIdAndDate(employeeId, dayStart, dayEnd);
     }
+
+    @Override
+    public void deleteByEmployeeId(UUID employeeId) {
+        jpa.deleteByEmployeeId(employeeId);
+    }
 }

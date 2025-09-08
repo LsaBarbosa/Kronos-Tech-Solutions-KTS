@@ -8,9 +8,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
-import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,7 +31,7 @@ public class EmployeeService implements EmployeeUseCase {
 
     // MANAGER
     @Override
-    public void createEmployee(CreateEmployeeRequest req) {
+    public Employee createEmployee(CreateEmployeeRequest req) {
         var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
         var managerEmployee = employeeProvider.findById(managerEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
@@ -54,7 +52,7 @@ public class EmployeeService implements EmployeeUseCase {
                 address,
                managerEmployee.companyId()
         );
-        employeeProvider.save(employee);
+      return  employeeProvider.save(employee);
     }
 
     @Override
@@ -80,15 +78,26 @@ public class EmployeeService implements EmployeeUseCase {
             updateAddress = lookup.withNumber(req.address().number());
         }
         var updatedEmployee = new Employee(
+                employee.employeeId(), // Garante que o ID é o mesmo do funcionário original
                 req.fullName() != null ? req.fullName() : employee.fullName(),
                 req.cpf() != null ? req.cpf() : employee.cpf(),
                 req.jobPosition() != null ? req.jobPosition() : employee.jobPosition(),
                 req.email() != null ? req.email() : employee.email(),
                 req.salary() != null ? req.salary() : employee.salary(),
                 req.phone() != null ? req.phone() : employee.phone(),
-                updateAddress,
+                employee.active(),
+                employee.address(),
                 employee.companyId()
         );
+
+        // 3. Verifica e atualiza o endereço, se necessário
+        if (req.address() != null) {
+            var lookup = viaCep.lookup(req.address().postalCode());
+            var updatedAddress = lookup.withNumber(req.address().number());
+            updatedEmployee = updatedEmployee.withAddress(updatedAddress);
+        }
+
+        // 4. Salva a nova instância. Como o ID é o mesmo, ele será atualizado.
         employeeProvider.save(updatedEmployee);
     }
 

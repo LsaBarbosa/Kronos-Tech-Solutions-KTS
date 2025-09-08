@@ -16,10 +16,10 @@ import java.util.UUID;
 public class EmployeeProviderImpl implements EmployeeProvider {
     private final EmployeeRepository repository;
     @Override
-    public void save(Employee employee) {
+    public Employee save(Employee employee) {
         var entity = EmployeeEntity.fromDomain(employee);
          var saved =repository.save(entity);
-         saved.toDomain();
+       return   saved.toDomain();
     }
 
     @Override

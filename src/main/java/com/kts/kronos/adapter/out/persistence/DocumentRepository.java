@@ -26,4 +26,5 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             @Param("end")   Instant end,
             @Param("type")  String documentType
     );
+    void deleteByEmployeeId(UUID employeeId);
 }
