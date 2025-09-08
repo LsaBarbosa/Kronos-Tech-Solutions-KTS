@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface EmployeeProvider {
-    void save(Employee employee);
+    Employee save(Employee employee);
     Optional<Employee> findById(UUID id);
     Optional<Employee> findByCpf(String cpf);
     List<Employee> findAll();

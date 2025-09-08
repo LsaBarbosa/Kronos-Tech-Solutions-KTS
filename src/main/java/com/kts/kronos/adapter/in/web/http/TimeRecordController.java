@@ -65,13 +65,13 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @GetMapping(REPORT)
+    @PostMapping(REPORT)
     public List<TimeRecordResponse> report(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
         return useCase.listReport(employeeId, req);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @GetMapping(REPORT_PDF)
+    @PostMapping(REPORT_PDF)
     public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
 
         var records = useCase.listReport(employeeId, req);
@@ -89,7 +89,7 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @GetMapping(SIMPLE_REPORT)
+    @PostMapping(SIMPLE_REPORT)
     public ResponseEntity<SimpleReportResponse> simpleReport(@RequestParam(required = false) UUID employeeId,
                                                              @Valid @RequestBody SimpleReportRequest req) {
         var resp = useCase.simpleReport(employeeId, req);
@@ -97,7 +97,7 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @GetMapping(REPORT_SIMPLE_PDF)
+    @PostMapping(REPORT_SIMPLE_PDF)
     public ResponseEntity<byte[]> simpleReportPdf(@RequestParam(required = false) UUID employeeId,
                                                   @Valid @RequestBody SimpleReportRequest req) {
 

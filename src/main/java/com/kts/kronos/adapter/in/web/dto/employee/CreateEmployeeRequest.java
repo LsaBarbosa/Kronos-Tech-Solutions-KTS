@@ -16,7 +16,7 @@ import static com.kts.kronos.constants.Messages.CNPJ_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.JOB_POSITION_NOT_BLANK;
 
 
-public record CreateEmployeeRequest(
+public record  CreateEmployeeRequest(
         @NotBlank(message = EMPLOYEE_NAME_NOT_BLANK)
         @Size(max = 200, message = MUST_HAVE_200_CHARACTERES)
         String fullName,

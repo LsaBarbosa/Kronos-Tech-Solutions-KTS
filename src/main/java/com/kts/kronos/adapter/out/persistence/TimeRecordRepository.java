@@ -33,5 +33,5 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     Optional<TimeRecordEntity>  findFirstByEmployeeIdAndEndWorkIsNullOrderByStartWorkDesc(UUID employeeId);
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
-
+    void deleteByEmployeeId(UUID employeeId);
 }

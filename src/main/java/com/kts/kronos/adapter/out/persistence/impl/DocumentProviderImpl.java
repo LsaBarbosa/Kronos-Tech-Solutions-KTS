@@ -76,4 +76,9 @@ public class DocumentProviderImpl implements DocumentProvider {
        documentRepository.deleteById(doc.documentId());
     }
 
+    @Override
+    public void deleteByEmployeeId(UUID employeeId) {
+        documentRepository.deleteByEmployeeId(employeeId);
+    }
+
 }

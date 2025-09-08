@@ -7,7 +7,9 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.Role;
@@ -27,6 +29,8 @@ import static com.kts.kronos.constants.Messages.*;
 public class UserService implements UserUseCase {
 
     private final UserProvider userProvider;
+    private final DocumentProvider documentProvider;
+    private final TimeRecordProvider timeRecordProvider;
     private final EmployeeProvider employeeProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
@@ -94,9 +98,11 @@ public class UserService implements UserUseCase {
     @Override
     public void deleteUser(UUID userId) {
         var existing = getUserId(userId);
+        var employeeId = existing.employeeId();
+        documentProvider.deleteByEmployeeId(employeeId);
+        timeRecordProvider.deleteByEmployeeId(employeeId);
         userProvider.deleteById(userId);
-        employeeProvider.findById(existing.employeeId())
-                .ifPresent(emp -> employeeProvider.deleteById(emp.employeeId()));
+        employeeProvider.deleteById(employeeId);
     }
 
 

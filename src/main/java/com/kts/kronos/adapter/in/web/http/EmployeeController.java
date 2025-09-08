@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.UUID;
 
@@ -25,8 +26,14 @@ public class EmployeeController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(MANAGER)
-    public void registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
-        useCase.createEmployee(dto);
+    public ResponseEntity<EmployeeResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
+        var create =  useCase.createEmployee(dto);
+        var location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(create.employeeId())
+                .toUri();
+        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create));
     }
 
     @GetMapping

@@ -13,4 +13,5 @@ public interface DocumentProvider {
     List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type);
     List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type);
     void delete(UUID employeeId, UUID documentId);
+    void deleteByEmployeeId(UUID employeeId);
 }
