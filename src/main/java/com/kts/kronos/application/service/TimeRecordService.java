@@ -347,6 +347,48 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
+    public List<TimeRecordApprovalResponse> listPendingApprovals() {
+        // Assume que as chaves de aprovação seguem o padrão "timerecord:approval:*"
+        String pattern = APPROVAL_KEY_PREFIX + "*";
+        Set<String> keys = redisTemplate.keys(pattern);
+
+        if (keys.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TimeRecordApprovalResponse> responses = new ArrayList<>();
+
+        for (String key : keys) {
+            Object approvalDataObject = redisTemplate.opsForValue().get(key);
+            if (approvalDataObject == null) {
+                continue;
+            }
+
+            TimeRecordChangeRequestMessage approvalData = objectMapper.convertValue(
+                    approvalDataObject,
+                    TimeRecordChangeRequestMessage.class
+            );
+
+            // Busca os dados do colaborador e manager
+            var partnerEmployee = employeeProvider.findById(approvalData.partnerEmployeeId())
+                    .orElse(null);
+            var managerUser = userProvider.findById(approvalData.managerId())
+                    .orElse(null);
+
+            if (partnerEmployee != null && managerUser != null) {
+                responses.add(new TimeRecordApprovalResponse(
+                        approvalData.timeRecordId(),
+                        partnerEmployee.fullName(),
+                        managerUser.username(),
+                        approvalData.newStartWork(),
+                        approvalData.newEndWork()
+                ));
+            }
+        }
+        return responses;
+    }
+
+    @Override
     public void approveTimeRecordChange(Long timeRecordId) {
         var record = findRecordAndCheckStatus(timeRecordId);
         String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;

@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
 import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
@@ -51,6 +53,13 @@ public class CompanyService implements CompanyUseCase {
         return active == null
                 ? companyProvider.findAll()
                 : companyProvider.findByActive(active);
+    }
+
+    @Override
+    public String getCompanyNameById(UUID companyId) {
+         var company = companyProvider.findById(companyId)
+                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        return company.name();
     }
 
     @Override

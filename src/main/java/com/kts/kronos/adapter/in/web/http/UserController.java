@@ -48,7 +48,7 @@ public class UserController {
     }
 
     @GetMapping(USERS)
-    @PreAuthorize(MANAGER)
+    @PreAuthorize(ANY_EMPLOYEE)
     public ResponseEntity<UserListResponse> allUsers(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
