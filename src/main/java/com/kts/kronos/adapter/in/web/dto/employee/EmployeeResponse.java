@@ -14,9 +14,9 @@ public record EmployeeResponse(
         double salary,
         String phone,
         AddressResponse address,
-        UUID companyId
+        String companyName
 ) {
-    public static EmployeeResponse fromDomain(Employee employee) {
+    public static EmployeeResponse fromDomain(Employee employee, String companyName) {
         return new EmployeeResponse(
                 employee.employeeId(),
                 employee.fullName(),
@@ -26,11 +26,11 @@ public record EmployeeResponse(
                 employee.salary(),
                 employee.phone(),
                 AddressResponse.fromDomain(employee.address()),
-                employee.companyId()
+               companyName
         );
     }
 
     private static String maskCpf(String cpf) {
-        return cpf.substring(0, 3) + "..." + cpf.substring(cpf.length() - 2);
+        return cpf.substring(0, 5) + "..." + cpf.substring(cpf.length() - 2);
     }
 }

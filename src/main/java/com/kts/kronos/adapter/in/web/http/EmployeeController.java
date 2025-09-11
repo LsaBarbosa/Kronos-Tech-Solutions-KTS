@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.employee.*;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,18 +23,20 @@ import static com.kts.kronos.constants.Messages.MANAGER;
 public class EmployeeController {
 
     private final EmployeeUseCase useCase;
+    private final CompanyUseCase companyUseCase;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(MANAGER)
     public ResponseEntity<EmployeeResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
-        var create =  useCase.createEmployee(dto);
+        var create = useCase.createEmployee(dto);
+        var companyName = companyUseCase.getCompanyNameById(create.companyId());
         var location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(create.employeeId())
                 .toUri();
-        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create));
+        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create, companyName));
     }
 
     @GetMapping
@@ -42,15 +45,23 @@ public class EmployeeController {
             @RequestParam(value = "active", required = false) Boolean active
     ) {
         var employees = useCase.listEmployees(active);
-        return ResponseEntity.ok(new EmployeeListResponse(
-                employees.stream().map(EmployeeResponse::fromDomain).toList()
-        ));
+
+        var employeeResponses = employees.stream().map(employee -> {
+            // 1. Busca o nome da empresa usando o CompanyService
+            String companyName = companyUseCase.getCompanyNameById(employee.companyId());
+
+            // 2. Mapeia para o DTO, passando o nome da empresa
+            return EmployeeResponse.fromDomain(employee, companyName);
+        }).toList();
+        return ResponseEntity.ok(new EmployeeListResponse(employeeResponses));
     }
+
     @PreAuthorize(MANAGER)
     @GetMapping(EMPLOYEE_ID)
     public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
+        var companyName = companyUseCase.getCompanyNameById(employee.companyId());
+        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee, companyName));
     }
 
     @PreAuthorize(MANAGER)
@@ -66,7 +77,8 @@ public class EmployeeController {
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeResponse> getOwnProfile() {
         var employee = useCase.getOwnProfile();
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee));
+        var companyName = companyUseCase.getCompanyNameById(employee.companyId());
+        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee,companyName));
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)

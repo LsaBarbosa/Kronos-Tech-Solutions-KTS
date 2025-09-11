@@ -33,6 +33,7 @@ public class ApiPaths {
     public static final String REPORT_SIMPLE_PDF = "report/simple/pdf";
     public static final String REJECT_UPDATE = "/reject/{timeRecordId}";
     public static final String APPROVE_UPDATE = "/approve/{timeRecordId}";
+    public static final String PENDING_APPROVALS = "/pending-approvals";
 
     //User
     public static final String USER = "/users";

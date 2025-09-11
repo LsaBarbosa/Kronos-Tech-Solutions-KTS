@@ -129,4 +129,10 @@ public class TimeRecordController {
         useCase.rejectTimeRecordChange(timeRecordId);
     }
 
+    @PreAuthorize(MANAGER)
+    @GetMapping(PENDING_APPROVALS)
+    public ResponseEntity<List<TimeRecordApprovalResponse>> listPendingApprovals() {
+        var approvals = useCase.listPendingApprovals();
+        return ResponseEntity.ok(approvals);
+    }
 }

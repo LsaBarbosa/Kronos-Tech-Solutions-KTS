@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.domain.model.Company;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface CompanyUseCase {
     void createCompany(CreateCompanyRequest companyRequest);
@@ -13,4 +15,5 @@ public interface CompanyUseCase {
     void deleteByCnpj(String cnpj);
     Company getCompany(String cnpj);
     List<Company> listCompanies(Boolean active);
+      String getCompanyNameById(UUID companyId);
 }
