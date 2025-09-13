@@ -11,8 +11,9 @@ public class Messages {
     }
     // Roles
     public static final String KRONOS = "hasRole('CTO')";
-    public static final String ANY_EMPLOYEE = "hasAnyRole('MANAGER', 'PARTNER')";
+    public static final String ANY_EMPLOYEE = "hasAnyRole('MANAGER', 'PARTNER','CTO')";
     public static final String MANAGER = "hasRole('MANAGER')";
+    public static final String ADMINISTRATOR = "hasAnyRole('MANAGER', 'CTO')";
     // Not found
     public static final String USER_NOT_FOUND = "Usuário não encontrado";
     public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";

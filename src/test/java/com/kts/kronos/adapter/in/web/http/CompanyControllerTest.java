@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +26,7 @@ import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.BY_CNPJ;
 import static com.kts.kronos.constants.ApiPaths.COMPANIES;
-import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE_EMPLOYEE;
+import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -165,7 +164,7 @@ class CompanyControllerTest {
         void deactivateCompany_Success_Returns200() throws Exception {
             doNothing().when(useCase).toggleActivate(cnpj);
 
-            mockMvc.perform(patch(COMPANIES + TOGGLE_ACTIVATE_EMPLOYEE, cnpj)
+            mockMvc.perform(patch(COMPANIES + TOGGLE_ACTIVATE, cnpj)
                             .with(user("ctoUser").roles(ctoRole))
                             .with(csrf())) // Adicionado o token CSRF
                     .andExpect(status().isOk());

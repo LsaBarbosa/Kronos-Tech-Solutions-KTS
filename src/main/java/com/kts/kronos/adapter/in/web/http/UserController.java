@@ -17,8 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
-import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
-import static com.kts.kronos.constants.Messages.MANAGER;
+import static com.kts.kronos.constants.Messages.*;
 
 @RestController
 @RequestMapping(USER)
@@ -28,7 +27,7 @@ public class UserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize(MANAGER)
+    @PreAuthorize(ADMINISTRATOR)
     public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
     }

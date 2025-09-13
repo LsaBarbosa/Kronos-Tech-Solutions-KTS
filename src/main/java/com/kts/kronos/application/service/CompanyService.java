@@ -7,13 +7,15 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
@@ -26,13 +28,16 @@ public class CompanyService implements CompanyUseCase {
 
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
+    private final EmployeeProvider employeeProvider;
+    private final UserProvider userProvider;
 
     @Override
-    public void createCompany(CreateCompanyRequest request) {
+    public Employee createCompany(CreateCompanyRequest request) {
         if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
+        // 1. Create and save the Company
         var address = viaCep.lookup(request.address().postalCode())
                 .withNumber(request.address().number());
 
@@ -40,9 +45,21 @@ public class CompanyService implements CompanyUseCase {
                 request.name(), request.cnpj(), request.email(), address
         );
         companyProvider.save(company);
-    }
 
-    @Override
+        // 2. Create and save the Employee, associating it with the new company
+        var employee = new Employee(
+                request.employeeRequest().fullName(),
+                request.employeeRequest().cpf(),
+                request.employeeRequest().jobPosition(),
+                request.employeeRequest().email(),
+                request.employeeRequest().salary(),
+                request.employeeRequest().phone(),
+                address,
+                company.companyId()
+        );
+        return employeeProvider.save(employee);
+    }
+        @Override
     public Company getCompany(String cnpj) {
         return companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));

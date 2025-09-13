@@ -14,8 +14,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
-import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
-import static com.kts.kronos.constants.Messages.MANAGER;
+import static com.kts.kronos.constants.Messages.*;
 
 @RestController
 @RequestMapping(EMPLOYEE)
@@ -27,7 +26,7 @@ public class EmployeeController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize(MANAGER)
+    @PreAuthorize(ADMINISTRATOR)
     public ResponseEntity<EmployeeResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
         var create = useCase.createEmployee(dto);
         var companyName = companyUseCase.getCompanyNameById(create.companyId());

@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.company;
 
 import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -24,5 +25,6 @@ public record CreateCompanyRequest (
         @Email(message = INVALID_EMAIL_FORMAT)
         String email,
 
-        @Valid AddressRequest address
+        @Valid AddressRequest address,
+        @Valid CreateEmployeeRequest employeeRequest
 ) {}
