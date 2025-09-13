@@ -4,6 +4,7 @@ import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.DocumentType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -37,12 +38,8 @@ public class DocumentEntity {
     @Column(name = "data", columnDefinition = "LONGBLOB", nullable = false)
     private byte[] data;
 
-    @Column(
-            name = "uploaded_at",
-            nullable = false,
-            insertable = false,   // <— Hibernate não inclui no INSERT
-            updatable = false     // <— Hibernate não inclui no UPDATE
-    )
+    @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
+    @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
     @Enumerated(EnumType.STRING)
