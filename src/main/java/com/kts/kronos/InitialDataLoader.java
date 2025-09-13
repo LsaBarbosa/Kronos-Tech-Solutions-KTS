@@ -58,16 +58,16 @@ public class InitialDataLoader implements CommandLineRunner {
             employeeProvider.save(employee);
             log.info("Funcionário 'Luis Barbosa' criado com sucesso.");
 
-            // 3. Criar e salvar um usuário associado ao funcionário
+            // 3. Criar e salvar um usuário associado ao funcionário com a função 'CTO'
             String hashedPassword = passwordEncoder.encode("Tec2659*");
             User user = new User(
                     "luis.barbosa",
                     hashedPassword,
-                    Role.MANAGER,
+                    Role.CTO, // Alterado de MANAGER para CTO
                     employee.employeeId()
             );
             userProvider.save(user);
-            log.info("Usuário 'luis.barbosa' criado com sucesso.");
+            log.info("Usuário 'luis.barbosa' criado com sucesso com a role CTO.");
 
         } else {
             log.info("Dados iniciais já existem. Ignorando a carga.");

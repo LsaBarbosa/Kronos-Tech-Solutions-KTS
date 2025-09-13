@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.CompanyListResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeResponse;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,11 +12,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 
 import static com.kts.kronos.constants.ApiPaths.COMPANIES;
 import static com.kts.kronos.constants.ApiPaths.BY_CNPJ;
-import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE_EMPLOYEE;
+import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE;
 import static com.kts.kronos.constants.Messages.KRONOS;
 
 @RestController
@@ -28,8 +30,15 @@ public class CompanyController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(KRONOS)
-    public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
-        useCase.createCompany(dto);
+    public ResponseEntity<EmployeeResponse> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
+        var createdEmployee = useCase.createCompany(dto);
+        var companyName = useCase.getCompanyNameById(createdEmployee.companyId());
+        var location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(createdEmployee.employeeId())
+                .toUri();
+        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(createdEmployee, companyName));
     }
 
     @PreAuthorize(KRONOS)
@@ -61,7 +70,7 @@ public class CompanyController {
     }
 
     @PreAuthorize(KRONOS)
-    @PatchMapping(TOGGLE_ACTIVATE_EMPLOYEE)
+    @PatchMapping(TOGGLE_ACTIVATE)
     @ResponseStatus(HttpStatus.OK)
     public void deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);

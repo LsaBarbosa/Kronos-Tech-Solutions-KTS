@@ -6,7 +6,7 @@ public class ApiPaths {
     // Companies
     public static final String COMPANIES = "/companies";
     public static final String BY_CNPJ = "/{cnpj}";
-    public static final String TOGGLE_ACTIVATE_EMPLOYEE = "/{cnpj}/toggle-activate";
+    public static final String TOGGLE_ACTIVATE = "/{cnpj}/toggle-activate";
 
     // Documents
     public static final String DOCUMENTS = "/documents";
