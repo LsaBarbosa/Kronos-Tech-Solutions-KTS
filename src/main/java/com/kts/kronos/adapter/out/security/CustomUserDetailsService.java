@@ -20,6 +20,6 @@ public class CustomUserDetailsService implements UserDetailsService {
         var entity = repo.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
         var domain = entity.toDomain();
-        return SecurityUserMapper.toSpringUser(domain);  // converta sua entidade em org.springframework.security.core.userdetails.User
+        return SecurityUserMapper.toSpringUser(domain);
     }
 }

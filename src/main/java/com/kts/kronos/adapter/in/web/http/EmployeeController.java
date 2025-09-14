@@ -46,11 +46,9 @@ public class EmployeeController {
         var employees = useCase.listEmployees(active);
 
         var employeeResponses = employees.stream().map(employee -> {
-            // 1. Busca o nome da empresa usando o CompanyService
-            String companyName = companyUseCase.getCompanyNameById(employee.companyId());
+             String companyName = companyUseCase.getCompanyNameById(employee.companyId());
 
-            // 2. Mapeia para o DTO, passando o nome da empresa
-            return EmployeeResponse.fromDomain(employee, companyName);
+             return EmployeeResponse.fromDomain(employee, companyName);
         }).toList();
         return ResponseEntity.ok(new EmployeeListResponse(employeeResponses));
     }

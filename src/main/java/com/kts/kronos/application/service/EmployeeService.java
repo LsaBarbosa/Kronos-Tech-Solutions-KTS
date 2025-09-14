@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
+import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -50,24 +51,38 @@ public class EmployeeService implements EmployeeUseCase {
                 req.salary(),
                 req.phone(),
                 address,
-               managerEmployee.companyId()
+                managerEmployee.companyId()
         );
-      return  employeeProvider.save(employee);
+        return employeeProvider.save(employee);
     }
 
     @Override
     public List<Employee> listEmployees(Boolean active) {
+        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var managerEmployee = employeeProvider.findById(managerEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var companyId = managerEmployee.companyId();
         return active == null
-                ? employeeProvider.findAll()
-                : employeeProvider.findByActive(active);
+                ? employeeProvider.findByCompanyId(companyId)
+                : employeeProvider.findByCompanyIdAndActive(companyId, active);
     }
 
     @Override
 
     public Employee getEmployee(UUID employeeId) {
-        return employeeProvider.findById(employeeId)
+        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var managerEmployee = employeeProvider.findById(managerEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId));
-    }
+
+        if (!employee.companyId().equals(managerEmployee.companyId())) {
+            throw new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId);
+        }
+
+        return employee;
+}
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
@@ -90,14 +105,13 @@ public class EmployeeService implements EmployeeUseCase {
                 employee.companyId()
         );
 
-        // 3. Verifica e atualiza o endereço, se necessário
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
             var updatedAddress = lookup.withNumber(req.address().number());
             updatedEmployee = updatedEmployee.withAddress(updatedAddress);
         }
 
-        // 4. Salva a nova instância. Como o ID é o mesmo, ele será atualizado.
+
         employeeProvider.save(updatedEmployee);
     }
 
@@ -107,7 +121,6 @@ public class EmployeeService implements EmployeeUseCase {
         var employee = getEmployee(id);
         employeeProvider.deleteById(employee.employeeId());
     }
-
     // PARTNER
 
     @Override

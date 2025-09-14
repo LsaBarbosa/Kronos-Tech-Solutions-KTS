@@ -41,10 +41,10 @@ public class UserService implements UserUseCase {
         if (userProvider.findByUsername(req.username()).isPresent()) {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
-        // valida employee
+
         findById(req.employeeId());
 
-        validatePasswordPolicy(req.password()); // política (abaixo)
+        validatePasswordPolicy(req.password());
         var hashed = passwordEncoder.encode(req.password());
 
         var user = new User(
@@ -146,8 +146,7 @@ public class UserService implements UserUseCase {
     }
 
     private void validatePasswordPolicy(String raw) {
-        // exemplo simples: 8+ chars, 1 maiúscula, 1 minúscula, 1 dígito
-        if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
+         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
             throw new BadRequestException(INVALID_PASSWORD_POLICY);
         }
     }

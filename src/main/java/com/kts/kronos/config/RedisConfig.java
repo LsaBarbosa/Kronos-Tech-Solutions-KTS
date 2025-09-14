@@ -16,12 +16,10 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // 2. Crie um ObjectMapper customizado
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule()); // 3. Registre o módulo do Java 8
+         ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
 
-        // 4. Use o ObjectMapper customizado no serializador
-        GenericJackson2JsonRedisSerializer jsonRedisSerializer =
+         GenericJackson2JsonRedisSerializer jsonRedisSerializer =
                 new GenericJackson2JsonRedisSerializer(objectMapper);
 
         template.setKeySerializer(new StringRedisSerializer());
