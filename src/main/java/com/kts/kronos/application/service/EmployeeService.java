@@ -3,7 +3,6 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
-import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -18,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.constants.Messages.CPF_ALREADY_EXIST;
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -87,11 +87,6 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
         var employee = getEmployee(id);
-        var updateAddress = employee.address();
-        if (req.address() != null) {
-            var lookup = viaCep.lookup(req.address().postalCode());
-            updateAddress = lookup.withNumber(req.address().number());
-        }
         var updatedEmployee = new Employee(
                 employee.employeeId(), // Garante que o ID é o mesmo do funcionário original
                 req.fullName() != null ? req.fullName() : employee.fullName(),
