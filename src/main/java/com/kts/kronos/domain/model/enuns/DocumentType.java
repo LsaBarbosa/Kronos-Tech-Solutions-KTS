@@ -1,4 +1,4 @@
-package com.kts.kronos.domain.model;
+package com.kts.kronos.domain.model.enuns;
 
 public enum DocumentType {
     PAYSLIP,

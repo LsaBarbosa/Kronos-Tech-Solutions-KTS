@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

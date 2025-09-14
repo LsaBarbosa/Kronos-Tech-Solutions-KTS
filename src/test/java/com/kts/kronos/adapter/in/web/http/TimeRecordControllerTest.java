@@ -3,7 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.domain.model.StatusRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;

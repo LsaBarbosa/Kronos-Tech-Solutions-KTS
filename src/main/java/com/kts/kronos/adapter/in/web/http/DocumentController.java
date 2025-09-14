@@ -4,7 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentResponse;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;

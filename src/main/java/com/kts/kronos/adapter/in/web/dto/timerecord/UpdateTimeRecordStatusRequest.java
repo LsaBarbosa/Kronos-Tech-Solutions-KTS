@@ -1,6 +1,6 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
-import com.kts.kronos.domain.model.StatusRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.validation.constraints.NotNull;
 
 import static com.kts.kronos.constants.Messages.STATUS_NOT_BLANK;
