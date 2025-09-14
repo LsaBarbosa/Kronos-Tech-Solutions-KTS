@@ -19,8 +19,7 @@ public class JwtAuthenticatedUser {
         String token = extractToken();
         UUID id = jwtUtils.getEmployeeIdFromToken(token);
         if (id == null) {
-            // token sem claim ou inválido => tratamos como 401/400 de forma clara
-            throw new IllegalArgumentException(JWT_EMPLOYEE_ID_NOT_FOUND);
+             throw new IllegalArgumentException(JWT_EMPLOYEE_ID_NOT_FOUND);
         }
         return id;
     }
@@ -29,8 +28,7 @@ public class JwtAuthenticatedUser {
         String token = extractToken();
         UUID id = jwtUtils.getUserIdFromToken(token);
         if (id == null) {
-            // token sem claim ou inválido => tratamos como 401/400 de forma clara
-            throw new IllegalArgumentException(JWT_USER_ID_NOT_FOUND);
+             throw new IllegalArgumentException(JWT_USER_ID_NOT_FOUND);
         }
         return id;
     }

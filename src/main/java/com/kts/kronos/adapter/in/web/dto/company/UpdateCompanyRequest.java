@@ -19,7 +19,7 @@ public record UpdateCompanyRequest(
         Boolean active,
 
         @Valid
-        UpdateAddressRequest address  // pode ser null se não quiser alterar endereço
+        UpdateAddressRequest address
 ) {
 
 }

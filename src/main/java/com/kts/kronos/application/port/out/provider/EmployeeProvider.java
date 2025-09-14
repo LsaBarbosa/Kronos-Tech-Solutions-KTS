@@ -13,5 +13,6 @@ public interface EmployeeProvider {
     List<Employee> findAll();
     List<Employee> findByActive(boolean active);
     void deleteById(UUID id);
-
+    List<Employee> findByCompanyId(UUID companyId);
+    List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active);
 }

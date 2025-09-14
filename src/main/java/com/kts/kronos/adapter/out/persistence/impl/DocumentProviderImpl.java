@@ -49,7 +49,7 @@ public class DocumentProviderImpl implements DocumentProvider {
 
     @Override
     public List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type) {
-        // define início e fim daquele dia em instantes
+
         Instant start = date.atStartOfDay(SAO_PAULO).toInstant();
         Instant end = date.plusDays(1)
                 .atStartOfDay(SAO_PAULO)

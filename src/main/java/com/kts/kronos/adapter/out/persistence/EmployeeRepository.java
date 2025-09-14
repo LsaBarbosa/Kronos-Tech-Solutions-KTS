@@ -13,4 +13,8 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
     List<EmployeeEntity> findByActiveTrue();
     List<EmployeeEntity> findByActiveFalse();
     void deleteById(UUID id);
+    List<EmployeeEntity> findByCompanyId(UUID companyId);
+    List<EmployeeEntity> findByCompanyIdAndActive(UUID companyId, boolean active);
+
+
 }
