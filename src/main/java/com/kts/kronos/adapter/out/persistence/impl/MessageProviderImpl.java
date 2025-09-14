@@ -6,6 +6,7 @@ import com.kts.kronos.domain.model.Message;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,5 +39,10 @@ public class MessageProviderImpl implements MessageProvider {
     @Override
     public void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId) {
         repository.deleteByMessageIdAndEmployeeId(messageId, employeeId);
+    }
+
+    @Override
+    public void deleteByCreationDateBefore(LocalDateTime threshold) {
+        repository.deleteByCreatedAtBefore(threshold);
     }
 }
