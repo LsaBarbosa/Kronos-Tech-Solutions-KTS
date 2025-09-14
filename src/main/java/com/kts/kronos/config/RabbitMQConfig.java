@@ -18,7 +18,7 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue queue() {
-        return new Queue(TIME_RECORD_CHANGE_QUEUE, true); // durable queue
+        return new Queue(TIME_RECORD_CHANGE_QUEUE, true);
     }
 
     @Bean
