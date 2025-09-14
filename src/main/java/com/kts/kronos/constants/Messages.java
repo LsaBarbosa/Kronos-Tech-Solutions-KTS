@@ -1,6 +1,6 @@
 package com.kts.kronos.constants;
 
-import com.kts.kronos.domain.model.StatusRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -27,6 +27,9 @@ public class Messages {
     public static final String PARTNER_NOT_FOUND = "Funcionário (parceiro) não encontrado: ";
     public static final String USER_MANAGER_NOT_FOUND = "Usuário (manager) não encontrado: ";
     public static final String MANAGER_NOT_FOUND = "Funcionário (manager) não encontrado: ";
+    public static final String MESSAGE_NOT_FOUND = "Mensagem não encontrada";
+    public static final String MESSAGE_NOT_BELONGS_MANAGER = "Mensagem não pertence ao Manager";
+    public static final String ONLY_MANAGER_CAN_DELETE_MESSAGE = "Apenas o Manager que enviou a mensagem pode deletá-la";
 
 
     // Exists

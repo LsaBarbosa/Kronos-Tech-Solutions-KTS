@@ -1,5 +1,7 @@
 package com.kts.kronos.domain.model;
 
+import com.kts.kronos.domain.model.enuns.StatusRecord;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 

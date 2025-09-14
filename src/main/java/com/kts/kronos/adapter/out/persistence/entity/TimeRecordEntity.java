@@ -1,6 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
-import com.kts.kronos.domain.model.StatusRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.TimeRecord;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

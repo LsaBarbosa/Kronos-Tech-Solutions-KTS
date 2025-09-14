@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

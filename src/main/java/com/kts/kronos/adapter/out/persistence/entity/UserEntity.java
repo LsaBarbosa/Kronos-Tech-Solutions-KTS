@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.User;
-import com.kts.kronos.domain.model.Role;
+import com.kts.kronos.domain.model.enuns.Role;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
