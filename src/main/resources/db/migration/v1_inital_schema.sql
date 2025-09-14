@@ -64,6 +64,22 @@ CREATE TABLE IF NOT EXISTS tb_user (
         REFERENCES tb_employee(employee_id)
 );
 
+CREATE TABLE IF NOT EXISTS tb_message (
+    message_id      CHAR(36) PRIMARY KEY NOT NULL,
+    employee_id     CHAR(36) NOT NULL,
+    company_id      CHAR(36) NOT NULL,
+    message_text    VARCHAR(1024) NOT NULL,
+    priority        VARCHAR(20) NOT NULL,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_message_employee FOREIGN KEY (employee_id)
+        REFERENCES tb_employee(employee_id),
+    CONSTRAINT fk_message_company FOREIGN KEY (company_id)
+        REFERENCES tb_company(company_id)
+);
+
+
+
 -- Índices importantes
+CREATE INDEX idx_message_company_id ON tb_message(company_id);
 CREATE INDEX idx_company_cnpj ON tb_company(company_cnpj);
 CREATE INDEX idx_company_name ON tb_company(name_company);

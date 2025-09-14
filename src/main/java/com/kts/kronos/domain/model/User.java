@@ -1,5 +1,7 @@
 package com.kts.kronos.domain.model;
 
+import com.kts.kronos.domain.model.enuns.Role;
+
 import java.util.UUID;
 
 public record User(

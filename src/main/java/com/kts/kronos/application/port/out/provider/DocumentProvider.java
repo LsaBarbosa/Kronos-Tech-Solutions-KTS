@@ -1,7 +1,7 @@
 package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 
 import java.time.LocalDate;
 import java.util.List;
