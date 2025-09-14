@@ -1,6 +1,7 @@
 package com.kts.kronos.application.port.out.provider;
 import com.kts.kronos.domain.model.Message;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -10,4 +11,5 @@ public interface MessageProvider {
     Optional<Message> findById(UUID messageId);
     List<Message> findByCompanyId(UUID companyId);
     void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId);
+    void deleteByCreationDateBefore(LocalDateTime threshold);
 }
