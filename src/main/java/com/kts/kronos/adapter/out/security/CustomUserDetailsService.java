@@ -1,7 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
 import com.kts.kronos.adapter.out.persistence.UserRepository;
-import com.kts.kronos.adapter.out.persistence.entity.UserEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
