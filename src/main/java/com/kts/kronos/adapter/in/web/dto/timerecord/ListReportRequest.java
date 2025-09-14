@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.kts.kronos.domain.model.StatusRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import java.time.LocalDate;
 
 import static com.kts.kronos.constants.Messages.DATE_PATTERN;

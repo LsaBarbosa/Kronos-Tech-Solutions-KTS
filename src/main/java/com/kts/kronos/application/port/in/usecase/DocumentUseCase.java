@@ -1,7 +1,7 @@
 package com.kts.kronos.application.port.in.usecase;
 
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;

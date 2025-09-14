@@ -1,7 +1,8 @@
 package com.kts.kronos.constants;
 
 public class ApiPaths {
-    private ApiPaths() {}
+    private ApiPaths() {
+    }
 
     // Companies
     public static final String COMPANIES = "/companies";
@@ -46,6 +47,9 @@ public class ApiPaths {
     public static final String PASSWORD = "/password";
     public static final String OWN_USER_PROFILE = "/own-profile";
 
+    //Message
+    public static final String MESSAGES = "/messages";
+    public static final String MESSAGE_ID = "/{messageId}";
 
     //Auth
     public static final String AUTH = "/auth";

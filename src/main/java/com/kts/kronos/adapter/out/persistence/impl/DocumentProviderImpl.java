@@ -7,7 +7,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

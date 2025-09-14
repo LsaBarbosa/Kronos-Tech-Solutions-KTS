@@ -7,14 +7,13 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.Role;
+import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
