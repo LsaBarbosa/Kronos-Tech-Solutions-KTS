@@ -57,4 +57,18 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         repository.deleteById(id);
     }
 
+    @Override
+    public List<Employee> findByCompanyId(UUID companyId) {
+        return repository.findByCompanyId(companyId)
+                .stream()
+                .map(EmployeeEntity::toDomain)
+                .toList();
+    }
+    @Override
+    public List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active) {
+        return repository.findByCompanyIdAndActive(companyId, active)
+                .stream()
+                .map(EmployeeEntity::toDomain)
+                .toList();
+    }
 }

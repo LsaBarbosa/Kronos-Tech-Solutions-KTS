@@ -22,8 +22,7 @@ public class TimeRecordApprovalListener {
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider timeRecordProvider;
 
-    // Formatter para exibir data e hora de forma legível no log
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
+     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
 
     /**
      * Este método escuta a fila de solicitações de alteração de ponto.
@@ -47,7 +46,7 @@ public class TimeRecordApprovalListener {
             var timeRecord = timeRecordProvider.findById(message.timeRecordId())
                     .orElseThrow(() -> new IllegalArgumentException(RECORD_NOT_FOUND + message.timeRecordId()));
 
-            // 2. Montar a notificação (simulação via log)
+
             String notificationMessage = String.format(
                     "\n\n" +
                             "--- NOTIFICAÇÃO PARA O MANAGER ---\n" +
@@ -65,7 +64,7 @@ public class TimeRecordApprovalListener {
                             "----------------------------------\n",
                     partnerEmployee.fullName(),
                     managerEmployee.fullName(),
-                    managerEmployee.email(), // O e-mail para onde a notificação seria enviada
+                    managerEmployee.email(),
                     partnerEmployee.fullName(),
                     message.timeRecordId(),
                     timeRecord.startWork().format(formatter),
@@ -82,7 +81,6 @@ public class TimeRecordApprovalListener {
 
         } catch (Exception e) {
             log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", message.timeRecordId(), e.getMessage());
-            // Aqui você poderia implementar uma lógica de "dead-letter queue" para tratar a falha.
-        }
+         }
     }
 }

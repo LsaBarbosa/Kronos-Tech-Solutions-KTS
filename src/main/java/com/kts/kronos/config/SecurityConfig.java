@@ -29,7 +29,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // Create the filter instance here
+
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
 
         http
@@ -38,12 +38,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**")
                         .permitAll()
-                        // Secure all other requests
+
                         //.anyRequest().authenticated()
                         .anyRequest().permitAll()
                 )
-                // Add the filter to the chain
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

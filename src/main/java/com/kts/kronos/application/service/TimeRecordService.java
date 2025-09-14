@@ -97,14 +97,10 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
         }
-
-        // Lógica condicional baseada na Role
         if ("PARTNER" .equals(userRole)) {
             if (req.managerId() == null) {
                 throw new BadRequestException("O ID do manager é obrigatório para parceiros.");
             }
-
-            // Validar o manager
             var managerUser = userProvider.findById(req.managerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
 
@@ -118,17 +114,13 @@ public class TimeRecordService implements TimeRecordUseCase {
             if (!managerEmployee.companyId().equals(employee.companyId())) {
                 throw new BadRequestException("O manager não pertence à mesma empresa.");
             }
-
-            // Salva a proposta de alteração no Redis com validade de 7 dias
             var approvalData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end);
             String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;
             redisTemplate.opsForValue().set(redisKey, approvalData, 7, TimeUnit.DAYS);
 
-            // Atualiza o status do registro para PENDING_APPROVAL
             var updatedRecord = record.withStatus(StatusRecord.PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
 
-            // Envia a mensagem para a fila de forma assíncrona
             rabbitTemplate.convertAndSend(TIME_RECORD_EXCHANGE, ROUTING_KEY, approvalData);
 
         } else if ("MANAGER" .equals(userRole)) {
