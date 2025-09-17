@@ -43,7 +43,7 @@ public class DocumentEntity {
     private LocalDateTime uploadedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name="document_type", nullable=false)
+    @Column(columnDefinition = "BYTEA",name="document_type", nullable=false)
     private DocumentType type;
 
     public Document toDomain(){
