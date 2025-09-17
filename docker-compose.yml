@@ -1,8 +1,44 @@
 version: '3.8'
 
 services:
+  app:
+    build: .
+    container_name: kronos-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=kronos
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: kronos
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+
   redis:
-    image: redis:7
+    image: redis:7-alpine
     container_name: redis-cache
     ports:
       - "6379:6379"
@@ -12,7 +48,7 @@ services:
       - app-network
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3-management-alpine
     container_name: rabbitmq-broker
     environment:
       RABBITMQ_DEFAULT_USER: myuser
@@ -20,24 +56,6 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672" # UI Management
-    networks:
-      - app-network
-
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
-    networks:
-      - app-network
-
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - "3000:3000"
     networks:
       - app-network
 
