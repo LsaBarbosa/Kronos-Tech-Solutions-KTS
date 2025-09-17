@@ -52,7 +52,7 @@ public class SecurityConfig {
                 )
                  .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.setAllowedOrigins(Arrays.asList("https://kronos-tech-solution-user-plataform.vercel.app/**")); // Permite seu frontend
+        corsConfiguration.setAllowedOrigins(Arrays.asList("https://kts-user-plataform.onrender.com/**")); // Permite seu frontend
         corsConfiguration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         corsConfiguration.setAllowedHeaders(Arrays.asList("*"));
         corsConfiguration.setAllowCredentials(true);
