@@ -31,13 +31,13 @@ public class InitialDataLoader implements CommandLineRunner {
         log.info("Iniciando a carga de dados iniciais...");
 
         // 1. Criar e salvar uma empresa
-        if (companyProvider.findByCnpj("50539169000100").isEmpty()) {
+        if (companyProvider.findByCnpj("00000000000000").isEmpty()) {
             Address companyAddress = addressLookupProvider.lookup("25930790")
-                    .withNumber("123");
+                    .withNumber("151");
             Company company = new Company(
                     "Kronos Tech Solutions",
-                    "50539169000100",
-                    "contato@kronos.com",
+                    "00000000000000",
+                    "santanna.dev.94@gmail.com",
                     companyAddress
             );
             companyProvider.save(company);
@@ -45,24 +45,24 @@ public class InitialDataLoader implements CommandLineRunner {
 
             // 2. Criar e salvar um funcionário associado à empresa
             Employee employee = new Employee(
-                    "Luis Barbosa",
-                    "12345678911",
+                    "Lucas Barbosa",
+                    "11366653742",
                     "CTO",
-                    "luis.barbosa@kronos.com",
-                    50000.00,
-                    "11999999999",
+                    "santanna.dev.94@gmail.com",
+                    1.00,
+                    "21964032474",
                     companyAddress,
                     company.companyId()
             );
             employeeProvider.save(employee);
-            log.info("Funcionário 'Luis Barbosa' criado com sucesso.");
+            log.info("Funcionário 'Lucas Barbosa' criado com sucesso.");
 
             // 3. Criar e salvar um usuário associado ao funcionário com a função 'CTO'
             String hashedPassword = passwordEncoder.encode("Tec2659*");
             User user = new User(
-                    "luis.barbosa",
+                    "lucas.barbosa",
                     hashedPassword,
-                    Role.CTO, // Alterado de MANAGER para CTO
+                    Role.MANAGER,
                     employee.employeeId()
             );
             userProvider.save(user);
