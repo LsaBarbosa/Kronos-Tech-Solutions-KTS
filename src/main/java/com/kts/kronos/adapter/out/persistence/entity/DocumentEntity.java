@@ -35,7 +35,7 @@ public class DocumentEntity {
     private String contentType;
 
     @Lob
-    @Column(name = "data", columnDefinition = "LONGBLOB", nullable = false)
+    @Column(name = "data",  columnDefinition = "BYTEA", nullable = false)
     private byte[] data;
 
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
@@ -43,7 +43,7 @@ public class DocumentEntity {
     private LocalDateTime uploadedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "BYTEA",name="document_type", nullable=false)
+    @Column(name="document_type", nullable=false)
     private DocumentType type;
 
     public Document toDomain(){
