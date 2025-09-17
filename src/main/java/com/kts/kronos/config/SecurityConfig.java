@@ -56,7 +56,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // A URL do seu frontend deve ser exata, sem wildcards como "**"
-        configuration.setAllowedOrigins(List.of("https://kts-user-plataform.onrender.com"));
+        configuration.setAllowedOrigins(List.of("https://kts-user-plataform.onrender.com","https://kronos-tech-solutions.com.br","https://kts-rymjdntshgrveaf-mhnsgbrdefwc-thnsgrbaefc.vercel.app"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
