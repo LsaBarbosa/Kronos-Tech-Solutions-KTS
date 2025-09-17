@@ -19,7 +19,7 @@ import java.util.UUID;
 public class UserEntity {
     @Id
     @Column(name = "user_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID userId;
 
     @Column(name = "username", length = 50, nullable = false, unique = true)
@@ -36,7 +36,7 @@ public class UserEntity {
     private final boolean active = true;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)")
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     public User toDomain() {
