@@ -21,11 +21,11 @@ import java.util.UUID;
 public class DocumentEntity {
     @Id @GeneratedValue(generator = "UUID")
     @Column(name = "document_id", length = 36, nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID documentId;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     @Column(name = "file_name", nullable = false)
