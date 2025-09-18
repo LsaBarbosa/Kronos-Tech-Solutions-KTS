@@ -19,7 +19,7 @@ import java.util.UUID;
 @EqualsAndHashCode
 @Builder
 public class DocumentEntity {
-    @Id @GeneratedValue(generator = "UUID")
+    @Id
     @Column(name = "document_id", length = 36, nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID documentId;

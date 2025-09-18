@@ -43,7 +43,6 @@ public class DocumentService implements DocumentUseCase {
 
         var bytes = file.getBytes();
         var doc = new Document(
-                null,
                 file.getOriginalFilename(),
                 file.getContentType(),
                 bytes,
