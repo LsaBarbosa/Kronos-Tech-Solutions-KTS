@@ -36,6 +36,7 @@ public class DocumentEntity {
 
     @Lob
     @Column(name = "data",  columnDefinition = "BYTEA", nullable = false)
+    @JdbcTypeCode(SqlTypes.VARBINARY)
     private byte[] data;
 
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
