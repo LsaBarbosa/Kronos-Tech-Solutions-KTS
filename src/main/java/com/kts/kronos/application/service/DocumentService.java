@@ -35,6 +35,10 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
+        if (!"application/pdf".equals(file.getContentType())) {
+            throw new BadRequestException("Apenas arquivos PDF são permitidos.");
+        }
+
         var employee = getEmployee(employeeId);
 
         var bytes = file.getBytes();
@@ -47,18 +51,14 @@ public class DocumentService implements DocumentUseCase {
                 employee.employeeId(),
                 type
         );
-      documentProvider.save(doc);
+        documentProvider.save(doc);
     }
+
 
     @Override
     public Document downloadDocument(UUID employeeId,UUID documentId) throws IOException {
-        var employee = getEmployee(employeeId);
-
-        var doc = documentProvider.findById(documentId);
-       if (!doc.employeeId().equals(employee.employeeId())){
-           throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
-       }
-       return doc;
+        getEmployee(employeeId);
+        return documentProvider.findById(documentId);
     }
 
     @Override
