@@ -7,16 +7,23 @@ import java.util.UUID;
 
 public record Document(
         UUID documentId,
+        UUID employeeId,
+        DocumentType type,
         String fileName,
         String contentType,
         byte[] data,
-        LocalDateTime uploadeAt,
-        UUID employeeId,
-        DocumentType type
+        LocalDateTime uploadeAt
 ) {
-    public Document(String fileName, String contentType, byte[] data, LocalDateTime uploadeAt, UUID employeeId,DocumentType type) {
+    // Construtor secundário ajustado para a nova ordem, facilitando a criação do objeto
+    public Document(UUID employeeId, DocumentType type, String fileName, String contentType, byte[] data, LocalDateTime uploadeAt) {
         this(
-                UUID.randomUUID(), fileName, contentType, data, uploadeAt, employeeId, type);
+                UUID.randomUUID(),
+                employeeId,
+                type,
+                fileName,
+                contentType,
+                data,
+                uploadeAt);
     }
 
 }
