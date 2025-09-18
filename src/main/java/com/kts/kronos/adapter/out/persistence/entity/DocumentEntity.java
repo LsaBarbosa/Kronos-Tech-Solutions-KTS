@@ -48,7 +48,13 @@ public class DocumentEntity {
 
     public Document toDomain(){
         return new Document(
-                documentId,fileName, contentType,data,uploadedAt,employeeId,type
+                documentId,
+                employeeId,
+                type,
+                fileName,
+                contentType,
+                data,
+                uploadedAt
         );
     }
     public static DocumentEntity fromDomain(Document document){
