@@ -43,15 +43,17 @@ public class DocumentService implements DocumentUseCase {
 
         var bytes = file.getBytes();
         var doc = new Document(
+                employee.employeeId(),
+                type,
                 file.getOriginalFilename(),
                 file.getContentType(),
                 bytes,
-                TIME_ZONE_BRAZIL,
-                employee.employeeId(),
-                type
+                TIME_ZONE_BRAZIL
         );
         documentProvider.save(doc);
     }
+
+
 
 
     @Override
