@@ -20,7 +20,7 @@ import java.util.UUID;
 public class EmployeeEntity {
     @Id
     @Column(name = "employee_id", length = 36, nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     @Column(name = "full_name", length = 200, nullable = false)
@@ -48,7 +48,7 @@ public class EmployeeEntity {
     private AddressEmbeddable address;
 
     @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
     public Employee toDomain(){

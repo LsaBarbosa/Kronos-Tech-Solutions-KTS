@@ -17,7 +17,7 @@ import java.util.UUID;
 public class CompanyEntity {
     @Id
     @Column(name = "company_id", length = 36, nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID id;
 
     @Column(name = "name_company", length = 50, nullable = false)

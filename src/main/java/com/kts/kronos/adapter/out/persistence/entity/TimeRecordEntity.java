@@ -39,7 +39,7 @@ public class TimeRecordEntity {
     private boolean active = true;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     public TimeRecord toDomain() {

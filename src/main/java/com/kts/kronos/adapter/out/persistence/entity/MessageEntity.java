@@ -23,15 +23,15 @@ import java.util.UUID;
 public class MessageEntity {
     @Id
     @Column(name = "message_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID messageId;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
     @Column(name = "message_text", length = 1024, nullable = false)

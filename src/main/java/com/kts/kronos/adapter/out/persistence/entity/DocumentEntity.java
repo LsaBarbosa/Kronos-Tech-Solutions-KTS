@@ -19,13 +19,13 @@ import java.util.UUID;
 @EqualsAndHashCode
 @Builder
 public class DocumentEntity {
-    @Id @GeneratedValue(generator = "UUID")
+    @Id
     @Column(name = "document_id", length = 36, nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID documentId;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
-    @JdbcTypeCode(SqlTypes.CHAR)
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
     @Column(name = "file_name", nullable = false)
@@ -35,7 +35,8 @@ public class DocumentEntity {
     private String contentType;
 
     @Lob
-    @Column(name = "data", columnDefinition = "LONGBLOB", nullable = false)
+    @Column(name = "data",  columnDefinition = "BYTEA", nullable = false)
+    @JdbcTypeCode(SqlTypes.VARBINARY)
     private byte[] data;
 
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
@@ -43,12 +44,18 @@ public class DocumentEntity {
     private LocalDateTime uploadedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "BYTEA",name="document_type", nullable=false)
+    @Column(name="document_type", nullable=false)
     private DocumentType type;
 
     public Document toDomain(){
         return new Document(
-                documentId,fileName, contentType,data,uploadedAt,employeeId,type
+                documentId,
+                employeeId,
+                type,
+                fileName,
+                contentType,
+                data,
+                uploadedAt
         );
     }
     public static DocumentEntity fromDomain(Document document){
