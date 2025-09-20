@@ -101,8 +101,8 @@ public class UserService implements UserUseCase {
         var employeeId = existing.employeeId();
         documentProvider.deleteByEmployeeId(employeeId);
         timeRecordProvider.deleteByEmployeeId(employeeId);
-        employeeProvider.deleteById(employeeId);
         userProvider.deleteById(userId);
+        employeeProvider.deleteById(employeeId);
     }
 
 
