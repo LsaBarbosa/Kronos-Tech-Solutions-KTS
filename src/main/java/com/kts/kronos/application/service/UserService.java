@@ -145,6 +145,11 @@ public class UserService implements UserUseCase {
         return getUserId(userId);
     }
 
+    @Override
+    public boolean usernameExists(String username) {
+        return userProvider.findByUsername(username).isPresent();
+    }
+
     private void validatePasswordPolicy(String raw) {
          if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
             throw new BadRequestException(INVALID_PASSWORD_POLICY);
