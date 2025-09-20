@@ -90,4 +90,13 @@ public class UserController {
         useCase.changeOwnPassword(req);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping(CHECK_USERNAME)
+    public ResponseEntity<Void> checkUsernameAvailability(@RequestParam String username) {
+        if (useCase.usernameExists(username)) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

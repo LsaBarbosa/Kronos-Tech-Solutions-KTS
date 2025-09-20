@@ -72,9 +72,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
-
         var updated = open.withCheckout(TIME_ZONE_BRAZIL).withStatus(open.statusRecord().onCheckout());
-
         recordRepository.save(updated);
     }
 
