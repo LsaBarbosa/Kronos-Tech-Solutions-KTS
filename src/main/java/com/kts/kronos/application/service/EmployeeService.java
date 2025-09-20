@@ -82,7 +82,7 @@ public class EmployeeService implements EmployeeUseCase {
         }
 
         return employee;
-}
+    }
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
@@ -105,8 +105,6 @@ public class EmployeeService implements EmployeeUseCase {
             var updatedAddress = lookup.withNumber(req.address().number());
             updatedEmployee = updatedEmployee.withAddress(updatedAddress);
         }
-
-
         employeeProvider.save(updatedEmployee);
     }
 
@@ -138,5 +136,4 @@ public class EmployeeService implements EmployeeUseCase {
                 .withAddress(updateAddress);
         employeeProvider.save(updated);
     }
-
 }

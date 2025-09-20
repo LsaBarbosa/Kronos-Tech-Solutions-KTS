@@ -18,6 +18,5 @@ public interface UserUseCase {
     void deleteUser(UUID userId);
     void toggleActivate(UUID userId);
     void changeOwnPassword(ChangePasswordRequest req);
-
-
+    boolean usernameExists(String username);
 }
