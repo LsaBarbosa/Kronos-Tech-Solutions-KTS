@@ -25,15 +25,15 @@ public class TimeRecordController {
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKIN)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkin() {
-        useCase.checkin();
+    public void checkin(@Valid @RequestBody GeolocationRequest request) {
+        useCase.checkin(request);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKOUT)
     @ResponseStatus(HttpStatus.CREATED)
-    public void checkout() {
-        useCase.checkout();
+    public void checkout(@Valid @RequestBody GeolocationRequest request) {
+        useCase.checkout(request);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)

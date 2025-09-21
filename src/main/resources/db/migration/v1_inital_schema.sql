@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS tb_company (
     postal_code    VARCHAR(20) NOT NULL,
     city           VARCHAR(100),
     state          VARCHAR(100)
+    latitude       DOUBLE PRECISION,
+    longitude      DOUBLE PRECISION
 );
 
 CREATE TABLE IF NOT EXISTS tb_employee (
