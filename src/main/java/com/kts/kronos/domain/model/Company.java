@@ -1,5 +1,7 @@
 package com.kts.kronos.domain.model;
 
+import com.kts.kronos.adapter.in.web.dto.company.Location;
+
 import java.util.UUID;
 
 public record Company(
@@ -8,16 +10,17 @@ public record Company(
         String cnpj,
         String email,
         boolean active,
-        Address address
+        Address address,
+        Location location
 ) {
-    public Company(String name, String cnpj, String email, Address address) {
-        this(UUID.randomUUID(), name, cnpj, email, true, address);
+    public Company(String name, String cnpj, String email, Address address,  Location location) {
+        this(UUID.randomUUID(), name, cnpj, email, true, address, location);
     }
 
     public Company withActive(boolean active) {
         return new Company(
                 companyId, name, cnpj, email,
-                active, address
+                active, address, location
         );
     }
 }

@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
+import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.domain.model.Company;
 import jakarta.persistence.*;
 import lombok.*;
@@ -35,9 +36,15 @@ public class CompanyEntity {
     @Embedded
     private AddressEmbeddable address;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     public Company toDomain(){
         return new Company(
-                id, name, cnpj, email, active,  address.toDomain()
+                id, name, cnpj, email, active,  address.toDomain(), new Location(latitude, longitude)
         );
     }
     public static CompanyEntity fromDomain(Company company) {
@@ -48,6 +55,8 @@ public class CompanyEntity {
                 .email(company.email())
                 .active(company.active())
                 .address(AddressEmbeddable.fromDomain(company.address()))
+                .latitude(company.location().latitude())
+                .longitude(company.location().longitude())
                 .build();
     }
 }

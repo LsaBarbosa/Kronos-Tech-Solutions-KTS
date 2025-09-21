@@ -55,8 +55,9 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final UserProvider userProvider;
 
     @Override
-    public void checkin() {
+    public void checkin(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        checkGeolocation(employeeId,request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
 
         if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
@@ -68,8 +69,9 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public void checkout() {
+    public void checkout(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        checkGeolocation(employeeId,request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
         var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
         var updated = open.withCheckout(TIME_ZONE_BRAZIL).withStatus(open.statusRecord().onCheckout());
@@ -475,4 +477,40 @@ public class TimeRecordService implements TimeRecordUseCase {
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
     }
-}
+    private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
+        var employee = getEmployee(employeeId);
+
+        var company = companyProvider.findById(employee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada para o funcionário."));
+
+        final double ALLOWED_DISTANCE_METERS = 50.0;
+        var companyLocation = company.location();
+
+        if (companyLocation == null) {
+            throw new BadRequestException("A localização da empresa não está cadastrada.");
+        }
+
+        // Você precisará de uma função para calcular a distância entre os pontos
+        double distance = calculateDistanceInMeters(
+                companyLocation.latitude(), companyLocation.longitude(),
+                requestLatitude, requestLongitude
+        );
+
+        if (distance > ALLOWED_DISTANCE_METERS) {
+            throw new BadRequestException("Você está fora da área de trabalho permitida.");
+        }
+    }
+        private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
+            // Implementação da fórmula de Haversine ou outra mais precisa.
+            // Exemplo:
+            final int R = 6371; // Raio da Terra em km
+            double latDistance = Math.toRadians(lat2 - lat1);
+            double lonDistance = Math.toRadians(lon2 - lon1);
+            double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                    * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c * 1000; // Retorna a distância em metros
+        }
+    }
+

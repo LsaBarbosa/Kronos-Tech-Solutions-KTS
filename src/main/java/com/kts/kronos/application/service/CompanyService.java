@@ -42,7 +42,7 @@ public class CompanyService implements CompanyUseCase {
                 .withNumber(request.address().number());
 
         var company = new Company(
-                request.name(), request.cnpj(), request.email(), address
+                request.name(), request.cnpj(), request.email(), address, request.location()
         );
         companyProvider.save(company);
 
@@ -96,7 +96,8 @@ public class CompanyService implements CompanyUseCase {
                 company.cnpj(),
                 request.email() != null ? request.email() : company.email(),
                 request.active() != null ? request.active() : company.active(),
-                updateAddress
+                updateAddress,
+                request.location() != null ? request.location() : company.location()
         );
         companyProvider.save(updatedCompany);
     }

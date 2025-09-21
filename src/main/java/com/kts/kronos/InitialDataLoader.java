@@ -1,5 +1,6 @@
 package com.kts.kronos;
 
+import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -30,43 +31,88 @@ public class InitialDataLoader implements CommandLineRunner {
     public void run(String... args) throws Exception {
         log.info("Iniciando a carga de dados iniciais...");
 
-        // 1. Criar e salvar uma empresa
+
         if (companyProvider.findByCnpj("00000000000000").isEmpty()) {
-            Address companyAddress = addressLookupProvider.lookup("25930790")
+            var companyAddress = addressLookupProvider.lookup("25930790")
                     .withNumber("151");
-            Company company = new Company(
+
+            // 1. Criar e salvar a empresa
+            var companyLocation = new Location(-22.633119552674476, -43.171951583299034);
+            var company = new Company(
                     "Kronos Tech Solutions",
                     "00000000000000",
                     "santanna.dev.94@gmail.com",
-                    companyAddress
+                    companyAddress,
+                    companyLocation
+
             );
             companyProvider.save(company);
             log.info("Empresa 'Kronos Tech Solutions' criada com sucesso.");
 
-            // 2. Criar e salvar um funcionário associado à empresa
-            Employee employee = new Employee(
-                    "Lucas Barbosa",
+            var hashedPassword = passwordEncoder.encode("Tec2659*");
+
+            // 2. Criar funcionário e usuário para a role CTO
+            var ctoEmployee = new Employee(
+                    "Lucas Barbosa (CTO)",
                     "11366653742",
                     "CTO",
-                    "santanna.dev.94@gmail.com",
+                    "cto@kronos.com.br",
                     1.00,
                     "21964032474",
                     companyAddress,
                     company.companyId()
             );
-            employeeProvider.save(employee);
-            log.info("Funcionário 'Lucas Barbosa' criado com sucesso.");
+            employeeProvider.save(ctoEmployee);
+            var ctoUser = new User(
+                    "CTO",
+                    hashedPassword,
+                    Role.CTO,
+                    ctoEmployee.employeeId()
+            );
+            userProvider.save(ctoUser);
+            log.info("Usuário 'CTO' criado com sucesso.");
 
-            // 3. Criar e salvar um usuário associado ao funcionário com a função 'CTO'
-            String hashedPassword = passwordEncoder.encode("Tec2659*");
-            User user = new User(
-                    "lucas.barbosa",
+            // 3. Criar funcionário e usuário para a role MANAGER
+            var managerEmployee = new Employee(
+                    "Lucas Barbosa (MANAGER)",
+                    "11366653743",
+                    "MANAGER",
+                    "manager@kronos.com.br",
+                    1.00,
+                    "21964032475",
+                    companyAddress,
+                    company.companyId()
+            );
+            employeeProvider.save(managerEmployee);
+            var managerUser = new User(
+                    "MANAGER",
                     hashedPassword,
                     Role.MANAGER,
-                    employee.employeeId()
+                    managerEmployee.employeeId()
             );
-            userProvider.save(user);
-            log.info("Usuário 'luis.barbosa' criado com sucesso com a role CTO.");
+            userProvider.save(managerUser);
+            log.info("Usuário 'MANAGER' criado com sucesso.");
+
+            // 4. Criar funcionário e usuário para a role PARTNER
+            var partnerEmployee = new Employee(
+                    "Lucas Barbosa (PARTNER)",
+                    "11366653744",
+                    "PARTNER",
+                    "partner@kronos.com.br",
+                    1.00,
+                    "21964032476",
+                    companyAddress,
+                    company.companyId()
+            );
+            employeeProvider.save(partnerEmployee);
+            var partnerUser = new User(
+                    "PARTNER",
+                    hashedPassword,
+                    Role.PARTNER,
+                    partnerEmployee.employeeId()
+            );
+            userProvider.save(partnerUser);
+            log.info("Usuário 'PARTNER' criado com sucesso.");
 
         } else {
             log.info("Dados iniciais já existem. Ignorando a carga.");
