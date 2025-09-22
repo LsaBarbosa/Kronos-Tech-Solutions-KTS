@@ -19,7 +19,9 @@ public record UpdateCompanyRequest(
         Boolean active,
 
         @Valid
-        UpdateAddressRequest address
+        UpdateAddressRequest address,
+        @Valid
+        Location location
 ) {
 
 }

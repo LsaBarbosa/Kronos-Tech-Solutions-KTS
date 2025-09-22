@@ -66,6 +66,8 @@ public class CompanyProviderImpl implements CompanyProvider {
                 .email(company.email())
                 .active(company.active())
                 .address(AddressEmbeddable.fromDomain(company.address()))
+                .latitude(company.location().latitude())
+                .longitude(company.location().longitude())
                 .build();
     }
 }
