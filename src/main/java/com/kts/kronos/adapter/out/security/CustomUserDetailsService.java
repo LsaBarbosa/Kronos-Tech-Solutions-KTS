@@ -16,7 +16,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        var entity = repo.findByUsername(username)
+        var entity = repo.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado"));
         var domain = entity.toDomain();
         return SecurityUserMapper.toSpringUser(domain);

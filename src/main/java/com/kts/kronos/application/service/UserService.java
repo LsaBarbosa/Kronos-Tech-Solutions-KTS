@@ -38,7 +38,7 @@ public class UserService implements UserUseCase {
     @Override
     public void createUser(CreateUserRequest req) {
 
-        if (userProvider.findByUsername(req.username()).isPresent()) {
+        if (userProvider.findByUsername(req.username().toLowerCase()).isPresent()) {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
 
@@ -58,7 +58,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public User getUserByUsername(String username) {
-        return userProvider.findByUsername(username)
+        return userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
     }
 
@@ -80,7 +80,7 @@ public class UserService implements UserUseCase {
     public void updateUser(UUID userId, UpdateUserRequest req) {
         var existing = getUserId(userId);
 
-        var username = req.username() != null ? req.username() : existing.username();
+        var username = req.username() != null ? req.username().toLowerCase() : existing.username();
         var password = existing.password();
 
         if (req.password() != null && !req.password().isBlank()) {
@@ -147,7 +147,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public boolean usernameExists(String username) {
-        return userProvider.findByUsername(username).isPresent();
+        return userProvider.findByUsername(username.toLowerCase()).isPresent();
     }
 
     private void validatePasswordPolicy(String raw) {
