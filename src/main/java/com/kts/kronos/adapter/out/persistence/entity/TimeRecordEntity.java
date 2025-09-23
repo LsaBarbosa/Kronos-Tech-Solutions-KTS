@@ -29,14 +29,14 @@ public class TimeRecordEntity {
     private LocalDateTime  endWork;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status_record", length = 10)
+    @Column(name = "status_record", length = 50)
     private StatusRecord statusRecord;
 
     @Column(name = "is_edite", nullable = false)
-    private boolean edited = false;
+    private boolean edited;
 
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    private boolean active;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
@@ -48,8 +48,8 @@ public class TimeRecordEntity {
                 startWork,
                 endWork,
                 statusRecord,
-                edited,
-                active,
+                false,
+                true,
                 employeeId
         );
     }

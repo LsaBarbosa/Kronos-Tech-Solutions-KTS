@@ -25,7 +25,7 @@ public class UserProviderImpl implements UserProvider {
 
     @Override
     public Optional<User> findByUsername(String username) {
-        Optional<UserEntity> opt = jpa.findByUsername(username);
+        Optional<UserEntity> opt = jpa.findByUsernameIgnoreCase(username);
         return opt.map(UserEntity::toDomain);
     }
 

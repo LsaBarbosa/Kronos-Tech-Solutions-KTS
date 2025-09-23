@@ -20,8 +20,8 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public String login(String username, String password) {
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(username, password));
-        var user = userProvider.findByUsername(username)
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(username.toLowerCase(), password));
+        var user = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId());
     }
