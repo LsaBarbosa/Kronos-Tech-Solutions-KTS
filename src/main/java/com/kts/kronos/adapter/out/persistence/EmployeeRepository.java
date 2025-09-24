@@ -15,6 +15,5 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
     void deleteById(UUID id);
     List<EmployeeEntity> findByCompanyId(UUID companyId);
     List<EmployeeEntity> findByCompanyIdAndActive(UUID companyId, boolean active);
-
-
+    long countByCompanyIdAndActive(UUID companyId, boolean active);
 }

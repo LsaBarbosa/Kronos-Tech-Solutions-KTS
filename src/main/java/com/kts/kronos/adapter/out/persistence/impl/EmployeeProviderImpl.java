@@ -71,4 +71,8 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .map(EmployeeEntity::toDomain)
                 .toList();
     }
+    @Override
+    public long countByCompanyIdAndActive(UUID companyId, boolean active) {
+        return repository.countByCompanyIdAndActive(companyId, active);
+    }
 }

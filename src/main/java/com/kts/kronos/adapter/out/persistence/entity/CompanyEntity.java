@@ -44,7 +44,15 @@ public class CompanyEntity {
 
     public Company toDomain(){
         return new Company(
-                id, name, cnpj, email, active,  address.toDomain(), new Location(latitude, longitude)
+                id,
+                name,
+                cnpj,
+                email,
+                active,
+                address.toDomain(),
+                new Location(latitude, longitude),
+                0L,
+                0L
         );
     }
     public static CompanyEntity fromDomain(Company company) {

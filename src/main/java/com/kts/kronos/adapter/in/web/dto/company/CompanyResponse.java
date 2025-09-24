@@ -11,7 +11,9 @@ public record CompanyResponse(
     String cnpj,
     String email,
     boolean active,
-    AddressResponse address
+    AddressResponse address,
+    long activeEmployees,
+    long inactiveEmployees
 ) {
         public static CompanyResponse fromDomain(Company company) {
             return new CompanyResponse(
@@ -20,7 +22,9 @@ public record CompanyResponse(
                     company.cnpj(),
                     company.email(),
                     company.active(),
-                    AddressResponse.fromDomain(company.address())
+                    AddressResponse.fromDomain(company.address()),
+                    company.activeEmployees(),
+                    company.inactiveEmployees()
             );
         }
     }
