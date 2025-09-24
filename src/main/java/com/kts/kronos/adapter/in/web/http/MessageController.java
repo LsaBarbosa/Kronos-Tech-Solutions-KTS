@@ -27,7 +27,6 @@ public class MessageController {
 
     @PreAuthorize(MANAGER)
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     public void postMessage(@Valid @RequestBody CreateMessageRequest request) {
         useCase.postMessage(request);
     }
@@ -44,8 +43,7 @@ public class MessageController {
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(MESSAGE_ID)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteMessage(@PathVariable UUID messageId) {
+     public void deleteMessage(@PathVariable UUID messageId) {
         useCase.deleteMessage(messageId);
     }
 }

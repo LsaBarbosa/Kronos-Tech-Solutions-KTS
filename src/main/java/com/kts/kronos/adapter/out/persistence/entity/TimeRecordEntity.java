@@ -32,11 +32,15 @@ public class TimeRecordEntity {
     @Column(name = "status_record", length = 50)
     private StatusRecord statusRecord;
 
-    @Column(name = "is_edite", nullable = false)
-    private boolean edited;
 
+    @Builder.Default
+    @Column(name = "is_edite", nullable = false)
+    private boolean edited = false;
+
+
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private boolean active;
+    private boolean active = true;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
@@ -48,8 +52,8 @@ public class TimeRecordEntity {
                 startWork,
                 endWork,
                 statusRecord,
-                false,
-                true,
+                edited,
+                active,
                 employeeId
         );
     }

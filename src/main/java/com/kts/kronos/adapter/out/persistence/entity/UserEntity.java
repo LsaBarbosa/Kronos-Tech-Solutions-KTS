@@ -32,8 +32,10 @@ public class UserEntity {
     @Column(name = "role", length = 50, nullable = false)
     private Role role;
 
+
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private final boolean active = true;
+    private boolean active = true;
 
     @Column(name = "employee_id", columnDefinition = "CHAR(36)")
     @JdbcTypeCode(SqlTypes.UUID)
@@ -56,6 +58,7 @@ public class UserEntity {
                 .username(user.username())
                 .password(user.password())
                 .role(user.role())
+                .active(user.active())
                 .employeeId(user.employeeId())
                 .build();
     }
