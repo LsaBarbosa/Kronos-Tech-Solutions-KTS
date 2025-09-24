@@ -25,7 +25,6 @@ public class EmployeeController {
     private final CompanyUseCase companyUseCase;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(ADMINISTRATOR)
     public ResponseEntity<EmployeeResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
         var create = useCase.createEmployee(dto);
@@ -63,7 +62,6 @@ public class EmployeeController {
 
     @PreAuthorize(MANAGER)
     @PatchMapping(UPDATE_EMPLOYEE)
-    @ResponseStatus(HttpStatus.OK)
     public void updateEmployee(@PathVariable UUID employeeId,
                                @Valid @RequestBody UpdateEmployeeManagerRequest dto
     ) {
@@ -79,14 +77,12 @@ public class EmployeeController {
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
-    @ResponseStatus(HttpStatus.OK)
     public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
     ) {
         useCase.updateOwnProfile(dto);
     }
 
     @PreAuthorize(MANAGER)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @DeleteMapping(EMPLOYEE_ID)
     public void deleteEmployee(@PathVariable UUID employeeId) {
         useCase.deleteEmployee(employeeId);

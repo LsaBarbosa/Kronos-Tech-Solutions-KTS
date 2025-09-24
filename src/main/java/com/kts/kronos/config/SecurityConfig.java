@@ -1,5 +1,6 @@
 package com.kts.kronos.config;
 
+import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
@@ -9,7 +10,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.CorsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -28,10 +28,12 @@ import java.util.List;
 public class SecurityConfig {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
 
-    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds) {
+    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds, DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
+        this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
     }
 
     @Bean
@@ -46,8 +48,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**")
                         .permitAll()
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()
                 )
+                .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -56,7 +59,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // A URL do seu frontend deve ser exata, sem wildcards como "**"
-        configuration.setAllowedOrigins(List.of("https://kts-user-plataform.onrender.com","http://localhost:5173","https://kronos-tech-solutions.com.br","https://kts-rymjdntshgrveaf-mhnsgbrdefwc-thnsgrbaefc.vercel.app"));
+        configuration.setAllowedOrigins(List.of("https://kts-user-plataform.onrender.com","https://kronos-tech-solutions.com.br","https://kts-rymjdntshgrveaf-mhnsgbrdefwc-thnsgrbaefc.vercel.app"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

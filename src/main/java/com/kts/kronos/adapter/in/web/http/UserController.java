@@ -26,7 +26,6 @@ public class UserController {
     private final UserUseCase useCase;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(ADMINISTRATOR)
     public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
@@ -57,21 +56,19 @@ public class UserController {
     }
 
     @PatchMapping(UPDATE_USER)
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize(MANAGER)
     public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
     }
 
     @PatchMapping(TOGGLE_ACTIVATE_USER)
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize(MANAGER)
     public void activateUser(@PathVariable UUID userId) {
         useCase.toggleActivate(userId);
     }
 
     @DeleteMapping(DELETE_USER)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+
     @PreAuthorize(MANAGER)
     public void deleteUser(@PathVariable UUID userId) {
         useCase.deleteUser(userId);

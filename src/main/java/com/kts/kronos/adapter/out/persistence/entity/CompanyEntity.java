@@ -30,6 +30,7 @@ public class CompanyEntity {
     @Column(name = "company_email", length = 50, nullable = false)
     private String email;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 

@@ -28,7 +28,6 @@ public class CompanyController {
     private final CompanyUseCase useCase;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize(KRONOS)
     public ResponseEntity<EmployeeResponse> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         var createdEmployee = useCase.createCompany(dto);
@@ -61,7 +60,6 @@ public class CompanyController {
 
     @PreAuthorize(KRONOS)
     @PatchMapping(BY_CNPJ)
-    @ResponseStatus(HttpStatus.OK)
     public void updateCompany(
             @PathVariable String cnpj,
             @Valid @RequestBody UpdateCompanyRequest dto
@@ -71,14 +69,12 @@ public class CompanyController {
 
     @PreAuthorize(KRONOS)
     @PatchMapping(TOGGLE_ACTIVATE)
-    @ResponseStatus(HttpStatus.OK)
     public void deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
     }
 
     @PreAuthorize(KRONOS)
     @DeleteMapping(BY_CNPJ)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
     }

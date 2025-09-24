@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -31,6 +32,7 @@ public class CompanyService implements CompanyUseCase {
     private final AddressLookupProvider viaCep;
     private final EmployeeProvider employeeProvider;
     private final UserProvider userProvider;
+    private final UserUseCase userUseCase;
 
     @Override
     public Employee createCompany(CreateCompanyRequest request) {
@@ -122,8 +124,18 @@ public class CompanyService implements CompanyUseCase {
     @Override
     public void toggleActivate(String cnpj) {
         var company = getCompany(cnpj);
-        var toggleActivate = company.withActive(!company.active());
+        var newStatus = !company.active();
+        var toggleActivate = company.withActive(newStatus);
         companyProvider.save(toggleActivate);
+
+        var employees = employeeProvider.findByCompanyId(company.companyId());
+        for (var employee : employees) {
+            userProvider.findByEmployeeId(employee.employeeId()).ifPresent(user -> {
+                if (user.active() != newStatus) {
+                    userUseCase.toggleActivate(user.userId());
+                }
+            });
+        }
     }
 
     @Override

@@ -24,43 +24,37 @@ public class TimeRecordController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKIN)
-    @ResponseStatus(HttpStatus.CREATED)
-    public void checkin(@Valid @RequestBody GeolocationRequest request) {
+     public void checkin(@Valid @RequestBody GeolocationRequest request) {
         useCase.checkin(request);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKOUT)
-    @ResponseStatus(HttpStatus.CREATED)
-    public void checkout(@Valid @RequestBody GeolocationRequest request) {
+     public void checkout(@Valid @RequestBody GeolocationRequest request) {
         useCase.checkout(request);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(UPDATE_TIME_RECORD)
-    @ResponseStatus(HttpStatus.OK)
-    public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
+     public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(UPDATE_STATUS)
-    @ResponseStatus(HttpStatus.OK)
-    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+     public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
-    @ResponseStatus(HttpStatus.OK)
-    public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
     }
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(DELETE_RECORD)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+     public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
 
@@ -117,15 +111,13 @@ public class TimeRecordController {
 
     @PreAuthorize(MANAGER)
     @PatchMapping(APPROVE_UPDATE)
-    @ResponseStatus(HttpStatus.OK)
-    public void approveChange(@PathVariable Long timeRecordId) {
+     public void approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
     }
 
     @PreAuthorize(MANAGER)
     @PatchMapping(REJECT_UPDATE)
-    @ResponseStatus(HttpStatus.OK)
-    public void rejectChange(@PathVariable Long timeRecordId) {
+     public void rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);
     }
 

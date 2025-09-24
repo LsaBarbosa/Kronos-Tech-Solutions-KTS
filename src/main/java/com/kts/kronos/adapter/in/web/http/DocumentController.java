@@ -32,7 +32,6 @@ public class DocumentController {
     private final DocumentUseCase useCase;
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(HttpStatus.CREATED)
     public void upload(
             @RequestParam(required = false) UUID employeeId,
             @RequestParam("type") DocumentType type,
@@ -68,7 +67,6 @@ public class DocumentController {
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
         useCase.deleteDocument(employeeId, documentId);
     }
