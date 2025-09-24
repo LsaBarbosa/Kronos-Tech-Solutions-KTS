@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
 import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
@@ -61,15 +62,29 @@ public class CompanyService implements CompanyUseCase {
     }
         @Override
     public Company getCompany(String cnpj) {
-        return companyProvider.findByCnpj(cnpj)
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+            var company = companyProvider.findByCnpj(cnpj)
+                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+
+            long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
+            long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
+
+            return company.withEmployeeCounts(activeEmployees, inactiveEmployees);
     }
 
     @Override
     public List<Company> listCompanies(Boolean active) {
-        return active == null
+        List<Company> companies = active == null
                 ? companyProvider.findAll()
                 : companyProvider.findByActive(active);
+
+        return companies.stream()
+                .map(company -> {
+                    long activeCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
+                    long inactiveCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
+                    return company.withEmployeeCounts(activeCount, inactiveCount);
+                })
+                .collect(Collectors.toList());
+
     }
 
     @Override
@@ -97,7 +112,9 @@ public class CompanyService implements CompanyUseCase {
                 request.email() != null ? request.email() : company.email(),
                 request.active() != null ? request.active() : company.active(),
                 updateAddress,
-                request.location() != null ? request.location() : company.location()
+                request.location() != null ? request.location() : company.location(),
+                company.activeEmployees(),
+                company.inactiveEmployees()
         );
         companyProvider.save(updatedCompany);
     }

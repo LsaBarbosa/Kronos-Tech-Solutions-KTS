@@ -12,4 +12,5 @@ public interface CompanyRepository extends JpaRepository<CompanyEntity, UUID> {
     List<CompanyEntity> findByActiveTrue();
     List<CompanyEntity> findByActiveFalse();
     void deleteByCnpj(String cnpj);
+
 }

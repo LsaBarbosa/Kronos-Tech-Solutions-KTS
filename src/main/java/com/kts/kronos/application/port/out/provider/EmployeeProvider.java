@@ -15,4 +15,5 @@ public interface EmployeeProvider {
     void deleteById(UUID id);
     List<Employee> findByCompanyId(UUID companyId);
     List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active);
+    long countByCompanyIdAndActive(UUID companyId, boolean active);
 }
