@@ -18,9 +18,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
+import static com.kts.kronos.constants.Messages.*;
 
 @Service
 @RequiredArgsConstructor
@@ -34,7 +32,7 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
         if (!"application/pdf".equals(file.getContentType())) {
-            throw new BadRequestException("Apenas arquivos PDF são permitidos.");
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
         try {
@@ -51,7 +49,7 @@ public class DocumentService implements DocumentUseCase {
             );
             documentProvider.save(doc);
         } catch (Exception e) {
-            throw new BadRequestException("Não foi possível ler o arquivo: ");
+            throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
         }
     }
 
@@ -61,7 +59,7 @@ public class DocumentService implements DocumentUseCase {
         try {
             return documentProvider.findById(documentId);
         } catch (ResourceNotFoundException e) {
-            throw new ResourceNotFoundException("Documento com registro:" + documentId + " não foi encontrado.");
+            throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         }
     }
 

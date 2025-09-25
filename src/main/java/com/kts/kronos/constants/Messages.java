@@ -28,7 +28,6 @@ public class Messages {
     public static final String USER_MANAGER_NOT_FOUND = "Usuário (manager) não encontrado: ";
     public static final String MANAGER_NOT_FOUND = "Funcionário (manager) não encontrado: ";
     public static final String MESSAGE_NOT_FOUND = "Mensagem não encontrada";
-    public static final String MESSAGE_NOT_BELONGS_MANAGER = "Mensagem não pertence ao Manager";
     public static final String ONLY_MANAGER_CAN_DELETE_MESSAGE = "Apenas o Manager que enviou a mensagem pode deletá-la";
 
 
@@ -50,7 +49,8 @@ public class Messages {
     public static final String INVALID_EMAIL_FORMAT = "O deve ter o formato correto: 'email@dominio.com' ";
     public static final String INVALID_PASSWORD = "Senha atual incorreta.";
     public static final String INVALID_CONFIRM_PASSWORD = "Confirmação de senha não confere.";
-    public static final String INVALID_PASSWORD_POLICY = "Senha inválida: mínimo 8 e deve conter maiúscula, minúscula e dígito.";
+    public static final String INVALID_PASSWORD_POLICY = "Política de senha inválida: mínimo de 8 caracteres, deve conter maiúscula, minúscula e dígito.";
+    public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos PDF são aceitos no sistema.";
 
     // Not Blank
     public static final String ID_NOT_BLANK = "ID é obrigatório";
@@ -109,4 +109,6 @@ public class Messages {
     public static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
     public static final String ROUTING_KEY = "change.request";
 
+    // **
+    public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";
 }
