@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -58,8 +59,26 @@ public class UserService implements UserUseCase {
 
     @Override
     public User getUserByUsername(String username) {
-        return userProvider.findByUsername(username.toLowerCase())
+        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var companyId = authenticatedUserEmployee.companyId();
+
+        User targetUser = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
+        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
+            return targetUser;
+        }
+
+        var targetEmployee = employeeProvider.findById(targetUser.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (!targetEmployee.companyId().equals(companyId)) {
+            throw new ResourceNotFoundException(USER_NOT_FOUND);
+        }
+
+        return targetUser;
     }
 
     @Override
@@ -71,9 +90,25 @@ public class UserService implements UserUseCase {
 
     @Override
     public List<User> listUsers(Boolean active) {
-        return active == null
+        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var companyId = authenticatedUserEmployee.companyId();
+
+        List<User> allUsers = active == null
                 ? userProvider.findAll()
                 : userProvider.findByActive(active);
+
+        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
+            return allUsers;
+        }
+
+        return allUsers.stream()
+                .filter(user -> {
+                    var employee = employeeProvider.findById(user.employeeId());
+                    return employee.isPresent() && employee.get().companyId().equals(companyId);
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
