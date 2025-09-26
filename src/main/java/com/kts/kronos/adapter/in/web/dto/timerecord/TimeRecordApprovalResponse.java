@@ -6,6 +6,9 @@ public record TimeRecordApprovalResponse(Long timeRecordId,
                                          String partnerName,
                                          String managerUsername,
                                          LocalDateTime newStartWork,
-                                         LocalDateTime newEndWork
+                                         LocalDateTime newEndWork,
+                                         LocalDateTime currentStartWork,
+                                         LocalDateTime currentEndWork
+
 ) {
 }

@@ -153,6 +153,13 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public void updateStatus(UUID employeeId, Long timeRecordId, UpdateTimeRecordStatusRequest req) {
         var record = getRecord(employeeId, timeRecordId);
+        var currentStatus = record.statusRecord();
+        if (currentStatus == StatusRecord.PENDING_APPROVAL) {
+            throw new BadRequestException("O status do registro não pode ser alterado, pois está aguardando aprovação.");
+        }
+        if (currentStatus == StatusRecord.UPDATED) {
+            throw new BadRequestException("O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitção.");
+        }
         var updateStatus = record.withStatus(req.statusRecord());
         recordRepository.save(updateStatus);
     }
@@ -360,20 +367,23 @@ public class TimeRecordService implements TimeRecordUseCase {
                     approvalDataObject,
                     TimeRecordChangeRequestMessage.class
             );
-
+            var timeRecord = recordRepository.findById(approvalData.timeRecordId())
+                    .orElse(null);
             // Busca os dados do colaborador e manager
             var partnerEmployee = employeeProvider.findById(approvalData.partnerEmployeeId())
                     .orElse(null);
             var managerUser = userProvider.findById(approvalData.managerId())
                     .orElse(null);
 
-            if (partnerEmployee != null && managerUser != null) {
+            if (partnerEmployee != null && managerUser != null && timeRecord != null) {
                 responses.add(new TimeRecordApprovalResponse(
                         approvalData.timeRecordId(),
                         partnerEmployee.fullName(),
                         managerUser.username(),
                         approvalData.newStartWork(),
-                        approvalData.newEndWork()
+                        approvalData.newEndWork(),
+                        timeRecord.startWork(),
+                        timeRecord.endWork()
                 ));
             }
         }
