@@ -11,7 +11,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: kronos.time.tech.solutions@gmail.com
-    password: zudw foob eprd oacn
+    password: rhac bngj baoq sjyw # <<--- NOVA SENHA AQUI
     properties:
       mail:
         smtp:
