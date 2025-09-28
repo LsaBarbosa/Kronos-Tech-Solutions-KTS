@@ -1,13 +1,15 @@
 package com.kts.kronos.adapter.in.messaging.listener;
-
+import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
+import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
 import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
 
@@ -21,19 +23,18 @@ public class TimeRecordApprovalListener {
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider timeRecordProvider;
-
+    public static final String TIME_RECORD_APPROVAL_SUBSCRIPTION = "time-record-approval-subscription";
      private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
 
-    /**
-     * Este método escuta a fila de solicitações de alteração de ponto.
-     * @param message A mensagem recebida do RabbitMQ.
-     */
-    @RabbitListener(queues = TIME_RECORD_CHANGE_QUEUE)
-    public void handleTimeRecordChangeRequest(TimeRecordChangeRequestMessage message) {
+    @ServiceActivator(inputChannel = TIME_RECORD_APPROVAL_SUBSCRIPTION + ".input")
+    public void handleTimeRecordChangeRequest(
+            TimeRecordChangeRequestMessage message,
+            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage originalMessage) {
+
         log.info("Recebida solicitação de alteração de ponto para o registro ID: {}", message.timeRecordId());
 
         try {
-            // 1. Buscar informações relevantes do banco de dados
+            // 1. Lógica de busca de dados e montagem de notificação (mantida do Listener anterior)
             var partnerEmployee = employeeProvider.findById(message.partnerEmployeeId())
                     .orElseThrow(() -> new IllegalArgumentException(PARTNER_NOT_FOUND + message.partnerEmployeeId()));
 
@@ -46,8 +47,8 @@ public class TimeRecordApprovalListener {
             var timeRecord = timeRecordProvider.findById(message.timeRecordId())
                     .orElseThrow(() -> new IllegalArgumentException(RECORD_NOT_FOUND + message.timeRecordId()));
 
-
             String notificationMessage = String.format(
+                    // ... (Mensagem de notificação idêntica à anterior) ...
                     "\n\n" +
                             "--- NOTIFICAÇÃO PARA O MANAGER ---\n" +
                             "De: %s\n" +
@@ -73,14 +74,16 @@ public class TimeRecordApprovalListener {
                     message.newEndWork().format(formatter)
             );
 
-            // 3. Simular o envio da notificação
-            // Em um projeto real, aqui você chamaria seu serviço de e-mail:
-            // emailService.send(managerEmployee.email(), "Aprovação de Alteração de Ponto", notificationMessage);
             log.info(notificationMessage);
 
+            // 2. Confirmação (ACK)
+            originalMessage.ack();
+            log.info("Mensagem de solicitação ID {} confirmada com sucesso (ACK).", message.timeRecordId());
 
         } catch (Exception e) {
             log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", message.timeRecordId(), e.getMessage());
-         }
+            // 3. Rejeição (NACK) para re-entrega pelo Pub/Sub
+            originalMessage.nack();
+        }
     }
 }

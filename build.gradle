@@ -26,6 +26,7 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom('com.google.cloud:libraries-bom:26.30.0')
+mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:5.3.0')
     }
 }
 dependencies {
@@ -34,10 +35,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-
-
-    // MESSENGER
-    implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
     // OBSERVABILITY METRICS
     implementation 'io.micrometer:micrometer-registry-prometheus'
@@ -73,12 +70,14 @@ dependencies {
 
     //Cloud
     implementation 'com.google.cloud:google-cloud-storage'
+    implementation 'com.google.cloud:spring-cloud-gcp-starter-pubsub'
+    implementation 'org.springframework.boot:spring-boot-starter-integration'
+    implementation 'org.springframework.integration:spring-integration-core'
 
     testImplementation 'org.mockito:mockito-inline:5.2.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'org.springframework.amqp:spring-rabbit-test'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
