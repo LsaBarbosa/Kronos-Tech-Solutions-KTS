@@ -24,7 +24,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         message.setTo(toEmail);
         message.setSubject("Kronos - Redefinição de Senha");
 
-        var resetLink = "https://seu-frontend.com/reset-password?token=" + token;
+        var resetLink = "http://http://localhost:5174/reset-password?token=" + token;
 
         var text = String.format(
                 "Olá %s,\n\n" +
