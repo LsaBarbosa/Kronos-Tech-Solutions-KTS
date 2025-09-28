@@ -1,10 +1,12 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.GcsStorageProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.Employee;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.kts.kronos.application.exceptions.BadRequestException;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,41 +28,60 @@ import static com.kts.kronos.constants.Messages.*;
 @Transactional
 public class DocumentService implements DocumentUseCase {
 
+    public static final String ERROR_GET_FILE = "Falha ao buscar o arquivo no storage: ";
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final GcsStorageProvider gcsStorageProvider;
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
         if (!"application/pdf".equals(file.getContentType())) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
-
         try {
             var employee = getEmployee(employeeId);
 
             var bytes = file.getBytes();
+            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
+            var storagePath = gcsStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
             var doc = new Document(
                     employee.employeeId(),
                     type,
                     file.getOriginalFilename(),
                     file.getContentType(),
-                    bytes,
+                    storagePath, // USANDO O CAMINHO DO GCS
                     TIME_ZONE_BRAZIL
             );
             documentProvider.save(doc);
         } catch (Exception e) {
-            throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
+            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
         }
     }
 
     @Override
-    public Document downloadDocument(UUID employeeId, UUID documentId) throws IOException {
+    public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
         getEmployee(employeeId);
+
+        var doc = documentProvider.findById(documentId);
+
         try {
-            return documentProvider.findById(documentId);
+            byte[] fileData = gcsStorageProvider.downloadFile(doc.storagePath());
+
+            return new DocumentWithData(
+                    doc.documentId(),
+                    doc.employeeId(),
+                    doc.type(),
+                    doc.fileName(),
+                    doc.contentType(),
+                    fileData,
+                    doc.uploadeAt()
+            );
+
         } catch (ResourceNotFoundException e) {
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
+        } catch (RuntimeException e) {
+            throw new BadRequestException(ERROR_GET_FILE + e.getMessage());
         }
     }
 
@@ -74,7 +96,8 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-
+        var doc = documentProvider.findById(documentId);
+        gcsStorageProvider.deleteFile(doc.storagePath());
         documentProvider.delete(employeeIdWith, documentId);
     }
 
