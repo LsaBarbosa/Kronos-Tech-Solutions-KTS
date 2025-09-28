@@ -7,14 +7,18 @@ spring:
   redis:
     host: localhost
     port: 6379
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: myuser
-    password: secret
-    amqp:
-      deserialization:
-        trust-all: true
+  cloud:
+    gcp:
+      project-id: kronos-tech-solutions
+      pubsub:
+        subscriber:
+          subscriptions:
+            time-record-approval-subscription: # Nome da subscrição no Listener
+              topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
+              auto-create: true
+            password-reset-subscription:
+              topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
+              auto-create: true
 management:
   endpoints:
     web:

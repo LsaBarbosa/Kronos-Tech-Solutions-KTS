@@ -56,6 +56,8 @@ public class ApiPaths {
     //Auth
     public static final String AUTH = "/auth";
     public static final String LOGIN = "/login";
+    public static final String RECOVER_PASSWORD = "/recover-password"; // Novo
+    public static final String RESET_PASSWORD = "/reset-password";
 
     //Cep
     public static final String API_VIA_CEP = "https://viacep.com.br/ws";

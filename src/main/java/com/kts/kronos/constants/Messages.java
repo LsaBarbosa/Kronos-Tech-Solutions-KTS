@@ -51,6 +51,8 @@ public class Messages {
     public static final String INVALID_CONFIRM_PASSWORD = "Confirmação de senha não confere.";
     public static final String INVALID_PASSWORD_POLICY = "Política de senha inválida: mínimo de 8 caracteres, deve conter maiúscula, minúscula e dígito.";
     public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos PDF são aceitos no sistema.";
+    public static final String INVALID_PASSWORD_RESET_TOKEN = "Token de recuperação inválido ou expirado.";
+
 
     // Not Blank
     public static final String ID_NOT_BLANK = "ID é obrigatório";
@@ -103,12 +105,11 @@ public class Messages {
     public static final StatusRecord PENDING = StatusRecord.PENDING;
     public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
 
-    //RabbitMQ
-    public static final String TIME_RECORD_EXCHANGE = "time-record-exchange";
-    public static final String TIME_RECORD_CHANGE_QUEUE = "time-record-change-queue";
+    //RabbitMQ & REDIS
+    public static final String TIME_RECORD_APPROVAL_TOPIC = "time-record-approval-topic";
     public static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
-    public static final String ROUTING_KEY = "change.request";
-
+    public static final String PASSWORD_RESET_TOPIC = "password-reset-topic";
+    public static final String PASSWORD_RESET_KEY_PREFIX = "password:reset:";
     // **
     public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";
 }

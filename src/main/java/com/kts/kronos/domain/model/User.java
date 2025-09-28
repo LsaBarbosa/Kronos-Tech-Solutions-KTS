@@ -21,5 +21,9 @@ public record User(
                 userId, username, password, role, active, employeeId
         );
     }
-
+    public User withPassword(String password) {
+        return new User(
+                userId, username, password, role, active, employeeId
+        );
+    }
 }
