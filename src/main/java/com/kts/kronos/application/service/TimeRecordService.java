@@ -12,6 +12,7 @@ import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
+import com.kts.kronos.adapter.in.web.dto.message.publisher.TimeRecordChangePublisher;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -22,13 +23,12 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
-import com.kts.kronos.domain.model.TimeRecord;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -51,7 +51,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-    private final RabbitTemplate rabbitTemplate;
+    private final TimeRecordChangePublisher publisher; // NOVO
     private final UserProvider userProvider;
 
     @Override
@@ -121,7 +121,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             var updatedRecord = record.withStatus(StatusRecord.PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
 
-            rabbitTemplate.convertAndSend(TIME_RECORD_EXCHANGE, ROUTING_KEY, approvalData);
+            publisher.publishApprovalRequest(approvalData);
 
         } else if ("MANAGER" .equals(userRole)) {
             // Lógica original para o MANAGER (aprovação direta)
