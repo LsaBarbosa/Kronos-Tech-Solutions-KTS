@@ -6,13 +6,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
     private final JavaMailSender mailSender;
-
+    @Value("${frontend.base-url}")
+    private String frontendBaseUrl;
     @Override
     public void sendResetEmail(String toEmail, String token, String username) {
         log.info("Iniciando envio de e-mail de recuperação via SMTP para: {}", toEmail);
@@ -24,8 +26,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         message.setTo(toEmail);
         message.setSubject("Kronos - Redefinição de Senha");
 
-        var resetLink = "http://http://localhost:5174/reset-password?token=" + token;
-
+        var resetLink = frontendBaseUrl + "/reset-password?token=" + token;
         var text = String.format(
                 "Olá %s,\n\n" +
                         "Recebemos uma solicitação para redefinir sua senha.\n" +

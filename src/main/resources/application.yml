@@ -11,7 +11,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: kronos.time.tech.solutions@gmail.com
-    password: gvky thni xuoo wzon
+    password: zudw foob eprd oacn
     properties:
       mail:
         smtp:
@@ -53,3 +53,8 @@ jwt:
 gcp:
   storage:
     bucket-name: kronos-tech-solutions-bucket
+
+frontend:
+      # Se estiver rodando localmente (Vite), use localhost:5174
+      # Em produção (Render/Vercel), substitua pela URL real (ex: https://kts-user-plataform.onrender.com)
+  base-url: ${FRONTEND_BASE_URL:http://localhost:5174}
