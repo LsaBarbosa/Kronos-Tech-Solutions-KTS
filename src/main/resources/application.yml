@@ -7,6 +7,17 @@ spring:
   redis:
     host: localhost
     port: 6379
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: kronos.time.tech.solutions@gmail.com
+    password: gvky thni xuoo wzon
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   cloud:
     gcp:
       project-id: kronos-tech-solutions
