@@ -34,37 +34,36 @@ public class DocumentEntity {
     @Column(name = "content_type", nullable = false)
     private String contentType;
 
-    @Lob
-    @Column(name = "data",  columnDefinition = "BYTEA", nullable = false)
-    @JdbcTypeCode(SqlTypes.VARBINARY)
-    private byte[] data;
+    @Column(name = "storage_path", length = 512, nullable = false)
+    private String storagePath;
 
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name="document_type", nullable=false)
+    @Column(name = "document_type", nullable = false)
     private DocumentType type;
 
-    public Document toDomain(){
+    public Document toDomain() {
         return new Document(
                 documentId,
                 employeeId,
                 type,
                 fileName,
                 contentType,
-                data,
+                storagePath,
                 uploadedAt
         );
     }
-    public static DocumentEntity fromDomain(Document document){
+
+    public static DocumentEntity fromDomain(Document document) {
         return DocumentEntity.builder()
                 .documentId(document.documentId())
                 .employeeId(document.employeeId())
                 .fileName(document.fileName())
                 .contentType(document.contentType())
-                .data(document.data())
+                .storagePath(document.storagePath())
                 .uploadedAt(document.uploadeAt())
                 .type(document.type())
                 .build();

@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponse;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
+import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -39,6 +40,7 @@ public class DocumentController {
     ) throws Exception {
         useCase.uploadDocument(type,employeeId, file);
     }
+
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping
     public ResponseEntity<DocumentResponseList> list(
@@ -52,12 +54,15 @@ public class DocumentController {
         return ResponseEntity.ok(new DocumentResponseList(docs.stream().map(
                 DocumentResponse::fromDomain).toList()));
     }
+
+
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
             @RequestParam(required = false) UUID employeeId,
             @PathVariable UUID documentId) throws IOException {
-        Document doc = useCase.downloadDocument(employeeId, documentId);
+
+        DocumentWithData doc = useCase.downloadDocument(employeeId, documentId);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(doc.contentType()))
@@ -65,6 +70,7 @@ public class DocumentController {
                         "attachment; filename=\"" + doc.fileName() + "\"")
                 .body(doc.data());
     }
+
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
