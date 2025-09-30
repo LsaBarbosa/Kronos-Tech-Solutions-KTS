@@ -12,8 +12,10 @@ import com.kts.kronos.application.port.out.provider.EmailProducer;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,6 +27,9 @@ import static com.kts.kronos.constants.Messages.*;
 @Service
 @RequiredArgsConstructor
 public class AuthService implements AuthUseCase {
+    @Value("${frontend.default-base-url}") // Injeta a URL padrão
+    private String defaultFrontendBaseUrl;
+
     private final AuthenticationManager authManager;
     private final JwtUtils jwtUtils;
     private final UserProvider userProvider;
@@ -42,7 +47,7 @@ public class AuthService implements AuthUseCase {
     }
 
     @Override
-    public void recoverPassword(RecoverPasswordRequest request) {
+    public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
         // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
         var employee = employeeProvider.findByCpf(request.cpf())
                 .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
@@ -61,7 +66,7 @@ public class AuthService implements AuthUseCase {
             log.warn("Tentativa de recuperação de senha: Colaborador sem usuário. EmployeeId: {}", employee.employeeId());
             return;
         }
-
+        String frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
         // 3. Gera e salva o token no Redis
         String resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
@@ -69,7 +74,8 @@ public class AuthService implements AuthUseCase {
         PasswordResetMessage message = new PasswordResetMessage(
                 employee.email(),
                 user.username(),
-                resetToken
+                resetToken,
+                frontendUrl
         );
         emailProducer.sendPasswordResetEmail(message);
 
@@ -95,7 +101,7 @@ public class AuthService implements AuthUseCase {
         String hashed = passwordEncoder.encode(request.newPassword());
 
         // Cria um novo objeto User com a senha atualizada
-        var updatedUser = new com.kts.kronos.domain.model.User(
+        var updatedUser = new User(
                 user.userId(),
                 user.username(),
                 hashed,

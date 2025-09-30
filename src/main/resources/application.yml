@@ -1,17 +1,17 @@
 spring:
   datasource:
-    url: jdbc:postgresql://dpg-d35eh8buibrs73d3ffk0-a.virginia-postgres.render.com:5432/kronos_db_prod_h0u9
-    username: kronos
-    password: 4VvJDEt1qj6DYwOBtRcNpZATQQijHPMA
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   redis:
-    host: localhost
-    port: 6379
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT:6379}
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: kronos.time.tech.solutions@gmail.com
-    password: rhac bngj baoq sjyw # <<--- NOVA SENHA AQUI
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -20,16 +20,17 @@ spring:
             enable: true
   cloud:
     gcp:
-      project-id: kronos-tech-solutions
+      project-id: ${GCP_PROJECT_ID}
       pubsub:
         subscriber:
           subscriptions:
-            time-record-approval-subscription: # Nome da subscrição no Listener
-              topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
-              auto-create: true
+            time-record-approval-subscription:
+              topic: ${GCP_PUBSUB_TOPIC_NAME}
+              auto-create: false
             password-reset-subscription:
-              topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
-              auto-create: true
+              topic: ${PASSWORD_RESET_TOPIC}
+              auto-create: false
+
 management:
   endpoints:
     web:
@@ -39,22 +40,28 @@ management:
     export:
       prometheus:
         enabled: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:3600000}
+
+gcp:
+  storage:
+    bucket-name: ${GCP_STORAGE_BUCKET_NAME}
+
+# --- NOVA SEÇÃO PARA FRONTENDS ---
+frontend:
+  # Lista de todas as URLs de frontend permitidas para CORS
+  allowed-origins:
+    - ${FRONTEND_BASE_URL_PLATAFORM}
+    - ${FRONTEND_BASE_URL_RECORD}
+    - ${FRONTEND_BASE_URL_RENDER}
+  # URL padrão para usar como fallback
+  default-base-url: ${FRONTEND_BASE_URL_PLATAFORM}
+
 logging:
   pattern:
     console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
   level:
     org.springframework:
-      security: TRACE
-
-jwt:
-  secret: "dGhpc19pcy1qd3Rfc2VjcmV0X3dpdGhfMzJfYnl0ZXNfISEhISEhISE="
-  expiration: 3600000
-
-gcp:
-  storage:
-    bucket-name: kronos-tech-solutions-bucket
-
-frontend:
-      # Se estiver rodando localmente (Vite), use localhost:5174
-      # Em produção (Render/Vercel), substitua pela URL real (ex: https://kts-user-plataform.onrender.com)
-  base-url: ${FRONTEND_BASE_URL:http://localhost:5174}
+      security: INFO

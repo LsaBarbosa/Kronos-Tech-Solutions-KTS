@@ -1,0 +1,9 @@
+steps:
+  # Etapa Única: Usa um container de build moderno que já tem o JDK 21
+  - name: 'eclipse-temurin:21-jdk-jammy'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        chmod +x ./gradlew
+        ./gradlew bootBuildImage
