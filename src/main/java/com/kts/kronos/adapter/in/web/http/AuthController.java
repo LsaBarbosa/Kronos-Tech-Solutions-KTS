@@ -13,10 +13,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import static com.kts.kronos.constants.ApiPaths.*;
 
@@ -32,8 +29,9 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token));
     }
     @PostMapping(RECOVER_PASSWORD)
-    public ResponseEntity<Void> recoverPassword(@Valid @RequestBody RecoverPasswordRequest req) {
-        authUseCase.recoverPassword(req);
+    public ResponseEntity<Void> recoverPassword(@Valid @RequestBody RecoverPasswordRequest req,
+            @RequestHeader(name = "Origin", required = false) String originUrl) {
+        authUseCase.recoverPassword(req,originUrl);
         return ResponseEntity.noContent().build();
     }
 

@@ -13,10 +13,9 @@ import org.springframework.beans.factory.annotation.Value;
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
     private final JavaMailSender mailSender;
-    @Value("${frontend.base-url}")
-    private String frontendBaseUrl;
+
     @Override
-    public void sendResetEmail(String toEmail, String token, String username) {
+    public void sendResetEmail(String toEmail, String token, String username, String frontendUrl) {
         log.info("Iniciando envio de e-mail de recuperação via SMTP para: {}", toEmail);
 
         var message = new SimpleMailMessage();
@@ -26,7 +25,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         message.setTo(toEmail);
         message.setSubject("Kronos - Redefinição de Senha");
 
-        var resetLink = frontendBaseUrl + "/reset-password?token=" + token;
+        var resetLink = frontendUrl + "/reset-password?token=" + token;
         var text = String.format(
                 "Olá %s,\n\n" +
                         "Recebemos uma solicitação para redefinir sua senha.\n" +
