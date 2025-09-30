@@ -1,6 +1,6 @@
 package com.kts.kronos.application.port.out.provider;
 
-public interface GcsStorageProvider {
+public interface BucketStorageProvider {
     String uploadFile(String objectName, byte[] fileData, String contentType);
 
     byte[] downloadFile(String objectName);
