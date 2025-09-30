@@ -23,17 +23,9 @@ spring:
       bucket-name: ${AWS_S3_BUCKET_NAME}
       region: ${AWS_REGION}
   cloud:
-    gcp:
-      project-id: ${GCP_PROJECT_ID}
-      pubsub:
-        subscriber:
-          subscriptions:
-            time-record-approval-subscription:
-              topic: ${GCP_PUBSUB_TOPIC_NAME}
-              auto-create: false
-            password-reset-subscription:
-              topic: ${PASSWORD_RESET_TOPIC}
-              auto-create: false
+    aws:
+      region:
+        static: ${AWS_REGION:sa-east-1}
 
 management:
   endpoints:
@@ -49,18 +41,11 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:3600000}
 
-gcp:
-  storage:
-    bucket-name: ${GCP_STORAGE_BUCKET_NAME}
-
-# --- NOVA SEÇÃO PARA FRONTENDS ---
 frontend:
-  # Lista de todas as URLs de frontend permitidas para CORS
   allowed-origins:
     - ${FRONTEND_BASE_URL_PLATAFORM}
     - ${FRONTEND_BASE_URL_RECORD}
     - ${FRONTEND_BASE_URL_RENDER}
-  # URL padrão para usar como fallback
   default-base-url: ${FRONTEND_BASE_URL_PLATAFORM}
 
 logging:
@@ -69,3 +54,11 @@ logging:
   level:
     org.springframework:
       security: INFO
+
+time-record:
+  approval-topic-arn: arn:aws:sns:sa-east-1:489540979930:kronos-time-record-approval-topic
+  approval-queue-name: kronos-time-record-approval-queue
+
+password-reset:
+  topic-arn: arn:aws:sns:sa-east-1:489540979930:kronos-password-reset-topic
+  queue-name: kronos-password-reset-queue
