@@ -6,7 +6,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.GcsStorageProvider;
+import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.Employee;
@@ -32,7 +32,7 @@ public class DocumentService implements DocumentUseCase {
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-    private final GcsStorageProvider gcsStorageProvider;
+    private final BucketStorageProvider bucketStorageProvider;
 
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
@@ -44,7 +44,7 @@ public class DocumentService implements DocumentUseCase {
 
             var bytes = file.getBytes();
             var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-            var storagePath = gcsStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
+            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
             var doc = new Document(
                     employee.employeeId(),
                     type,
@@ -66,7 +66,7 @@ public class DocumentService implements DocumentUseCase {
         var doc = documentProvider.findById(documentId);
 
         try {
-            byte[] fileData = gcsStorageProvider.downloadFile(doc.storagePath());
+            byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
 
             return new DocumentWithData(
                     doc.documentId(),
@@ -97,7 +97,7 @@ public class DocumentService implements DocumentUseCase {
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var doc = documentProvider.findById(documentId);
-        gcsStorageProvider.deleteFile(doc.storagePath());
+        bucketStorageProvider.deleteFile(doc.storagePath());
         documentProvider.delete(employeeIdWith, documentId);
     }
 
