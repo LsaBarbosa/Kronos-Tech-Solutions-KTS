@@ -25,8 +25,9 @@ repositories {
 // Cloud
 dependencyManagement {
     imports {
-        mavenBom('com.google.cloud:libraries-bom:26.30.0')
-mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:5.3.0')
+        // [RESOLUÇÃO DE CONFLITO] - A inclusão deste BOM resolve o erro 'SnsTemplate'
+        mavenBom('io.awspring.cloud:spring-cloud-aws-dependencies:3.4.0')
+        // BOM do AWS SDK V2
         mavenBom('software.amazon.awssdk:bom:2.26.15')
     }
 }
@@ -70,16 +71,18 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // para converter claims em JSON
     implementation 'org.springframework.security:spring-security-crypto'
 
-    //Cloud
+
     implementation 'software.amazon.awssdk:s3'
-    implementation 'com.google.cloud:spring-cloud-gcp-starter-pubsub'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.3.0'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sns:3.4.0'
+
     implementation 'org.springframework.boot:spring-boot-starter-integration'
     implementation 'org.springframework.integration:spring-integration-core'
 
     testImplementation 'org.mockito:mockito-inline:5.2.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
-     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.security:spring-security-test'
 
 }

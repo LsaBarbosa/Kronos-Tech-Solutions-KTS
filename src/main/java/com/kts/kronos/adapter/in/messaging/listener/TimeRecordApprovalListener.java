@@ -1,14 +1,12 @@
 package com.kts.kronos.adapter.in.messaging.listener;
-import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
-import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
+
 import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.integration.annotation.ServiceActivator;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
@@ -23,18 +21,17 @@ public class TimeRecordApprovalListener {
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider timeRecordProvider;
-    public static final String TIME_RECORD_APPROVAL_SUBSCRIPTION = "time-record-approval-subscription";
-     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
 
-    @ServiceActivator(inputChannel = TIME_RECORD_APPROVAL_SUBSCRIPTION + ".input")
+    // NOVO: Usa @SqsListener e a propriedade do application.yml com o nome da fila
+    @SqsListener("${time-record.approval-queue-name}")
     public void handleTimeRecordChangeRequest(
-            TimeRecordChangeRequestMessage message,
-            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage originalMessage) {
+            TimeRecordChangeRequestMessage message) { // Assinatura simplificada
 
         log.info("Recebida solicitação de alteração de ponto para o registro ID: {}", message.timeRecordId());
 
         try {
-            // 1. Lógica de busca de dados e montagem de notificação (mantida do Listener anterior)
+            // 1. Lógica de busca de dados e montagem de notificação (mantida)
             var partnerEmployee = employeeProvider.findById(message.partnerEmployeeId())
                     .orElseThrow(() -> new IllegalArgumentException(PARTNER_NOT_FOUND + message.partnerEmployeeId()));
 
@@ -76,14 +73,13 @@ public class TimeRecordApprovalListener {
 
             log.info(notificationMessage);
 
-            // 2. Confirmação (ACK)
-            originalMessage.ack();
+            // 2. Confirmação (ACK) - O @SqsListener faz o ACK automático em caso de sucesso.
             log.info("Mensagem de solicitação ID {} confirmada com sucesso (ACK).", message.timeRecordId());
 
         } catch (Exception e) {
             log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", message.timeRecordId(), e.getMessage());
-            // 3. Rejeição (NACK) para re-entrega pelo Pub/Sub
-            originalMessage.nack();
+            // 3. Rejeição (NACK) - Se a exceção for lançada, o SQS tentará novamente (respeitando o DLQ).
+            throw e;
         }
     }
 }
