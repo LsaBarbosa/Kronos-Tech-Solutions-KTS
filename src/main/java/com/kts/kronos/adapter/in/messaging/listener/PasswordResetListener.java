@@ -34,7 +34,7 @@ public class PasswordResetListener {
                     message.frontendBaseUrl()
             );
 
-            // 2. Confirmação (ACK) - informa ao Pub/Sub que a mensagem foi processada
+
             originalMessage.ack();
             log.info("E-mail de recuperação enviado com sucesso para: {}", message.toEmail());
 
