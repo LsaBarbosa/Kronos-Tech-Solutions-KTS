@@ -80,10 +80,19 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-test'
      testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+tasks.named('bootBuildImage') {
+    builder = "paketobuildpacks/builder-jammy-tiny"
+    // --- ALTERE A LINHA ABAIXO PARA O CAMINHO CORRETO ---
+    imageName = "southamerica-east1-docker.pkg.dev/kronos-tech-solutions/kronos-tech-solutions-app/kronos-app:latest"
+    environment = [
+            "BP_NATIVE_IMAGE": "true",
+            "BP_NATIVE_IMAGE_BUILD_ARGUMENTS": "--initialize-at-run-time=io.netty,ch.qos.logback,org.slf4j"
+    ]
 }

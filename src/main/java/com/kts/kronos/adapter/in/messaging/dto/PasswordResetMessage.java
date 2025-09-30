@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 public record PasswordResetMessage(String toEmail,
                                    String userName,
-                                   String resetToken
+                                   String resetToken,
+                                   String frontendBaseUrl
 ) implements Serializable {
 }

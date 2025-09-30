@@ -30,7 +30,8 @@ public class PasswordResetListener {
             emailSenderService.sendResetEmail(
                     message.toEmail(),
                     message.resetToken(),
-                    message.userName()
+                    message.userName(),
+                    message.frontendBaseUrl()
             );
 
             // 2. Confirmação (ACK) - informa ao Pub/Sub que a mensagem foi processada

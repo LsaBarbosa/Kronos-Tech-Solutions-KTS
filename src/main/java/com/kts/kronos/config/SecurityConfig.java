@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoin
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,6 +27,9 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+    @Value("${frontend.allowed-origins}")
+    private List<String> allowedOrigins;
+
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
@@ -58,9 +62,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // A URL do seu frontend deve ser exata, sem wildcards como "**"
-        configuration.setAllowedOrigins(List.of("https://kts-user-plataform.onrender.com","https://kronos-tech-solutions.com.br","https://kts-rymjdntshgrveaf-mhnsgbrdefwc-thnsgrbaefc.vercel.app"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedOrigins(allowedOrigins);
+    configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
