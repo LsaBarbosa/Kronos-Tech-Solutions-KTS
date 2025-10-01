@@ -6,10 +6,10 @@ spring:
     driver-class-name: org.postgresql.Driver
   redis:
     host: ${REDIS_HOST}
-    port: ${REDIS_PORT:6379}
+    port: ${REDIS_PORT}
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
@@ -25,7 +25,7 @@ spring:
   cloud:
     aws:
       region:
-        static: ${AWS_REGION:sa-east-1}
+        static: ${AWS_REGION}
 
 management:
   endpoints:
@@ -39,7 +39,7 @@ management:
 
 jwt:
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:3600000}
+  expiration: ${JWT_EXPIRATION}
 
 frontend:
   allowed-origins:
@@ -50,15 +50,15 @@ frontend:
 
 logging:
   pattern:
-    console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
+    console: "${LOGPATTERN_CONSOLE}"
   level:
     org.springframework:
       security: INFO
 
 time-record:
-  approval-topic-arn: arn:aws:sns:sa-east-1:489540979930:kronos-time-record-approval-topic
-  approval-queue-name: kronos-time-record-approval-queue
+  approval-topic-arn: ${TIME_RECORD_APPROVAL_TOPIC_ARN}
+  approval-queue-name: ${TIME_RECORD_APPROVAL_QUEUE_NAME}
 
 password-reset:
-  topic-arn: arn:aws:sns:sa-east-1:489540979930:kronos-password-reset-topic
-  queue-name: kronos-password-reset-queue
+  topic-arn: ${PASSWORD_RESET_TOPIC_ARN}
+  queue-name: ${PASSWORD_RESET_QUEUE_NAME}

@@ -75,8 +75,7 @@ dependencies {
     implementation 'software.amazon.awssdk:s3'
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.3.0'
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sns:3.4.0'
-    implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws:4.1.1'
-
+    implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws:4.3.0'
 
     implementation 'org.springframework.boot:spring-boot-starter-integration'
     implementation 'org.springframework.integration:spring-integration-core'
