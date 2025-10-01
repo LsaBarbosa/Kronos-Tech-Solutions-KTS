@@ -75,6 +75,8 @@ dependencies {
     implementation 'software.amazon.awssdk:s3'
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.3.0'
     implementation 'io.awspring.cloud:spring-cloud-aws-starter-sns:3.4.0'
+    implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws:4.1.1'
+
 
     implementation 'org.springframework.boot:spring-boot-starter-integration'
     implementation 'org.springframework.integration:spring-integration-core'
@@ -91,10 +93,11 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// lsabarbosa/kronos-tech-solutions-kts/Kronos-Tech-Solutions-KTS-AWS-build/build.gradle
 tasks.named('bootBuildImage') {
     builder = "paketobuildpacks/builder-jammy-tiny"
-    // --- ALTERE A LINHA ABAIXO PARA O CAMINHO CORRETO ---
-    imageName = "southamerica-east1-docker.pkg.dev/kronos-tech-solutions/kronos-tech-solutions-app/kronos-app:latest"
+    // --- ATUALIZE A LINHA ABAIXO ---
+    imageName = "489540979930.dkr.ecr.sa-east-1.amazonaws.com/kronos:latest" // Use o seu URI
     environment = [
             "BP_NATIVE_IMAGE": "true",
             "BP_NATIVE_IMAGE_BUILD_ARGUMENTS": "--initialize-at-run-time=io.netty,ch.qos.logback,org.slf4j"
