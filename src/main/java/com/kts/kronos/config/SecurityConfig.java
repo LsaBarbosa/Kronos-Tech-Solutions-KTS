@@ -27,8 +27,10 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-    @Value("${frontend.allowed-origins}")
-    private List<String> allowedOrigins;
+    @Value("${frontend.records}")
+    private String recordUrl;
+    @Value("${frontend.default-base-url}")
+    private String plataformUrl;
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
@@ -63,7 +65,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedOrigins(Arrays.asList(recordUrl,plataformUrl));
     configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
