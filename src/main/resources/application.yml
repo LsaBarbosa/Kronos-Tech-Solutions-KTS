@@ -44,10 +44,7 @@ jwt:
   expiration: ${JWT_EXPIRATION}
 
 frontend:
-  allowed-origins:
-    - ${FRONTEND_BASE_URL_PLATAFORM}
-    - ${FRONTEND_BASE_URL_RECORD}
-    - ${FRONTEND_BASE_URL_RENDER}
+  records: ${FRONTEND_BASE_URL_RECORD}
   default-base-url: ${FRONTEND_BASE_URL_PLATAFORM}
 
 logging:
