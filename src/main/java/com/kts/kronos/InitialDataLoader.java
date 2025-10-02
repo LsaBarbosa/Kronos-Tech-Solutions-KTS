@@ -13,12 +13,14 @@ import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@Profile("!prod")
 public class InitialDataLoader implements CommandLineRunner {
 
     private final CompanyProvider companyProvider;
