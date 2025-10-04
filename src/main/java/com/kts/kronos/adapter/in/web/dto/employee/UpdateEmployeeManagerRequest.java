@@ -6,12 +6,14 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import org.hibernate.validator.constraints.br.CPF;
 
 import static com.kts.kronos.constants.Messages.*;
 
 public record UpdateEmployeeManagerRequest(
         String fullName,
 
+        @CPF
         @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
         String cpf,
 

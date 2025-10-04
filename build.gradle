@@ -93,6 +93,6 @@ tasks.named('test') {
 }
 
 tasks.named('bootBuildImage') {
-    builder = "paketobuildpacks/builder-jammy-base" // Usando o builder padrão para JVM
+    builder = "paketobuildpacks/builder-jammy-base"
     imageName = "489540979930.dkr.ecr.sa-east-1.amazonaws.com/kronos:latest"
 }

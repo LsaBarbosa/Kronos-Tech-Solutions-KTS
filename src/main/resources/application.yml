@@ -20,6 +20,10 @@ spring:
           auth: true
           starttls:
             enable: true
+  data:
+    redis:
+      repositories:
+        enabled: false
   aws:
     s3:
       bucket-name: ${AWS_S3_BUCKET_NAME}
