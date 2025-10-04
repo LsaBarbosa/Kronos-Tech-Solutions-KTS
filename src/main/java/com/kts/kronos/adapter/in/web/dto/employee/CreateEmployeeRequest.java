@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.dto.employee;
 import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import org.hibernate.validator.constraints.br.CPF;
 
 import static com.kts.kronos.constants.Messages.MUST_HAVE_11_CHARACTERES;
 import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
@@ -21,6 +22,7 @@ public record  CreateEmployeeRequest(
         @Size(max = 200, message = MUST_HAVE_200_CHARACTERES)
         String fullName,
 
+        @CPF
         @NotBlank(message = CPF_NOT_BLANK)
         @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
         String cpf,
