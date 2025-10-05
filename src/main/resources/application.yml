@@ -24,14 +24,15 @@ spring:
     redis:
       repositories:
         enabled: false
-  aws:
-    s3:
-      bucket-name: ${AWS_S3_BUCKET_NAME}
-      region: ${AWS_REGION}
   cloud:
-    aws:
-      region:
-        static: ${AWS_REGION}
+    gcp:
+      project-id: ${GCP_PROJECT_ID} # <-- Adicione o ID do seu projeto GCP
+      credentials:
+        location: ${GCP_CREDENTIALS_LOCATION} # <-- Caminho para o arquivo de credenciais (ex: file:/etc/secrets/gcp-credentials.json)
+      storage:
+        bucket-name: ${GCS_BUCKET_NAME} # <-- Nome do seu bucket no Google Cloud Storage
+      pubsub:
+        enabled: true
 
 management:
   endpoints:
@@ -58,10 +59,11 @@ logging:
     org.springframework:
       security: INFO
 
-time-record:
-  approval-topic-arn: ${TIME_RECORD_APPROVAL_TOPIC_ARN}
-  approval-queue-name: ${TIME_RECORD_APPROVAL_QUEUE_NAME}
-
-password-reset:
-  topic-arn: ${PASSWORD_RESET_TOPIC_ARN}
-  queue-name: ${PASSWORD_RESET_QUEUE_NAME}
+# Configurações de Tópicos e Assinaturas do Google Cloud Pub/Sub
+pubsub:
+  topics:
+    password-reset: ${PASSWORD_RESET_TOPIC_NAME}
+    time-record-approval: ${TIME_RECORD_APPROVAL_TOPIC_NAME}
+  subscriptions:
+    password-reset: ${PASSWORD_RESET_SUBSCRIPTION_NAME}
+    time-record-approval: ${TIME_RECORD_APPROVAL_SUBSCRIPTION_NAME}

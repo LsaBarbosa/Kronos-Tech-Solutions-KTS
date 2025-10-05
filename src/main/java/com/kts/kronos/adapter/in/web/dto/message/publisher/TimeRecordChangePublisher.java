@@ -1,9 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.message.publisher;
 
 import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
-
-
-import io.awspring.cloud.sns.core.SnsTemplate;
+import com.google.cloud.spring.pubsub.core.PubSubTemplate; // Import do GCP
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,21 +11,19 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class TimeRecordChangePublisher {
-    private final SnsTemplate snsTemplate;
+    private final PubSubTemplate pubSubTemplate; // Injeta o PubSubTemplate
 
-    // Injeta o ARN do Tópico da configuração
-    @Value("${time-record.approval-topic-arn}")
-    private String timeRecordApprovalTopicArn;
+    @Value("${pubsub.topics.time-record-approval}")
+    private String timeRecordApprovalTopic;
 
     public void publishApprovalRequest(TimeRecordChangeRequestMessage message) {
         try {
-            // Publica a mensagem no ARN do tópico. O Spring Cloud AWS faz a serialização JSON.
-            snsTemplate.convertAndSend(timeRecordApprovalTopicArn, message);
+            pubSubTemplate.publish(timeRecordApprovalTopic, message); // Usa o PubSubTemplate
 
-            log.info("Solicitação de alteração de ponto ID {} publicada no tópico SNS {}",
-                    message.timeRecordId(), timeRecordApprovalTopicArn);
+            log.info("Solicitação de alteração de ponto ID {} publicada no tópico Pub/Sub {}",
+                    message.timeRecordId(), timeRecordApprovalTopic);
         } catch (Exception e) {
-            log.error("Falha ao publicar a mensagem no AWS SNS para o registro ID {}: {}",
+            log.error("Falha ao publicar a mensagem no Google Cloud Pub/Sub para o registro ID {}: {}",
                     message.timeRecordId(), e.getMessage());
             throw new RuntimeException("Falha na comunicação com o serviço de mensageria.", e);
         }
