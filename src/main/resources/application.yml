@@ -61,10 +61,11 @@ logging:
       security: TRACE
 
 # Configurações de Tópicos e Assinaturas do Google Cloud Pub/Sub
+
 pubsub:
   topics:
     password-reset: ${PASSWORD_RESET_TOPIC_NAME}
     time-record-approval: ${TIME_RECORD_APPROVAL_TOPIC_NAME}
   subscriptions:
-    password-reset: ${PASSWORD_RESET_SUBSCRIPTION_NAME}
-    time-record-approval: ${TIME_RECORD_APPROVAL_SUBSCRIPTION_NAME}
+    password-reset: ${PUBSUB_SUBSCRIPTIONS_PASSWORD_RESET}
+    time-record-approval: ${PUBSUB_SUBSCRIPTIONS_TIME_RECORD_APPROVAL}
