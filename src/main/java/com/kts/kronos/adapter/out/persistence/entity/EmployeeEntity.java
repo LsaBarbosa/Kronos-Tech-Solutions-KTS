@@ -73,6 +73,7 @@ public class EmployeeEntity {
                 .phone(employee.phone())
                 .address(AddressEmbeddable.fromDomain(employee.address()))
                 .companyId(employee.companyId())
+                .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())
                 .build();
     }
 
