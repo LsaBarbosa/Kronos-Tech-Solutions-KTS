@@ -67,5 +67,5 @@ pubsub:
     password-reset: ${PASSWORD_RESET_TOPIC_NAME}
     time-record-approval: ${TIME_RECORD_APPROVAL_TOPIC_NAME}
   subscriptions:
-    password-reset: ${PUBSUB_SUBSCRIPTIONS_PASSWORD_RESET}
-    time-record-approval: ${PUBSUB_SUBSCRIPTIONS_TIME_RECORD_APPROVAL}
+  password-reset: ${PUBSUB_SUBSCRIPTIONS_PASSWORD_RESET}
+  time-record-approval: ${PUBSUB_SUBSCRIPTIONS_TIME_RECORD_APPROVAL}
