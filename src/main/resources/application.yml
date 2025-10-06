@@ -9,7 +9,7 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   redis:
-    url: ${SPRING_REDIS_URL}
+    url: redis://red-d3hv5jk9c44c73cctjo0:6379
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT}
