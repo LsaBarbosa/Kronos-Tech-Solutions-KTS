@@ -58,7 +58,8 @@ public class CompanyService implements CompanyUseCase {
                 request.employeeRequest().salary(),
                 request.employeeRequest().phone(),
                 address,
-                company.companyId()
+                company.companyId(),
+                null
         );
         return employeeProvider.save(employee);
     }
