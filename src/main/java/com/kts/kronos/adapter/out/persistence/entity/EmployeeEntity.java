@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -44,6 +45,9 @@ public class EmployeeEntity {
     @Column(name = "is_active", nullable = false)
     private final boolean active = true;
 
+    @Column(name = "last_seen_message_timestamp") // Novo campo
+    private LocalDateTime lastSeenMessageTimestamp;
+
     @Embedded
     private AddressEmbeddable address;
 
@@ -54,7 +58,7 @@ public class EmployeeEntity {
     public Employee toDomain(){
         return new Employee(
                 employeeId, fullName, cpf, jobPosition, email,
-                salary, phone, active, address.toDomain(), companyId
+                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp
         );
     }
 
