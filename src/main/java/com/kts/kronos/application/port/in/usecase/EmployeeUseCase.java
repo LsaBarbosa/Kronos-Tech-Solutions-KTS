@@ -15,6 +15,7 @@ public interface EmployeeUseCase {
     Employee getEmployee(UUID employeeId);
     void updateEmployee(UUID employeeId, UpdateEmployeeManagerRequest req);
     void deleteEmployee(UUID employeeId);
+    void markMessagesAsSeen();
      // PARTNER
     Employee getOwnProfile();
     void updateOwnProfile(UpdateEmployeePartnerRequest req);

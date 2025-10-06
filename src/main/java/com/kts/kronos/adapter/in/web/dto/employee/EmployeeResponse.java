@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.dto.employee;
 import com.kts.kronos.adapter.in.web.dto.address.AddressResponse;
 import com.kts.kronos.domain.model.Employee;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record EmployeeResponse(
@@ -14,7 +15,8 @@ public record EmployeeResponse(
         double salary,
         String phone,
         AddressResponse address,
-        String companyName
+        String companyName,
+        LocalDateTime lastSeenMessageTimestamp
 ) {
     public static EmployeeResponse fromDomain(Employee employee, String companyName) {
         return new EmployeeResponse(
@@ -26,7 +28,8 @@ public record EmployeeResponse(
                 employee.salary(),
                 employee.phone(),
                 AddressResponse.fromDomain(employee.address()),
-               companyName
+                companyName,
+                employee.lastSeenMessageTimestamp()
         );
     }
 

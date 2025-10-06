@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,15 +44,18 @@ public class EmployeeService implements EmployeeUseCase {
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
 
+        double salary = req.salary() != null ? req.salary() : 0.0;
+
         var employee = new Employee(
                 req.fullName(),
                 req.cpf(),
                 req.jobPosition(),
                 req.email(),
-                req.salary(),
+                salary,
                 req.phone(),
                 address,
-                managerEmployee.companyId()
+                managerEmployee.companyId(),
+                null
         );
         return employeeProvider.save(employee);
     }
@@ -97,7 +101,8 @@ public class EmployeeService implements EmployeeUseCase {
                 req.phone() != null ? req.phone() : employee.phone(),
                 employee.active(),
                 employee.address(),
-                employee.companyId()
+                employee.companyId(),
+                null
         );
 
         if (req.address() != null) {
@@ -135,5 +140,14 @@ public class EmployeeService implements EmployeeUseCase {
                 .withPhone(req.phone() != null ? req.phone() : employee.phone())
                 .withAddress(updateAddress);
         employeeProvider.save(updated);
+    }
+
+    @Override
+    public void markMessagesAsSeen() {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var updatedEmployee = employee.withLastSeenMessageTimestamp(LocalDateTime.now());
+        employeeProvider.save(updatedEmployee);
     }
 }
