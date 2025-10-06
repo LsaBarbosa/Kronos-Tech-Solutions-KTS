@@ -1,40 +1,38 @@
 spring:
-  main:
-    lazy-initialization: true
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
   datasource:
+    # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   redis:
-    url: redis://red-d3hv5jk9c44c73cctjo0:6379
+    # Variáveis para o Redis (REDIS_HOST, REDIS_PORT)
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    password: ${MAIL_PASSWORD} # A senha de aplicativo do Gmail
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-  data:
-    redis:
-      repositories:
-        enabled: false
   cloud:
     gcp:
-      project-id: ${GCP_PROJECT_ID}
-      credentials:
-        location: ${GCP_CREDENTIALS_LOCATION} # <-- Caminho para o arquivo de credenciais (ex: file:/etc/secrets/gcp-credentials.json)
-      storage:
-        bucket-name: ${GCS_BUCKET_NAME} # <-- Nome do seu bucket no Google Cloud Storage
+      # Variável para o Project ID do GCP
+      project-id: ${GCP_PROJECT_ID:kronos-tech-solutions}
       pubsub:
-        enabled: true
-
+        subscriber:
+          subscriptions:
+            time-record-approval-subscription:
+              topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
+              auto-create: true
+            password-reset-subscription:
+              topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
+              auto-create: true
 management:
   endpoints:
     web:
@@ -44,28 +42,25 @@ management:
     export:
       prometheus:
         enabled: true
-
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION}
-
-frontend:
-  records: ${FRONTEND_BASE_URL_RECORD}
-  default-base-url: ${FRONTEND_BASE_URL_PLATAFORM}
-
 logging:
   pattern:
-    console: "${LOGPATTERN_CONSOLE}"
+    console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
   level:
     org.springframework:
-      security: TRACE
+      security: INFO
 
-# Configurações de Tópicos e Assinaturas do Google Cloud Pub/Sub
+jwt:
+  # Variável para o segredo JWT
+  secret: ${JWT_SECRET:"dGhpc19pcy1qd3Rfc2VjcmV0X3dpdGhfMzJfYnl0ZXNfISEhISEhISE="}
+  expiration: ${JWT_EXPIRATION:3600000}
 
-pubsub:
-  topics:
-    password-reset: ${PASSWORD_RESET_TOPIC_NAME}
-    time-record-approval: ${TIME_RECORD_APPROVAL_TOPIC_NAME}
-  subscriptions:
-  password-reset: ${PUBSUB_SUBSCRIPTIONS_PASSWORD_RESET}
-  time-record-approval: ${PUBSUB_SUBSCRIPTIONS_TIME_RECORD_APPROVAL}
+gcp:
+  storage:
+    # Variável para o nome do bucket do GCP Storage
+    bucket-name: ${GCP_STORAGE_BUCKET_NAME:kronos-tech-solutions-bucket}
+
+frontend:
+  # Variável para a URL base do Frontend
+  base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
+  base-url-record: ${FRONTEND_BASE_URL_RECORD}
+  base-url-render: ${FRONTEND_BASE_URL_RENDER}
