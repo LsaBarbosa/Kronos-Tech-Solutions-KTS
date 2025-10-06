@@ -25,7 +25,8 @@ repositories {
 // Cloud
 dependencyManagement {
     imports {
-        mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.3.2')
+        mavenBom('com.google.cloud:libraries-bom:26.30.0')
+        mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:5.3.0')
     }
 }
 dependencies {
@@ -37,9 +38,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
     // OBSERVABILITY METRICS
-    implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
-    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+//    implementation 'io.micrometer:micrometer-registry-prometheus'
+//    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+//    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
     // DATA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -72,6 +73,8 @@ dependencies {
     implementation 'com.google.cloud:spring-cloud-gcp-starter-storage'
     implementation 'com.google.cloud:spring-cloud-gcp-starter-pubsub'
 
+    implementation 'com.google.cloud:google-cloud-storage'
+    implementation 'com.google.cloud:spring-cloud-gcp-starter-pubsub'
     implementation 'org.springframework.boot:spring-boot-starter-integration'
     implementation 'org.springframework.integration:spring-integration-core'
 
