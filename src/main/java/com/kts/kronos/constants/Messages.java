@@ -74,7 +74,7 @@ public class Messages {
     public static final String TIME_NOT_NULL = "Hora de início é obrigatória";
 
     // Belongs
-    public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Registro não pertence ao Colaborador informado";
+public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não é o proprietário do registro. Somente o prorpietário pode solicitar atualização de registro";
     public static final String DOCUMENT_NOT_BELONGS_EMPLOYEE = "Documento não pertence ao Colaborador";
 
     //500
