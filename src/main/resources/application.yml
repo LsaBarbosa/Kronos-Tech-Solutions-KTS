@@ -22,7 +22,6 @@ spring:
             enable: true
   cloud:
     gcp:
-      # Variável para o Project ID do GCP
       project-id: ${GCP_PROJECT_ID:kronos-tech-solutions}
       pubsub:
         subscriber:
@@ -33,6 +32,9 @@ spring:
             password-reset-subscription:
               topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
               auto-create: true
+        topics: # Adicione esta seção
+          time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
+          password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
 management:
   endpoints:
     web:
