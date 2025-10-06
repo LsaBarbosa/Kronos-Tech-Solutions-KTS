@@ -25,7 +25,7 @@ repositories {
 // Cloud
 dependencyManagement {
     imports {
-        mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:5.2.1')
+        mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.3.2')
     }
 }
 dependencies {
