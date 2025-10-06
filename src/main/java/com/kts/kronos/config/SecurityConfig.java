@@ -27,9 +27,9 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
-    @Value("${frontend.records}")
+    @Value("${frontend.base-url-record}")
     private String recordUrl;
-    @Value("${frontend.default-base-url}")
+    @Value("${frontend.base-url-plataform}")
     private String plataformUrl;
 
     private final JwtUtils jwtUtils;
