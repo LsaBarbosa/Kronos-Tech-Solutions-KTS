@@ -22,6 +22,7 @@ spring:
             enable: true
   cloud:
     gcp:
+      # Variável para o Project ID do GCP
       project-id: ${GCP_PROJECT_ID:kronos-tech-solutions}
       pubsub:
         subscriber:
@@ -32,9 +33,6 @@ spring:
             password-reset-subscription:
               topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
               auto-create: true
-        topics: # Adicione esta seção
-          time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
-          password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
 management:
   endpoints:
     web:
@@ -66,3 +64,9 @@ frontend:
   base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-render: ${FRONTEND_BASE_URL_RENDER}
+
+# Seção movida para o nível raiz para corrigir o erro de placeholder
+pubsub:
+  topics:
+    password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
+    time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
