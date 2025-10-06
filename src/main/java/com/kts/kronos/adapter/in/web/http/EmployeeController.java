@@ -87,9 +87,9 @@ public class EmployeeController {
     public void deleteEmployee(@PathVariable UUID employeeId) {
         useCase.deleteEmployee(employeeId);
     }
-    @PostMapping("/mark-messages-seen")
+    @PostMapping(MESSAGES_SEEN)
     @ResponseStatus(HttpStatus.OK)
-    @PreAuthorize("hasAnyAuthority(ANY_EMPLOYEE)")
+    @PreAuthorize(ANY_EMPLOYEE)
     public void markMessagesAsSeen() {
         useCase.markMessagesAsSeen();
     }
