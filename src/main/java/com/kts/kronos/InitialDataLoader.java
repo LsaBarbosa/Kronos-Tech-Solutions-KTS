@@ -63,7 +63,8 @@ public class InitialDataLoader implements CommandLineRunner {
                     1.00,
                     "21964032474",
                     companyAddress,
-                    company.companyId()
+                    company.companyId(),
+                    null
             );
             employeeProvider.save(ctoEmployee);
             var ctoUser = new User(
