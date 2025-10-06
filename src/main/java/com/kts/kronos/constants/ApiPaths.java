@@ -52,6 +52,8 @@ public class ApiPaths {
     //Message
     public static final String MESSAGES = "/messages";
     public static final String MESSAGE_ID = "/{messageId}";
+    public static final String MESSAGES_SEEN = "/mark-messages-seen";
+
 
     //Auth
     public static final String AUTH = "/auth";
