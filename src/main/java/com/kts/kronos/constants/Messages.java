@@ -50,7 +50,7 @@ public class Messages {
     public static final String INVALID_PASSWORD = "Senha atual incorreta.";
     public static final String INVALID_CONFIRM_PASSWORD = "Confirmação de senha não confere.";
     public static final String INVALID_PASSWORD_POLICY = "Política de senha inválida: mínimo de 8 caracteres, deve conter maiúscula, minúscula e dígito.";
-    public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos PDF são aceitos no sistema.";
+    public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos de texto ou imagem são aceitos no sistema (.pdf, .jpg, .jpeg, .png, .docx, .doc).";
     public static final String INVALID_PASSWORD_RESET_TOKEN = "Token de recuperação inválido ou expirado.";
 
 
