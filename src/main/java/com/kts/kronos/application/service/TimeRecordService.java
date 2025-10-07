@@ -51,7 +51,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-    private final TimeRecordChangePublisher publisher; // NOVO
+    private final TimeRecordChangePublisher publisher;
     private final UserProvider userProvider;
 
     @Override
@@ -132,6 +132,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Role não autorizada para esta operação.");
         }
     }
+
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {

@@ -107,10 +107,12 @@ public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não 
 
     //RabbitMQ & REDIS
     public static final String TIME_RECORD_APPROVAL_TOPIC = "time-record-approval-topic";
+    public static final String TIME_RECORD_APPROVAL_SUBSCRIPTION = "time-record-approval-subscription";
     public static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
     public static final String PASSWORD_RESET_TOPIC = "password-reset-topic";
     public static final String PASSWORD_RESET_KEY_PREFIX = "password:reset:";
     public static final String PASSWORD_RESET_SUBSCRIPTION = "password-reset-subscription";
+
     // **
     public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";
 }
