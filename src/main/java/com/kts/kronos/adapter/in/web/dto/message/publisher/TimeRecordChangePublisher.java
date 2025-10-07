@@ -7,23 +7,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import static com.kts.kronos.constants.Messages.TIME_RECORD_APPROVAL_TOPIC;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TimeRecordChangePublisher {
     private final PubSubTemplate pubSubTemplate; // Injeta o PubSubTemplate
 
-    @Value("${pubsub.topics.time-record-approval}")
-    private String timeRecordApprovalTopic;
 
     public void publishApprovalRequest(TimeRecordChangeRequestMessage message) {
         try {
-            pubSubTemplate.publish(timeRecordApprovalTopic, message); // Usa o PubSubTemplate
-
-            log.info("Solicitação de alteração de ponto ID {} publicada no tópico Pub/Sub {}",
-                    message.timeRecordId(), timeRecordApprovalTopic);
+            // Publica a mensagem. O Spring Cloud GCP a serializa para JSON/Bytes.
+            pubSubTemplate.publish(TIME_RECORD_APPROVAL_TOPIC, message);
+            log.info("Solicitação de alteração de ponto ID {} publicada no tópico {}",
+                    message.timeRecordId(), TIME_RECORD_APPROVAL_TOPIC);
         } catch (Exception e) {
-            log.error("Falha ao publicar a mensagem no Google Cloud Pub/Sub para o registro ID {}: {}",
+            log.error("Falha ao publicar a mensagem no Pub/Sub para o registro ID {}: {}",
                     message.timeRecordId(), e.getMessage());
             throw new RuntimeException("Falha na comunicação com o serviço de mensageria.", e);
         }
