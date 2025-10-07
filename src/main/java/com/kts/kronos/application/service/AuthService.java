@@ -27,7 +27,7 @@ import static com.kts.kronos.constants.Messages.*;
 @Service
 @RequiredArgsConstructor
 public class AuthService implements AuthUseCase {
-    @Value("${frontend.default-base-url}") // Injeta a URL padrão
+    @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
     private final AuthenticationManager authManager;
