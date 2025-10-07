@@ -18,6 +18,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,10 +34,19 @@ public class DocumentService implements DocumentUseCase {
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
-
+    private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
+            "application/pdf",
+            "image/jpeg",
+            "image/png",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+            "application/msword");
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
-        if (!"application/pdf".equals(file.getContentType())) {
+
+        var fileMimeType = file.getContentType();
+        // 3. Verifique se o tipo está na lista permitida
+        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
+            // Se não estiver, lança a exceção
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
         try {

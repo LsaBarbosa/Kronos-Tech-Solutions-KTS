@@ -4,24 +4,22 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentResponse;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
-import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.ApiPaths.*;
+import static com.kts.kronos.constants.ApiPaths.DOCUMENTS;
+import static com.kts.kronos.constants.ApiPaths.DOCUMENT_ID;
 import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
 
 
