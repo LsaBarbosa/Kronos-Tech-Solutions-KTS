@@ -9,31 +9,40 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
+import static com.kts.kronos.constants.Messages.PASSWORD_RESET_SUBSCRIPTION;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PasswordResetListener {
+
     private final EmailSenderProvider emailSenderService;
 
-    @ServiceActivator(inputChannel = "passwordResetInputChannel")
-    public void handlePasswordResetRequest(PasswordResetMessage payload,
-                                           @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage message) {
+    @ServiceActivator(inputChannel = PASSWORD_RESET_SUBSCRIPTION + ".input")
+    public void handlePasswordResetRequest(
+            PasswordResetMessage message,
+            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage originalMessage) {
 
-        log.info("Recebida solicitação de recuperação para o usuário: {}", payload.userName());
+        log.info("Recebida solicitação de recuperação para o usuário: {}", message.userName());
+
         try {
+            // 1. Chama o serviço que usa o JavaMailSender para enviar o e-mail
             emailSenderService.sendResetEmail(
-                    payload.toEmail(),
-                    payload.resetToken(),
-                    payload.userName(),
-                    payload.frontendBaseUrl()
+                    message.toEmail(),
+                    message.resetToken(),
+                    message.userName(),
+                    message.frontendBaseUrl()
             );
-            log.info("E-mail de recuperação enviado com sucesso para: {}", payload.toEmail());
-            message.ack();
+
+            // 2. Confirmação (ACK) - informa ao Pub/Sub que a mensagem foi processada
+            originalMessage.ack();
+            log.info("E-mail de recuperação enviado com sucesso para: {}", message.toEmail());
+
         } catch (Exception e) {
             log.error("Erro ao processar a mensagem de recuperação de senha para {}: {}",
-                    payload.userName(), e.getMessage(), e);
-            message.nack(); // Rejeita a mensagem para nova tentativa
-            throw e;
+                    message.userName(), e.getMessage(), e);
+            // 3. Rejeição (NACK) para re-entrega, caso seja um erro transitório
+            originalMessage.nack();
         }
     }
 }

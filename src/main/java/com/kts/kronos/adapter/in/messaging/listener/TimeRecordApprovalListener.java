@@ -26,28 +26,26 @@ public class TimeRecordApprovalListener {
     private final TimeRecordProvider timeRecordProvider;
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
 
-    // NOVO: Usa @SqsListener e a propriedade do application.yml com o nome da fila
-
-    @ServiceActivator(inputChannel = "timeRecordApprovalInputChannel")
+    @ServiceActivator(inputChannel = TIME_RECORD_APPROVAL_SUBSCRIPTION + ".input")
     public void handleTimeRecordChangeRequest(
-            TimeRecordChangeRequestMessage payload,
-            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage message) { // Assinatura simplificada
+            TimeRecordChangeRequestMessage message,
+            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage originalMessage) {
 
-        log.info("Recebida solicitação de alteração de ponto para o registro ID: {}", payload.timeRecordId());
+        log.info("Recebida solicitação de alteração de ponto para o registro ID: {}", message.timeRecordId());
 
         try {
-            // 1. Lógica de busca de dados e montagem de notificação (mantida)
-            var partnerEmployee = employeeProvider.findById(payload.partnerEmployeeId())
-                    .orElseThrow(() -> new IllegalArgumentException(PARTNER_NOT_FOUND + payload.partnerEmployeeId()));
+            // 1. Lógica de busca de dados e montagem de notificação (mantida do Listener anterior)
+            var partnerEmployee = employeeProvider.findById(message.partnerEmployeeId())
+                    .orElseThrow(() -> new IllegalArgumentException(PARTNER_NOT_FOUND + message.partnerEmployeeId()));
 
-            var managerUser = userProvider.findById(payload.managerId())
-                    .orElseThrow(() -> new IllegalArgumentException(USER_MANAGER_NOT_FOUND + payload.managerId()));
+            var managerUser = userProvider.findById(message.managerId())
+                    .orElseThrow(() -> new IllegalArgumentException(USER_MANAGER_NOT_FOUND + message.managerId()));
 
             var managerEmployee = employeeProvider.findById(managerUser.employeeId())
                     .orElseThrow(() -> new IllegalArgumentException(MANAGER_NOT_FOUND + managerUser.employeeId()));
 
-            var timeRecord = timeRecordProvider.findById(payload.timeRecordId())
-                    .orElseThrow(() -> new IllegalArgumentException(RECORD_NOT_FOUND + payload.timeRecordId()));
+            var timeRecord = timeRecordProvider.findById(message.timeRecordId())
+                    .orElseThrow(() -> new IllegalArgumentException(RECORD_NOT_FOUND + message.timeRecordId()));
 
             String notificationMessage = String.format(
                     // ... (Mensagem de notificação idêntica à anterior) ...
@@ -69,22 +67,23 @@ public class TimeRecordApprovalListener {
                     managerEmployee.fullName(),
                     managerEmployee.email(),
                     partnerEmployee.fullName(),
-                    payload.timeRecordId(),
+                    message.timeRecordId(),
                     timeRecord.startWork().format(formatter),
                     timeRecord.endWork() != null ? timeRecord.endWork().format(formatter) : "N/A",
-                    payload.newStartWork().format(formatter),
-                    payload.newEndWork().format(formatter)
+                    message.newStartWork().format(formatter),
+                    message.newEndWork().format(formatter)
             );
 
             log.info(notificationMessage);
 
-            // 2. Confirmação (ACK) - O @SqsListener faz o ACK automático em caso de sucesso.
-            log.info("Mensagem de solicitação ID {} confirmada com sucesso (ACK).", payload.timeRecordId());
-            message.ack();
+            // 2. Confirmação (ACK)
+            originalMessage.ack();
+            log.info("Mensagem de solicitação ID {} confirmada com sucesso (ACK).", message.timeRecordId());
+
         } catch (Exception e) {
-            log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", payload.timeRecordId(), e.getMessage());
-            message.nack();
-            throw e;
+            log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", message.timeRecordId(), e.getMessage());
+            // 3. Rejeição (NACK) para re-entrega pelo Pub/Sub
+            originalMessage.nack();
         }
     }
 }
