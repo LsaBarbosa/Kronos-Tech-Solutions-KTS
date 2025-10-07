@@ -6,9 +6,7 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   redis:
-    # Variáveis para o Redis (REDIS_HOST, REDIS_PORT)
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
+    url: ${REDIS_URL}
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
