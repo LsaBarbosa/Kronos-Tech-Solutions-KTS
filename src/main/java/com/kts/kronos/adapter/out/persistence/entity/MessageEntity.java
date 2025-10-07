@@ -34,6 +34,9 @@ public class MessageEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
+    @Column(name = "title", length = 256, nullable = false)
+    private String title;
+
     @Column(name = "message_text", length = 1024, nullable = false)
     private String messageText;
 
@@ -46,7 +49,7 @@ public class MessageEntity {
     private LocalDateTime createdAt;
 
     public Message toDomain() {
-        return new Message(messageId, employeeId, companyId, messageText, priority, createdAt);
+        return new Message(messageId, employeeId, companyId,title, messageText, priority, createdAt);
     }
 
     public static MessageEntity fromDomain(Message message) {
@@ -54,6 +57,7 @@ public class MessageEntity {
                 .messageId(message.messageId())
                 .employeeId(message.employeeId())
                 .companyId(message.companyId())
+                .title(message.title())
                 .messageText(message.messageText())
                 .priority(message.priority())
                 .createdAt(message.createdAt())
