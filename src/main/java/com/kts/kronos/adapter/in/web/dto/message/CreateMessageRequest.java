@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record CreateMessageRequest(@NotBlank String messageText,
+                                   @NotBlank String title,
                                    @NotNull MessagePriority priority
 ) {
 }
