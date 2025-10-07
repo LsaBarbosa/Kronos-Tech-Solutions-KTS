@@ -2,6 +2,7 @@ package com.kts.kronos.config;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import com.google.cloud.spring.pubsub.integration.inbound.PubSubInboundChannelAdapter;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.channel.DirectChannel;
@@ -9,6 +10,11 @@ import org.springframework.messaging.MessageChannel;
 
 @Configuration
 public class PubSubConfig {
+    @Value("${pubsub.subscriptions.password-reset}")
+    private String passwordResetSubscription;
+    @Value("${pubsub.subscriptions.time-record-approval}")
+    private String timeRecordApprovalSubscription;
+
     @Bean
     public MessageChannel passwordResetInputChannel() {
         return new DirectChannel();
@@ -24,7 +30,7 @@ public class PubSubConfig {
             @Qualifier("passwordResetInputChannel") MessageChannel inputChannel,
             PubSubTemplate pubSubTemplate) {
         PubSubInboundChannelAdapter adapter =
-                new PubSubInboundChannelAdapter(pubSubTemplate, "${pubsub.subscriptions.password-reset}");
+                new PubSubInboundChannelAdapter(pubSubTemplate, passwordResetSubscription);
         adapter.setOutputChannel(inputChannel);
         return adapter;
     }
@@ -34,7 +40,7 @@ public class PubSubConfig {
             @Qualifier("timeRecordApprovalInputChannel") MessageChannel inputChannel,
             PubSubTemplate pubSubTemplate) {
         PubSubInboundChannelAdapter adapter =
-                new PubSubInboundChannelAdapter(pubSubTemplate, "${pubsub.subscriptions.time-record-approval}");
+                new PubSubInboundChannelAdapter(pubSubTemplate, timeRecordApprovalSubscription);
         adapter.setOutputChannel(inputChannel);
         return adapter;
     }

@@ -65,12 +65,11 @@ frontend:
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-render: ${FRONTEND_BASE_URL_RENDER}
 
-# Seção movida para o nível raiz para corrigir o erro de placeholder
 pubsub:
   topics:
     password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
     time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
-  pubsub:
-    subscriptions:
-      password-reset: password-reset-subscription
-      time-record-approval: time-record-approval-subscription
+  # Seção adicionada para definir os nomes das inscrições
+  subscriptions:
+    password-reset: password-reset-subscription
+    time-record-approval: time-record-approval-subscription
