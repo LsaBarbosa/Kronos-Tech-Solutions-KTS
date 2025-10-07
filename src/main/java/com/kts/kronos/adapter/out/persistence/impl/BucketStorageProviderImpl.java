@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class BucketStorageProviderImpl implements BucketStorageProvider {
     private final Storage storage;
 
-    @Value("${spring.cloud.gcp.storage.bucket-name}")
+    @Value("${gcp.storage.bucket-name}")
     private String bucketName;
 
     @Override
