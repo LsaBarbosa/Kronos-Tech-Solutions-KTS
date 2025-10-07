@@ -37,6 +37,7 @@ public class MessageService implements MessageUseCase {
             var message = new Message(
                     senderEmployeeId,
                     employee.companyId(),
+                    request.title(),
                     request.messageText(),
                     request.priority()
             );
