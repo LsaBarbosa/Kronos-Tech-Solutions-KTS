@@ -8,6 +8,7 @@ import java.util.UUID;
 public record MessageResponse(
         UUID messageId,
         String messageText,
+        String title,
         MessagePriority priority,
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt,
@@ -17,6 +18,7 @@ public record MessageResponse(
         return new MessageResponse(
                 message.messageId(),
                 message.messageText(),
+                message.title(),
                 message.priority(),
                 message.createdAt(),
                 message.employeeId()
