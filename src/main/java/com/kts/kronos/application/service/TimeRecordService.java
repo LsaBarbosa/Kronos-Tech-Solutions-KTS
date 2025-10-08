@@ -1,6 +1,5 @@
 package com.kts.kronos.application.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
@@ -18,41 +17,35 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.application.port.out.provider.CompanyProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.*;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final ObjectMapper objectMapper;
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final TimeRecordChangePublisher publisher;
     private final UserProvider userProvider;
+    private final TimeRecordApprovalProvider approvalProvider;
 
     @Override
     public void checkin(GeolocationRequest request) {
@@ -97,7 +90,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (req.startDate().equals(req.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
         }
-        if ("PARTNER" .equals(userRole)) {
+        if ("PARTNER".equals(userRole)) {
             if (req.managerId() == null) {
                 throw new BadRequestException("O ID do manager é obrigatório para parceiros.");
             }
@@ -114,16 +107,19 @@ public class TimeRecordService implements TimeRecordUseCase {
             if (!managerEmployee.companyId().equals(employee.companyId())) {
                 throw new BadRequestException("O manager não pertence à mesma empresa.");
             }
-            var approvalData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end);
-            String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;
-            redisTemplate.opsForValue().set(redisKey, approvalData, 7, TimeUnit.DAYS);
+
+            var messageData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end);
+
+            // SUBSTITUIÇÃO DO REDIS: Salva a solicitação de aprovação no JPA via Provider
+            approvalProvider.save(messageData.toDomain());
 
             var updatedRecord = record.withStatus(StatusRecord.PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
 
-            publisher.publishApprovalRequest(approvalData);
+            // O publish continua usando o PubSub para notificação
+            publisher.publishApprovalRequest(messageData);
 
-        } else if ("MANAGER" .equals(userRole)) {
+        } else if ("MANAGER".equals(userRole)) {
             // Lógica original para o MANAGER (aprovação direta)
             var statusUpdate = record.statusRecord().onUpdate();
             var updated = record.withCheckin(start).withCheckout(end).withEdited(true).withStatus(statusUpdate);
@@ -132,7 +128,6 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Role não autorizada para esta operação.");
         }
     }
-
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {
@@ -348,26 +343,16 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public List<TimeRecordApprovalResponse> listPendingApprovals() {
-        // Assume que as chaves de aprovação seguem o padrão "timerecord:approval:*"
-        String pattern = APPROVAL_KEY_PREFIX + "*";
-        Set<String> keys = redisTemplate.keys(pattern);
+        // SUBSTITUIÇÃO DO REDIS: Busca todas as solicitações pendentes do JPA
+        List<TimeRecordApprovalRequest> approvals = approvalProvider.findAll();
 
-        if (keys.isEmpty()) {
+        if (approvals.isEmpty()) {
             return Collections.emptyList();
         }
 
         List<TimeRecordApprovalResponse> responses = new ArrayList<>();
 
-        for (String key : keys) {
-            Object approvalDataObject = redisTemplate.opsForValue().get(key);
-            if (approvalDataObject == null) {
-                continue;
-            }
-
-            TimeRecordChangeRequestMessage approvalData = objectMapper.convertValue(
-                    approvalDataObject,
-                    TimeRecordChangeRequestMessage.class
-            );
+        for (TimeRecordApprovalRequest approvalData : approvals) {
             var timeRecord = recordRepository.findById(approvalData.timeRecordId())
                     .orElse(null);
             // Busca os dados do colaborador e manager
@@ -394,20 +379,11 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public void approveTimeRecordChange(Long timeRecordId) {
         var record = findRecordAndCheckStatus(timeRecordId);
-        String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;
 
-        // Busca a solicitação no Redis como um objeto genérico
-        Object approvalDataObject = redisTemplate.opsForValue().get(redisKey);
+        // SUBSTITUIÇÃO DO REDIS: Busca a solicitação no novo Provider
+        TimeRecordApprovalRequest approvalData = approvalProvider.findByTimeRecordId(timeRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId));
 
-        if (approvalDataObject == null) {
-            throw new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId);
-        }
-
-        // Usa o ObjectMapper para converter o objeto (que é um Map) para a sua classe específica
-        TimeRecordChangeRequestMessage approvalData = objectMapper.convertValue(
-                approvalDataObject,
-                TimeRecordChangeRequestMessage.class
-        );
         // Aplica as alterações e atualiza o status
         var approvedRecord = record
                 .withCheckin(approvalData.newStartWork())
@@ -416,28 +392,24 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         recordRepository.save(approvedRecord);
 
-        // Limpa a chave do Redis
-        redisTemplate.delete(redisKey);
+        // SUBSTITUIÇÃO DO REDIS: Limpa o registro da tabela de aprovação (JPA)
+        approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
-        // Opcional: Enviar notificação de volta para o PARTNER
     }
 
     @Override
     public void rejectTimeRecordChange(Long timeRecordId) {
         var record = findRecordAndCheckStatus(timeRecordId);
-        String redisKey = APPROVAL_KEY_PREFIX + timeRecordId;
 
         // Reverte o status do registro.
-        // Aqui, revertemos para CREATED e `edited` para false, mas poderia ser outra lógica.
         var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
         recordRepository.save(rejectedRecord);
 
-        // Limpa a chave do Redis
-        redisTemplate.delete(redisKey);
+        // SUBSTITUIÇÃO DO REDIS: Limpa o registro da tabela de aprovação (JPA)
+        approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
-        // Opcional: Enviar notificação de volta para o PARTNER
     }
 
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
