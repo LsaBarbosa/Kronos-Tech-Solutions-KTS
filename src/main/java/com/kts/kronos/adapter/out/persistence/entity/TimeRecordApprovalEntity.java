@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -37,9 +38,13 @@ public class TimeRecordApprovalEntity {
     @Column(name = "new_end_work", nullable = false)
     private LocalDateTime newEndWork;
 
+    @CreationTimestamp // Garante que o Hibernate preencha a data automaticamente
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
     public TimeRecordApprovalRequest toDomain() {
         return new TimeRecordApprovalRequest(
-                timeRecordId, partnerEmployeeId, managerId, newStartWork, newEndWork
+                timeRecordId, partnerEmployeeId, managerId, newStartWork, newEndWork,createdAt
         );
     }
 
@@ -50,6 +55,7 @@ public class TimeRecordApprovalEntity {
                 .managerId(domain.managerId())
                 .newStartWork(domain.newStartWork())
                 .newEndWork(domain.newEndWork())
+                .createdAt(domain.createdAt())
                 .build();
     }
 }
