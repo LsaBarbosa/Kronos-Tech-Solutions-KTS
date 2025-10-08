@@ -6,6 +6,7 @@ public record TimeRecordApprovalRequest(
         UUID partnerEmployeeId,
         UUID managerId,
         LocalDateTime newStartWork,
-        LocalDateTime newEndWork
+        LocalDateTime newEndWork,
+        LocalDateTime createdAt
 ) {
 }
