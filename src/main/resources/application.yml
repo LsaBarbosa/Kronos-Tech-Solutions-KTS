@@ -11,6 +11,7 @@ spring:
   docker:
     compose:
       enabled: false
+
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -20,8 +21,10 @@ spring:
       mail:
         smtp:
           auth: true
+          debug: true
           starttls:
             enable: true
+
   cloud:
     gcp:
       # Variável para o Project ID do GCP
@@ -49,7 +52,7 @@ logging:
     console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
   level:
     org.springframework:
-      security: TRACE
+      security: DEBUG
 
 jwt:
   # Variável para o segredo JWT
