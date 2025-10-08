@@ -1,19 +1,21 @@
 spring:
   datasource:
-    # Valores extraídos do .env (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
-    url: jdbc:postgresql://dpg-d35eh8buibrs73d3ffk0-a:5432/kronos_db_prod_h0u9
-    username: kronos
-    password: 4VvJDEt1qj6DYwOBtRcNpZATQQijHPMA
+    # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   redis:
-    # Valores extraídos do .env (REDIS_HOST, REDIS_PORT)
-    host: red-d3i537m3jp1c73ea00rg
-    port: 6379
+    host: ${SPRING_DATA_REDIS_HOST}
+    port: ${SPRING_DATA_REDIS_PORT}
+  docker:
+    compose:
+      enabled: false
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: kronos.time.tech.solutions@gmail.com
-    password: "rhac bngj baoq sjyw"
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD} # A senha de aplicativo do Gmail
     properties:
       mail:
         smtp:
@@ -22,18 +24,16 @@ spring:
             enable: true
   cloud:
     gcp:
-      # Valor extraído do .env (GCP_PROJECT_ID)
-      project-id: kronos-tech-solutions
+      # Variável para o Project ID do GCP
+      project-id: ${GCP_PROJECT_ID:kronos-tech-solutions}
       pubsub:
         subscriber:
           subscriptions:
             time-record-approval-subscription:
-              # Valor extraído do .env (TIME_RECORD_APPROVAL_TOPIC_NAME)
-              topic: time-record-approval-topic
+              topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
               auto-create: true
             password-reset-subscription:
-              # Valor extraído do .env (PASSWORD_RESET_TOPIC_NAME)
-              topic: password-reset-topic
+              topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
               auto-create: true
 management:
   endpoints:
@@ -46,36 +46,32 @@ management:
         enabled: true
 logging:
   pattern:
-    # Valor extraído do .env (LOGPATTERN_CONSOLE)
-    console: "%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n"
+    console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
   level:
     org.springframework:
       security: TRACE
 
 jwt:
-  # Valor extraído do .env (JWT_SECRET)
-  secret: "***JWT_SECRET_REMOVED***"
-  # Valor extraído do .env (JWT_EXPIRATION)
-  expiration: 1800000
+  # Variável para o segredo JWT
+  secret: ${JWT_SECRET:"***JWT_SECRET_REMOVED***"}
+  expiration: ${JWT_EXPIRATION:3600000}
 
 gcp:
   storage:
-    # Valor extraído do .env (GCS_BUCKET_NAME)
-    bucket-name: kronos-tech-solutions-bucket
+    # Variável para o nome do bucket do GCP Storage
+    bucket-name: ${GCP_STORAGE_BUCKET_NAME:kronos-tech-solutions-bucket}
 
 frontend:
-  # Valores extraídos do .env (FRONTEND_BASE_URL_PLATAFORM, FRONTEND_BASE_URL_RECORD, FRONTEND_BASE_URL_RENDER)
-  base-url-plataform: https://kronos-tech-solutions.com.br
-  base-url-record: https://kts-rymjdntshgrveaf-mhnsgbrdefwc-thnsgrbaefc.vercel.app
-  base-url-render: https://kts-user-plataform.onrender.com
+  # Variável para a URL base do Frontend
+  base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
+  base-url-record: ${FRONTEND_BASE_URL_RECORD}
+  base-url-render: ${FRONTEND_BASE_URL_RENDER}
 
 pubsub:
   topics:
-    # Valor extraído do .env (PASSWORD_RESET_TOPIC_NAME)
-    password-reset: password-reset-topic
-    # Valor extraído do .env (TIME_RECORD_APPROVAL_TOPIC_NAME)
-    time-record-approval: time-record-approval-topic
-  # Valores extraídos do .env (PUBSUB_SUBSCRIPTIONS_PASSWORD_RESET, PUBSUB_SUBSCRIPTIONS_TIME_RECORD_APPROVAL)
+    password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
+    time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
+  # Seção adicionada para definir os nomes das inscrições
   subscriptions:
     password-reset: password-reset-subscription
     time-record-approval: time-record-approval-subscription
