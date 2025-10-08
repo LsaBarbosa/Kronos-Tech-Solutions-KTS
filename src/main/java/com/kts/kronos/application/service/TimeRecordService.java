@@ -108,7 +108,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 throw new BadRequestException("O manager não pertence à mesma empresa.");
             }
 
-            var messageData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end);
+            var messageData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end, TIME_ZONE_BRAZIL);
 
             // SUBSTITUIÇÃO DO REDIS: Salva a solicitação de aprovação no JPA via Provider
             approvalProvider.save(messageData.toDomain());
