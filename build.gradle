@@ -43,8 +43,6 @@ dependencies {
 //    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
     // DATA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
     // Substituímos o conector MySQL pelo PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
 
