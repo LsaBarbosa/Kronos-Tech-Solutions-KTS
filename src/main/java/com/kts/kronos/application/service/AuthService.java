@@ -1,17 +1,13 @@
 package com.kts.kronos.application.service;
 
 
-import com.kts.kronos.adapter.in.messaging.dto.PasswordResetMessage;
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
-import com.kts.kronos.application.port.out.provider.EmailProducer;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +31,7 @@ public class AuthService implements AuthUseCase {
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
     private final PasswordResetTokenProvider tokenProvider;
-    private final EmailProducer emailProducer;
+    private final EmailSenderProvider emailSenderProvider;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -70,15 +66,12 @@ public class AuthService implements AuthUseCase {
         // 3. Gera e salva o token no Redis
         String resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
-        // 4. Envia a mensagem para o RabbitMQ
-        PasswordResetMessage message = new PasswordResetMessage(
+        emailSenderProvider.sendResetEmail(
                 employee.email(),
-                user.username(),
                 resetToken,
+                user.username(),
                 frontendUrl
         );
-        emailProducer.sendPasswordResetEmail(message);
-
         log.info("Processo de recuperação de senha iniciado para o usuário: {}", user.username());
     }
 

@@ -35,9 +35,7 @@ spring:
             time-record-approval-subscription:
               topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
               auto-create: true
-            password-reset-subscription:
-              topic: ${PASSWORD_RESET_TOPIC:password-reset-topic}
-              auto-create: true
+
 management:
   endpoints:
     web:
@@ -76,5 +74,4 @@ pubsub:
     time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
   # Seção adicionada para definir os nomes das inscrições
   subscriptions:
-    password-reset: password-reset-subscription
     time-record-approval: time-record-approval-subscription
