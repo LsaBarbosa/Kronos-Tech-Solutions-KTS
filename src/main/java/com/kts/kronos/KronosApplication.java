@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @EnableAsync
-@EnableJpaRepositories("com.kts.kronos.adapter.out.persistence")
 public class KronosApplication {
 
 	public static void main(String[] args) {
