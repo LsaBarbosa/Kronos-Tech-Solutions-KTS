@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
-    List<MessageEntity> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
+
     void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId);
     @Transactional
     void deleteByCreatedAtBefore(LocalDateTime threshold);

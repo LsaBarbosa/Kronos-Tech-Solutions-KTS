@@ -28,17 +28,17 @@ public class MessageProviderImpl implements MessageProvider {
         return repository.findById(messageId).map(MessageEntity::toDomain);
     }
 
-    @Override
-    public List<Message> findByCompanyId(UUID companyId) {
-        return repository.findByCompanyIdOrderByCreatedAtDesc(companyId)
-                .stream()
-                .map(MessageEntity::toDomain)
-                .collect(Collectors.toList());
-    }
+//    @Override
+//    public List<Message> findByCompanyId(UUID companyId) {
+//        return repository.findByCompanyIdOrderByCreatedAtDesc(companyId)
+//                .stream()
+//                .map(MessageEntity::toDomain)
+//                .collect(Collectors.toList());
+//    }
 
     @Override
     public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId) {
-         return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)
+        return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)
                 .stream()
                 .map(MessageEntity::toDomain)
                 .collect(Collectors.toList());
