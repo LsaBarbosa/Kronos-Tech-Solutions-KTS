@@ -16,8 +16,8 @@ spring:
       max-file-size: 5MB
       max-request-size: 6MB
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:465}
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:2525}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD} # A senha de aplicativo do Gmail
     properties:
