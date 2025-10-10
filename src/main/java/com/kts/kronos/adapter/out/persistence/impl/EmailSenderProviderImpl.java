@@ -8,10 +8,13 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import static com.kts.kronos.constants.Messages.EMAIL_CONTENT;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
+
     private final JavaMailSender mailSender;
     @Value("${mail.username}")
     private String email;
@@ -26,13 +29,9 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         message.setTo(toEmail);
         message.setSubject("Kronos - Redefinição de Senha");
 
-        var resetLink = frontendUrl + "/reset-password?token=" + token;
+        var resetLink = frontendUrl + "/resetar-senha?token=" + token;
         var text = String.format(
-                "Olá %s,\n\n" +
-                        "Recebemos uma solicitação para redefinir sua senha.\n" +
-                        "Use o link abaixo para criar uma nova senha. O link expira em 30 minutos.\n\n" +
-                        "Link: %s\n\n" +
-                        "Se você não solicitou a redefinição, ignore este e-mail.",
+                        EMAIL_CONTENT,
                 username, resetLink
         );
         message.setText(text);
