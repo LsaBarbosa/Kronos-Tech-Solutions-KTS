@@ -19,7 +19,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
     @Query("""
         SELECT m FROM MessageEntity m
         WHERE m.companyId = :companyId
-        AND (m.recipientEmployeeId IS NULL OR m.recipientEmployeeId = :employeeId)
+        AND (m.employeeId = :employeeId OR m.recipientEmployeeId = :employeeId)
         ORDER BY m.createdAt DESC
     """)
     List<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
