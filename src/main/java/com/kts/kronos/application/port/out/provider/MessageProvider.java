@@ -10,6 +10,7 @@ public interface MessageProvider {
     void save(Message message);
     Optional<Message> findById(UUID messageId);
     List<Message> findByCompanyId(UUID companyId);
+    List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId);
     void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId);
     void deleteByCreationDateBefore(LocalDateTime threshold);
 }

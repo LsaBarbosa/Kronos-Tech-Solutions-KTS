@@ -37,6 +37,14 @@ public class MessageProviderImpl implements MessageProvider {
     }
 
     @Override
+    public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId) {
+         return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)
+                .stream()
+                .map(MessageEntity::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId) {
         repository.deleteByMessageIdAndEmployeeId(messageId, employeeId);
     }

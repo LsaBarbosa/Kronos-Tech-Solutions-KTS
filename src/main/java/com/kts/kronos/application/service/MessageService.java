@@ -32,18 +32,39 @@ public class MessageService implements MessageUseCase {
         var senderEmployeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = employeeProvider.findById(senderEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
+        var recipients = request.recipientEmployeeIds();
         if (jwtAuthenticatedUser.getRoleFromToken().equals(Role.MANAGER.name())) {
             var message = new Message(
                     senderEmployeeId,
                     employee.companyId(),
                     request.title(),
                     request.messageText(),
-                    request.priority()
+                    request.priority(),
+                    null
             );
             messageProvider.save(message);
         } else {
-            throw new BadRequestException("Apenas Managers podem postar mensagens");
+          var validRecipients = recipients.stream()
+                    .filter(recipientId -> employeeProvider.findById(recipientId)
+                            .map(e -> e.companyId().equals(employee.companyId()))
+                            .orElse(false))
+                    .toList();
+
+            if (validRecipients.isEmpty()) {
+                throw new BadRequestException(EMPLOYEE_NOT_FOUND);
+            }
+
+            for (UUID recipientId : validRecipients) {
+                var message = new Message(
+                        senderEmployeeId,
+                        employee.companyId(),
+                        request.title(),
+                        request.messageText(),
+                        request.priority(),
+                        recipientId // Mensagem direcionada
+                );
+                messageProvider.save(message);
+            }
         }
     }
 
@@ -52,7 +73,8 @@ public class MessageService implements MessageUseCase {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        return messageProvider.findByCompanyId(employee.companyId());
+        var companyId = employee.companyId();
+        return messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId);
     }
 
     @Override
