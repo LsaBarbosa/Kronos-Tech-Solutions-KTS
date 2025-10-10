@@ -12,7 +12,8 @@ public record MessageResponse(
         MessagePriority priority,
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt,
-        UUID senderEmployeeId
+        UUID senderEmployeeId,
+        UUID recipientEmployeeId
 ) {
     public static MessageResponse fromDomain(Message message) {
         return new MessageResponse(
@@ -21,7 +22,8 @@ public record MessageResponse(
                 message.title(),
                 message.priority(),
                 message.createdAt(),
-                message.employeeId()
+                message.employeeId(),
+                message.recipientEmployeeId()
         );
     }
 }
