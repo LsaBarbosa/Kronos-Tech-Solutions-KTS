@@ -48,8 +48,12 @@ public class MessageEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "recipient_employee_id", columnDefinition = "CHAR(36)")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID recipientEmployeeId;
+
     public Message toDomain() {
-        return new Message(messageId, employeeId, companyId,title, messageText, priority, createdAt);
+        return new Message(messageId, employeeId, companyId,title, messageText,priority, createdAt, recipientEmployeeId);
     }
 
     public static MessageEntity fromDomain(Message message) {
@@ -61,6 +65,7 @@ public class MessageEntity {
                 .messageText(message.messageText())
                 .priority(message.priority())
                 .createdAt(message.createdAt())
+                .recipientEmployeeId(message.recipientEmployeeId())
                 .build();
     }
 }
