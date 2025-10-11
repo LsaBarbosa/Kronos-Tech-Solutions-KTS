@@ -34,8 +34,10 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
 
             <h1 style='color: #1a73e8; font-size: 26px; border-bottom: 2px solid #eee; padding-bottom: 10px;'>👋 Olá, %s! Sua Segurança é Nossa Prioridade!</h1>
 
-            <p style='font-size: 16px; color: #333;'>Esperamos que esteja tudo bem. Recebemos uma solicitação para **redefinir a senha** da sua conta.</p>
-            <p style='font-size: 16px; color: #333;'>Para prosseguir e **criar uma nova senha** *completamente segura*, é só clicar no botão azul logo abaixo. É rápido e fácil!</p>
+            <p style='font-size: 18px; color: #333;'>Esperamos que esteja tudo bem.</p>
+        
+            <p style='font-size: 16px; color: #333;'> Recebemos uma solicitação para redefinir a senha da sua conta.</p>
+            <p style='font-size: 16px; color: #333;'>Para prosseguir e criar uma nova senha, é só clicar no botão azul logo abaixo. Rápido e fácil!</p>
 
             <p style='margin: 30px 0; text-align: center;'>
             <a href='%s' target='_blank' style='
@@ -54,19 +56,21 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
 
             <div style='background-color: #fff3e0; border-left: 5px solid #ff9900; padding: 15px; margin-top: 25px; border-radius: 4px;'>
                 <p style='font-size: 15px; color: #ff9900; margin: 0;'>
-                &#x26A0;&#xFE0F; *Atenção:* Este link de redefinição é **sensível ao tempo** e expira em **30 minutos** por motivos de *segurança máxima*.
+                &#x26A0;&#xFE0F; Atenção: Este link de redefinição é sensível ao tempo e expira em 30 minutos por motivos de segurança.
                 </p>
             </div>
             
-            <p style='font-size: 14px; color: #666; text-align: center; margin-top: 20px;'>*Se o botão não funcionar, copie e cole o link abaixo em seu navegador:*<br>
+            <p style='font-size: 14px; color: #666; text-align: center; margin-top: 20px;'>Se o botão não funcionar, copie e cole o link abaixo em seu navegador:<br>
             <a href='%s' style='color: #1a73e8; word-break: break-all;'>%s</a></p>
 
+            <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;'>
+            Não solicitou esta redefinição? Relaxe! </p>
             <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;'>
-            ***Não solicitou esta redefinição?*** *Relaxe!* Se você não fez esta solicitação, **pode simplesmente ignorar este e-mail**. Sua senha antiga permanecerá segura e nenhuma alteração será feita na sua conta.
+            Se você não fez esta solicitação, pode simplesmente ignorar este e-mail. Sua senha antiga permanecerá segura e nenhuma alteração será feita na sua conta.
             </p>
 
             <p style='font-size: 16px; color: #333; margin-top: 40px;'>Conte sempre conosco para manter sua conta segura!</p>
-            <p style='font-size: 14px; color: #555;'>Atenciosamente,<br>O Time de Suporte *[Nome da Sua Empresa]*</p>
+            <p style='font-size: 14px; color: #555;'>Atenciosamente,<br>Time de Suporte Kronos Solutions</p>
         </div>
         </body>
         </html>
