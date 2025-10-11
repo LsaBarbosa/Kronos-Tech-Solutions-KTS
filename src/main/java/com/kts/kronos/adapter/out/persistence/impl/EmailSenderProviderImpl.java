@@ -63,9 +63,8 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             <p style='font-size: 14px; color: #666; text-align: center; margin-top: 20px;'>Se o botão não funcionar, copie e cole o link abaixo em seu navegador:<br>
             <a href='%s' style='color: #1a73e8; word-break: break-all;'>%s</a></p>
 
-            <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;'>
-            Não solicitou esta redefinição? Relaxe! </p>
             <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;'>
+            <span text-align: center; >Não solicitou esta redefinição? Relaxe!</span> 
             Se você não fez esta solicitação, pode simplesmente ignorar este e-mail. Sua senha antiga permanecerá segura e nenhuma alteração será feita na sua conta.
             </p>
 
