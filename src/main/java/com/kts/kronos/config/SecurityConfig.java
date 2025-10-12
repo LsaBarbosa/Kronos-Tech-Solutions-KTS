@@ -30,6 +30,10 @@ public class SecurityConfig {
     private String recordUrl;
     @Value("${frontend.base-url-plataform}")
     private String plataformUrl;
+    @Value("${frontend.base-url-local}")
+    private String local;
+    @Value("${frontend.base-url-local-2}")
+    private String local_2;
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
@@ -64,7 +68,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(recordUrl,plataformUrl,"http://localhost:5173"));
+        configuration.setAllowedOrigins(Arrays.asList(recordUrl,plataformUrl,local,local_2));
     configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
