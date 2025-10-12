@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 public class Messages {
     private Messages() {
     }
+
     // Roles
     public static final String KRONOS = "hasRole('CTO')";
     public static final String ANY_EMPLOYEE = "hasAnyRole('MANAGER', 'PARTNER','CTO')";
@@ -74,7 +75,7 @@ public class Messages {
     public static final String TIME_NOT_NULL = "Hora de início é obrigatória";
 
     // Belongs
-public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não é o proprietário do registro. Somente o prorpietário pode solicitar atualização de registro";
+    public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não é o proprietário do registro. Somente o prorpietário pode solicitar atualização de registro";
     public static final String DOCUMENT_NOT_BELONGS_EMPLOYEE = "Documento não pertence ao Colaborador";
 
     //500
@@ -108,10 +109,9 @@ public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não 
     //RabbitMQ & REDIS
     public static final String TIME_RECORD_APPROVAL_TOPIC = "time-record-approval-topic";
     public static final String TIME_RECORD_APPROVAL_SUBSCRIPTION = "time-record-approval-subscription";
-    public static final String APPROVAL_KEY_PREFIX = "timerecord:approval:";
-    public static final String PASSWORD_RESET_TOPIC = "password-reset-topic";
-    public static final String PASSWORD_RESET_KEY_PREFIX = "password:reset:";
-    public static final String PASSWORD_RESET_SUBSCRIPTION = "password-reset-subscription";
+    public static final String TIME_RECORD_APPROVAL_EXCHANGE = "time-record-approval-exchange";
+    public static final String TIME_RECORD_APPROVAL_QUEUE = "time-record-approval-queue";
+    public static final String TIME_RECORD_APPROVAL_ROUTING_KEY = "approval.request";
 
     // **
     public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";

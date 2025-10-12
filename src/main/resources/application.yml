@@ -5,9 +5,9 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  redis:
-    host: ${SPRING_DATA_REDIS_HOST}
-    port: ${SPRING_DATA_REDIS_PORT}
+  rabbitmq:
+    # Lida com a URL completa (amqp://...) que você definiu no Render.
+    addresses: ${RABBITMQ_URL}
   docker:
     compose:
       enabled: false
@@ -28,16 +28,9 @@ spring:
           starttls:
             enable: true
 
-  cloud:
-    gcp:
-      # Variável para o Project ID do GCP
-      project-id: ${GCP_PROJECT_ID:kronos-tech-solutions}
-      pubsub:
-        subscriber:
-          subscriptions:
-            time-record-approval-subscription:
-              topic: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
-              auto-create: true
+file:
+  storage:
+    root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
 
 management:
   endpoints:
@@ -60,22 +53,9 @@ jwt:
   secret: ${JWT_SECRET:"***JWT_SECRET_REMOVED***"}
   expiration: ${JWT_EXPIRATION:3600000}
 
-gcp:
-  storage:
-    # Variável para o nome do bucket do GCP Storage
-    bucket-name: ${GCP_STORAGE_BUCKET_NAME:kronos-tech-solutions-bucket}
-
 frontend:
   # Variável para a URL base do Frontend
   base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-local: ${FRONTEND_BASE_URL_LOCAL}
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
-
-pubsub:
-  topics:
-    password-reset: ${PASSWORD_RESET_TOPIC:password-reset-topic}
-    time-record-approval: ${GCP_PUBSUB_TOPIC_NAME:time-record-approval-topic}
-  # Seção adicionada para definir os nomes das inscrições
-  subscriptions:
-    time-record-approval: time-record-approval-subscription

@@ -1,60 +1,68 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
-import com.google.cloud.storage.BlobId;
-import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.Storage;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
+
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BucketStorageProviderImpl implements BucketStorageProvider {
-    private final Storage storage;
-
-    @Value("${gcp.storage.bucket-name}")
-    private String bucketName;
+    @Value("${file.storage.root-path:/mnt/data/documents}")
+    private String rootPath;
 
     @Override
-    public String uploadFile(String objectName, byte[] fileData, String contentType) {
-        log.info("Iniciando upload para GCS: bucket={}, object={}", bucketName, objectName);
+    public String uploadFile(String originalFileName, byte[] fileData, String contentType) {
         try {
-            BlobId blobId = BlobId.of(bucketName, objectName);
-            BlobInfo blobInfo = BlobInfo.newBuilder(blobId).setContentType(contentType).build();
-            storage.create(blobInfo, fileData);
-            log.info("Upload para GCS concluído: object={}", objectName);
-            return objectName; // No GCS, o caminho é o próprio nome do objeto
-        } catch (Exception e) {
-            log.error("Erro no upload do arquivo para GCS: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao fazer upload para o Bucket GCS.", e);
+            // Cria um nome de objeto único
+            String uniqueObjectName = UUID.randomUUID() + "-" + originalFileName;
+            Path filePath = Paths.get(rootPath, uniqueObjectName);
+
+            // Garante que o diretório exista
+            Files.createDirectories(filePath.getParent());
+
+            // Escreve o arquivo no disco persistente
+            Files.write(filePath, fileData);
+
+            log.info("Upload para disco local concluído: {}", filePath);
+            return uniqueObjectName; // Retorna apenas o nome do objeto (para ser salvo no DB)
+        } catch (IOException e) {
+            log.error("Erro no upload do arquivo para o disco local: {}", e.getMessage(), e);
+            throw new RuntimeException("Falha ao salvar o arquivo no disco.", e);
         }
     }
 
     @Override
     public byte[] downloadFile(String objectName) {
-        log.info("Iniciando download do GCS: bucket={}, object={}", bucketName, objectName);
+        Path filePath = Paths.get(rootPath, objectName);
         try {
-            byte[] content = storage.readAllBytes(bucketName, objectName);
-            log.info("Download do GCS concluído: object={}", objectName);
-            return content;
-        } catch (Exception e) {
-            log.error("Arquivo não encontrado no GCS: {}", objectName, e);
-            throw new ResourceNotFoundException("Arquivo não encontrado no GCS: " + objectName);
+            if (!Files.exists(filePath)) {
+                throw new ResourceNotFoundException("Arquivo não encontrado no disco: " + objectName);
+            }
+            // Lê e retorna os bytes do arquivo
+            return Files.readAllBytes(filePath);
+        } catch (IOException e) {
+            log.error("Erro no download/leitura do arquivo {}: {}", objectName, e.getMessage());
+            throw new RuntimeException("Falha ao ler o arquivo do disco.", e);
         }
     }
 
     @Override
     public void deleteFile(String objectName) {
-        log.info("Iniciando exclusão do GCS: bucket={}, object={}", bucketName, objectName);
+        Path filePath = Paths.get(rootPath, objectName);
         try {
-            storage.delete(bucketName, objectName);
-            log.info("Exclusão do GCS concluída: object={}", objectName);
-        } catch (Exception e) {
-            log.error("Erro na exclusão do arquivo do GCS: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao excluir o arquivo do Bucket GCS.", e);
+            Files.deleteIfExists(filePath);
+            log.info("Exclusão de arquivo local concluída: {}", objectName);
+        } catch (IOException e) {
+            log.error("Erro na exclusão do arquivo {}: {}", objectName, e.getMessage());
+            throw new RuntimeException("Falha ao excluir o arquivo do disco.", e);
         }
     }
 }

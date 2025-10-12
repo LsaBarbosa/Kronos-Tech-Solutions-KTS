@@ -466,7 +466,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada para o funcionário."));
 
-        final double ALLOWED_DISTANCE_METERS = 50.0;
+        final double ALLOWED_DISTANCE_METERS = 80.0;
         var companyLocation = company.location();
 
         if (companyLocation == null) {
