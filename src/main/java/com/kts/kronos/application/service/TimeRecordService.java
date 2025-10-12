@@ -466,12 +466,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada para o funcionário."));
 
-        final double ALLOWED_DISTANCE_METERS = 80.0;
+        final double ALLOWED_DISTANCE_METERS = 50.0;
         var companyLocation = company.location();
 
         if (companyLocation == null) {
-            log.info("Localização da empresa ID {} não cadastrada. Geolocalização ignorada no check-in/out.", company.companyId());
-            return;
+            throw new BadRequestException("A localização da empresa não está cadastrada.");
         }
 
         // Você precisará de uma função para calcular a distância entre os pontos
