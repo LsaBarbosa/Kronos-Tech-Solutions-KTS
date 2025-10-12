@@ -4,20 +4,14 @@ import com.kts.kronos.adapter.in.web.dto.company.CompanyListResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeResponse;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-
-import static com.kts.kronos.constants.ApiPaths.COMPANIES;
-import static com.kts.kronos.constants.ApiPaths.BY_CNPJ;
-import static com.kts.kronos.constants.ApiPaths.TOGGLE_ACTIVATE;
+import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Messages.KRONOS;
 
 @RestController
@@ -73,4 +67,12 @@ public class CompanyController {
         useCase.deleteByCnpj(cnpj);
     }
 
+    @GetMapping(CHECK_CNPJ)
+    public ResponseEntity<Void> checkCnpjAvailability(@RequestParam String cnpj) {
+        if (useCase.cnpjExists(cnpj)) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

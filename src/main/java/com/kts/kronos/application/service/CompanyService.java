@@ -11,7 +11,6 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Company;
-import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,5 +128,8 @@ public class CompanyService implements CompanyUseCase {
     public void deleteByCnpj(String cnpj) {
         getCompany(cnpj);
         companyProvider.deleteByCnpj(cnpj);
+    }
+    public boolean cnpjExists(String cnpj) {
+        return companyProvider.findByCnpj(cnpj).isPresent();
     }
 }

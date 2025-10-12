@@ -11,13 +11,22 @@ import java.util.UUID;
 public interface EmployeeUseCase {
     // MANAGER
     Employee createEmployee(CreateEmployeeRequest req);
+
     List<Employee> listEmployees(Boolean active);
+
     Employee getEmployee(UUID employeeId);
+
     void updateEmployee(UUID employeeId, UpdateEmployeeManagerRequest req);
+
     void deleteEmployee(UUID employeeId);
+
     void markMessagesAsSeen();
-     // PARTNER
+
+    // PARTNER
+    boolean cpfExists(String cpf);
+
     Employee getOwnProfile();
+
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
 
 }
