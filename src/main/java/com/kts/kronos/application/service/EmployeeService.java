@@ -171,6 +171,6 @@ public class EmployeeService implements EmployeeUseCase {
         employeeProvider.save(updatedEmployee);
     }
     public boolean cpfExists(String cpf) {
-        return employeeProvider.findByCpf(cpf).isPresent();
+        return employeeProvider.cpfExists(cpf);
     }
 }
