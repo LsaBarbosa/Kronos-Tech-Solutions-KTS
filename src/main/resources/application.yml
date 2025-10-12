@@ -69,7 +69,8 @@ frontend:
   # Variável para a URL base do Frontend
   base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
-  base-url-render: ${FRONTEND_BASE_URL_RENDER}
+  base-url-local: ${FRONTEND_BASE_URL_LOCAL}
+  base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
 
 pubsub:
   topics:
