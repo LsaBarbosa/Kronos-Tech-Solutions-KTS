@@ -35,7 +35,7 @@ public class CompanyService implements CompanyUseCase {
     private final UserUseCase userUseCase;
 
     @Override
-    public Employee createCompany(CreateCompanyRequest request) {
+    public void createCompany(CreateCompanyRequest request) {
         if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
@@ -48,20 +48,6 @@ public class CompanyService implements CompanyUseCase {
                 request.name(), request.cnpj(), request.email(), address, request.location()
         );
         companyProvider.save(company);
-
-        // 2. Create and save the Employee, associating it with the new company
-        var employee = new Employee(
-                request.employeeRequest().fullName(),
-                request.employeeRequest().cpf(),
-                request.employeeRequest().jobPosition(),
-                request.employeeRequest().email(),
-                request.employeeRequest().salary(),
-                request.employeeRequest().phone(),
-                address,
-                company.companyId(),
-                null
-        );
-        return employeeProvider.save(employee);
     }
         @Override
     public Company getCompany(String cnpj) {

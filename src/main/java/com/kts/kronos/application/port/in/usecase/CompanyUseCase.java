@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface CompanyUseCase {
-    Employee createCompany(CreateCompanyRequest companyRequest);
+    void createCompany(CreateCompanyRequest companyRequest);
     void updateCompany(String cnpj, UpdateCompanyRequest request);
     void toggleActivate(String cnpj);
     void deleteByCnpj(String cnpj);
