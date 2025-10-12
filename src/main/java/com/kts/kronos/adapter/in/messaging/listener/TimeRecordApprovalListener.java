@@ -1,15 +1,12 @@
 package com.kts.kronos.adapter.in.messaging.listener;
 
-import com.google.cloud.spring.pubsub.support.BasicAcknowledgeablePubsubMessage;
-import com.google.cloud.spring.pubsub.support.GcpPubSubHeaders;
 import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.integration.annotation.ServiceActivator;
-import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
@@ -26,10 +23,8 @@ public class TimeRecordApprovalListener {
     private final TimeRecordProvider timeRecordProvider;
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME);
 
-    @ServiceActivator(inputChannel = TIME_RECORD_APPROVAL_SUBSCRIPTION + ".input")
-    public void handleTimeRecordChangeRequest(
-            TimeRecordChangeRequestMessage message,
-            @Header(GcpPubSubHeaders.ORIGINAL_MESSAGE) BasicAcknowledgeablePubsubMessage originalMessage) {
+    @RabbitListener(queues = TIME_RECORD_APPROVAL_QUEUE)
+    public void handleTimeRecordChangeRequest(TimeRecordChangeRequestMessage message){
 
         log.info("Recebida solicitação de alteração de ponto para o registro ID: {}", message.timeRecordId());
 
@@ -76,14 +71,9 @@ public class TimeRecordApprovalListener {
 
             log.info(notificationMessage);
 
-            // 2. Confirmação (ACK)
-            originalMessage.ack();
-            log.info("Mensagem de solicitação ID {} confirmada com sucesso (ACK).", message.timeRecordId());
-
         } catch (Exception e) {
             log.error("Erro ao processar a mensagem da fila para o registro de ponto ID {}: {}", message.timeRecordId(), e.getMessage());
             // 3. Rejeição (NACK) para re-entrega pelo Pub/Sub
-            originalMessage.nack();
         }
     }
 }

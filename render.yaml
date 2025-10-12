@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: kronos-solutions-service # Hostname interno
+    env: docker # Usa Dockerfile
+
+    # =========================================================
+    # 1. DISCO PERSISTENTE (Solução para Documentos/Arquivos)
+    # =========================================================
+    disk:
+      name: documents-storage
+      mountPath: /mnt/data/documents # Caminho ONDE os arquivos serão salvos (lido pelo FILE_STORAGE_ROOT_PATH)
+      sizeGB: 10 # Ajuste este valor se precisar de mais espaço
+
+    # =========================================================
+    # 2. VARIÁVEIS DE AMBIENTE INJETADAS (27 Chaves)
+    #    Chaves com 'sync: false' devem ter o valor configurado APENAS no Painel do Render.
+    # =========================================================
+    envVars:
+      # --- NOVAS VARIÁVEIS DE INFRAESTRUTURA ---
+      - key: FILE_STORAGE_ROOT_PATH # Usado pelo código para salvar no disco
+        value: /mnt/data/documents
+
+      - key: RABBITMQ_URL # URL Completa que referencia a senha
+        value: amqp://rabbitmq:${RABBITMQ_DEFAULT_PASS}@kronos-solutions-message:5672
+
+      # --- VARIÁVEIS SECRETAS (sync: false) ---
+      - key: DB_HOST
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: RABBITMQ_DEFAULT_PASS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+
+
+      # --- VARIÁVEIS DE CONFIGURAÇÃO (Valores Simples) ---
+      - key: FRONTEND_BASE_URL_LOCAL
+        value: ${FRONTEND_BASE_URL_LOCAL}
+      - key: FRONTEND_BASE_URL_LOCAL_2
+        value: ${FRONTEND_BASE_URL_LOCAL_2}
+      - key: FRONTEND_BASE_URL_PLATAFORM
+        value: ${FRONTEND_BASE_URL_PLATAFORM}
+      - key: FRONTEND_BASE_URL_RECORD
+        value: ${FRONTEND_BASE_URL_RECORD}
+      - key: JWT_EXPIRATION
+        value: ${JWT_EXPIRATION}
+      - key: LOGPATTERN_CONSOLE
+        value: ${LOGPATTERN_CONSOLE}
