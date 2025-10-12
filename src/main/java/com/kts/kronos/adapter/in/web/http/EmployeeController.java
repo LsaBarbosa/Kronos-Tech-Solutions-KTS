@@ -93,4 +93,13 @@ public class EmployeeController {
     public void markMessagesAsSeen() {
         useCase.markMessagesAsSeen();
     }
+
+    @GetMapping(CHECK_CPF)
+    public ResponseEntity<Void> checkCpfAvailability(@RequestParam String cpf) {
+        if (useCase.cpfExists(cpf)) {
+            return ResponseEntity.ok().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }

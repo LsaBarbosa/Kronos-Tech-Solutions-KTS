@@ -170,4 +170,7 @@ public class EmployeeService implements EmployeeUseCase {
         var updatedEmployee = employee.withLastSeenMessageTimestamp(LocalDateTime.now());
         employeeProvider.save(updatedEmployee);
     }
+    public boolean cpfExists(String cpf) {
+        return employeeProvider.findByCpf(cpf).isPresent();
+    }
 }
