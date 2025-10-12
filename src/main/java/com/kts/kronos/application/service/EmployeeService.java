@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
@@ -34,9 +35,28 @@ public class EmployeeService implements EmployeeUseCase {
     // MANAGER
     @Override
     public Employee createEmployee(CreateEmployeeRequest req) {
-        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var managerEmployee = employeeProvider.findById(managerEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var userRole = jwtAuthenticatedUser.getRoleFromToken(); // Obtém a role
+
+        // Lógica para determinar o companyId baseado na role
+        UUID companyId;
+
+        if ("CTO".equals(userRole)) {
+            // CTO deve passar o companyId no request
+            if (req.companyId() == null) {
+                throw new BadRequestException("O companyId é obrigatório para a criação de um colaborador por um CTO.");
+            }
+            companyId = req.companyId();
+        } else if ("MANAGER".equals(userRole)) {
+            // MANAGER: Obtém o companyId do próprio funcionário autenticado
+            var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+            var managerEmployee = employeeProvider.findById(managerEmployeeId)
+                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+            companyId = managerEmployee.companyId();
+        } else {
+            // Proteção extra
+            throw new ForbiddenException("Usuário sem permissão para criar colaboradores.");
+        }
+
 
         if (employeeProvider.findByCpf(req.cpf()).isPresent())
             throw new BadRequestException(CPF_ALREADY_EXIST);
@@ -54,7 +74,7 @@ public class EmployeeService implements EmployeeUseCase {
                 salary,
                 req.phone(),
                 address,
-                managerEmployee.companyId(),
+                companyId,
                 null
         );
         return employeeProvider.save(employee);
