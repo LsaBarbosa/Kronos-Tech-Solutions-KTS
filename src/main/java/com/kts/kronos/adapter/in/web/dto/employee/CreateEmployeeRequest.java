@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.br.CPF;
 
+import java.util.UUID;
+
 import static com.kts.kronos.constants.Messages.MUST_HAVE_11_CHARACTERES;
 import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
 import static com.kts.kronos.constants.Messages.EMPLOYEE_NAME_NOT_BLANK;
@@ -41,5 +43,6 @@ public record  CreateEmployeeRequest(
 
         String phone,
         @Valid AddressRequest
-        address) {
+        address, UUID companyId
+        ) {
 }

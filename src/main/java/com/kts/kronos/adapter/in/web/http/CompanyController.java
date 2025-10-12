@@ -29,15 +29,9 @@ public class CompanyController {
 
     @PostMapping
     @PreAuthorize(KRONOS)
-    public ResponseEntity<EmployeeResponse> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
-        var createdEmployee = useCase.createCompany(dto);
-        var companyName = useCase.getCompanyNameById(createdEmployee.companyId());
-        var location = ServletUriComponentsBuilder
-                .fromCurrentRequest()
-                .path("/{id}")
-                .buildAndExpand(createdEmployee.employeeId())
-                .toUri();
-        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(createdEmployee, companyName));
+    public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
+
+        useCase.createCompany(dto);
     }
 
     @PreAuthorize(KRONOS)
