@@ -30,7 +30,8 @@ public class EmployeeProviderImpl implements EmployeeProvider {
 
     @Override
     public Optional<Employee> findByCpf(String cpf) {
-        return repository.findByCpf(cpf).map(EmployeeEntity::toDomain);
+        Optional<EmployeeEntity> opt = repository.findByCpf(cpf);
+        return opt.map(EmployeeEntity::toDomain);
     }
 
     @Override

@@ -8,6 +8,8 @@ public class ApiPaths {
     public static final String COMPANIES = "/companies";
     public static final String BY_CNPJ = "/{cnpj}";
     public static final String TOGGLE_ACTIVATE = "/{cnpj}/toggle-activate";
+    public static final String CHECK_CNPJ = "/check-cnpj";
+
 
     // Documents
     public static final String DOCUMENTS = "/documents";
@@ -19,6 +21,7 @@ public class ApiPaths {
     public static final String UPDATE_EMPLOYEE = "/manager/update-employee/{employeeId}";
     public static final String UPDATE_OWN_PROFILE = "/update-own-profile";
     public static final String OWN_PROFILE = "/own-profile";
+    public static final String CHECK_CPF = "/check-cpf";
 
     // Recods
     public static final String RECORDS = "/records";
@@ -47,8 +50,7 @@ public class ApiPaths {
     public static final String PASSWORD = "/password";
     public static final String OWN_USER_PROFILE = "/own-profile";
     public static final String CHECK_USERNAME = "/check-username";
-    public static final String CHECK_CPF = "/check-cpf";
-    public static final String CHECK_CNPJ = "/check-cnpj";
+
 
 
     //Message
