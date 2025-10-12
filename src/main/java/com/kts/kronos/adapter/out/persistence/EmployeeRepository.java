@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
-    Optional<EmployeeEntity> findByEmployeeIdAndActiveTrue(UUID employeeId);
+    boolean existsByCpf(String cpf);
     Optional<EmployeeEntity> findByCpf(String cpf);
     List<EmployeeEntity> findByActiveTrue();
     List<EmployeeEntity> findByActiveFalse();
