@@ -15,12 +15,11 @@ import java.util.UUID;
 @Component
 public class EmployeeProviderImpl implements EmployeeProvider {
     private final EmployeeRepository repository;
-
     @Override
     public Employee save(Employee employee) {
         var entity = EmployeeEntity.fromDomain(employee);
-        var saved = repository.save(entity);
-        return saved.toDomain();
+         var saved =repository.save(entity);
+       return   saved.toDomain();
     }
 
     @Override
@@ -31,18 +30,13 @@ public class EmployeeProviderImpl implements EmployeeProvider {
 
     @Override
     public Optional<Employee> findByCpf(String cpf) {
-        Optional<EmployeeEntity> opt = repository.findByCpf(cpf);
-        try {
-            // Se presente, mapeia. Se der erro de dados sujos, retorna Optional.empty()
-            return opt.map(EmployeeEntity::toDomain);
-        } catch (Exception e) {
-            // Logar o erro (opcional, mas recomendado)
-            System.err.println("Erro ao mapear EmployeeEntity para o domínio: " + e.getMessage());
-            // Retorna vazio para o service, tratando como "não existe"
-            return Optional.empty();
-        }
+        return repository.findByCpf(cpf).map(EmployeeEntity::toDomain);
     }
 
+    @Override
+    public boolean cpfExists(String cpf) {
+        return repository.existsByCpf(cpf);
+    }
     @Override
     public List<Employee> findAll() {
         return repository.findAll()
@@ -74,7 +68,6 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .map(EmployeeEntity::toDomain)
                 .toList();
     }
-
     @Override
     public List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.findByCompanyIdAndActive(companyId, active)
@@ -82,7 +75,6 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .map(EmployeeEntity::toDomain)
                 .toList();
     }
-
     @Override
     public long countByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.countByCompanyIdAndActive(companyId, active);
