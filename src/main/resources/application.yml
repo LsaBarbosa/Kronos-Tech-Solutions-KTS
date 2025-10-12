@@ -6,8 +6,11 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   rabbitmq:
-    # Lida com a URL completa (amqp://...) que você definiu no Render.
-    addresses: ${RABBITMQ_URL}
+    # Host/Porta
+    host: ${RABBITMQ_HOST:kronos-solutions-message}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:rabbitmq}       # Ajuste o valor default para 'rabbitmq'
+    password: ${RABBITMQ_PASSWORD:***RABBITMQ_PASSWORD_REMOVED***}
   docker:
     compose:
       enabled: false
