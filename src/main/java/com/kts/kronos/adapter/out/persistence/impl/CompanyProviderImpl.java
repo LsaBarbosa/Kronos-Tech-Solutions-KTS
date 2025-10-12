@@ -26,7 +26,8 @@ public class CompanyProviderImpl implements CompanyProvider {
 
     @Override
     public Optional<Company> findByCnpj(String cnpj) {
-        return repository.findByCnpj(cnpj).map(CompanyEntity::toDomain);
+        Optional<CompanyEntity> opt =repository.findByCnpj(cnpj);
+        return opt.map(CompanyEntity::toDomain);
     }
 
     @Override
