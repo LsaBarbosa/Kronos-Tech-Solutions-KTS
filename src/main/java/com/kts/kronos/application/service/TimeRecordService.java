@@ -328,56 +328,73 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
-        var allRecords = getRecords(targetEmployeeId, req.active());
 
-        if (req.status() != null) {
-            allRecords = allRecords.stream().filter(record -> record.statusRecord() == req.status()).toList();
-        }
+        // 1. Define o conjunto de datas a serem consideradas (CORRIGIDO: usa Set final).
+        final Set<LocalDate> finalDatesSet;
         if (req.dates() != null && req.dates().length > 0) {
-            var dateList = Arrays.asList(req.dates());
-            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
-            allRecords = allRecords.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
+            finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        } else {
+            // Se nenhuma data for fornecida, retorna lista vazia
+            return Collections.emptyList();
         }
-        List<TimeRecordResponse> finalResponse = new ArrayList<>();
 
-        // Mapeia todos os registros (Trabalho e Pausa) por dia
-        Map<LocalDate, List<TimeRecord>> allRecordsByDay = allRecords.stream()
-                .collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()));
+        // 2. Busca TODOS os registros ATIVOS (se houver filtro) do funcionário.
+        List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
-        // Itera sobre cada dia
-        for (List<TimeRecord> recordsOfDay : allRecordsByDay.values()) {
-
-            List<TimeRecord> breaksOfDay = recordsOfDay.stream()
-                    .filter(tr -> tr.statusRecord() == StatusRecord.BREAK || tr.statusRecord() == StatusRecord.BREAK_IN_PROGRESS)
-                    .toList();
-
-            // Registros de trabalho (CREATED, UPDATED, etc.)
-            List<TimeRecord> workRecordsOfDay = recordsOfDay.stream()
-                    .filter(tr -> tr.statusRecord() != StatusRecord.BREAK && tr.statusRecord() != StatusRecord.BREAK_IN_PROGRESS)
-                    .toList();
-
-            if (workRecordsOfDay.isEmpty()) {
-                // Se só há Pausas ou registros de abono/dayoff (sem o registro principal de entrada/saída do dia),
-                // mapeia-os individualmente.
-                recordsOfDay.stream()
-                        .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
-                        .forEach(finalResponse::add);
-
-            } else {
-                // Se há registros de trabalho, agrupamos as pausas DENTRO DELES.
-                // Esta lógica associa todas as pausas do dia ao registro principal de trabalho do dia.
-                workRecordsOfDay.stream()
-                        .map(timeRecord -> TimeRecordResponse.fromDomainWithBreaks(
-                                timeRecord,
-                                duration,
-                                employeeData,
-                                breaksOfDay // Passa a lista completa de pausas do dia
-                        ))
-                        .forEach(finalResponse::add);
+        // 3. Busca TODOS os registros de PAUSA para as datas filtradas.
+        Map<LocalDate, List<TimeRecord>> breaksByDay = new HashMap<>();
+        for (LocalDate date : finalDatesSet) { // Itera sobre o Set final
+            // Busca as pausas de forma robusta por dia (método implementado anteriormente)
+            List<TimeRecord> breaksForDay = recordRepository.findBreaksByEmployeeIdAndDate(targetEmployeeId, date);
+            if (!breaksForDay.isEmpty()) {
+                breaksByDay.put(date, breaksForDay);
             }
         }
+
+        // 4. Filtra os registros de TRABALHO por data e status.
+        List<TimeRecord> workRecords = allRecordsForEmployee.stream()
+                // Exclui registros de pausa da lista principal de trabalho
+                .filter(tr -> tr.statusRecord() != StatusRecord.BREAK && tr.statusRecord() != StatusRecord.BREAK_IN_PROGRESS)
+                // Filtra por datas selecionadas (USANDO finalDatesSet)
+                .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                // Aplica o filtro de status (se houver)
+                .filter(tr -> req.status() == null || tr.statusRecord() == req.status())
+                .toList();
+
+
+        List<TimeRecordResponse> finalResponse = new ArrayList<>();
+
+        // 5. Mapeia e Agrupa: Itera sobre os registros de trabalho filtrados e anexa as pausas.
+        workRecords.stream()
+                .forEach(timeRecord -> {
+                    LocalDate workDay = timeRecord.startWork().atZone(SAO_PAULO).toLocalDate();
+
+                    // Pausas que ocorreram no mesmo dia
+                    List<TimeRecord> relatedBreaks = breaksByDay.getOrDefault(workDay, Collections.emptyList());
+
+                    finalResponse.add(TimeRecordResponse.fromDomainWithBreaks(
+                            timeRecord,
+                            duration,
+                            employeeData,
+                            relatedBreaks // Passa a lista de pausas para o cálculo e exibição
+                    ));
+                });
+
+        // 6. Adiciona registros que NÃO SÃO DE TRABALHO (pausas, abonos) se foram o alvo principal da busca.
+        if (req.status() != null && (req.status() == StatusRecord.BREAK || req.status() == StatusRecord.BREAK_IN_PROGRESS || req.status() == StatusRecord.DAY_OFF || req.status() == StatusRecord.ABSENCE || req.status() == StatusRecord.DOCTOR_APPOINTMENT)) {
+            allRecordsForEmployee.stream()
+                    .filter(tr -> tr.statusRecord() == req.status())
+                    .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                    .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
+                    .forEach(finalResponse::add);
+        }
+
+        // Ordenar por horário de início para melhor visualização
+        finalResponse.sort(Comparator.comparing(TimeRecordResponse::startWork));
+
         return finalResponse;
-    }
+        }
+
 
     @Override
     public byte[] listReportPDF(List<TimeRecordResponse> records) {
