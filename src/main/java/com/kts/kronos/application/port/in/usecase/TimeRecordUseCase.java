@@ -7,9 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TimeRecordUseCase {
-    void checkin(GeolocationRequest request);
-
-    void checkout(GeolocationRequest request);
+    void registerTime(GeolocationRequest request);
 
     void updateStatus(UUID employeeId, Long recordId,UpdateTimeRecordStatusRequest request);
 

@@ -47,32 +47,42 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
 
+
     @Override
-    public void checkin(GeolocationRequest request) {
+    public void registerTime(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId,request.latitude(), request.longitude());
+        checkGeolocation(employeeId, request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
 
-        if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
-            throw new BadRequestException(CHECKIN_EXCEPTION);
+        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
+        var currentTime = LocalDateTime.now(SAO_PAULO);
+
+        if (openRecordOpt.isPresent()) {
+            // É um CHECKOUT
+            var open = openRecordOpt.get();
+
+            // Adicionar log para DEBUG
+            log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
+
+            // Verifica se o status é PENDING. Se não for, loga um ERRO específico.
+            if (open.statusRecord() != PENDING) {
+                log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
+                // Se o front-end não espera uma exceção detalhada, você pode lançar uma BadRequest:
+                throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
+            }
+
+            // Se for PENDING, realiza a transição
+            var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
+            recordRepository.save(updated);
+            log.info("Checkout registrado para o funcionário {}.", employee.employeeId());
+        } else {
+            // É um CHECKIN: Não encontrou registro aberto
+            // Cria um novo registro com status PENDING
+            var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
+            recordRepository.save(record);
+            log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
         }
-        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
-
-        var record = new TimeRecord(null, currentCheckinTime, null, PENDING, false, true, employee.employeeId());
-        recordRepository.save(record);
     }
-
-    @Override
-    public void checkout(GeolocationRequest request) {
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId,request.latitude(), request.longitude());
-        var employee = getEmployee(employeeId);
-        var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
-        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
-        var updated = open.withCheckout(currentCheckinTime).withStatus(open.statusRecord().onCheckout());
-        recordRepository.save(updated);
-    }
-
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
