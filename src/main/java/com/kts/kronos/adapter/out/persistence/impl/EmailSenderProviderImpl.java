@@ -90,7 +90,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             helper.setTo(toEmail);
             helper.setSubject("🔒 Kronos Suporte - Redefinição de Senha");
 
-            var resetLink = frontendUrl + "/resetar-senha?token=" + token;
+            var resetLink = frontendUrl + "/?token=" + token;
 
             // CORREÇÃO: Passando os 4 argumentos que o HTML espera!
             var htmlText = String.format(
