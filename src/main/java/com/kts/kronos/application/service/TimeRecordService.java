@@ -212,20 +212,33 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var reference = Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
 
-        var allStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
+        // Statuses de trabalho e pausa para inclusão na lista inicial
+        var allWorkStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
+        var breakStatuses = Set.of(StatusRecord.BREAK, StatusRecord.BREAK_IN_PROGRESS);
+        var allStatusesToProcess = new HashSet<StatusRecord>();
+        allStatusesToProcess.addAll(allWorkStatuses);
+        allStatusesToProcess.addAll(breakStatuses);
 
-        var recordsById = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true).stream().filter(tr -> allStatuses.contains(tr.statusRecord())).toList();
 
-        var dateSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
-        recordsById = recordsById.stream().filter(tr -> {
+        var recordsForEmployee = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true)
+                .stream()
+                // Garante que só peguemos registros relevantes (finalizados ou pausas em andamento)
+                .filter(tr -> tr.endWork() != null || breakStatuses.contains(tr.statusRecord()))
+                .filter(tr -> allStatusesToProcess.contains(tr.statusRecord()))
+                .toList();
+
+        // Uso de finalDatesSet para ser efetivamente final para o lambda
+        final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        recordsForEmployee = recordsForEmployee.stream().filter(tr -> {
             var day = tr.startWork().atZone(SAO_PAULO).toLocalDate();
-            return dateSet.contains(day);
+            return finalDatesSet.contains(day);
         }).toList();
 
-        Map<LocalDate, List<TimeRecord>> recordByDay = recordsById.stream().collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(), TreeMap::new, Collectors.toList()));
+        Map<LocalDate, List<TimeRecord>> recordByDay = recordsForEmployee.stream().collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(), TreeMap::new, Collectors.toList()));
 
         List<SimpleReportDay> days = new ArrayList<>();
-        var totalWorked = Duration.ZERO;
+        var totalWorkedDuration = Duration.ZERO;
+        var totalBreakDuration = Duration.ZERO; // NOVO: Acumulador de pausas totais
         var totalBalance = Duration.ZERO;
 
 
@@ -233,42 +246,83 @@ public class TimeRecordService implements TimeRecordUseCase {
             var startDate = entry.getKey();
             List<TimeRecord> entryValueRecords = entry.getValue();
 
-            var dailyWorked = entryValueRecords.stream().map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
+            // 1. Separa registros de Trabalho (incluindo abonos) e Pausas
+            List<TimeRecord> workRecords = entryValueRecords.stream()
+                    .filter(tr -> !breakStatuses.contains(tr.statusRecord()))
+                    .toList();
+
+            List<TimeRecord> breakRecords = entryValueRecords.stream()
+                    .filter(tr -> breakStatuses.contains(tr.statusRecord()))
+                    .toList();
+
+            // 2. Calcula Duração Total das Pausas (apenas concluídas)
+            Duration dailyBreakDuration = breakRecords.stream()
+                    .filter(tr -> tr.endWork() != null)
+                    .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
+                    .reduce(Duration.ZERO, Duration::plus);
+
+            // 3. Calcula Duração de Trabalho Bruta (checkin/out, abonos)
+            Duration dailyWorkGross = workRecords.stream()
+                    .filter(tr -> tr.endWork() != null)
+                    .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
+                    .reduce(Duration.ZERO, Duration::plus);
+
+            // 4. Calcula Duração de Trabalho Líquida (Descontando Pausa)
+            Duration dailyWorkedLiquid = dailyWorkGross.minus(dailyBreakDuration);
+
 
             Duration dailyBalance;
 
-            boolean onlyDayOff = entryValueRecords.stream().allMatch(tr -> tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT);
+            boolean onlySpecialNonWork = workRecords.stream().allMatch(tr -> tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT || tr.statusRecord() == StatusRecord.ABSENCE);
 
-            var endDate = entryValueRecords.stream().map(tr -> tr.endWork().atZone(SAO_PAULO).toLocalDate()).max(LocalDate::compareTo).orElse(startDate);
+            var endDate = entryValueRecords.stream().map(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()).max(LocalDate::compareTo).orElse(startDate);
 
-            if (onlyDayOff) {
+            if (onlySpecialNonWork) {
                 dailyBalance = Duration.ZERO;
+                dailyWorkedLiquid = dailyWorkGross; // Para abonos/folgas, a duração total é a bruta.
 
             } else {
-                Duration balanceInput = entryValueRecords.stream().filter(tr -> tr.statusRecord() != StatusRecord.DAY_OFF && tr.statusRecord() != StatusRecord.DOCTOR_APPOINTMENT)
-
-                        .map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
-
-                dailyBalance = balanceInput.minus(reference);
+                // O cálculo do saldo deve usar o tempo líquido
+                dailyBalance = dailyWorkedLiquid.minus(reference);
             }
 
-            var totalHours = String.format("%02d:%02d", dailyWorked.toHours(), dailyWorked.toMinutesPart());
+            // --- INÍCIO DA LÓGICA DO STATUS DOMINANTE ---
+            StatusRecord dailyStatus;
+            if (workRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.ABSENCE)) {
+                dailyStatus = StatusRecord.ABSENCE;
+            } else if (workRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.PENDING_APPROVAL)) {
+                dailyStatus = StatusRecord.PENDING_APPROVAL;
+            } else if (workRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT)) {
+                dailyStatus = StatusRecord.DOCTOR_APPOINTMENT;
+            } else if (workRecords.stream().allMatch(tr -> tr.statusRecord() == StatusRecord.DAY_OFF)) {
+                dailyStatus = StatusRecord.DAY_OFF;
+            } else if (workRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.CREATED || tr.statusRecord() == StatusRecord.UPDATED)) {
+                dailyStatus = StatusRecord.CREATED; // Indica um dia de trabalho normal
+            } else {
+                dailyStatus = StatusRecord.DAY_OFF; // Se não houver registros de trabalho (apenas pausas ou nada), é uma Folga
+            }
+            // --- FIM DA LÓGICA DO STATUS DOMINANTE ---
+
+            // Formatação
+            var totalHours = String.format("%02d:%02d", dailyWorkedLiquid.toHours(), dailyWorkedLiquid.toMinutesPart());
+            var totalBreak = String.format("%02d:%02d", dailyBreakDuration.toHours(), dailyBreakDuration.toMinutesPart()); // NOVO: Formatação da pausa
             var sign = dailyBalance.isNegative() ? "-" : "+";
             var balance = sign + String.format("%02d:%02d", Math.abs(dailyBalance.toHours()), Math.abs(dailyBalance.toMinutesPart()));
 
-            totalWorked = totalWorked.plus(dailyWorked);
+            totalWorkedDuration = totalWorkedDuration.plus(dailyWorkedLiquid);
+            totalBreakDuration = totalBreakDuration.plus(dailyBreakDuration); // NOVO: Soma total de pausas
             totalBalance = totalBalance.plus(dailyBalance);
 
-            days.add(new SimpleReportDay(startDate, endDate, totalHours, balance));
+            days.add(new SimpleReportDay(startDate, endDate, totalHours, totalBreak, balance, dailyStatus)); // NOVO: Passa dailyStatus
         }
 
-        var finalWorked = String.format("%02d:%02d", totalWorked.toHours(), totalWorked.toMinutesPart());
+        var finalWorked = String.format("%02d:%02d", totalWorkedDuration.toHours(), totalWorkedDuration.toMinutesPart());
+        var finalBreak = String.format("%02d:%02d", totalBreakDuration.toHours(), totalBreakDuration.toMinutesPart()); // NOVO: Formatação da pausa total
         var signAll = totalBalance.isNegative() ? "-" : "+";
         var finalBalance = signAll + String.format("%02d:%02d", Math.abs(totalBalance.toHours()), Math.abs(totalBalance.toMinutesPart()));
 
-        return new SimpleReportResponse(employeeData.employeeName(), employeeData.companyName(), days, finalWorked, finalBalance);
+        return new SimpleReportResponse(employeeData.employeeName(), employeeData.companyName(), days, finalWorked, finalBreak, finalBalance); // NOVO: Retorna finalBreak
     }
-
     @Override
     public byte[] simpleReportPDF(UUID employeeId, SimpleReportResponse report) {
         var baos = new ByteArrayOutputStream();
