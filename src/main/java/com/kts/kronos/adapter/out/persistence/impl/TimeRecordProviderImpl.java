@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -71,9 +72,27 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
         var dayEnd   = date.atTime(23, 59, 59);
         return jpa.existsByEmployeeIdAndDate(employeeId, dayStart, dayEnd);
     }
+    @Override
+    public List<TimeRecord> findBreaksByEmployeeIdAndDate(UUID employeeId, LocalDate date) {
+        // Utiliza o fuso horário para definir o início e fim do dia para a consulta no banco.
+        var dayStart = date.atStartOfDay();
+        var dayEnd   = date.atTime(23, 59, 59);
+        return jpa.findBreaksByEmployeeIdAndDate(employeeId, dayStart, dayEnd)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 
     @Override
     public void deleteByEmployeeId(UUID employeeId) {
         jpa.deleteByEmployeeId(employeeId);
     }
+
+    @Override
+    public Optional<TimeRecord> findOpenBreakByEmployeeId(UUID employeeId) {
+        return jpa
+                .findFirstByEmployeeIdAndEndWorkIsNullAndStatusRecordOrderByStartWorkDesc(employeeId, StatusRecord.BREAK_IN_PROGRESS)
+                .map(TimeRecordEntity::toDomain);
+    }
+
 }

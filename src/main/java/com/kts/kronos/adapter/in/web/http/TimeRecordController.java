@@ -29,6 +29,12 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
+    @PostMapping(BREAK)
+    public void registerBreak(@Valid @RequestBody GeolocationRequest request) {
+        useCase.registerBreak(request);
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(UPDATE_TIME_RECORD)
      public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);

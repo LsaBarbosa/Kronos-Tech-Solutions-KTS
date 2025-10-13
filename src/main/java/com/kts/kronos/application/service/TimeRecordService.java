@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -83,6 +84,36 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
         }
     }
+
+    public void registerBreak(GeolocationRequest request) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        checkGeolocation(employeeId, request.latitude(), request.longitude());
+        var employee = getEmployee(employeeId);
+        var currentTime = LocalDateTime.now(SAO_PAULO);
+
+        // 1. Verifica se há um Check-in principal ativo (Deve haver para pausar)
+        if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isEmpty()) {
+            throw new BadRequestException("Não é possível iniciar ou encerrar uma pausa sem um Check-in principal ativo.");
+        }
+
+        // 2. Verifica se há uma pausa aberta
+        var openBreakOpt = recordRepository.findOpenBreakByEmployeeId(employee.employeeId());
+
+        if (openBreakOpt.isPresent()) {
+            // É um FIM DA PAUSA (Break End)
+            var openBreak = openBreakOpt.get();
+            var updated = openBreak.withCheckout(currentTime).withStatus(openBreak.statusRecord().onBreakEnd());
+            recordRepository.save(updated);
+            log.info("Fim da Pausa registrado para o funcionário {}.", employee.employeeId());
+
+        } else {
+            // É um INÍCIO DA PAUSA (Break Start)
+            var breakRecord = new TimeRecord(null, currentTime, null, StatusRecord.BREAK_IN_PROGRESS, false, true, employee.employeeId());
+            recordRepository.save(breakRecord);
+            log.info("Início da Pausa registrado para o funcionário {}.", employee.employeeId());
+        }
+    }
+
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
@@ -297,18 +328,73 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
-        var records = getRecords(targetEmployeeId, req.active());
 
-        if (req.status() != null) {
-            records = records.stream().filter(record -> record.statusRecord() == req.status()).toList();
-        }
+        // 1. Define o conjunto de datas a serem consideradas (CORRIGIDO: usa Set final).
+        final Set<LocalDate> finalDatesSet;
         if (req.dates() != null && req.dates().length > 0) {
-            var dateList = Arrays.asList(req.dates());
-            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
-            records = records.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
+            finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        } else {
+            // Se nenhuma data for fornecida, retorna lista vazia
+            return Collections.emptyList();
         }
-        return records.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).toList();
-    }
+
+        // 2. Busca TODOS os registros ATIVOS (se houver filtro) do funcionário.
+        List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
+
+        // 3. Busca TODOS os registros de PAUSA para as datas filtradas.
+        Map<LocalDate, List<TimeRecord>> breaksByDay = new HashMap<>();
+        for (LocalDate date : finalDatesSet) { // Itera sobre o Set final
+            // Busca as pausas de forma robusta por dia (método implementado anteriormente)
+            List<TimeRecord> breaksForDay = recordRepository.findBreaksByEmployeeIdAndDate(targetEmployeeId, date);
+            if (!breaksForDay.isEmpty()) {
+                breaksByDay.put(date, breaksForDay);
+            }
+        }
+
+        // 4. Filtra os registros de TRABALHO por data e status.
+        List<TimeRecord> workRecords = allRecordsForEmployee.stream()
+                // Exclui registros de pausa da lista principal de trabalho
+                .filter(tr -> tr.statusRecord() != StatusRecord.BREAK && tr.statusRecord() != StatusRecord.BREAK_IN_PROGRESS)
+                // Filtra por datas selecionadas (USANDO finalDatesSet)
+                .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                // Aplica o filtro de status (se houver)
+                .filter(tr -> req.status() == null || tr.statusRecord() == req.status())
+                .toList();
+
+
+        List<TimeRecordResponse> finalResponse = new ArrayList<>();
+
+        // 5. Mapeia e Agrupa: Itera sobre os registros de trabalho filtrados e anexa as pausas.
+        workRecords.stream()
+                .forEach(timeRecord -> {
+                    LocalDate workDay = timeRecord.startWork().atZone(SAO_PAULO).toLocalDate();
+
+                    // Pausas que ocorreram no mesmo dia
+                    List<TimeRecord> relatedBreaks = breaksByDay.getOrDefault(workDay, Collections.emptyList());
+
+                    finalResponse.add(TimeRecordResponse.fromDomainWithBreaks(
+                            timeRecord,
+                            duration,
+                            employeeData,
+                            relatedBreaks // Passa a lista de pausas para o cálculo e exibição
+                    ));
+                });
+
+        // 6. Adiciona registros que NÃO SÃO DE TRABALHO (pausas, abonos) se foram o alvo principal da busca.
+        if (req.status() != null && (req.status() == StatusRecord.BREAK || req.status() == StatusRecord.BREAK_IN_PROGRESS || req.status() == StatusRecord.DAY_OFF || req.status() == StatusRecord.ABSENCE || req.status() == StatusRecord.DOCTOR_APPOINTMENT)) {
+            allRecordsForEmployee.stream()
+                    .filter(tr -> tr.statusRecord() == req.status())
+                    .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                    .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
+                    .forEach(finalResponse::add);
+        }
+
+        // Ordenar por horário de início para melhor visualização
+        finalResponse.sort(Comparator.comparing(TimeRecordResponse::startWork));
+
+        return finalResponse;
+        }
+
 
     @Override
     public byte[] listReportPDF(List<TimeRecordResponse> records) {
@@ -472,6 +558,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
     }
+
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
         var employee = getEmployee(employeeId);
 
@@ -495,17 +582,18 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Você está fora da área de trabalho permitida.");
         }
     }
-        private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
-            // Implementação da fórmula de Haversine ou outra mais precisa.
-            // Exemplo:
-            final int R = 6371; // Raio da Terra em km
-            double latDistance = Math.toRadians(lat2 - lat1);
-            double lonDistance = Math.toRadians(lon2 - lon1);
-            double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                    * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c * 1000; // Retorna a distância em metros
-        }
+
+    private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
+        // Implementação da fórmula de Haversine ou outra mais precisa.
+        // Exemplo:
+        final int R = 6371; // Raio da Terra em km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c * 1000; // Retorna a distância em metros
     }
+}
 
