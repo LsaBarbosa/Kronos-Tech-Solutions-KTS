@@ -56,8 +56,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
             throw new BadRequestException(CHECKIN_EXCEPTION);
         }
+        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
 
-        var record = new TimeRecord(null, TIME_ZONE_BRAZIL, null, PENDING, false, true, employee.employeeId());
+        var record = new TimeRecord(null, currentCheckinTime, null, PENDING, false, true, employee.employeeId());
         recordRepository.save(record);
     }
 
@@ -67,7 +68,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         checkGeolocation(employeeId,request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
         var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
-        var updated = open.withCheckout(TIME_ZONE_BRAZIL).withStatus(open.statusRecord().onCheckout());
+        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
+        var updated = open.withCheckout(currentCheckinTime).withStatus(open.statusRecord().onCheckout());
         recordRepository.save(updated);
     }
 
