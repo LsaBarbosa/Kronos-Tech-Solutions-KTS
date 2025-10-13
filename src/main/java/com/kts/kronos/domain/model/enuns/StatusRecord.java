@@ -11,8 +11,9 @@ public enum StatusRecord {
     DAY_OFF,
     ABSENCE,
     PENDING_APPROVAL,
-    DOCTOR_APPOINTMENT;
-
+    DOCTOR_APPOINTMENT,
+    BREAK_IN_PROGRESS,
+    BREAK;
 
     public StatusRecord onCheckout() {
         if (this == PENDING) {
@@ -20,6 +21,15 @@ public enum StatusRecord {
         }
         throw new IllegalStateException(
                 STATUS_CHECKOUT + this + ")"
+        );
+    }
+
+    public StatusRecord onBreakEnd() {
+        if (this == BREAK_IN_PROGRESS) {
+            return BREAK;
+        }
+        throw new IllegalStateException(
+                "Só é possível encerrar uma pausa com status BREAK_IN_PROGRESS (atual=" + this + ")"
         );
     }
 

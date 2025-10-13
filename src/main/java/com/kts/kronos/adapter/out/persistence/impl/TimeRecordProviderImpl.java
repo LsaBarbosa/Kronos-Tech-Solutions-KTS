@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -75,5 +76,12 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     @Override
     public void deleteByEmployeeId(UUID employeeId) {
         jpa.deleteByEmployeeId(employeeId);
+    }
+
+    @Override
+    public Optional<TimeRecord> findOpenBreakByEmployeeId(UUID employeeId) {
+        return jpa
+                .findFirstByEmployeeIdAndEndWorkIsNullAndStatusRecordOrderByStartWorkDesc(employeeId, StatusRecord.BREAK_IN_PROGRESS)
+                .map(TimeRecordEntity::toDomain);
     }
 }

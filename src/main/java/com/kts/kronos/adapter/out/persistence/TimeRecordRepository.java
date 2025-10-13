@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,4 +35,5 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
     void deleteByEmployeeId(UUID employeeId);
+    Optional<TimeRecordEntity> findFirstByEmployeeIdAndEndWorkIsNullAndStatusRecordOrderByStartWorkDesc(UUID employeeId, StatusRecord statusRecord);
 }

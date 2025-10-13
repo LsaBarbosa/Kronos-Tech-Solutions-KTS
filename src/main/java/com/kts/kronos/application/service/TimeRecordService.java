@@ -83,6 +83,36 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
         }
     }
+
+    public void registerBreak(GeolocationRequest request) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        checkGeolocation(employeeId, request.latitude(), request.longitude());
+        var employee = getEmployee(employeeId);
+        var currentTime = LocalDateTime.now(SAO_PAULO);
+
+        // 1. Verifica se há um Check-in principal ativo (Deve haver para pausar)
+        if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isEmpty()) {
+            throw new BadRequestException("Não é possível iniciar ou encerrar uma pausa sem um Check-in principal ativo.");
+        }
+
+        // 2. Verifica se há uma pausa aberta
+        var openBreakOpt = recordRepository.findOpenBreakByEmployeeId(employee.employeeId());
+
+        if (openBreakOpt.isPresent()) {
+            // É um FIM DA PAUSA (Break End)
+            var openBreak = openBreakOpt.get();
+            var updated = openBreak.withCheckout(currentTime).withStatus(openBreak.statusRecord().onBreakEnd());
+            recordRepository.save(updated);
+            log.info("Fim da Pausa registrado para o funcionário {}.", employee.employeeId());
+
+        } else {
+            // É um INÍCIO DA PAUSA (Break Start)
+            var breakRecord = new TimeRecord(null, currentTime, null, StatusRecord.BREAK_IN_PROGRESS, false, true, employee.employeeId());
+            recordRepository.save(breakRecord);
+            log.info("Início da Pausa registrado para o funcionário {}.", employee.employeeId());
+        }
+    }
+
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken();

@@ -26,6 +26,7 @@ public class ApiPaths {
     // Recods
     public static final String RECORDS = "/records";
     public static final String REGISTER_TIME = "/checkin";
+    public static final String BREAK = "/break";
     public static final String UPDATE_TIME_RECORD = "/update/time-record/{timeRecordId}";
     public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";

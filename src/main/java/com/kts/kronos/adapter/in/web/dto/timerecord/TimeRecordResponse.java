@@ -49,7 +49,25 @@ public record TimeRecordResponse(
 
         String hoursWorked = "";
         String balanceString = "";
-        if (endDateTime != null) {
+
+        // Verifica se é um registro de PAUSA
+        boolean isBreak = timeRecord.statusRecord() == StatusRecord.BREAK || timeRecord.statusRecord() == StatusRecord.BREAK_IN_PROGRESS;
+
+        if (isBreak) {
+            balanceString = "+00:00"; // Pausa não gera saldo
+            if (endDateTime != null) {
+                // Pausa finalizada
+                Duration breakDuration = Duration.between(timeRecord.startWork(), timeRecord.endWork());
+                hoursWorked = String.format("Pausa: %02d:%02d",
+                        breakDuration.toHours(),
+                        breakDuration.toMinutesPart()
+                );
+            } else {
+                // Pausa em progresso
+                hoursWorked = "Pausa em progresso";
+            }
+        } else if (endDateTime != null) {
+            // Lógica de cálculo normal para registros de trabalho
             Duration worked = Duration.between(timeRecord.startWork(), timeRecord.endWork());
             hoursWorked = String.format("%02d:%02d",
                     worked.toHours(),
