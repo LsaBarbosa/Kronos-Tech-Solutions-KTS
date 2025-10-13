@@ -23,15 +23,9 @@ public class TimeRecordController {
     private final TimeRecordUseCase useCase;
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(CHECKIN)
-     public void checkin(@Valid @RequestBody GeolocationRequest request) {
-        useCase.checkin(request);
-    }
-
-    @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(CHECKOUT)
-     public void checkout(@Valid @RequestBody GeolocationRequest request) {
-        useCase.checkout(request);
+    @PostMapping(REGISTER_TIME)
+     public void registerTime(@Valid @RequestBody GeolocationRequest request) {
+        useCase.registerTime(request);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
