@@ -36,4 +36,17 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
     void deleteByEmployeeId(UUID employeeId);
     Optional<TimeRecordEntity> findFirstByEmployeeIdAndEndWorkIsNullAndStatusRecordOrderByStartWorkDesc(UUID employeeId, StatusRecord statusRecord);
+
+    @Query("""
+      SELECT e FROM TimeRecordEntity e
+      WHERE e.employeeId = :empId
+        AND e.startWork BETWEEN :dayStart AND :dayEnd
+        AND e.statusRecord IN ('BREAK_IN_PROGRESS', 'BREAK')
+      ORDER BY e.startWork ASC
+    """)
+    List<TimeRecordEntity> findBreaksByEmployeeIdAndDate(
+            @Param("empId") UUID empId,
+            @Param("dayStart") LocalDateTime dayStart,
+            @Param("dayEnd")   LocalDateTime dayEnd
+    );
 }

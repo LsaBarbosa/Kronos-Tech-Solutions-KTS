@@ -20,6 +20,8 @@ public interface TimeRecordProvider {
 
     Optional<TimeRecord> findOpenBreakByEmployeeId(UUID employeeId);
 
+    List<TimeRecord> findBreaksByEmployeeIdAndDate(UUID employeeId, LocalDate date);
+
     List<TimeRecord> findByEmployeeIdAndActive(UUID employeeId, boolean active);
 
     List<TimeRecord> findByEmployeeId(UUID employeeId);

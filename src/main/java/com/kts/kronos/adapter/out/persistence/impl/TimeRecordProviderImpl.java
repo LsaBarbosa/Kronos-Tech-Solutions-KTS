@@ -72,6 +72,16 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
         var dayEnd   = date.atTime(23, 59, 59);
         return jpa.existsByEmployeeIdAndDate(employeeId, dayStart, dayEnd);
     }
+    @Override
+    public List<TimeRecord> findBreaksByEmployeeIdAndDate(UUID employeeId, LocalDate date) {
+        // Utiliza o fuso horário para definir o início e fim do dia para a consulta no banco.
+        var dayStart = date.atStartOfDay();
+        var dayEnd   = date.atTime(23, 59, 59);
+        return jpa.findBreaksByEmployeeIdAndDate(employeeId, dayStart, dayEnd)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 
     @Override
     public void deleteByEmployeeId(UUID employeeId) {
@@ -84,4 +94,5 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .findFirstByEmployeeIdAndEndWorkIsNullAndStatusRecordOrderByStartWorkDesc(employeeId, StatusRecord.BREAK_IN_PROGRESS)
                 .map(TimeRecordEntity::toDomain);
     }
+
 }

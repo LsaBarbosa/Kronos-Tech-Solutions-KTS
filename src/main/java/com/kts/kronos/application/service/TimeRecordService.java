@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -327,17 +328,55 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
-        var records = getRecords(targetEmployeeId, req.active());
+        var allRecords = getRecords(targetEmployeeId, req.active());
 
         if (req.status() != null) {
-            records = records.stream().filter(record -> record.statusRecord() == req.status()).toList();
+            allRecords = allRecords.stream().filter(record -> record.statusRecord() == req.status()).toList();
         }
         if (req.dates() != null && req.dates().length > 0) {
             var dateList = Arrays.asList(req.dates());
             var brasiliaTime = ZoneId.of("America/Sao_Paulo");
-            records = records.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
+            allRecords = allRecords.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
         }
-        return records.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).toList();
+        List<TimeRecordResponse> finalResponse = new ArrayList<>();
+
+        // Mapeia todos os registros (Trabalho e Pausa) por dia
+        Map<LocalDate, List<TimeRecord>> allRecordsByDay = allRecords.stream()
+                .collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()));
+
+        // Itera sobre cada dia
+        for (List<TimeRecord> recordsOfDay : allRecordsByDay.values()) {
+
+            List<TimeRecord> breaksOfDay = recordsOfDay.stream()
+                    .filter(tr -> tr.statusRecord() == StatusRecord.BREAK || tr.statusRecord() == StatusRecord.BREAK_IN_PROGRESS)
+                    .toList();
+
+            // Registros de trabalho (CREATED, UPDATED, etc.)
+            List<TimeRecord> workRecordsOfDay = recordsOfDay.stream()
+                    .filter(tr -> tr.statusRecord() != StatusRecord.BREAK && tr.statusRecord() != StatusRecord.BREAK_IN_PROGRESS)
+                    .toList();
+
+            if (workRecordsOfDay.isEmpty()) {
+                // Se só há Pausas ou registros de abono/dayoff (sem o registro principal de entrada/saída do dia),
+                // mapeia-os individualmente.
+                recordsOfDay.stream()
+                        .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
+                        .forEach(finalResponse::add);
+
+            } else {
+                // Se há registros de trabalho, agrupamos as pausas DENTRO DELES.
+                // Esta lógica associa todas as pausas do dia ao registro principal de trabalho do dia.
+                workRecordsOfDay.stream()
+                        .map(timeRecord -> TimeRecordResponse.fromDomainWithBreaks(
+                                timeRecord,
+                                duration,
+                                employeeData,
+                                breaksOfDay // Passa a lista completa de pausas do dia
+                        ))
+                        .forEach(finalResponse::add);
+            }
+        }
+        return finalResponse;
     }
 
     @Override
@@ -502,6 +541,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
     }
+
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
         var employee = getEmployee(employeeId);
 
@@ -525,17 +565,18 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Você está fora da área de trabalho permitida.");
         }
     }
-        private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
-            // Implementação da fórmula de Haversine ou outra mais precisa.
-            // Exemplo:
-            final int R = 6371; // Raio da Terra em km
-            double latDistance = Math.toRadians(lat2 - lat1);
-            double lonDistance = Math.toRadians(lon2 - lon1);
-            double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                    * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c * 1000; // Retorna a distância em metros
-        }
+
+    private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
+        // Implementação da fórmula de Haversine ou outra mais precisa.
+        // Exemplo:
+        final int R = 6371; // Raio da Terra em km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c * 1000; // Retorna a distância em metros
     }
+}
 
