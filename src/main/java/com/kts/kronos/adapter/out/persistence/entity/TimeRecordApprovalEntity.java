@@ -1,7 +1,10 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,7 +14,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -43,10 +45,6 @@ public class TimeRecordApprovalEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "timeRecordApproval", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<BreakRecordApprovalEntity> breakApprovals = List.of();
-
     public TimeRecordApprovalRequest toDomain() {
         return new TimeRecordApprovalRequest(
                 timeRecordId,
@@ -54,14 +52,12 @@ public class TimeRecordApprovalEntity {
                 managerId,
                 newStartWork,
                 newEndWork,
-                createdAt,
-                // Mapeia entidades aninhadas para o domínio
-                breakApprovals.stream().map(BreakRecordApprovalEntity::toDomain).toList()
+                createdAt
         );
     }
 
     public static TimeRecordApprovalEntity fromDomain(TimeRecordApprovalRequest domain) {
-        TimeRecordApprovalEntity entity = TimeRecordApprovalEntity.builder()
+        return TimeRecordApprovalEntity.builder()
                 .timeRecordId(domain.timeRecordId())
                 .requestingEmployeeId(domain.requestingEmployeeId())
                 .managerId(domain.managerId())
@@ -69,17 +65,5 @@ public class TimeRecordApprovalEntity {
                 .newEndWork(domain.newEndWork())
                 .createdAt(domain.createdAt())
                 .build();
-
-        // Mapeia e anexa as pausas
-        List<BreakRecordApprovalEntity> breaks = domain.breakApprovalRequests().stream()
-                .map(breakReq -> {
-                    BreakRecordApprovalEntity breakEntity = BreakRecordApprovalEntity.fromDomain(breakReq);
-                    breakEntity.setTimeRecordApproval(entity); // Seta a referência bidirecional
-                    breakEntity.setTimeRecordId(domain.timeRecordId()); // Garante que a FK seja setada
-                    return breakEntity;
-                }).toList();
-
-        entity.setBreakApprovals(breaks);
-        return entity;
     }
 }

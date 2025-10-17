@@ -1,7 +1,6 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public record TimeRecordApprovalResponse(Long timeRecordId,
                                          String partnerName,
@@ -9,8 +8,6 @@ public record TimeRecordApprovalResponse(Long timeRecordId,
                                          LocalDateTime newStartWork,
                                          LocalDateTime newEndWork,
                                          LocalDateTime currentStartWork,
-                                         LocalDateTime currentEndWork,
-                                         List<BreakApprovalResponse> breakRequests
-
+                                         LocalDateTime currentEndWork
 ) {
 }
