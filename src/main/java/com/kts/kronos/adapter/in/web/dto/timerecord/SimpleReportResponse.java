@@ -7,5 +7,6 @@ public record SimpleReportResponse(
         String companyName,
         List<SimpleReportDay> days,
         String totalHoursWorked,
+        String totalBreakHours,
         String totalBalance
 ) {}

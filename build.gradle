@@ -68,11 +68,7 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // para converter claims em JSON
     implementation 'org.springframework.security:spring-security-crypto'
 
-
-    implementation 'org.springframework.boot:spring-boot-starter-amqp'
     implementation 'org.springframework.boot:spring-boot-starter-integration'
-    implementation 'org.springframework.integration:spring-integration-core'
-
     testImplementation 'org.mockito:mockito-inline:5.2.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
