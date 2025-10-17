@@ -11,6 +11,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -24,9 +25,9 @@ public class TimeRecordApprovalEntity {
     @Column(name = "time_record_id")
     private Long timeRecordId;
 
-    @Column(name = "partner_employee_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "requesting_employee_id", columnDefinition = "CHAR(36)", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
-    private UUID partnerEmployeeId;
+    private UUID requestingEmployeeId;
 
     @Column(name = "manager_id", columnDefinition = "CHAR(36)", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
@@ -42,20 +43,43 @@ public class TimeRecordApprovalEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @OneToMany(mappedBy = "timeRecordApproval", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<BreakRecordApprovalEntity> breakApprovals = List.of();
+
     public TimeRecordApprovalRequest toDomain() {
         return new TimeRecordApprovalRequest(
-                timeRecordId, partnerEmployeeId, managerId, newStartWork, newEndWork,createdAt
+                timeRecordId,
+                requestingEmployeeId,
+                managerId,
+                newStartWork,
+                newEndWork,
+                createdAt,
+                // Mapeia entidades aninhadas para o domínio
+                breakApprovals.stream().map(BreakRecordApprovalEntity::toDomain).toList()
         );
     }
 
     public static TimeRecordApprovalEntity fromDomain(TimeRecordApprovalRequest domain) {
-        return TimeRecordApprovalEntity.builder()
+        TimeRecordApprovalEntity entity = TimeRecordApprovalEntity.builder()
                 .timeRecordId(domain.timeRecordId())
-                .partnerEmployeeId(domain.partnerEmployeeId())
+                .requestingEmployeeId(domain.requestingEmployeeId())
                 .managerId(domain.managerId())
                 .newStartWork(domain.newStartWork())
                 .newEndWork(domain.newEndWork())
                 .createdAt(domain.createdAt())
                 .build();
+
+        // Mapeia e anexa as pausas
+        List<BreakRecordApprovalEntity> breaks = domain.breakApprovalRequests().stream()
+                .map(breakReq -> {
+                    BreakRecordApprovalEntity breakEntity = BreakRecordApprovalEntity.fromDomain(breakReq);
+                    breakEntity.setTimeRecordApproval(entity); // Seta a referência bidirecional
+                    breakEntity.setTimeRecordId(domain.timeRecordId()); // Garante que a FK seja setada
+                    return breakEntity;
+                }).toList();
+
+        entity.setBreakApprovals(breaks);
+        return entity;
     }
 }

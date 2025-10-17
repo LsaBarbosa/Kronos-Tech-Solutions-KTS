@@ -3,6 +3,7 @@ package com.kts.kronos.domain.model;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record TimeRecord(
@@ -12,18 +13,24 @@ public record TimeRecord(
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
-        UUID employeeId
+        UUID employeeId,
+        List<BreakRecord> breaks // NOVO CAMPO: Lista de pausas
 ) {
     public TimeRecord(UUID employeeId) {
         this(
                 null,
                 null,
                 null,
-                null,
+                StatusRecord.PENDING,
                 false,
                 true,
-                employeeId
+                employeeId,
+                List.of() // Inicializa lista de breaks vazia
         );
+    }
+    // Construtor anterior de 7 argumentos (necessário para a compatibilidade)
+    public TimeRecord(Long timeRecordId, LocalDateTime startWork, LocalDateTime  endWork, StatusRecord statusRecord, boolean edited, boolean active, UUID employeeId) {
+        this(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, List.of());
     }
 
     public TimeRecord withId(Long id) {
@@ -46,5 +53,8 @@ public record TimeRecord(
     }
     public TimeRecord withStatus(StatusRecord status) {
         return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId);
+    }
+    public TimeRecord withBreaks(List<BreakRecord> breakRecords) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, breakRecords);
     }
 }

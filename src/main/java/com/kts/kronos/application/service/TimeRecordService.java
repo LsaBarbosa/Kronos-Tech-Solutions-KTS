@@ -1,26 +1,12 @@
 package com.kts.kronos.application.service;
 
-import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.pdf.PdfDocument;
-import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Cell;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.properties.HorizontalAlignment;
-import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.UnitValue;
-import com.kts.kronos.adapter.in.messaging.dto.TimeRecordChangeRequestMessage;
-import com.kts.kronos.adapter.in.web.dto.message.publisher.TimeRecordChangePublisher;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
-import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.TimeRecord;
-import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
+import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
@@ -28,12 +14,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
-import java.time.*;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -43,34 +33,98 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-    private final TimeRecordChangePublisher publisher;
+
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
+    private final BreakRecordProvider breakProvider;
 
     @Override
-    public void checkin(GeolocationRequest request) {
+    public ActionResponse registerTime(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId,request.latitude(), request.longitude());
+        checkGeolocation(employeeId, request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
 
-        if (recordRepository.findOpenByEmployeeId(employee.employeeId()).isPresent()) {
-            throw new BadRequestException(CHECKIN_EXCEPTION);
-        }
-        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
+        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
+        var currentTime = LocalDateTime.now(SAO_PAULO);
 
-        var record = new TimeRecord(null, currentCheckinTime, null, PENDING, false, true, employee.employeeId());
-        recordRepository.save(record);
+        if (openRecordOpt.isPresent()) {
+            // É um CHECKOUT
+            var open = openRecordOpt.get();
+
+            log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
+
+            if (open.statusRecord() != PENDING) {
+                log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
+                throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
+            }
+
+            // NOVO: Verifica se há alguma pausa em progresso e a finaliza antes de fechar o ponto
+            var openBreakOpt = breakProvider.findOpenBreakByTimeRecordId(open.timeRecordId());
+            if (openBreakOpt.isPresent()) {
+                var openBreak = openBreakOpt.get();
+                var updatedBreak = openBreak.withEndBreak(currentTime).withActive(false);
+                breakProvider.save(updatedBreak);
+                log.info("Pausa aberta finalizada automaticamente no checkout do registro ID {}.", open.timeRecordId());
+            }
+
+            // Se for PENDING, realiza a transição
+            var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
+            recordRepository.save(updated);
+            log.info("Checkout registrado para o funcionário {}.", employee.employeeId());
+
+            return new ActionResponse(
+                    "Saída registrada as " + currentTime +" com sucesso! Tenha um ótimo descanso.",
+                    "CHECKOUT"
+            );
+        } else {
+            // É um CHECKIN: Não encontrou registro aberto
+            // Cria um novo registro com status PENDING
+            var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
+            recordRepository.save(record);
+            log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
+            return new ActionResponse(
+                    "Entrada registrada as " + currentTime+" ! Seja bem-vindo(a) e tenha um dia produtivo.",
+                    "CHECKIN"
+            );
+        }
     }
 
     @Override
-    public void checkout(GeolocationRequest request) {
+    public ActionResponse registerBreak(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId,request.latitude(), request.longitude());
+        checkGeolocation(employeeId, request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
-        var open = recordRepository.findOpenByEmployeeId(employee.employeeId()).orElseThrow(() -> new BadRequestException(CHECKOUT_EXCEPTION));
-        var currentCheckinTime = LocalDateTime.now(SAO_PAULO);
-        var updated = open.withCheckout(currentCheckinTime).withStatus(open.statusRecord().onCheckout());
-        recordRepository.save(updated);
+        var currentTime = LocalDateTime.now(SAO_PAULO);
+        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
+
+        if (openRecordOpt.isEmpty()) {
+            throw new BadRequestException("Não é possível iniciar ou encerrar uma pausa sem um Check-in principal ativo.");
+        }
+        var openRecord = openRecordOpt.get();
+
+        var openBreakOpt = breakProvider.findOpenBreakByTimeRecordId(openRecord.timeRecordId());
+
+        if (openBreakOpt.isPresent()) {
+            // É um FIM DA PAUSA (Break End)
+            var openBreak = openBreakOpt.get();
+            var updatedBreak = openBreak.withEndBreak(currentTime).withActive(false);
+            breakProvider.save(updatedBreak);
+            log.info("Fim da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
+            return new ActionResponse(
+                    "Pausa encerrada "+ currentTime +" ! Ótimo retorno ao trabalho.",
+                    "BREAK_END"
+            );
+        } else {
+            // É um INÍCIO DA PAUSA (Break Start)
+            // Cria e salva um novo BreakRecord associado ao TimeRecord principal
+            var newBreak = new BreakRecord(openRecord.timeRecordId(), currentTime);
+            breakProvider.save(newBreak);
+            log.info("Início da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
+            return new ActionResponse(
+                    "Pausa iniciada " +currentTime + " ! Aproveite o descanso.",
+                    "BREAK_START"
+            );
+        }
     }
 
     @Override
@@ -110,16 +164,25 @@ public class TimeRecordService implements TimeRecordUseCase {
                 throw new BadRequestException("O manager não pertence à mesma empresa.");
             }
 
-            var messageData = new TimeRecordChangeRequestMessage(timeRecordId, employeeId, req.managerId(), start, end, TIME_ZONE_BRAZIL);
+            // 1. Mapeia e valida as solicitações de alteração de pausa
+            List<BreakRecordApprovalRequest> breakRequests = mapAndValidateBreakRequests(timeRecordId, record.breaks(), req.breakRequests());
 
-            // SUBSTITUIÇÃO DO REDIS: Salva a solicitação de aprovação no JPA via Provider
-            approvalProvider.save(messageData.toDomain());
+            // 2. Cria o payload completo (Registro principal + Pausas)
+            var completeApprovalRequest = new TimeRecordApprovalRequest(
+                    timeRecordId,
+                    employeeId,
+                    req.managerId(),
+                    start,
+                    end,
+                    TIME_ZONE_BRAZIL,
+                    breakRequests // Anexa as solicitações de pausa
+            );
+
+            // 3. Persiste a solicitação completa no JPA (incluindo breaks via Cascade)
+            approvalProvider.save(completeApprovalRequest);
 
             var updatedRecord = record.withStatus(StatusRecord.PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
-
-            // O publish continua usando o PubSub para notificação
-            publisher.publishApprovalRequest(messageData);
 
         } else if ("MANAGER".equals(userRole)) {
             // Lógica original para o MANAGER (aprovação direta)
@@ -130,6 +193,67 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Role não autorizada para esta operação.");
         }
     }
+
+    @Override
+    public void approveTimeRecordChange(Long timeRecordId) {
+        var record = findRecordAndCheckStatus(timeRecordId);
+
+        // Busca a solicitação completa (incluindo pausas)
+        TimeRecordApprovalRequest approvalData = approvalProvider.findByTimeRecordId(timeRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId));
+
+        // 1. Aplica as alterações no registro principal
+        var approvedRecord = record
+                .withCheckin(approvalData.newStartWork())
+                .withCheckout(approvalData.newEndWork())
+                .withStatus(StatusRecord.UPDATED);
+
+        // 2. Aplica as alterações nas pausas aninhadas
+        for (BreakRecordApprovalRequest breakApproval : approvalData.breakApprovalRequests()) {
+            var originalBreakOpt = record.breaks().stream()
+                    .filter(b -> b.breakRecordId().equals(breakApproval.breakRecordId()))
+                    .findFirst();
+
+            if (originalBreakOpt.isPresent()) {
+                var originalBreak = originalBreakOpt.get();
+
+                // Cria um novo BreakRecord com as horas aprovadas (requer BreakRecordProvider.save)
+                var breakToUpdate = new BreakRecord(
+                        originalBreak.breakRecordId(),
+                        originalBreak.timeRecordId(),
+                        breakApproval.newStartBreak(),
+                        breakApproval.newEndBreak(),
+                        originalBreak.active()
+                );
+
+                // Salva a pausa individual atualizada
+                breakProvider.save(breakToUpdate);
+            }
+        }
+
+        // 3. Salva o registro principal atualizado
+        recordRepository.save(approvedRecord);
+
+        // 4. Limpa o registro de aprovação
+        approvalProvider.deleteByTimeRecordId(timeRecordId);
+
+        log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
+    }
+
+    @Override
+    public void rejectTimeRecordChange(Long timeRecordId) {
+        var record = findRecordAndCheckStatus(timeRecordId);
+
+        // Reverte o status do registro.
+        var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
+        recordRepository.save(rejectedRecord);
+
+        // Limpa o registro de aprovação (O Cascade do JPA cuidará das pausas aninhadas)
+        approvalProvider.deleteByTimeRecordId(timeRecordId);
+
+        log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
+    }
+
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {
@@ -152,7 +276,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public void updateStatus(UUID employeeId, Long timeRecordId, UpdateTimeRecordStatusRequest req) {
         var record = getRecord(employeeId, timeRecordId);
         var currentStatus = record.statusRecord();
-        if (currentStatus == StatusRecord.PENDING_APPROVAL) {
+        if (currentStatus == PENDING_APPROVAL) {
             throw new BadRequestException("O status do registro não pode ser alterado, pois está aguardando aprovação.");
         }
         if (currentStatus == StatusRecord.UPDATED) {
@@ -171,114 +295,89 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var reference = Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
 
-        var allStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
+        // Statuses de trabalho (agora excluindo breaks)
+        var allWorkStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE, PENDING_APPROVAL, PENDING);
 
-        var recordsById = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true).stream().filter(tr -> allStatuses.contains(tr.statusRecord())).toList();
+        var recordsForEmployee = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true)
+                .stream()
+                // Garante que só peguemos registros relevantes (finalizados ou PENDING)
+                .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING)
+                .filter(tr -> allWorkStatuses.contains(tr.statusRecord()))
+                .toList();
 
-        var dateSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
-        recordsById = recordsById.stream().filter(tr -> {
-            var day = tr.startWork().atZone(SAO_PAULO).toLocalDate();
-            return dateSet.contains(day);
-        }).toList();
+        final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        recordsForEmployee = recordsForEmployee.stream().filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate())).toList();
 
-        Map<LocalDate, List<TimeRecord>> recordByDay = recordsById.stream().collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(), TreeMap::new, Collectors.toList()));
+        // Agrupamento por dia (usando toMap para garantir apenas um registro principal por dia)
+        Map<LocalDate, TimeRecord> workRecordByDay = recordsForEmployee.stream()
+                .collect(Collectors.toMap(
+                        tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(),
+                        tr -> tr,
+                        (existing, replacement) -> existing, // Em caso de duplicidade, mantém o primeiro
+                        TreeMap::new
+                ));
+
 
         List<SimpleReportDay> days = new ArrayList<>();
-        var totalWorked = Duration.ZERO;
+        var totalWorkedDuration = Duration.ZERO;
+        var totalBreakDuration = Duration.ZERO;
         var totalBalance = Duration.ZERO;
 
 
-        for (var entry : recordByDay.entrySet()) {
+        for (var entry : workRecordByDay.entrySet()) {
             var startDate = entry.getKey();
-            List<TimeRecord> entryValueRecords = entry.getValue();
+            TimeRecord workRecord = entry.getValue();
 
-            var dailyWorked = entryValueRecords.stream().map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
+            // 1. Calcula Duração Total das Pausas (usando a lista BreakRecord do TimeRecord)
+            Duration dailyBreakDuration = workRecord.breaks().stream()
+                    .filter(br -> br.endBreak() != null)
+                    .map(br -> Duration.between(br.startBreak(), br.endBreak()))
+                    .reduce(Duration.ZERO, Duration::plus);
+
+            // 2. Calcula Duração de Trabalho Bruta (checkin/out, abonos)
+            Duration dailyWorkGross = Duration.ZERO;
+            if (workRecord.endWork() != null) {
+                dailyWorkGross = Duration.between(workRecord.startWork(), workRecord.endWork());
+            }
+
+            // 3. Calcula Duração de Trabalho Líquida (Descontando Pausa)
+            Duration dailyWorkedLiquid = dailyWorkGross.minus(dailyBreakDuration);
 
             Duration dailyBalance;
 
-            boolean onlyDayOff = entryValueRecords.stream().allMatch(tr -> tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT);
+            boolean onlySpecialNonWork = workRecord.statusRecord() == StatusRecord.DAY_OFF || workRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT || workRecord.statusRecord() == StatusRecord.ABSENCE;
 
-            var endDate = entryValueRecords.stream().map(tr -> tr.endWork().atZone(SAO_PAULO).toLocalDate()).max(LocalDate::compareTo).orElse(startDate);
+            var endDate = workRecord.endWork() != null ? workRecord.endWork().atZone(SAO_PAULO).toLocalDate() : startDate;
 
-            if (onlyDayOff) {
+            if (onlySpecialNonWork) {
                 dailyBalance = Duration.ZERO;
+                dailyWorkedLiquid = dailyWorkGross; // Para abonos/folgas, a duração total é a bruta.
 
             } else {
-                Duration balanceInput = entryValueRecords.stream().filter(tr -> tr.statusRecord() != StatusRecord.DAY_OFF && tr.statusRecord() != StatusRecord.DOCTOR_APPOINTMENT)
-
-                        .map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
-
-                dailyBalance = balanceInput.minus(reference);
+                dailyBalance = dailyWorkedLiquid.minus(reference);
             }
 
-            var totalHours = String.format("%02d:%02d", dailyWorked.toHours(), dailyWorked.toMinutesPart());
+            StatusRecord dailyStatus = workRecord.statusRecord();
+
+            // Formatação
+            var totalHours = String.format("%02d:%02d", dailyWorkedLiquid.toHours(), dailyWorkedLiquid.toMinutesPart());
+            var totalBreak = String.format("%02d:%02d", dailyBreakDuration.toHours(), dailyBreakDuration.toMinutesPart());
             var sign = dailyBalance.isNegative() ? "-" : "+";
             var balance = sign + String.format("%02d:%02d", Math.abs(dailyBalance.toHours()), Math.abs(dailyBalance.toMinutesPart()));
 
-            totalWorked = totalWorked.plus(dailyWorked);
+            totalWorkedDuration = totalWorkedDuration.plus(dailyWorkedLiquid);
+            totalBreakDuration = totalBreakDuration.plus(dailyBreakDuration);
             totalBalance = totalBalance.plus(dailyBalance);
 
-            days.add(new SimpleReportDay(startDate, endDate, totalHours, balance));
+            days.add(new SimpleReportDay(startDate, endDate, totalHours, totalBreak, balance, dailyStatus));
         }
 
-        var finalWorked = String.format("%02d:%02d", totalWorked.toHours(), totalWorked.toMinutesPart());
+        var finalWorked = String.format("%02d:%02d", totalWorkedDuration.toHours(), totalWorkedDuration.toMinutesPart());
+        var finalBreak = String.format("%02d:%02d", totalBreakDuration.toHours(), totalBreakDuration.toMinutesPart());
         var signAll = totalBalance.isNegative() ? "-" : "+";
         var finalBalance = signAll + String.format("%02d:%02d", Math.abs(totalBalance.toHours()), Math.abs(totalBalance.toMinutesPart()));
 
-        return new SimpleReportResponse(employeeData.employeeName(), employeeData.companyName(), days, finalWorked, finalBalance);
-    }
-
-    @Override
-    public byte[] simpleReportPDF(UUID employeeId, SimpleReportResponse report) {
-        var baos = new ByteArrayOutputStream();
-        var writer = new PdfWriter(baos);
-        var pdfDoc = new PdfDocument(writer);
-        var document = new Document(pdfDoc);
-        var title = new Paragraph("Relatório de Horas");
-        var employee = new Paragraph("Colaborador: " + report.enployeeName());
-        var company = new Paragraph("Empresa: " + report.companyName());
-
-        document.add(title.setFontSize(36).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
-        document.add(company.setFontSize(28).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
-        document.add(employee.setFontSize(26).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
-
-        float[] columnWidths = {1, 1, 1};
-        var table = new Table(columnWidths).setPadding(5).setHorizontalAlignment(HorizontalAlignment.CENTER).setFontSize(24).setTextAlignment(TextAlignment.CENTER).setWidth(UnitValue.createPercentValue(100)).setHorizontalAlignment(HorizontalAlignment.CENTER);
-
-        table.addHeaderCell(new Cell().add(new Paragraph("Data")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Horas Trabalhadas")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Saldo")));
-
-        for (SimpleReportDay day : report.days()) {
-            var startDate = day.startDate().format(DATE_FORMATTER);
-            var endDate = day.endDate() != null ? day.endDate().format(DATE_FORMATTER) : "";
-            table.addCell(startDate + "\n" + endDate);
-            table.addCell(day.totalHours());
-            var balance = day.balance();
-            var balancePara = new Paragraph(balance);
-            if (balance.startsWith("+")) {
-                balancePara.setFontColor(ColorConstants.GREEN);
-            } else if (balance.startsWith("-")) {
-                balancePara.setFontColor(ColorConstants.RED);
-            }
-            table.addCell(new Cell().add(balancePara));
-        }
-
-        var finalBalance = report.totalBalance();
-        var finalBalancePara = new Paragraph(finalBalance).setBold();
-        if (finalBalance.startsWith("+")) {
-            finalBalancePara.setFontColor(ColorConstants.GREEN);
-        } else if (finalBalance.startsWith("-")) {
-            finalBalancePara.setFontColor(ColorConstants.RED);
-        }
-
-        table.addCell(new Cell().add(new Paragraph("Total")).setBold());
-        table.addCell(new Cell().add(new Paragraph(report.totalHoursWorked())).setBold());
-        table.addCell(new Cell().add(finalBalancePara));
-
-        document.add(table);
-        document.close();
-        return baos.toByteArray();
+        return new SimpleReportResponse(employeeData.employeeName(), employeeData.companyName(), days, finalWorked, finalBreak, finalBalance);
     }
 
     @Override
@@ -287,65 +386,62 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeData = getEmployeeData(targetEmployeeId);
         var duration = getDuration(req.reference());
-        var records = getRecords(targetEmployeeId, req.active());
 
-        if (req.status() != null) {
-            records = records.stream().filter(record -> record.statusRecord() == req.status()).toList();
-        }
+        // 1. Define o conjunto de datas a serem consideradas.
+        final Set<LocalDate> finalDatesSet;
         if (req.dates() != null && req.dates().length > 0) {
-            var dateList = Arrays.asList(req.dates());
-            var brasiliaTime = ZoneId.of("America/Sao_Paulo");
-            records = records.stream().filter(record -> dateList.contains(record.startWork().atZone(brasiliaTime).toLocalDate())).toList();
+            finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        } else {
+            return Collections.emptyList();
         }
-        return records.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).toList();
-    }
 
-    @Override
-    public byte[] listReportPDF(List<TimeRecordResponse> records) {
-        var baos = new ByteArrayOutputStream();
-        var writer = new PdfWriter(baos);
-        var pdfDoc = new PdfDocument(writer);
-        var document = new Document(pdfDoc);
-        var title = new Paragraph("Relatório de Horas detalhado");
-        var employeeData = getEmployeeData(records.getLast().employeeId());
-        var employee = new Paragraph("Colaborador: " + employeeData.employeeName());
-        var company = new Paragraph("Empresa: " + employeeData.companyName());
+        // 2. Busca TODOS os registros ATIVOS. TimeRecordEntity agora carrega os Breaks via EAGER.
+        List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
-        document.add(title.setFontSize(36).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
-        document.add(company.setFontSize(28).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
-        document.add(employee.setFontSize(28).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20));
+        // 3. Filtra os registros de TRABALHO (excluindo os breaks que agora são aninhados)
+        List<TimeRecord> workRecords = allRecordsForEmployee.stream()
+                // Mantém apenas os registros principais de ponto/abono
+                .filter(tr -> tr.statusRecord() != StatusRecord.DAY_OFF && tr.statusRecord() != StatusRecord.ABSENCE && tr.statusRecord() != StatusRecord.DOCTOR_APPOINTMENT)
+                // Filtra por datas selecionadas
+                .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                // Aplica o filtro de status (se houver)
+                .filter(tr -> req.status() == null || tr.statusRecord() == req.status())
+                .toList();
 
-        float[] columnWidths = {1, 1, 1, 1, 1};
-        Table table = new Table(columnWidths).setPadding(5).setHorizontalAlignment(HorizontalAlignment.CENTER).setFontSize(24).setTextAlignment(TextAlignment.CENTER).setWidth(UnitValue.createPercentValue(100)).setHorizontalAlignment(HorizontalAlignment.CENTER);
-        table.addHeaderCell(new Cell().add(new Paragraph("Entrada")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Saída")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Status")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Diária")));
-        table.addHeaderCell(new Cell().add(new Paragraph("Saldo")));
 
-        for (TimeRecordResponse tr : records) {
-            table.addCell(tr.startWork().format(DATE_FORMATTER) + "\n" + tr.startWork().format(TIME_FORMATTER)).setFontSize(16);
-            table.addCell(tr.endWork().format(DATE_FORMATTER) + "\n" + tr.endWork().format(TIME_FORMATTER)).setFontSize(16);
-            table.addCell(tr.statusRecord().name()).setFontSize(16);
-            table.addCell(tr.hoursWork()).setFontSize(16);
+        List<TimeRecordResponse> finalResponse = new ArrayList<>();
 
-            var balance = new Paragraph(tr.balance());
-            if (tr.balance().startsWith("+")) {
-                balance.setFontColor(ColorConstants.GREEN);
-            } else if (tr.balance().startsWith("-")) {
-                balance.setFontColor(ColorConstants.RED);
-            }
-            table.addCell(new Cell().add(balance)).setFontSize(16);
+        // 4. Mapeia e Agrupa: Itera sobre os registros de trabalho filtrados e anexa as pausas.
+        workRecords.stream()
+                .forEach(timeRecord -> {
+                    // O TimeRecord já tem os breaks carregados (devido ao FetchType.EAGER em TimeRecordEntity)
+                    List<BreakRecord> relatedBreaks = timeRecord.breaks();
+
+                    finalResponse.add(TimeRecordResponse.fromDomainWithBreaks(
+                            timeRecord,
+                            duration,
+                            employeeData,
+                            relatedBreaks // Passa a lista de pausas do TimeRecord
+                    ));
+                });
+
+        // 5. Adiciona registros que SÃO DE ABONO se foram o alvo principal da busca.
+        if (req.status() != null && (req.status() == StatusRecord.DAY_OFF || req.status() == StatusRecord.ABSENCE || req.status() == StatusRecord.DOCTOR_APPOINTMENT)) {
+            allRecordsForEmployee.stream()
+                    .filter(tr -> tr.statusRecord() == req.status())
+                    .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                    .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
+                    .forEach(finalResponse::add);
         }
-        document.add(table);
-        document.close();
-        return baos.toByteArray();
 
+        // Ordenar por horário de início para melhor visualização
+        finalResponse.sort(Comparator.comparing(TimeRecordResponse::startWork));
+
+        return finalResponse;
     }
 
     @Override
     public List<TimeRecordApprovalResponse> listPendingApprovals() {
-        // SUBSTITUIÇÃO DO REDIS: Busca todas as solicitações pendentes do JPA
         List<TimeRecordApprovalRequest> approvals = approvalProvider.findAll();
 
         if (approvals.isEmpty()) {
@@ -357,11 +453,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         for (TimeRecordApprovalRequest approvalData : approvals) {
             var timeRecord = recordRepository.findById(approvalData.timeRecordId())
                     .orElse(null);
-            // Busca os dados do colaborador e manager
-            var partnerEmployee = employeeProvider.findById(approvalData.partnerEmployeeId())
+
+            var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId())
                     .orElse(null);
             var managerUser = userProvider.findById(approvalData.managerId())
                     .orElse(null);
+
+            // Mapeia as pausas aninhadas para o DTO de resposta
+            List<BreakApprovalResponse> mappedBreaks = approvalData.breakApprovalRequests().stream()
+                    .map(BreakApprovalResponse::fromDomain)
+                    .toList();
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
                 responses.add(new TimeRecordApprovalResponse(
@@ -371,54 +472,19 @@ public class TimeRecordService implements TimeRecordUseCase {
                         approvalData.newStartWork(),
                         approvalData.newEndWork(),
                         timeRecord.startWork(),
-                        timeRecord.endWork()
+                        timeRecord.endWork(),
+                        mappedBreaks
                 ));
             }
         }
         return responses;
     }
 
-    @Override
-    public void approveTimeRecordChange(Long timeRecordId) {
-        var record = findRecordAndCheckStatus(timeRecordId);
-
-        // SUBSTITUIÇÃO DO REDIS: Busca a solicitação no novo Provider
-        TimeRecordApprovalRequest approvalData = approvalProvider.findByTimeRecordId(timeRecordId)
-                .orElseThrow(() -> new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId));
-
-        // Aplica as alterações e atualiza o status
-        var approvedRecord = record
-                .withCheckin(approvalData.newStartWork())
-                .withCheckout(approvalData.newEndWork())
-                .withStatus(StatusRecord.UPDATED); // Status final: UPDATED
-
-        recordRepository.save(approvedRecord);
-
-        // SUBSTITUIÇÃO DO REDIS: Limpa o registro da tabela de aprovação (JPA)
-        approvalProvider.deleteByTimeRecordId(timeRecordId);
-
-        log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
-    }
-
-    @Override
-    public void rejectTimeRecordChange(Long timeRecordId) {
-        var record = findRecordAndCheckStatus(timeRecordId);
-
-        // Reverte o status do registro.
-        var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
-        recordRepository.save(rejectedRecord);
-
-        // SUBSTITUIÇÃO DO REDIS: Limpa o registro da tabela de aprovação (JPA)
-        approvalProvider.deleteByTimeRecordId(timeRecordId);
-
-        log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
-    }
-
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = recordRepository.findById(timeRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
-        if (record.statusRecord() != StatusRecord.PENDING_APPROVAL) {
+        if (record.statusRecord() != PENDING_APPROVAL) {
             throw new BadRequestException("O registro não está aguardando aprovação.");
         }
         return record;
@@ -462,6 +528,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
     }
+
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
         var employee = getEmployee(employeeId);
 
@@ -485,17 +552,50 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("Você está fora da área de trabalho permitida.");
         }
     }
-        private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
-            // Implementação da fórmula de Haversine ou outra mais precisa.
-            // Exemplo:
-            final int R = 6371; // Raio da Terra em km
-            double latDistance = Math.toRadians(lat2 - lat1);
-            double lonDistance = Math.toRadians(lon2 - lon1);
-            double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                    * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c * 1000; // Retorna a distância em metros
+
+    private List<BreakRecordApprovalRequest> mapAndValidateBreakRequests(Long timeRecordId, List<BreakRecord> currentBreaks, List<UpdateBreakRecordRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
         }
+
+        return requests.stream().map(req -> {
+            // 1. Encontra a pausa original
+            BreakRecord originalBreak = currentBreaks.stream()
+                    .filter(b -> b.breakRecordId().equals(req.breakRecordId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Pausa não encontrada: " + req.breakRecordId()));
+
+            // 2. Converte as horas para LocalDateTime (usando a data do registro original como base)
+            LocalDate breakDate = originalBreak.startBreak().toLocalDate();
+
+            var newStart = LocalDateTime.of(breakDate, LocalTime.parse(req.startHour(), TIME_FORMATTER));
+            var newEnd = LocalDateTime.of(breakDate, LocalTime.parse(req.endHour(), TIME_FORMATTER));
+
+            // 3. Validação básica de horas
+            if (newStart.isAfter(newEnd)) {
+                throw new BadRequestException("Hora de início da pausa deve ser anterior à hora de fim da pausa.");
+            }
+
+            // 4. Cria o objeto de aprovação aninhado
+            return new BreakRecordApprovalRequest(
+                    timeRecordId,
+                    req.breakRecordId(),
+                    newStart,
+                    newEnd
+            );
+        }).toList();
     }
 
+    private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
+        // Implementação da fórmula de Haversine ou outra mais precisa.
+        // Exemplo:
+        final int R = 6371; // Raio da Terra em km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c * 1000; // Retorna a distância em metros
+    }
+}

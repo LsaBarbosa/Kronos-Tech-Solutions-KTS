@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDate;
 
@@ -11,5 +12,7 @@ public record SimpleReportDay(
         LocalDate startDate,
         LocalDate endDate,
         String totalHours,
-        String balance
+        String totalBreakHours,
+        String balance,
+        StatusRecord statusRecord
 ) {}

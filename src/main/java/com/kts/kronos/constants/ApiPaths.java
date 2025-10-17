@@ -26,15 +26,13 @@ public class ApiPaths {
     // Recods
     public static final String RECORDS = "/records";
     public static final String CHECKIN = "/checkin";
-    public static final String CHECKOUT = "/checkout";
+    public static final String BREAK = "/break";
     public static final String UPDATE_TIME_RECORD = "/update/time-record/{timeRecordId}";
     public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
     public static final String DELETE_RECORD = "records/{employeeId}/{timeRecordId}";
     public static final String REPORT = "/report";
     public static final String SIMPLE_REPORT = "/report/simple";
-    public static final String REPORT_PDF = "report/pdf";
-    public static final String REPORT_SIMPLE_PDF = "report/simple/pdf";
     public static final String REJECT_UPDATE = "/reject/{timeRecordId}";
     public static final String APPROVE_UPDATE = "/approve/{timeRecordId}";
     public static final String PENDING_APPROVALS = "/pending-approvals";
