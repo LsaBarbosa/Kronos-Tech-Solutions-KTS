@@ -46,7 +46,8 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
-
+        var currentDateParsed = currentTime.format(DATE_FORMATTER);
+        var currentTimeParsed = currentTime.format(TIME_FORMATTER);
         if (openRecordOpt.isPresent()) {
             // É um CHECKOUT
             var open = openRecordOpt.get();
@@ -73,7 +74,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Checkout registrado para o funcionário {}.", employee.employeeId());
 
             return new ActionResponse(
-                    "Saída registrada as " + currentTime +" com sucesso! Tenha um ótimo descanso.",
+                    "Saída registrada as " + currentDateParsed +" as "+ currentTimeParsed +" com sucesso! Tenha um ótimo descanso.",
                     "CHECKOUT"
             );
         } else {
@@ -83,7 +84,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             recordRepository.save(record);
             log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
             return new ActionResponse(
-                    "Entrada registrada as " + currentTime+" ! Seja bem-vindo(a) e tenha um dia produtivo.",
+                    "Entrada registrada " + currentDateParsed +" as "+ currentTimeParsed+" ! Seja bem-vindo(a) e tenha um dia produtivo.",
                     "CHECKIN"
             );
         }
@@ -95,6 +96,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         checkGeolocation(employeeId, request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
         var currentTime = LocalDateTime.now(SAO_PAULO);
+        var currentDateParsed = currentTime.format(DATE_FORMATTER);
+        var currentTimeParsed = currentTime.format(TIME_FORMATTER);
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
 
         if (openRecordOpt.isEmpty()) {
@@ -111,7 +114,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             breakProvider.save(updatedBreak);
             log.info("Fim da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
             return new ActionResponse(
-                    "Pausa encerrada "+ currentTime +" ! Ótimo retorno ao trabalho.",
+                    "Pausa encerrada "+ currentDateParsed +" as "+ currentTimeParsed+" ! Ótimo retorno ao trabalho.",
                     "BREAK_END"
             );
         } else {
@@ -121,7 +124,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             breakProvider.save(newBreak);
             log.info("Início da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
             return new ActionResponse(
-                    "Pausa iniciada " +currentTime + " ! Aproveite o descanso.",
+                    "Pausa iniciada " + currentDateParsed +" as "+ currentTimeParsed+" ! Aproveite o descanso.",
                     "BREAK_START"
             );
         }
