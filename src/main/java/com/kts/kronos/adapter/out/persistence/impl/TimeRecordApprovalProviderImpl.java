@@ -1,4 +1,4 @@
-package com.kts.kronos.adapter.out.persistence.entity;
+package com.kts.kronos.adapter.out.persistence.impl;
 
 
 import com.kts.kronos.adapter.out.persistence.TimeRecordApprovalRepository;

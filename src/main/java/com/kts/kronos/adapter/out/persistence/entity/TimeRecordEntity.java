@@ -11,6 +11,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -46,6 +47,10 @@ public class TimeRecordEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
+    @OneToMany(mappedBy = "timeRecord", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Builder.Default
+    private List<BreakRecordEntity> breaks = List.of();
+
     public TimeRecord toDomain() {
         return new TimeRecord(
                 timeRecordId,
@@ -54,7 +59,8 @@ public class TimeRecordEntity {
                 statusRecord,
                 edited,
                 active,
-                employeeId
+                employeeId,
+                breaks.stream().map(BreakRecordEntity::toDomain).toList()
         );
     }
 

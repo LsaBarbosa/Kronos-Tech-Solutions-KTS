@@ -24,37 +24,40 @@ public class TimeRecordController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKIN)
-     public void checkin(@Valid @RequestBody GeolocationRequest request) {
-        useCase.checkin(request);
+    public ResponseEntity<ActionResponse> registerTime(@Valid @RequestBody GeolocationRequest request) {
+        var response = useCase.registerTime(request);
+        return ResponseEntity.ok(response);
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(CHECKOUT)
-     public void checkout(@Valid @RequestBody GeolocationRequest request) {
-        useCase.checkout(request);
+    @PostMapping(BREAK)
+    public ResponseEntity<ActionResponse> registerBreak(@Valid @RequestBody GeolocationRequest request) {
+        var response = useCase.registerBreak(request);
+        return ResponseEntity.ok(response);
     }
+
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(UPDATE_TIME_RECORD)
-     public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
+    public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(UPDATE_STATUS)
-     public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
-     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
     }
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(DELETE_RECORD)
-     public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
 
@@ -65,24 +68,6 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(REPORT_PDF)
-    public ResponseEntity<byte[]> reportPdf(@RequestParam(required = false) UUID employeeId, @Valid @RequestBody ListReportRequest req) {
-
-        var records = useCase.listReport(employeeId, req);
-        byte[] pdf = useCase.listReportPDF(records);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDisposition(
-                ContentDisposition.attachment()
-                        .filename("detailed-report.pdf")
-                        .build()
-        );
-
-        return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
-    }
-
-    @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(SIMPLE_REPORT)
     public ResponseEntity<SimpleReportResponse> simpleReport(@RequestParam(required = false) UUID employeeId,
                                                              @Valid @RequestBody SimpleReportRequest req) {
@@ -90,34 +75,15 @@ public class TimeRecordController {
         return ResponseEntity.ok(resp);
     }
 
-    @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(REPORT_SIMPLE_PDF)
-    public ResponseEntity<byte[]> simpleReportPdf(@RequestParam(required = false) UUID employeeId,
-                                                  @Valid @RequestBody SimpleReportRequest req) {
-
-        var resp = useCase.simpleReport(employeeId, req);
-        byte[] pdfBytes = useCase.simpleReportPDF(employeeId, resp);
-
-        var headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDisposition(
-                ContentDisposition.attachment()
-                        .filename("simple-report.pdf")
-                        .build()
-        );
-
-        return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
-    }
-
     @PreAuthorize(MANAGER)
     @PatchMapping(APPROVE_UPDATE)
-     public void approveChange(@PathVariable Long timeRecordId) {
+    public void approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
     }
 
     @PreAuthorize(MANAGER)
     @PatchMapping(REJECT_UPDATE)
-     public void rejectChange(@PathVariable Long timeRecordId) {
+    public void rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);
     }
 
