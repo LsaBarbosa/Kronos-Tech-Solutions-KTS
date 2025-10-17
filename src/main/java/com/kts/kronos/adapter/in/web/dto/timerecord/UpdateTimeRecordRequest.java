@@ -1,13 +1,11 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
@@ -30,8 +28,7 @@ public record UpdateTimeRecordRequest(
         String endHour,
 
         @NotNull(message = ID_NOT_BLANK)
-        UUID managerId,
-        @Valid List<UpdateBreakRecordRequest> breakRequests
+        UUID managerId
 ) {
 
 }

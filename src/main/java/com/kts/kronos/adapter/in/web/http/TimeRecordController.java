@@ -30,14 +30,6 @@ public class TimeRecordController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(BREAK)
-    public ResponseEntity<ActionResponse> registerBreak(@Valid @RequestBody GeolocationRequest request) {
-        var response = useCase.registerBreak(request);
-        return ResponseEntity.ok(response);
-    }
-
-
-    @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(UPDATE_TIME_RECORD)
     public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);

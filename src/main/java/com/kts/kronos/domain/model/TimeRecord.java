@@ -3,7 +3,6 @@ package com.kts.kronos.domain.model;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 public record TimeRecord(
@@ -13,9 +12,9 @@ public record TimeRecord(
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
-        UUID employeeId,
-        List<BreakRecord> breaks // NOVO CAMPO: Lista de pausas
+        UUID employeeId
 ) {
+    // Construtor de conveniência (apenas employeeId)
     public TimeRecord(UUID employeeId) {
         this(
                 null,
@@ -24,14 +23,11 @@ public record TimeRecord(
                 StatusRecord.PENDING,
                 false,
                 true,
-                employeeId,
-                List.of() // Inicializa lista de breaks vazia
+                employeeId
         );
     }
-    // Construtor anterior de 7 argumentos (necessário para a compatibilidade)
-    public TimeRecord(Long timeRecordId, LocalDateTime startWork, LocalDateTime  endWork, StatusRecord statusRecord, boolean edited, boolean active, UUID employeeId) {
-        this(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, List.of());
-    }
+    // O construtor com 7 argumentos (o canônico) é gerado automaticamente pelo record.
+    // O código anterior que causava o erro foi removido daqui.
 
     public TimeRecord withId(Long id) {
         return new TimeRecord(id, startWork, endWork, statusRecord, edited, active, employeeId);
@@ -40,6 +36,7 @@ public record TimeRecord(
     public TimeRecord withCheckin(LocalDateTime  startTime) {
         return new TimeRecord(timeRecordId, startTime, endWork, statusRecord, edited, active, employeeId);
     }
+
     public TimeRecord withCheckout(LocalDateTime  endTime) {
         return new TimeRecord(timeRecordId, startWork, endTime, statusRecord, edited, active, employeeId);
     }
@@ -51,10 +48,8 @@ public record TimeRecord(
     public TimeRecord withEdited(boolean edited) {
         return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId);
     }
+
     public TimeRecord withStatus(StatusRecord status) {
         return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId);
-    }
-    public TimeRecord withBreaks(List<BreakRecord> breakRecords) {
-        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, breakRecords);
     }
 }

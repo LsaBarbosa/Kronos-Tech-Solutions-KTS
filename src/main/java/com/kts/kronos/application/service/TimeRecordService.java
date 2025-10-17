@@ -6,7 +6,9 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
-import com.kts.kronos.domain.model.*;
+import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
@@ -14,10 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,7 +35,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
-    private final BreakRecordProvider breakProvider;
+
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -48,8 +47,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentDateParsed = currentTime.format(DATE_FORMATTER);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+
         if (openRecordOpt.isPresent()) {
-            // É um CHECKOUT
+            // É um CHECKOUT (Finaliza o segmento de trabalho atual)
             var open = openRecordOpt.get();
 
             log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
@@ -58,77 +58,50 @@ public class TimeRecordService implements TimeRecordUseCase {
                 log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
                 throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
             }
-
-            // NOVO: Verifica se há alguma pausa em progresso e a finaliza antes de fechar o ponto
-            var openBreakOpt = breakProvider.findOpenBreakByTimeRecordId(open.timeRecordId());
-            if (openBreakOpt.isPresent()) {
-                var openBreak = openBreakOpt.get();
-                var updatedBreak = openBreak.withEndBreak(currentTime).withActive(false);
-                breakProvider.save(updatedBreak);
-                log.info("Pausa aberta finalizada automaticamente no checkout do registro ID {}.", open.timeRecordId());
-            }
-
-            // Se for PENDING, realiza a transição
+            // Se for PENDING, realiza a transição e fecha o registro
             var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
             recordRepository.save(updated);
-            log.info("Checkout registrado para o funcionário {}.", employee.employeeId());
+            log.info("Checkout registrado para o segmento de trabalho {}.", open.timeRecordId());
 
             return new ActionResponse(
-                    "Saída registrada as " + currentDateParsed +" as "+ currentTimeParsed +" com sucesso! Tenha um ótimo descanso.",
+                    "Saída registrada às " + currentDateParsed + " às " + currentTimeParsed + " com sucesso! ",
                     "CHECKOUT"
             );
         } else {
-            // É um CHECKIN: Não encontrou registro aberto
-            // Cria um novo registro com status PENDING
+            // É um CHECKIN (Inicia um novo segmento de trabalho)
+            // 1. Verifica se a última saída foi no mesmo dia para calcular a pausa
+            var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+
+            if (latestRecordOpt.isPresent()) {
+                var latest = latestRecordOpt.get();
+                var latestEndWork = latest.endWork();
+                var currentStartDay = currentTime.atZone(SAO_PAULO).toLocalDate();
+                var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+
+                // Se o último registro foi *encerrado* no MESMO DIA, é uma pausa implícita (novo segmento).
+                if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+                    // Crie um novo registro de ponto com status PENDING
+                    var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
+                    recordRepository.save(record);
+                    log.info("Novo Checkin (após pausa implícita) registrado para o funcionário {}.", employee.employeeId());
+                    return new ActionResponse(
+                            "Bem-vindo de volta. Entrada registrada " + currentDateParsed + " às " + currentTimeParsed + ".",
+                            "CHECKIN_AFTER_BREAK"
+                    );
+                }
+            }
+
+            // 2. Se for o primeiro ponto do dia/primeiro ponto geral
             var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
             recordRepository.save(record);
-            log.info("Checkin registrado para o funcionário {}.", employee.employeeId());
+            log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
             return new ActionResponse(
-                    "Entrada registrada " + currentDateParsed +" as "+ currentTimeParsed+" ! Seja bem-vindo(a) e tenha um dia produtivo.",
+                    "Entrada registrada " + currentDateParsed + " às " + currentTimeParsed + "! Seja bem-vindo(a) e tenha um dia produtivo.",
                     "CHECKIN"
             );
         }
     }
 
-    @Override
-    public ActionResponse registerBreak(GeolocationRequest request) {
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId, request.latitude(), request.longitude());
-        var employee = getEmployee(employeeId);
-        var currentTime = LocalDateTime.now(SAO_PAULO);
-        var currentDateParsed = currentTime.format(DATE_FORMATTER);
-        var currentTimeParsed = currentTime.format(TIME_FORMATTER);
-        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
-
-        if (openRecordOpt.isEmpty()) {
-            throw new BadRequestException("Não é possível iniciar ou encerrar uma pausa sem um Check-in principal ativo.");
-        }
-        var openRecord = openRecordOpt.get();
-
-        var openBreakOpt = breakProvider.findOpenBreakByTimeRecordId(openRecord.timeRecordId());
-
-        if (openBreakOpt.isPresent()) {
-            // É um FIM DA PAUSA (Break End)
-            var openBreak = openBreakOpt.get();
-            var updatedBreak = openBreak.withEndBreak(currentTime).withActive(false);
-            breakProvider.save(updatedBreak);
-            log.info("Fim da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
-            return new ActionResponse(
-                    "Pausa encerrada "+ currentDateParsed +" as "+ currentTimeParsed+" ! Ótimo retorno ao trabalho.",
-                    "BREAK_END"
-            );
-        } else {
-            // É um INÍCIO DA PAUSA (Break Start)
-            // Cria e salva um novo BreakRecord associado ao TimeRecord principal
-            var newBreak = new BreakRecord(openRecord.timeRecordId(), currentTime);
-            breakProvider.save(newBreak);
-            log.info("Início da Pausa registrado para o registro ID {}.", openRecord.timeRecordId());
-            return new ActionResponse(
-                    "Pausa iniciada " + currentDateParsed +" as "+ currentTimeParsed+" ! Aproveite o descanso.",
-                    "BREAK_START"
-            );
-        }
-    }
 
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
@@ -167,28 +140,24 @@ public class TimeRecordService implements TimeRecordUseCase {
                 throw new BadRequestException("O manager não pertence à mesma empresa.");
             }
 
-            // 1. Mapeia e valida as solicitações de alteração de pausa
-            List<BreakRecordApprovalRequest> breakRequests = mapAndValidateBreakRequests(timeRecordId, record.breaks(), req.breakRequests());
-
-            // 2. Cria o payload completo (Registro principal + Pausas)
-            var completeApprovalRequest = new TimeRecordApprovalRequest(
+            // 1. Cria o payload simplificado
+            var approvalRequest = new TimeRecordApprovalRequest(
                     timeRecordId,
                     employeeId,
                     req.managerId(),
                     start,
                     end,
-                    TIME_ZONE_BRAZIL,
-                    breakRequests // Anexa as solicitações de pausa
+                    TIME_ZONE_BRAZIL
             );
 
-            // 3. Persiste a solicitação completa no JPA (incluindo breaks via Cascade)
-            approvalProvider.save(completeApprovalRequest);
+            // 2. Persiste a solicitação
+            approvalProvider.save(approvalRequest);
 
-            var updatedRecord = record.withStatus(StatusRecord.PENDING_APPROVAL).withEdited(true);
+            var updatedRecord = record.withStatus(PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
 
-        } else if ("MANAGER".equals(userRole)) {
-            // Lógica original para o MANAGER (aprovação direta)
+        } else if ("MANAGER".equals(userRole) || "CTO".equals(userRole)) {
+            // Lógica para o MANAGER/CTO (aprovação direta)
             var statusUpdate = record.statusRecord().onUpdate();
             var updated = record.withCheckin(start).withCheckout(end).withEdited(true).withStatus(statusUpdate);
             recordRepository.save(updated);
@@ -201,7 +170,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public void approveTimeRecordChange(Long timeRecordId) {
         var record = findRecordAndCheckStatus(timeRecordId);
 
-        // Busca a solicitação completa (incluindo pausas)
+        // Busca a solicitação
         TimeRecordApprovalRequest approvalData = approvalProvider.findByTimeRecordId(timeRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId));
 
@@ -211,33 +180,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withCheckout(approvalData.newEndWork())
                 .withStatus(StatusRecord.UPDATED);
 
-        // 2. Aplica as alterações nas pausas aninhadas
-        for (BreakRecordApprovalRequest breakApproval : approvalData.breakApprovalRequests()) {
-            var originalBreakOpt = record.breaks().stream()
-                    .filter(b -> b.breakRecordId().equals(breakApproval.breakRecordId()))
-                    .findFirst();
-
-            if (originalBreakOpt.isPresent()) {
-                var originalBreak = originalBreakOpt.get();
-
-                // Cria um novo BreakRecord com as horas aprovadas (requer BreakRecordProvider.save)
-                var breakToUpdate = new BreakRecord(
-                        originalBreak.breakRecordId(),
-                        originalBreak.timeRecordId(),
-                        breakApproval.newStartBreak(),
-                        breakApproval.newEndBreak(),
-                        originalBreak.active()
-                );
-
-                // Salva a pausa individual atualizada
-                breakProvider.save(breakToUpdate);
-            }
-        }
-
-        // 3. Salva o registro principal atualizado
+        // 2. Salva o registro principal atualizado
         recordRepository.save(approvedRecord);
 
-        // 4. Limpa o registro de aprovação
+        // 3. Limpa o registro de aprovação
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
@@ -251,12 +197,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
         recordRepository.save(rejectedRecord);
 
-        // Limpa o registro de aprovação (O Cascade do JPA cuidará das pausas aninhadas)
+        // Limpa o registro de aprovação
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
     }
-
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {
@@ -301,23 +246,29 @@ public class TimeRecordService implements TimeRecordUseCase {
         // Statuses de trabalho (agora excluindo breaks)
         var allWorkStatuses = Set.of(CREATED, UPDATED, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE, PENDING_APPROVAL, PENDING);
 
+        // 1. Busca todos os registros ativos, incluindo segmentos PENDING.
         var recordsForEmployee = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true)
                 .stream()
-                // Garante que só peguemos registros relevantes (finalizados ou PENDING)
+                // Apenas registros relevantes (finalizados ou PENDING)
                 .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING)
                 .filter(tr -> allWorkStatuses.contains(tr.statusRecord()))
                 .toList();
 
         final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
-        recordsForEmployee = recordsForEmployee.stream().filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate())).toList();
+        recordsForEmployee = recordsForEmployee.stream().filter(tr -> {
+            // Usa o startWork para determinar a data do registro
+            if (tr.startWork() != null) {
+                return finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate());
+            }
+            return false;
+        }).toList();
 
-        // Agrupamento por dia (usando toMap para garantir apenas um registro principal por dia)
-        Map<LocalDate, TimeRecord> workRecordByDay = recordsForEmployee.stream()
-                .collect(Collectors.toMap(
+        // 2. Agrupamento por dia (usando o Map para coletar todos os segmentos do dia)
+        Map<LocalDate, List<TimeRecord>> segmentsByDay = recordsForEmployee.stream()
+                .collect(Collectors.groupingBy(
                         tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate(),
-                        tr -> tr,
-                        (existing, replacement) -> existing, // Em caso de duplicidade, mantém o primeiro
-                        TreeMap::new
+                        TreeMap::new, // Garante que as chaves (datas) estejam ordenadas
+                        Collectors.toList()
                 ));
 
 
@@ -327,40 +278,50 @@ public class TimeRecordService implements TimeRecordUseCase {
         var totalBalance = Duration.ZERO;
 
 
-        for (var entry : workRecordByDay.entrySet()) {
+        for (var entry : segmentsByDay.entrySet()) {
             var startDate = entry.getKey();
-            TimeRecord workRecord = entry.getValue();
+            List<TimeRecord> segments = entry.getValue();
 
-            // 1. Calcula Duração Total das Pausas (usando a lista BreakRecord do TimeRecord)
-            Duration dailyBreakDuration = workRecord.breaks().stream()
-                    .filter(br -> br.endBreak() != null)
-                    .map(br -> Duration.between(br.startBreak(), br.endBreak()))
+            // Ordena os segmentos pela hora de início para calcular o gap
+            segments.sort(Comparator.comparing(TimeRecord::startWork));
+
+            // 1. Calcula Duração Total das Pausas (Gap entre os segmentos)
+            Duration dailyBreakDuration = calculateTotalBreakDuration(segments, SAO_PAULO);
+
+            // 2. Calcula Duração de Trabalho Líquida (Soma do tempo de cada segmento)
+            Duration dailyWorkedLiquid = segments.stream()
+                    .filter(tr -> tr.endWork() != null) // Ignora segmentos não finalizados (PENDING)
+                    .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
                     .reduce(Duration.ZERO, Duration::plus);
 
-            // 2. Calcula Duração de Trabalho Bruta (checkin/out, abonos)
-            Duration dailyWorkGross = Duration.ZERO;
-            if (workRecord.endWork() != null) {
-                dailyWorkGross = Duration.between(workRecord.startWork(), workRecord.endWork());
-            }
+            // 3. Define a última data de saída do dia (pode ser diferente da data de início)
+            LocalDateTime lastEndWork = segments.stream()
+                    .map(TimeRecord::endWork)
+                    .filter(Objects::nonNull)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(startDate.atStartOfDay());
 
-            // 3. Calcula Duração de Trabalho Líquida (Descontando Pausa)
-            Duration dailyWorkedLiquid = dailyWorkGross.minus(dailyBreakDuration);
+            LocalDate endDate = lastEndWork.atZone(SAO_PAULO).toLocalDate();
+
+            // 4. Determina Status e Balanço
+            TimeRecord firstSegment = segments.getFirst();
+            StatusRecord dailyStatus = firstSegment.statusRecord(); // Usa o status do primeiro segmento como o status principal do dia (se não for PENDING)
 
             Duration dailyBalance;
+            boolean isSpecialStatus = dailyStatus == StatusRecord.DAY_OFF || dailyStatus == StatusRecord.DOCTOR_APPOINTMENT || dailyStatus == StatusRecord.ABSENCE;
 
-            boolean onlySpecialNonWork = workRecord.statusRecord() == StatusRecord.DAY_OFF || workRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT || workRecord.statusRecord() == StatusRecord.ABSENCE;
-
-            var endDate = workRecord.endWork() != null ? workRecord.endWork().atZone(SAO_PAULO).toLocalDate() : startDate;
-
-            if (onlySpecialNonWork) {
+            if (isSpecialStatus) {
                 dailyBalance = Duration.ZERO;
-                dailyWorkedLiquid = dailyWorkGross; // Para abonos/folgas, a duração total é a bruta.
-
+                // Para abonos/folgas, a duração de trabalho líquida é a soma do tempo dos segmentos.
             } else {
                 dailyBalance = dailyWorkedLiquid.minus(reference);
+                if (segments.stream().anyMatch(tr -> tr.statusRecord() == PENDING)) {
+                    // Se houver um segmento PENDING, o saldo fica no zero/em aberto, mas o tempo trabalhado acumula
+                    dailyStatus = PENDING;
+                    dailyBalance = Duration.ZERO;
+                }
             }
 
-            StatusRecord dailyStatus = workRecord.statusRecord();
 
             // Formatação
             var totalHours = String.format("%02d:%02d", dailyWorkedLiquid.toHours(), dailyWorkedLiquid.toMinutesPart());
@@ -398,49 +359,23 @@ public class TimeRecordService implements TimeRecordUseCase {
             return Collections.emptyList();
         }
 
-        // 2. Busca TODOS os registros ATIVOS. TimeRecordEntity agora carrega os Breaks via EAGER.
+        // 2. Busca TODOS os registros ATIVOS.
         List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
-        // 3. Filtra os registros de TRABALHO (excluindo os breaks que agora são aninhados)
+        // 3. Filtra os registros de TRABALHO (segmentos)
         List<TimeRecord> workRecords = allRecordsForEmployee.stream()
-                // Mantém apenas os registros principais de ponto/abono
-                .filter(tr -> tr.statusRecord() != StatusRecord.DAY_OFF && tr.statusRecord() != StatusRecord.ABSENCE && tr.statusRecord() != StatusRecord.DOCTOR_APPOINTMENT)
-                // Filtra por datas selecionadas
-                .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
+                // Filtra por datas selecionadas (usa a data do startWork)
+                .filter(tr -> tr.startWork() != null && finalDatesSet.
+                        contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
                 // Aplica o filtro de status (se houver)
                 .filter(tr -> req.status() == null || tr.statusRecord() == req.status())
-                .toList();
+                // Garante que segmentos PENDING sem endWork sejam incluídos, a menos que o status seja DAY_OFF/ABSENCE/DOCTOR_APPOINTMENT
+                .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING || (req.status() != null && (req.status() == StatusRecord.DAY_OFF || req.status() == StatusRecord.ABSENCE || req.status() == StatusRecord.DOCTOR_APPOINTMENT)))
+                .collect(Collectors.toCollection(ArrayList::new)); // Converte para lista mutável imediatamente
 
-
-        List<TimeRecordResponse> finalResponse = new ArrayList<>();
-
-        // 4. Mapeia e Agrupa: Itera sobre os registros de trabalho filtrados e anexa as pausas.
-        workRecords.stream()
-                .forEach(timeRecord -> {
-                    // O TimeRecord já tem os breaks carregados (devido ao FetchType.EAGER em TimeRecordEntity)
-                    List<BreakRecord> relatedBreaks = timeRecord.breaks();
-
-                    finalResponse.add(TimeRecordResponse.fromDomainWithBreaks(
-                            timeRecord,
-                            duration,
-                            employeeData,
-                            relatedBreaks // Passa a lista de pausas do TimeRecord
-                    ));
-                });
-
-        // 5. Adiciona registros que SÃO DE ABONO se foram o alvo principal da busca.
-        if (req.status() != null && (req.status() == StatusRecord.DAY_OFF || req.status() == StatusRecord.ABSENCE || req.status() == StatusRecord.DOCTOR_APPOINTMENT)) {
-            allRecordsForEmployee.stream()
-                    .filter(tr -> tr.statusRecord() == req.status())
-                    .filter(tr -> finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
-                    .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData))
-                    .forEach(finalResponse::add);
-        }
-
-        // Ordenar por horário de início para melhor visualização
-        finalResponse.sort(Comparator.comparing(TimeRecordResponse::startWork));
-
-        return finalResponse;
+        return workRecords.stream()
+                .map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).
+                sorted(Comparator.comparing(TimeRecordResponse::startWork)).collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Override
@@ -462,10 +397,6 @@ public class TimeRecordService implements TimeRecordUseCase {
             var managerUser = userProvider.findById(approvalData.managerId())
                     .orElse(null);
 
-            // Mapeia as pausas aninhadas para o DTO de resposta
-            List<BreakApprovalResponse> mappedBreaks = approvalData.breakApprovalRequests().stream()
-                    .map(BreakApprovalResponse::fromDomain)
-                    .toList();
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
                 responses.add(new TimeRecordApprovalResponse(
@@ -475,8 +406,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         approvalData.newStartWork(),
                         approvalData.newEndWork(),
                         timeRecord.startWork(),
-                        timeRecord.endWork(),
-                        mappedBreaks
+                        timeRecord.endWork()
                 ));
             }
         }
@@ -520,9 +450,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         return recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
     }
 
-    private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
-        return active == null ? recordRepository.findByEmployeeId(employeeId) : recordRepository.findByEmployeeIdAndActive(employeeId, active);
-    }
 
     private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
         var employee = getEmployee(employeeId);
@@ -556,42 +483,49 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
-    private List<BreakRecordApprovalRequest> mapAndValidateBreakRequests(Long timeRecordId, List<BreakRecord> currentBreaks, List<UpdateBreakRecordRequest> requests) {
-        if (requests == null || requests.isEmpty()) {
-            return List.of();
-        }
+    /**
+     * Calcula a duração total das pausas (gaps) entre os segmentos de trabalho no mesmo dia.
+     * Presume que a lista de TimeRecords está ordenada por startWork.
+     */
+    private Duration calculateTotalBreakDuration(List<TimeRecord> segments, ZoneId zoneId) {
+        Duration totalBreak = Duration.ZERO;
 
-        return requests.stream().map(req -> {
-            // 1. Encontra a pausa original
-            BreakRecord originalBreak = currentBreaks.stream()
-                    .filter(b -> b.breakRecordId().equals(req.breakRecordId()))
-                    .findFirst()
-                    .orElseThrow(() -> new ResourceNotFoundException("Pausa não encontrada: " + req.breakRecordId()));
+        for (int i = 0; i < segments.size() - 1; i++) {
+            TimeRecord currentSegment = segments.get(i);
+            TimeRecord nextSegment = segments.get(i + 1);
 
-            // 2. Converte as horas para LocalDateTime (usando a data do registro original como base)
-            LocalDate breakDate = originalBreak.startBreak().toLocalDate();
-
-            var newStart = LocalDateTime.of(breakDate, LocalTime.parse(req.startHour(), TIME_FORMATTER));
-            var newEnd = LocalDateTime.of(breakDate, LocalTime.parse(req.endHour(), TIME_FORMATTER));
-
-            // 3. Validação básica de horas
-            if (newStart.isAfter(newEnd)) {
-                throw new BadRequestException("Hora de início da pausa deve ser anterior à hora de fim da pausa.");
+            // 1. O segmento atual deve ter um Checkout (endWork)
+            if (currentSegment.endWork() == null) {
+                continue;
             }
 
-            // 4. Cria o objeto de aprovação aninhado
-            return new BreakRecordApprovalRequest(
-                    timeRecordId,
-                    req.breakRecordId(),
-                    newStart,
-                    newEnd
-            );
-        }).toList();
+            // 2. Ambos devem ser no mesmo dia (data de início)
+            LocalDate currentDay = currentSegment.startWork().atZone(zoneId).toLocalDate();
+            LocalDate nextDay = nextSegment.startWork().atZone(zoneId).toLocalDate();
+
+            if (currentDay.equals(nextDay)) {
+                // 3. O próximo segmento deve ter um Checkin (startWork)
+                // O gap entre o Check-out do anterior e o Check-in do próximo
+                Duration breakDuration = Duration.between(currentSegment.endWork(), nextSegment.startWork());
+                totalBreak = totalBreak.plus(breakDuration);
+            }
+        }
+        return totalBreak;
     }
 
+    private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
+        // Encontra todos os registros (segmentos)
+        List<TimeRecord> immutableRecords = active == null ? recordRepository.findByEmployeeId(employeeId) : recordRepository.findByEmployeeIdAndActive(employeeId, active);
+
+        // CORREÇÃO: Cria uma lista mutável a partir da imutável para permitir a ordenação.
+        List<TimeRecord> records = new ArrayList<>(immutableRecords);
+
+        // Ordena os registros por data/hora de início
+        records.sort(Comparator.comparing(TimeRecord::startWork, Comparator.nullsLast(Comparator.naturalOrder())));
+        return records;
+    }
     private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
         // Implementação da fórmula de Haversine ou outra mais precisa.
-        // Exemplo:
         final int R = 6371; // Raio da Terra em km
         double latDistance = Math.toRadians(lat2 - lat1);
         double lonDistance = Math.toRadians(lon2 - lon1);
