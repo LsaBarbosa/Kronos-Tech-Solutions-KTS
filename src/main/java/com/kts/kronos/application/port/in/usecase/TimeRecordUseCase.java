@@ -7,7 +7,6 @@ import java.util.UUID;
 
 public interface TimeRecordUseCase {
     ActionResponse registerTime(GeolocationRequest request);
-    ActionResponse registerBreak(GeolocationRequest request);
     void updateStatus(UUID employeeId, Long recordId, UpdateTimeRecordStatusRequest request);
     void deleteTimeRecord(UUID employeeId, Long recordId);
     void toggleActivate(UUID employeeId, Long timeRecordId);
