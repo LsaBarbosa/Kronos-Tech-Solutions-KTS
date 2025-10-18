@@ -25,9 +25,6 @@ public class Messages {
     public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
     public static final String JWT_EMPLOYEE_ID_NOT_FOUND = "JWT sem employeeId.";
     public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no header Authorization.";
-    public static final String PARTNER_NOT_FOUND = "Funcionário (parceiro) não encontrado: ";
-    public static final String USER_MANAGER_NOT_FOUND = "Usuário (manager) não encontrado: ";
-    public static final String MANAGER_NOT_FOUND = "Funcionário (manager) não encontrado: ";
     public static final String MESSAGE_NOT_FOUND = "Mensagem não encontrada";
     public static final String ONLY_MANAGER_CAN_DELETE_MESSAGE = "Apenas o Manager que enviou a mensagem pode deletá-la";
 
@@ -88,6 +85,7 @@ public class Messages {
     public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("");
     public static final String DATE_TIME = "dd/MM/yyyy 'às' HH:mm";
 
     // Time exceptions

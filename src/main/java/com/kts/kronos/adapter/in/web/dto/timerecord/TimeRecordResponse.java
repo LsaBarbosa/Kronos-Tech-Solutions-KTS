@@ -54,9 +54,11 @@ public record TimeRecordResponse(
                     worked.toMinutesPart()
             );
 
+            // Inclui o novo status de pausa para garantir que o saldo seja sempre +00:00
             if (timeRecord.statusRecord() == StatusRecord.DAY_OFF
                     || timeRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT
-                    || timeRecord.statusRecord() == StatusRecord.ABSENCE) {
+                    || timeRecord.statusRecord() == StatusRecord.ABSENCE
+                    || timeRecord.statusRecord() == StatusRecord.IMPLICIT_BREAK) { // <--- NOVO
                 balanceString = "+00:00";
             } else {
                 Duration balance = worked.minus(reference);
