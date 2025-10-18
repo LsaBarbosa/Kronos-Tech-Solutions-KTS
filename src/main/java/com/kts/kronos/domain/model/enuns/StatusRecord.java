@@ -11,7 +11,8 @@ public enum StatusRecord {
     DAY_OFF,
     ABSENCE,
     PENDING_APPROVAL,
-    DOCTOR_APPOINTMENT;
+    DOCTOR_APPOINTMENT,
+    IMPLICIT_BREAK;
 
 
     public StatusRecord onCheckout() {
