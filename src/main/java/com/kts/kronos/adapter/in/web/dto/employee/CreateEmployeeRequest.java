@@ -7,16 +7,7 @@ import org.hibernate.validator.constraints.br.CPF;
 
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.MUST_HAVE_11_CHARACTERES;
-import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NAME_NOT_BLANK;
-import static com.kts.kronos.constants.Messages.MUST_HAVE_200_CHARACTERES;
-import static com.kts.kronos.constants.Messages.SALARY_MUST_BE_POSITIVE;
-import static com.kts.kronos.constants.Messages.EMAIL_NOT_BLANK;
-import static com.kts.kronos.constants.Messages.CPF_NOT_BLANK;
-import static com.kts.kronos.constants.Messages.MUST_HAVE_14_CHARACTERES;
-import static com.kts.kronos.constants.Messages.CNPJ_NOT_BLANK;
-import static com.kts.kronos.constants.Messages.JOB_POSITION_NOT_BLANK;
+import static com.kts.kronos.constants.Messages.*;
 
 
 public record  CreateEmployeeRequest(
@@ -43,6 +34,7 @@ public record  CreateEmployeeRequest(
 
         String phone,
         @Valid AddressRequest
-        address, UUID companyId
+        address, UUID companyId,
+        boolean homeOffice
         ) {
 }

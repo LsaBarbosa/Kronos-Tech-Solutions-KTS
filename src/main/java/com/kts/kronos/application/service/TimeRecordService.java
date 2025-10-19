@@ -40,8 +40,8 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        checkGeolocation(employeeId, request.latitude(), request.longitude());
         var employee = getEmployee(employeeId);
+        isHomeOffice(request, employee, employeeId);
 
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
@@ -114,6 +114,16 @@ public class TimeRecordService implements TimeRecordUseCase {
                     "Entrada registrada " + currentDateParsed +" às "+ currentTimeParsed+"! Seja bem-vindo(a).",
                     "CHECKIN"
             );
+        }
+    }
+
+    private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
+        if (!employee.homeOffice()) {
+            // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
+            checkGeolocation(employeeId, request.latitude(), request.longitude());
+        } else {
+            // Log para indicar que a validação foi pulada
+            log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
         }
     }
 

@@ -75,7 +75,8 @@ public class EmployeeService implements EmployeeUseCase {
                 req.phone(),
                 address,
                 companyId,
-                null
+                null,
+                req.homeOffice()
         );
         return employeeProvider.save(employee);
     }
@@ -122,7 +123,8 @@ public class EmployeeService implements EmployeeUseCase {
                 employee.active(),
                 employee.address(),
                 employee.companyId(),
-                null
+                null,
+                req.homeOffice() != null ? req.homeOffice() : employee.homeOffice()
         );
 
         if (req.address() != null) {

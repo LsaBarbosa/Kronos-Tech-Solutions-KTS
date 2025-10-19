@@ -48,6 +48,10 @@ public class EmployeeEntity {
     @Column(name = "last_seen_message_timestamp") // Novo campo
     private LocalDateTime lastSeenMessageTimestamp;
 
+    @Builder.Default
+    @Column(name = "is_home_office", nullable = false)
+    private boolean homeOffice = false;
+
     @Embedded
     private AddressEmbeddable address;
 
@@ -58,7 +62,7 @@ public class EmployeeEntity {
     public Employee toDomain(){
         return new Employee(
                 employeeId, fullName, cpf, jobPosition, email,
-                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp
+                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice
         );
     }
 
@@ -74,6 +78,7 @@ public class EmployeeEntity {
                 .address(AddressEmbeddable.fromDomain(employee.address()))
                 .companyId(employee.companyId())
                 .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())
+                .homeOffice(employee.homeOffice())
                 .build();
     }
 
