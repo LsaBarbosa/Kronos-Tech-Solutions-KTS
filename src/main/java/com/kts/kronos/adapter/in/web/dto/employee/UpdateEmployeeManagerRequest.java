@@ -22,10 +22,11 @@ public record UpdateEmployeeManagerRequest(
         @Size(max = 50)
         String email,
 
-        @Positive(message =SALARY_MUST_BE_POSITIVE )
+        @Positive(message = SALARY_MUST_BE_POSITIVE)
         Double salary,
 
         String phone,
+        Boolean homeOffice,
         @Valid UpdateAddressRequest address
 ) {
 }
