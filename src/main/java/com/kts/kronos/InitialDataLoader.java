@@ -1,15 +1,14 @@
 package com.kts.kronos;
 
 import com.kts.kronos.adapter.in.web.dto.company.Location;
-import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -26,7 +25,6 @@ public class InitialDataLoader implements CommandLineRunner {
     private final CompanyProvider companyProvider;
     private final EmployeeProvider employeeProvider;
     private final UserProvider userProvider;
-    private final AddressLookupProvider addressLookupProvider;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -64,7 +62,8 @@ public class InitialDataLoader implements CommandLineRunner {
                     "21964032474",
                     companyAddress,
                     company.companyId(),
-                    null
+                    null,
+                    false
             );
             employeeProvider.save(ctoEmployee);
             var ctoUser = new User(

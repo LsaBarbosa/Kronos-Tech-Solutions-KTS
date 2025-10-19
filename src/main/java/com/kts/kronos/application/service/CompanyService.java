@@ -48,15 +48,16 @@ public class CompanyService implements CompanyUseCase {
         );
         companyProvider.save(company);
     }
-        @Override
+
+    @Override
     public Company getCompany(String cnpj) {
-            var company = companyProvider.findByCnpj(cnpj)
-                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+        var company = companyProvider.findByCnpj(cnpj)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
 
-            long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
-            long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
+        long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
+        long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
 
-            return company.withEmployeeCounts(activeEmployees, inactiveEmployees);
+        return company.withEmployeeCounts(activeEmployees, inactiveEmployees);
     }
 
     @Override
@@ -77,8 +78,8 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public String getCompanyNameById(UUID companyId) {
-         var company = companyProvider.findById(companyId)
-                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        var company = companyProvider.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         return company.name();
     }
 
@@ -88,9 +89,16 @@ public class CompanyService implements CompanyUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         var updateAddress = company.address();
+        var updateLocation = company.location();
+
         if (request.address() != null) {
+            if (request.location() == null || request.location().latitude() == null || request.location().longitude() == null) {
+                throw new BadRequestException("Location (latitude e longitude) é obrigatório se o endereço for alterado.");
+            }
             var lookup = viaCep.lookup(request.address().postalCode());
             updateAddress = lookup.withNumber(request.address().number());
+
+            updateLocation = request.location();
         }
 
         var updatedCompany = new Company(
@@ -100,7 +108,7 @@ public class CompanyService implements CompanyUseCase {
                 request.email() != null ? request.email() : company.email(),
                 request.active() != null ? request.active() : company.active(),
                 updateAddress,
-                request.location() != null ? request.location() : company.location(),
+                updateLocation,
                 company.activeEmployees(),
                 company.inactiveEmployees()
         );
@@ -129,6 +137,7 @@ public class CompanyService implements CompanyUseCase {
         getCompany(cnpj);
         companyProvider.deleteByCnpj(cnpj);
     }
+
     public boolean cnpjExists(String cnpj) {
         return companyProvider.findByCnpj(cnpj).isPresent();
     }
