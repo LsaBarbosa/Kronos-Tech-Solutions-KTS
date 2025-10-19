@@ -65,7 +65,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Checkout registrado para o segmento de trabalho {}.", open.timeRecordId());
 
             return new ActionResponse(
-                    "Saída registrada " + currentDateParsed +" às "+ currentTimeParsed,
+                    "Saída às "+ currentTimeParsed+"!",
                     "CHECKOUT"
             );
         } else {
@@ -100,7 +100,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     recordRepository.save(record);
                     log.info("Novo Checkin (após pausa) registrado para o funcionário {}.", employee.employeeId());
                     return new ActionResponse(
-                            "Nova entrada de trabalho iniciado após pausa. " + currentDateParsed +" às "+ currentTimeParsed+".",
+                            "Entrada após pausa às "+ currentTimeParsed+"!",
                             "CHECKIN_AFTER_BREAK"
                     );
                 }
@@ -111,7 +111,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             recordRepository.save(record);
             log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
             return new ActionResponse(
-                    "Entrada registrada " + currentDateParsed +" às "+ currentTimeParsed+"! Seja bem-vindo(a).",
+                    "Entrada às "+ currentTimeParsed+"!",
                     "CHECKIN"
             );
         }
