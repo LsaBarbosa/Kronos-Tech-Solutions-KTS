@@ -17,9 +17,10 @@ public record EmployeeResponse(
         AddressResponse address,
         String companyName,
         LocalDateTime lastSeenMessageTimestamp,
-        boolean homeOffice
+        boolean homeOffice,
+        String role
 ) {
-    public static EmployeeResponse fromDomain(Employee employee, String companyName) {
+    public static EmployeeResponse fromDomain(Employee employee, String companyName, String role) {
         return new EmployeeResponse(
                 employee.employeeId(),
                 employee.fullName(),
@@ -31,7 +32,8 @@ public record EmployeeResponse(
                 AddressResponse.fromDomain(employee.address()),
                 companyName,
                 employee.lastSeenMessageTimestamp(),
-                employee.homeOffice()
+                employee.homeOffice(),
+                role
         );
     }
 
