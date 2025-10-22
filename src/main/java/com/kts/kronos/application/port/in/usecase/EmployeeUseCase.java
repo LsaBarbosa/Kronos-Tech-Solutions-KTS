@@ -1,8 +1,6 @@
 package com.kts.kronos.application.port.in.usecase;
 
-import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.domain.model.Employee;
 
 import java.util.List;
@@ -25,7 +23,7 @@ public interface EmployeeUseCase {
     // PARTNER
     boolean cpfExists(String cpf);
 
-    Employee getOwnProfile();
+    EmployeeProfile getOwnProfile();
 
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
 
