@@ -1,8 +1,6 @@
 package com.kts.kronos.application.service;
 
-import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
-import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
@@ -10,6 +8,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +29,7 @@ public class EmployeeService implements EmployeeUseCase {
     private final EmployeeProvider employeeProvider;
     private final AddressLookupProvider viaCep;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final UserProvider userProvider;
 
 
     // MANAGER
@@ -144,14 +144,22 @@ public class EmployeeService implements EmployeeUseCase {
     // PARTNER
 
     @Override
-    public Employee getOwnProfile() {
+    public EmployeeProfile getOwnProfile() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-        return getEmployee(employeeId);
+        var employee = getEmployee(employeeId);
+
+        // BUSCA O USER PELO employeeId
+        var user = userProvider.findByEmployeeId(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para este colaborador."));
+
+        // RETORNA O EMPLOYEE E A ROLE
+        return new EmployeeProfile(employee, user.role().name());
     }
 
     @Override
     public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
-        var employee = getOwnProfile();
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+         var employee = getEmployee(employeeId);
         var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());

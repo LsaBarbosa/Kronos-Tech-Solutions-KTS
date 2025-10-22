@@ -34,7 +34,7 @@ public class EmployeeController {
                 .path("/{id}")
                 .buildAndExpand(create.employeeId())
                 .toUri();
-        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create, companyName));
+        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create, companyName,null));
     }
 
     @GetMapping
@@ -47,7 +47,7 @@ public class EmployeeController {
         var employeeResponses = employees.stream().map(employee -> {
              String companyName = companyUseCase.getCompanyNameById(employee.companyId());
 
-             return EmployeeResponse.fromDomain(employee, companyName);
+             return EmployeeResponse.fromDomain(employee, companyName,null);
         }).toList();
         return ResponseEntity.ok(new EmployeeListResponse(employeeResponses));
     }
@@ -57,7 +57,7 @@ public class EmployeeController {
     public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         var companyName = companyUseCase.getCompanyNameById(employee.companyId());
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee, companyName));
+        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee, companyName,null));
     }
 
     @PreAuthorize(MANAGER)
@@ -71,9 +71,11 @@ public class EmployeeController {
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeResponse> getOwnProfile() {
-        var employee = useCase.getOwnProfile();
+        var profile = useCase.getOwnProfile(); // Chama o service e obtém (Employee + Role)
+        var employee = profile.employee();
+        var role = profile.role(); // Extrai a role
         var companyName = companyUseCase.getCompanyNameById(employee.companyId());
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee,companyName));
+        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee,companyName, role));
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
