@@ -11,8 +11,8 @@ public record SimpleReportDay(
         @JsonFormat(shape = JsonFormat.Shape.STRING, pattern =DATE_PATTERN)
         LocalDate startDate,
         LocalDate endDate,
+        String startHour,
+        String endHour,
         String totalHours,
         String totalBreakHours,
-        String balance,
-        StatusRecord statusRecord
-) {}
+        String balance) {}
