@@ -1,9 +1,12 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordApprovalEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -12,4 +15,11 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
     @Transactional
     @Query("DELETE FROM TimeRecordApprovalEntity t WHERE t.createdAt <= :threshold")
     void deleteByCreatedAtBefore(LocalDateTime threshold);
+
+    @Query(value = """
+        SELECT t FROM TimeRecordApprovalEntity t
+        JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
+        WHERE (:employeeName IS NULL OR e.fullName ILIKE %:employeeName%)
+    """)
+    Page<TimeRecordApprovalEntity> findAllPageable(Pageable pageable, @Param("employeeName") String employeeName);
 }
