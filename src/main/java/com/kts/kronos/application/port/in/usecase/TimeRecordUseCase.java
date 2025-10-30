@@ -13,7 +13,7 @@ public interface TimeRecordUseCase {
     SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req);
     void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req);
     List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req);
-    List<TimeRecordApprovalResponse> listPendingApprovals();
+    TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName);
     void approveTimeRecordChange(Long timeRecordId);
     void rejectTimeRecordChange(Long timeRecordId);
 }

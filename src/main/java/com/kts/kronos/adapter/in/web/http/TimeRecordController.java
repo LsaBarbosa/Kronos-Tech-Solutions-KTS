@@ -81,8 +81,13 @@ public class TimeRecordController {
 
     @PreAuthorize(MANAGER)
     @GetMapping(PENDING_APPROVALS)
-    public ResponseEntity<List<TimeRecordApprovalResponse>> listPendingApprovals() {
-        var approvals = useCase.listPendingApprovals();
+    public ResponseEntity<TimeRecordApprovalPageResponse> listPendingApprovals(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "employeeName", required = false) String employeeName // Novo filtro
+    ) {
+        final int SIZE = 5;
+        // O valor de 'employeeName' será passado para o UseCase
+        var approvals = useCase.listPendingApprovals(page, SIZE, employeeName);
         return ResponseEntity.ok(approvals);
     }
 }
