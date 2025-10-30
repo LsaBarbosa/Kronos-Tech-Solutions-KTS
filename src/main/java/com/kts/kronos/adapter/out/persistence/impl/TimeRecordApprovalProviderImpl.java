@@ -6,15 +6,14 @@ import com.kts.kronos.adapter.out.persistence.entity.TimeRecordApprovalEntity;
 import com.kts.kronos.application.port.out.provider.TimeRecordApprovalProvider;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-
 @Component
 @RequiredArgsConstructor
-public class TimeRecordApprovalProviderImpl  implements TimeRecordApprovalProvider {
+public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvider {
 
     private final TimeRecordApprovalRepository repository;
 
@@ -30,10 +29,10 @@ public class TimeRecordApprovalProviderImpl  implements TimeRecordApprovalProvid
     }
 
     @Override
-    public List<TimeRecordApprovalRequest> findAll() {
-        return repository.findAll().stream()
-                .map(TimeRecordApprovalEntity::toDomain)
-                .collect(Collectors.toList());
+    public Page<TimeRecordApprovalRequest> findAll(Pageable pageable, String employeeName) {
+        // Delega para o novo método no Repository
+        return repository.findAllPageable(pageable, employeeName)
+                .map(TimeRecordApprovalEntity::toDomain);
     }
 
     @Override

@@ -22,7 +22,9 @@ import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
-
+import org.springframework.data.domain.Page;         // Novo import
+import org.springframework.data.domain.PageRequest;  // Novo import
+import org.springframework.data.domain.Pageable;     // Novo import
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -388,16 +390,14 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public List<TimeRecordApprovalResponse> listPendingApprovals() {
-        List<TimeRecordApprovalRequest> approvals = approvalProvider.findAll();
+    public  TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAll(pageable, employeeName);
 
-        if (approvals.isEmpty()) {
-            return Collections.emptyList();
-        }
-
+        // Mapeamento e lógica de preenchimento dos detalhes da aprovação
         List<TimeRecordApprovalResponse> responses = new ArrayList<>();
 
-        for (TimeRecordApprovalRequest approvalData : approvals) {
+        for (TimeRecordApprovalRequest approvalData : approvalsPage.getContent()) {
             var timeRecord = recordRepository.findById(approvalData.timeRecordId()).orElse(null);
 
             var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
@@ -405,10 +405,27 @@ public class TimeRecordService implements TimeRecordUseCase {
 
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
-                responses.add(new TimeRecordApprovalResponse(approvalData.timeRecordId(), partnerEmployee.fullName(), managerUser.username(), approvalData.newStartWork(), approvalData.newEndWork(), timeRecord.startWork(), timeRecord.endWork()));
+                responses.add(new TimeRecordApprovalResponse(
+                        approvalData.timeRecordId(),
+                        partnerEmployee.fullName(),
+                        managerUser.username(),
+                        approvalData.newStartWork(),
+                        approvalData.newEndWork(),
+                        timeRecord.startWork(),
+                        timeRecord.endWork()
+                ));
             }
         }
-        return responses;
+
+        // Retorna o DTO de paginação
+        return new TimeRecordApprovalPageResponse(
+                responses,
+                approvalsPage.getTotalPages(),
+                approvalsPage.getTotalElements(),
+                approvalsPage.getNumber(),
+                approvalsPage.isFirst(),
+                approvalsPage.isLast()
+        );
     }
 
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
