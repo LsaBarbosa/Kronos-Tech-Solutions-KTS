@@ -1,30 +1,81 @@
 package com.kts.kronos.application.service;
 
-import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;         // Novo import
+
+import com.kts.kronos.adapter.in.web.dto.timerecord.ActionResponse;  // Novo import
+import com.kts.kronos.adapter.in.web.dto.timerecord.EmployeeData;     // Novo import
+import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportDay;
+import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalPageResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.VacationApprovalRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordApprovalProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
+import static com.kts.kronos.constants.Messages.ABSENCE;
+import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.CREATED;
+import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
+import static com.kts.kronos.constants.Messages.DATE_TIME_FORMATTER;
+import static com.kts.kronos.constants.Messages.DAY_OFF;
+import static com.kts.kronos.constants.Messages.DOCTOR_APPOINTMENT;
+import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
+import static com.kts.kronos.constants.Messages.PENDING;
+import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
+import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
+import static com.kts.kronos.constants.Messages.STATUS_CHECKOUT;
+import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
+import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
+import static com.kts.kronos.constants.Messages.UPDATED;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
+import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
+
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-
-import java.time.*;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.kts.kronos.constants.Messages.*;
-import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
-import org.springframework.data.domain.Page;         // Novo import
-import org.springframework.data.domain.PageRequest;  // Novo import
-import org.springframework.data.domain.Pageable;     // Novo import
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -428,6 +479,107 @@ public class TimeRecordService implements TimeRecordUseCase {
         );
     }
 
+    @Override
+    public List<Long> requestVacation(RequestVacationRequest request) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+        var managerUser = userProvider.findById(request.managerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+
+        if (managerUser.role() != Role.MANAGER) {
+            throw new BadRequestException("O usuário informado não é um manager.");
+        }
+
+        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
+            throw new BadRequestException("O manager não pertence à mesma empresa.");
+        }
+
+        LocalDate start = request.startDate();
+        LocalDate end = request.endDate();
+        List<Long> createdRecordIds = new ArrayList<>();
+
+        // Validação básica: data de início não pode ser após a data de fim
+        if (start.isAfter(end)) {
+            throw new BadRequestException("A data de início das férias não pode ser posterior à data de fim.");
+        }
+
+         
+        long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
+        for (int i = 0; i < daysBetween; i++) {
+            LocalDate currentDay = start.plusDays(i);
+            LocalDateTime midnight = currentDay.atStartOfDay();
+
+            // 2. Cria um registro para cada dia com status REQUEST_VACATION e 00:00 como hora
+            var vacationRequestRecord = new TimeRecord(
+                    null,
+                    midnight,
+                    midnight, // Saída também às 00:00 para garantir horas trabalhadas = 0
+                    StatusRecord.REQUEST_VACATION,
+                    false,
+                    true,
+                    employeeId
+            );
+
+            // Validação: evita duplicidade no dia
+            if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
+                throw new BadRequestException("Já existe um registro de ponto ou solicitação para o dia: " + currentDay.format(DATE_FORMATTER));
+            }
+
+            recordRepository.save(vacationRequestRecord);
+            createdRecordIds.add(vacationRequestRecord.timeRecordId());
+            log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
+        }
+
+        return createdRecordIds; // Retorna os IDs criados para referência
+    }
+
+    @Override
+    public void approveVacation(VacationApprovalRequest request) {
+        // Validação da Role: Apenas MANAGER ou CTO podem aprovar
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+            throw new ForbiddenException("Apenas Managers ou CTO podem aprovar solicitações de férias.");
+        }
+
+        // Aprova (muda o status) todos os registros na lista
+        for (Long recordId : request.timeRecordIds()) {
+            var record = recordRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+
+            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
+                var approvedRecord = record.withStatus(StatusRecord.VACATION); // 4. Manager aprova -> VACATION
+                recordRepository.save(approvedRecord);
+                log.info("Solicitação de férias (ID: {}) APROVADA. Status mudou para VACATION.", recordId);
+            } else {
+                // Ignore ou lance exceção se tentar aprovar algo que não está em REQUEST_VACATION
+                log.warn("Tentativa de aprovar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
+            }
+        }
+    }
+
+    @Override
+    public void rejectVacation(VacationApprovalRequest request) {
+        // Validação da Role: Apenas MANAGER ou CTO podem rejeitar
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+            throw new ForbiddenException("Apenas Managers ou CTO podem rejeitar solicitações de férias.");
+        }
+
+        // Rejeita (muda o status) todos os registros na lista
+        for (Long recordId : request.timeRecordIds()) {
+            var record = recordRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+
+            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
+                var rejectedRecord = record.withStatus(StatusRecord.VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
+                recordRepository.save(rejectedRecord);
+                log.info("Solicitação de férias (ID: {}) REJEITADA. Status mudou para VACATION_REJECTED.", recordId);
+            } else {
+                log.warn("Tentativa de rejeitar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
+            }
+        }
+    }
+
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
@@ -437,6 +589,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         return record;
     }
 
+    
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
             throw new BadRequestException(RECORD_NOT_BELONGS_EMPLOYEE);
@@ -634,4 +787,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c * 1000; // Retorna a distância em metros
     }
+
+    
 }
