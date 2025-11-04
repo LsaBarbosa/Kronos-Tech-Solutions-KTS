@@ -90,4 +90,26 @@ public class TimeRecordController {
         var approvals = useCase.listPendingApprovals(page, SIZE, employeeName);
         return ResponseEntity.ok(approvals);
     }
+
+    @PreAuthorize(ANY_EMPLOYEE) // PARTNER/MANAGER/CTO podem solicitar
+    @PostMapping(VACATION_REQUEST)
+    public ResponseEntity<List<Long>> requestVacation(@Valid @RequestBody RequestVacationRequest request) {
+        var createdIds = useCase.requestVacation(request);
+        // Retorna 201 Created com a lista de IDs dos TimeRecords criados
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdIds);
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(VACATION_APPROVE)
+    public ResponseEntity<Void> approveVacation(@Valid @RequestBody VacationApprovalRequest request) {
+        useCase.approveVacation(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(VACATION_REJECT)
+    public ResponseEntity<Void> rejectVacation(@Valid @RequestBody VacationApprovalRequest request) {
+        useCase.rejectVacation(request);
+        return ResponseEntity.noContent().build();
+    }
 }
