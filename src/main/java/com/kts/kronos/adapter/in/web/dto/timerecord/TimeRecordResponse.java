@@ -1,14 +1,15 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.kts.kronos.domain.model.TimeRecord;
-import com.kts.kronos.domain.model.enuns.StatusRecord;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import static com.kts.kronos.constants.Messages.DATE_PATTERN;
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
+import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
+import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 public record TimeRecordResponse(
         Long timeRecordId,
@@ -54,13 +55,23 @@ public record TimeRecordResponse(
                     worked.toMinutesPart()
             );
 
-            // Inclui o novo status de pausa para garantir que o saldo seja sempre +00:00
-            if (timeRecord.statusRecord() == StatusRecord.DAY_OFF
+            // INÍCIO DA NOVA LÓGICA DE SALDO
+            if (timeRecord.statusRecord() == StatusRecord.ABSENCE) {
+                // Se for FALTA, o saldo é o valor da referência de forma negativa.
+                balanceString = String.format("-%02d:%02d",
+                        reference.toHours(),
+                        reference.toMinutesPart()
+                );
+            } else if (timeRecord.statusRecord() == StatusRecord.DAY_OFF
                     || timeRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT
-                    || timeRecord.statusRecord() == StatusRecord.ABSENCE
-                    || timeRecord.statusRecord() == StatusRecord.IMPLICIT_BREAK) { // <--- NOVO
+                    || timeRecord.statusRecord() == StatusRecord.IMPLICIT_BREAK
+                    || timeRecord.statusRecord() == StatusRecord.REQUEST_VACATION // NOVO: Saldo zero durante a solicitação
+                    || timeRecord.statusRecord() == StatusRecord.VACATION        // NOVO: Saldo zero em férias aprovadas
+                    || timeRecord.statusRecord() == StatusRecord.VACATION_REJECTED) { // NOVO: Saldo zero em férias rejeitadas
+                // Para Abonos (DAY_OFF, DOCTOR_APPOINTMENT, VACATION*) e Pausas, o saldo é zerado.
                 balanceString = "+00:00";
             } else {
+                // Cálculo de saldo normal
                 Duration balance = worked.minus(reference);
                 String sign = balance.isNegative() ? "-" : "+";
                 balanceString = sign + String.format("%02d:%02d",
@@ -68,6 +79,7 @@ public record TimeRecordResponse(
                         Math.abs(balance.toMinutesPart())
                 );
             }
+            // FIM DA NOVA LÓGICA DE SALDO
         }
 
         return new TimeRecordResponse(

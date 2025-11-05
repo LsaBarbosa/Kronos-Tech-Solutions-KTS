@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
@@ -17,11 +18,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
+
+import org.springframework.data.domain.Page;         // Novo import
+import org.springframework.data.domain.PageRequest;  // Novo import
+import org.springframework.data.domain.Pageable;     // Novo import
 
 @Slf4j
 @Service
@@ -388,16 +394,14 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public List<TimeRecordApprovalResponse> listPendingApprovals() {
-        List<TimeRecordApprovalRequest> approvals = approvalProvider.findAll();
+    public TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAll(pageable, employeeName);
 
-        if (approvals.isEmpty()) {
-            return Collections.emptyList();
-        }
-
+        // Mapeamento e lógica de preenchimento dos detalhes da aprovação
         List<TimeRecordApprovalResponse> responses = new ArrayList<>();
 
-        for (TimeRecordApprovalRequest approvalData : approvals) {
+        for (TimeRecordApprovalRequest approvalData : approvalsPage.getContent()) {
             var timeRecord = recordRepository.findById(approvalData.timeRecordId()).orElse(null);
 
             var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
@@ -405,10 +409,225 @@ public class TimeRecordService implements TimeRecordUseCase {
 
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
-                responses.add(new TimeRecordApprovalResponse(approvalData.timeRecordId(), partnerEmployee.fullName(), managerUser.username(), approvalData.newStartWork(), approvalData.newEndWork(), timeRecord.startWork(), timeRecord.endWork()));
+                responses.add(new TimeRecordApprovalResponse(
+                        approvalData.timeRecordId(),
+                        partnerEmployee.fullName(),
+                        managerUser.username(),
+                        approvalData.newStartWork(),
+                        approvalData.newEndWork(),
+                        timeRecord.startWork(),
+                        timeRecord.endWork()
+                ));
             }
         }
-        return responses;
+
+        // Retorna o DTO de paginação
+        return new TimeRecordApprovalPageResponse(
+                responses,
+                approvalsPage.getTotalPages(),
+                approvalsPage.getTotalElements(),
+                approvalsPage.getNumber(),
+                approvalsPage.isFirst(),
+                approvalsPage.isLast()
+        );
+    }
+
+    @Override
+    public List<Long> requestVacation(RequestVacationRequest request) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+        var managerUser = userProvider.findById(request.managerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+
+        if (managerUser.role() != Role.MANAGER) {
+            throw new BadRequestException("O usuário informado não é um manager.");
+        }
+
+        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
+            throw new BadRequestException("O manager não pertence à mesma empresa.");
+        }
+
+        LocalDate start = request.startDate();
+        LocalDate end = request.endDate();
+        List<Long> createdRecordIds = new ArrayList<>();
+
+        // Validação básica: data de início não pode ser após a data de fim
+        if (start.isAfter(end)) {
+            throw new BadRequestException("A data de início das férias não pode ser posterior à data de fim.");
+        }
+
+
+        long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
+        for (int i = 0; i < daysBetween; i++) {
+            LocalDate currentDay = start.plusDays(i);
+            LocalDateTime midnight = currentDay.atStartOfDay();
+
+            // 2. Cria um registro para cada dia com status REQUEST_VACATION e 00:00 como hora
+            var vacationRequestRecord = new TimeRecord(
+                    null,
+                    midnight,
+                    midnight, // Saída também às 00:00 para garantir horas trabalhadas = 0
+                    StatusRecord.REQUEST_VACATION,
+                    false,
+                    true,
+                    employeeId
+            );
+
+            // Validação: evita duplicidade no dia
+            if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
+                throw new BadRequestException("Já existe um registro de ponto ou solicitação para o dia: " + currentDay.format(DATE_FORMATTER));
+            }
+
+            recordRepository.save(vacationRequestRecord);
+            createdRecordIds.add(vacationRequestRecord.timeRecordId());
+            log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
+        }
+
+        return createdRecordIds; // Retorna os IDs criados para referência
+    }
+
+    @Override
+    public void approveVacation(VacationApprovalRequest request) {
+        // Validação da Role: Apenas MANAGER ou CTO podem aprovar
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+            throw new ForbiddenException("Apenas Managers ou CTO podem aprovar solicitações de férias.");
+        }
+
+        // Aprova (muda o status) todos os registros na lista
+        for (Long recordId : request.timeRecordIds()) {
+            var record = recordRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+
+            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
+                var approvedRecord = record.withStatus(StatusRecord.VACATION); // 4. Manager aprova -> VACATION
+                recordRepository.save(approvedRecord);
+                log.info("Solicitação de férias (ID: {}) APROVADA. Status mudou para VACATION.", recordId);
+            } else {
+                // Ignore ou lance exceção se tentar aprovar algo que não está em REQUEST_VACATION
+                log.warn("Tentativa de aprovar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
+            }
+        }
+    }
+
+    @Override
+    public void rejectVacation(VacationApprovalRequest request) {
+        // Validação da Role: Apenas MANAGER ou CTO podem rejeitar
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+            throw new ForbiddenException("Apenas Managers ou CTO podem rejeitar solicitações de férias.");
+        }
+
+        // Rejeita (muda o status) todos os registros na lista
+        for (Long recordId : request.timeRecordIds()) {
+            var record = recordRepository.findById(recordId)
+                    .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+
+            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
+                var rejectedRecord = record.withStatus(StatusRecord.VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
+                recordRepository.save(rejectedRecord);
+                log.info("Solicitação de férias (ID: {}) REJEITADA. Status mudou para VACATION_REJECTED.", recordId);
+            } else {
+                log.warn("Tentativa de rejeitar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
+            }
+        }
+    }
+
+    @Override
+    public List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var companyId = getEmployee(employeeId).companyId();
+
+        // 2. Definir os Status a serem buscados
+        Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
+            case "PENDING" -> Set.of(StatusRecord.REQUEST_VACATION);
+            case "APPROVED" -> Set.of(StatusRecord.VACATION);
+            case "REJECTED" -> Set.of(StatusRecord.VACATION_REJECTED);
+            default -> EnumSet.of(StatusRecord.REQUEST_VACATION, StatusRecord.VACATION, StatusRecord.VACATION_REJECTED);
+        };
+
+
+        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
+        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
+
+
+        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
+                ? allEmployeesInCompany.stream()
+                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet())
+                : employeeCache.keySet();
+
+
+        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.stream()
+                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
+                .filter(tr -> tr.startWork() != null)
+                .filter(tr -> targetStatuses.contains(tr.statusRecord()))
+                .toList();
+
+        // 6. Agrupar por funcionário e Status, depois consolidar períodos
+        List<VacationRequestResponse> consolidatedRequests = consolidateVacationPeriods(allRecordsInScope, employeeCache);
+
+        // 7. Ordenar e Paginar (implementação manual)
+        consolidatedRequests.sort(Comparator.comparing(VacationRequestResponse::startDate));
+        int start = Math.min(page * size, consolidatedRequests.size());
+        int end = Math.min(start + size, consolidatedRequests.size());
+
+        return consolidatedRequests.subList(start, end);
+    }
+
+    private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
+
+        // 1. Agrupar por EmployeeId e Status
+        Map<UUID, Map<StatusRecord, List<TimeRecord>>> grouped = records.stream()
+                .collect(Collectors.groupingBy(
+                        TimeRecord::employeeId,
+                        Collectors.groupingBy(TimeRecord::statusRecord)
+                ));
+
+        List<VacationRequestResponse> consolidated = new ArrayList<>();
+
+        for (var entryByEmployee : grouped.entrySet()) {
+            UUID empId = entryByEmployee.getKey();
+            Employee employee = employeeCache.get(empId);
+            if (employee == null) continue;
+
+            for (var entryByStatus : entryByEmployee.getValue().entrySet()) {
+                List<TimeRecord> dailyRecords = entryByStatus.getValue();
+
+                // Ordenar por data
+                dailyRecords.sort(Comparator.comparing(tr -> tr.startWork().toLocalDate()));
+
+                List<TimeRecord> currentPeriod = new ArrayList<>();
+                for (TimeRecord record : dailyRecords) {
+                    LocalDate currentDay = record.startWork().toLocalDate();
+
+                    if (currentPeriod.isEmpty()) {
+                        currentPeriod.add(record);
+                        continue;
+                    }
+
+                    LocalDate lastDayInPeriod = currentPeriod.get(currentPeriod.size() - 1).startWork().toLocalDate();
+
+                    // Verifica se o dia atual é o dia imediatamente consecutivo
+                    if (currentDay.isEqual(lastDayInPeriod.plusDays(1))) {
+                        currentPeriod.add(record);
+                    } else {
+                        // O período contínuo quebrou. Finaliza o período anterior.
+                        consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
+                        currentPeriod = new ArrayList<>();
+                        currentPeriod.add(record);
+                    }
+                }
+
+                // Adicionar o último período remanescente, se houver
+                if (!currentPeriod.isEmpty()) {
+                    consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
+                }
+            }
+        }
+        return consolidated;
     }
 
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
@@ -419,6 +638,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return record;
     }
+
 
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
@@ -617,4 +837,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c * 1000; // Retorna a distância em metros
     }
+
+
 }

@@ -81,8 +81,48 @@ public class TimeRecordController {
 
     @PreAuthorize(MANAGER)
     @GetMapping(PENDING_APPROVALS)
-    public ResponseEntity<List<TimeRecordApprovalResponse>> listPendingApprovals() {
-        var approvals = useCase.listPendingApprovals();
+    public ResponseEntity<TimeRecordApprovalPageResponse> listPendingApprovals(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "employeeName", required = false) String employeeName // Novo filtro
+    ) {
+        final int SIZE = 5;
+        // O valor de 'employeeName' será passado para o UseCase
+        var approvals = useCase.listPendingApprovals(page, SIZE, employeeName);
         return ResponseEntity.ok(approvals);
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE) // PARTNER/MANAGER/CTO podem solicitar
+    @PostMapping(VACATION_REQUEST)
+    public ResponseEntity<List<Long>> requestVacation(@Valid @RequestBody RequestVacationRequest request) {
+        var createdIds = useCase.requestVacation(request);
+        // Retorna 201 Created com a lista de IDs dos TimeRecords criados
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdIds);
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(VACATION_APPROVE)
+    public ResponseEntity<Void> approveVacation(@Valid @RequestBody VacationApprovalRequest request) {
+        useCase.approveVacation(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(VACATION_REJECT)
+    public ResponseEntity<Void> rejectVacation(@Valid @RequestBody VacationApprovalRequest request) {
+        useCase.rejectVacation(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(MANAGER)
+    @GetMapping(VACATION_REQUEST)
+    public ResponseEntity<List<VacationRequestResponse>> listVacationRequests(
+            @RequestParam(value = "status", defaultValue = "PENDING") String statusFilter,
+            @RequestParam(value = "employeeName", required = false) String employeeName,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size
+    ) {
+        // A role MANAGER é exigida para listar as solicitações
+        var requests = useCase.listVacationRequests(statusFilter, employeeName, page, size);
+        return ResponseEntity.ok(requests);
     }
 }
