@@ -112,4 +112,17 @@ public class TimeRecordController {
         useCase.rejectVacation(request);
         return ResponseEntity.noContent().build();
     }
+
+    @PreAuthorize(MANAGER)
+    @GetMapping(VACATION_REQUEST)
+    public ResponseEntity<List<VacationRequestResponse>> listVacationRequests(
+            @RequestParam(value = "status", defaultValue = "PENDING") String statusFilter,
+            @RequestParam(value = "employeeName", required = false) String employeeName,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "10") int size
+    ) {
+        // A role MANAGER é exigida para listar as solicitações
+        var requests = useCase.listVacationRequests(statusFilter, employeeName, page, size);
+        return ResponseEntity.ok(requests);
+    }
 }
