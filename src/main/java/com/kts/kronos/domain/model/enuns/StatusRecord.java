@@ -12,7 +12,10 @@ public enum StatusRecord {
     ABSENCE,
     PENDING_APPROVAL,
     DOCTOR_APPOINTMENT,
-    IMPLICIT_BREAK;
+    IMPLICIT_BREAK,
+    REQUEST_VACATION,  
+    VACATION,          
+    VACATION_REJECTED;
 
 
     public StatusRecord onCheckout() {

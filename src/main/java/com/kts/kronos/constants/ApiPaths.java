@@ -36,6 +36,9 @@ public class ApiPaths {
     public static final String REJECT_UPDATE = "/reject/{timeRecordId}";
     public static final String APPROVE_UPDATE = "/approve/{timeRecordId}";
     public static final String PENDING_APPROVALS = "/pending-approvals";
+    public static final String VACATION_REQUEST = "/vacation-request";
+    public static final String VACATION_APPROVE = "/vacation-request/approve";
+    public static final String VACATION_REJECT = "/vacation-request/reject";
 
     //User
     public static final String USER = "/users";
