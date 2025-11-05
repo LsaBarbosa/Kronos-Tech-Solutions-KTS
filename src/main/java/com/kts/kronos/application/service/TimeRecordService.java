@@ -1,81 +1,34 @@
 package com.kts.kronos.application.service;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.stream.Collectors;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;         // Novo import
-
-import com.kts.kronos.adapter.in.web.dto.timerecord.ActionResponse;  // Novo import
-import com.kts.kronos.adapter.in.web.dto.timerecord.EmployeeData;     // Novo import
-import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.RequestVacationRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportDay;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalPageResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.application.port.out.provider.CompanyProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.TimeRecordApprovalProvider;
-import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
-import static com.kts.kronos.constants.Messages.ABSENCE;
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.CREATED;
-import static com.kts.kronos.constants.Messages.DATE_FORMATTER;
-import static com.kts.kronos.constants.Messages.DATE_TIME_FORMATTER;
-import static com.kts.kronos.constants.Messages.DAY_OFF;
-import static com.kts.kronos.constants.Messages.DOCTOR_APPOINTMENT;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.HOURS_EXCEPTIONS;
-import static com.kts.kronos.constants.Messages.PENDING;
-import static com.kts.kronos.constants.Messages.RECORD_NOT_BELONGS_EMPLOYEE;
-import static com.kts.kronos.constants.Messages.RECORD_NOT_FOUND;
-import static com.kts.kronos.constants.Messages.SAO_PAULO;
-import static com.kts.kronos.constants.Messages.STATUS_CHECKOUT;
-import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
-import static com.kts.kronos.constants.Messages.TIME_ZONE_BRAZIL;
-import static com.kts.kronos.constants.Messages.UPDATED;
+import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
-import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
-
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
+
+import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
+
+import org.springframework.data.domain.Page;         // Novo import
+import org.springframework.data.domain.PageRequest;  // Novo import
+import org.springframework.data.domain.Pageable;     // Novo import
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -441,7 +394,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public  TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName) {
+    public TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName) {
         Pageable pageable = PageRequest.of(page, size);
         Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAll(pageable, employeeName);
 
@@ -503,7 +456,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("A data de início das férias não pode ser posterior à data de fim.");
         }
 
-         
+
         long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
         for (int i = 0; i < daysBetween; i++) {
             LocalDate currentDay = start.plusDays(i);
@@ -580,6 +533,103 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
+    @Override
+    public List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var companyId = getEmployee(employeeId).companyId();
+
+        // 2. Definir os Status a serem buscados
+        Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
+            case "PENDING" -> Set.of(StatusRecord.REQUEST_VACATION);
+            case "APPROVED" -> Set.of(StatusRecord.VACATION);
+            case "REJECTED" -> Set.of(StatusRecord.VACATION_REJECTED);
+            default -> EnumSet.of(StatusRecord.REQUEST_VACATION, StatusRecord.VACATION, StatusRecord.VACATION_REJECTED);
+        };
+
+
+        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
+        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
+
+
+        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
+                ? allEmployeesInCompany.stream()
+                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet())
+                : employeeCache.keySet();
+
+
+        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.stream()
+                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
+                .filter(tr -> tr.startWork() != null)
+                .filter(tr -> targetStatuses.contains(tr.statusRecord()))
+                .toList();
+
+        // 6. Agrupar por funcionário e Status, depois consolidar períodos
+        List<VacationRequestResponse> consolidatedRequests = consolidateVacationPeriods(allRecordsInScope, employeeCache);
+
+        // 7. Ordenar e Paginar (implementação manual)
+        consolidatedRequests.sort(Comparator.comparing(VacationRequestResponse::startDate));
+        int start = Math.min(page * size, consolidatedRequests.size());
+        int end = Math.min(start + size, consolidatedRequests.size());
+
+        return consolidatedRequests.subList(start, end);
+    }
+
+    private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
+
+        // 1. Agrupar por EmployeeId e Status
+        Map<UUID, Map<StatusRecord, List<TimeRecord>>> grouped = records.stream()
+                .collect(Collectors.groupingBy(
+                        TimeRecord::employeeId,
+                        Collectors.groupingBy(TimeRecord::statusRecord)
+                ));
+
+        List<VacationRequestResponse> consolidated = new ArrayList<>();
+
+        for (var entryByEmployee : grouped.entrySet()) {
+            UUID empId = entryByEmployee.getKey();
+            Employee employee = employeeCache.get(empId);
+            if (employee == null) continue;
+
+            for (var entryByStatus : entryByEmployee.getValue().entrySet()) {
+                List<TimeRecord> dailyRecords = entryByStatus.getValue();
+
+                // Ordenar por data
+                dailyRecords.sort(Comparator.comparing(tr -> tr.startWork().toLocalDate()));
+
+                List<TimeRecord> currentPeriod = new ArrayList<>();
+                for (TimeRecord record : dailyRecords) {
+                    LocalDate currentDay = record.startWork().toLocalDate();
+
+                    if (currentPeriod.isEmpty()) {
+                        currentPeriod.add(record);
+                        continue;
+                    }
+
+                    LocalDate lastDayInPeriod = currentPeriod.get(currentPeriod.size() - 1).startWork().toLocalDate();
+
+                    // Verifica se o dia atual é o dia imediatamente consecutivo
+                    if (currentDay.isEqual(lastDayInPeriod.plusDays(1))) {
+                        currentPeriod.add(record);
+                    } else {
+                        // O período contínuo quebrou. Finaliza o período anterior.
+                        consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
+                        currentPeriod = new ArrayList<>();
+                        currentPeriod.add(record);
+                    }
+                }
+
+                // Adicionar o último período remanescente, se houver
+                if (!currentPeriod.isEmpty()) {
+                    consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
+                }
+            }
+        }
+        return consolidated;
+    }
+
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
@@ -589,7 +639,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         return record;
     }
 
-    
+
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
             throw new BadRequestException(RECORD_NOT_BELONGS_EMPLOYEE);
@@ -788,5 +838,5 @@ public class TimeRecordService implements TimeRecordUseCase {
         return R * c * 1000; // Retorna a distância em metros
     }
 
-    
+
 }

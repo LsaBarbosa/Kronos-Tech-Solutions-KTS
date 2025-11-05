@@ -14,6 +14,7 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.VacationRequestResponse;
 
 public interface TimeRecordUseCase {
     ActionResponse registerTime(GeolocationRequest request);
@@ -29,5 +30,6 @@ public interface TimeRecordUseCase {
     List<Long> requestVacation(RequestVacationRequest request);
     void approveVacation(VacationApprovalRequest request);
     void rejectVacation(VacationApprovalRequest request);
+    List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size);
 }
 
