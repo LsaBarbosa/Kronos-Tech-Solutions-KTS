@@ -102,7 +102,7 @@ public class Messages {
     public static final StatusRecord DAY_OFF = StatusRecord.DAY_OFF;
     public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
     public static final StatusRecord PENDING = StatusRecord.PENDING;
-    public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.DOCTOR_APPOINTMENT;
+    public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.TIME_OFF;
 
     //RabbitMQ & REDIS
     public static final String TIME_RECORD_APPROVAL_TOPIC = "time-record-approval-topic";

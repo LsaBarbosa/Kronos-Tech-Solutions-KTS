@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -79,6 +80,12 @@ public class DocumentProviderImpl implements DocumentProvider {
     @Override
     public void deleteByEmployeeId(UUID employeeId) {
         documentRepository.deleteByEmployeeId(employeeId);
+    }
+
+    @Override
+    public Optional<Document> findByTimeRecordId(Long timeRecordId) {
+        return documentRepository.findByTimeRecordId(timeRecordId)
+                .map(DocumentEntity::toDomain);
     }
 
 }

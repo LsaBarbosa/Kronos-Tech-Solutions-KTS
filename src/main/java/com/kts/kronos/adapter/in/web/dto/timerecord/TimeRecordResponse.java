@@ -63,7 +63,7 @@ public record TimeRecordResponse(
                         reference.toMinutesPart()
                 );
             } else if (timeRecord.statusRecord() == StatusRecord.DAY_OFF
-                    || timeRecord.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT
+                    || timeRecord.statusRecord() == StatusRecord.TIME_OFF
                     || timeRecord.statusRecord() == StatusRecord.IMPLICIT_BREAK
                     || timeRecord.statusRecord() == StatusRecord.REQUEST_VACATION // NOVO: Saldo zero durante a solicitação
                     || timeRecord.statusRecord() == StatusRecord.VACATION        // NOVO: Saldo zero em férias aprovadas
