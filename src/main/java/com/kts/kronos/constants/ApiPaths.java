@@ -39,6 +39,10 @@ public class ApiPaths {
     public static final String VACATION_REQUEST = "/vacation-request";
     public static final String VACATION_APPROVE = "/vacation-request/approve";
     public static final String VACATION_REJECT = "/vacation-request/reject";
+    public static final String TIME_OFF_REQUEST = "/time-off/request";
+    public static final String TIME_OFF_REQUESTS = "/time-off/requests";
+    public static final String TIME_OFF_APPROVE = "/time-off/approve";
+    public static final String TIME_OFF_REJECT = "/time-off/reject";
 
     //User
     public static final String USER = "/users";
