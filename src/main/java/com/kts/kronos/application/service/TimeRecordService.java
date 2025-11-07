@@ -5,11 +5,13 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -28,6 +31,7 @@ import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
 import org.springframework.data.domain.Page;         // Novo import
 import org.springframework.data.domain.PageRequest;  // Novo import
 import org.springframework.data.domain.Pageable;     // Novo import
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -38,7 +42,9 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-
+    private final DocumentService documentService;
+    private final DocumentProvider documentProvider;
+    private final CompanyUseCase companyUseCase;
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
 
@@ -381,7 +387,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 // Aplica o filtro de status (se houver) - Inclui o IMPLICIT_BREAK se o status não for especificado.
                 .filter(tr -> req.status() == null ? includedStatuses.contains(tr.statusRecord()) : tr.statusRecord() == req.status())
                 // Garante que segmentos PENDING sem endWork sejam incluídos
-                .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING || tr.statusRecord() == StatusRecord.IMPLICIT_BREAK || tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.ABSENCE || tr.statusRecord() == StatusRecord.DOCTOR_APPOINTMENT).collect(Collectors.toCollection(ArrayList::new));
+                .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING || tr.statusRecord() == StatusRecord.IMPLICIT_BREAK || tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.ABSENCE || tr.statusRecord() == StatusRecord.TIME_OFF).collect(Collectors.toCollection(ArrayList::new));
 
 
         List<TimeRecordResponse> finalResponse = workRecords.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).collect(Collectors.toCollection(ArrayList::new));
@@ -407,6 +413,13 @@ public class TimeRecordService implements TimeRecordUseCase {
             var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
             var managerUser = userProvider.findById(approvalData.managerId()).orElse(null);
 
+            var document = documentProvider.findByTimeRecordId(approvalData.timeRecordId()).orElse(null);
+            String documentPath = null;
+            if (document != null) {
+                 documentPath = "/documents/" + document.documentId();
+            }
+
+
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
                 responses.add(new TimeRecordApprovalResponse(
@@ -416,7 +429,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                         approvalData.newStartWork(),
                         approvalData.newEndWork(),
                         timeRecord.startWork(),
-                        timeRecord.endWork()
+                        timeRecord.endWork(),
+                        documentPath
                 ));
             }
         }
@@ -575,6 +589,158 @@ public class TimeRecordService implements TimeRecordUseCase {
         int end = Math.min(start + size, consolidatedRequests.size());
 
         return consolidatedRequests.subList(start, end);
+    }
+
+    @Override
+    public Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document) {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+
+        var parseStartTime = LocalTime.parse(request.startHour(), TIME_FORMATTER);
+        var parseEndTime = LocalTime.parse(request.endHour(), TIME_FORMATTER);
+
+        var newStart = LocalDateTime.of(request.startDate(), parseStartTime);
+        var newEnd = LocalDateTime.of(request.endDate(), parseEndTime);
+
+        // Validações de lógica
+        if (request.startDate().isAfter(request.endDate())) {
+            throw new BadRequestException("A data de início não pode ser posterior à data de fim.");
+        }
+        if (request.startDate().equals(request.endDate()) && parseStartTime.isAfter(parseEndTime)) {
+            throw new BadRequestException(HOURS_EXCEPTIONS);
+        }
+
+        // Validação do Manager
+        var managerUser = userProvider.findById(request.managerId())
+                .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+        if (managerUser.role() != Role.MANAGER) {
+            throw new BadRequestException("O usuário informado não é um manager.");
+        }
+        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
+            throw new BadRequestException("O manager não pertence à mesma empresa.");
+        }
+
+        // 1. Cria o registro de ponto com status TIME_OFF_REQUEST
+        var timeOffRecord = new TimeRecord(
+                null,
+                newStart,
+                newEnd,
+                StatusRecord.TIME_OFF_REQUEST,
+                true,
+                true,
+                employeeId
+        );
+        recordRepository.save(timeOffRecord);
+
+        // 2. Se houver documento, salva-o e associa-o ao timeRecordId
+        if (document != null && !document.isEmpty()) {
+            try {
+                documentService.uploadDocumentForTimeRecord(
+                        DocumentType.DOCTOR_APPOINTMENT, // Assumindo este tipo para atestados/comprovantes
+                        employeeId,
+                        timeOffRecord.timeRecordId(),
+                        document
+                );
+            } catch (IOException e) {
+                log.error("Falha ao salvar o documento de abono para o registro {}: {}", timeOffRecord.timeRecordId(), e.getMessage());
+                throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
+            }
+        }
+
+        return timeOffRecord.timeRecordId();
+    }
+
+    @Override
+    public void approveTimeOff(Long timeRecordId) {
+        var record = getTimeRecord(timeRecordId);
+
+        if (record.statusRecord() != StatusRecord.TIME_OFF_REQUEST) {
+            throw new BadRequestException("O registro não é uma solicitação de abono pendente (status atual: " + record.statusRecord() + ").");
+        }
+
+        // 1. Manager/CTO aprova: Status muda para TIME_OFF
+        var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
+        recordRepository.save(approvedRecord);
+    }
+
+    @Override
+    public void rejectTimeOff(Long timeRecordId) {
+        var record = getTimeRecord(timeRecordId);
+
+        if (record.statusRecord() != StatusRecord.TIME_OFF_REQUEST) {
+            throw new BadRequestException("O registro não é uma solicitação de abono pendente (status atual: " + record.statusRecord() + ").");
+        }
+
+        // 1. Manager/CTO rejeita: Status muda para TIME_OFF_REJECTED
+        var rejectedRecord = record.withStatus(StatusRecord.TIME_OFF_REJECTED);
+        recordRepository.save(rejectedRecord);
+    }
+
+    @Override
+    public TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size) {
+
+        // 1. Obtém o ID da empresa do Manager autenticado
+        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var companyId = getEmployee(managerEmployeeId).companyId();
+
+        // 2. Define os Status a serem buscados com base no filtro
+        Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
+            case "PENDING" -> Set.of(StatusRecord.TIME_OFF_REQUEST);
+            case "APPROVED" -> Set.of(StatusRecord.TIME_OFF);
+            case "REJECTED" -> Set.of(StatusRecord.TIME_OFF_REJECTED);
+            default -> EnumSet.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.TIME_OFF, StatusRecord.TIME_OFF_REJECTED);
+        };
+
+        // 3. Busca todos os funcionários da empresa (para filtro e mapeamento)
+        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
+        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
+
+        // 4. Aplica filtro de nome no Employee Cache e coleta os IDs relevantes
+        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
+                ? employeeCache.values().stream()
+                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase())) // FILTRO POR NOME
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet())
+                : employeeCache.keySet();
+
+        // 5. Busca e filtra os registros de ponto com os status alvo para os IDs filtrados
+        List<TimeRecord> timeOffRecords = filteredEmployeeIds.stream()
+                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
+                .filter(tr -> tr.startWork() != null)
+                .filter(tr -> targetStatuses.contains(tr.statusRecord()))
+                .toList();
+
+        // 6. Mapeia para TimeRecordResponse e ordena
+        var reference = Duration.ofHours(8);
+        var companyName = companyUseCase.getCompanyNameById(companyId);
+
+        List<TimeRecordResponse> mappedResponses = timeOffRecords.stream()
+                .map(tr -> {
+                    var emp = employeeCache.get(tr.employeeId());
+                    var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
+                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData);
+                })
+                .sorted(Comparator.comparing(TimeRecordResponse::startWork).reversed()) // Ordena por data/hora mais recente
+                .collect(Collectors.toList());
+
+        // 7. APLICAÇÃO DA PAGINAÇÃO MANUAL
+        long totalElements = mappedResponses.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int start = Math.min(page * size, (int) totalElements);
+        int end = Math.min(start + size, (int) totalElements);
+
+        List<TimeRecordResponse> pageContent = mappedResponses.subList(start, end);
+
+        // 8. Retorna o DTO de paginação
+        return new TimeRecordPageResponse(
+                pageContent,
+                totalPages,
+                totalElements,
+                page,
+                page == 0,
+                page >= totalPages - 1
+        );
     }
 
     private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
@@ -802,7 +968,7 @@ public class TimeRecordService implements TimeRecordUseCase {
      */
     private void validateNonBreakOverlap(UUID employeeId, Long currentRecordId, LocalDateTime newStart, LocalDateTime newEnd) {
         LocalDate day = newStart.toLocalDate();
-        Set<StatusRecord> nonBreakStatuses = EnumSet.complementOf(EnumSet.of(StatusRecord.IMPLICIT_BREAK, StatusRecord.DAY_OFF, StatusRecord.DOCTOR_APPOINTMENT, StatusRecord.ABSENCE));
+        Set<StatusRecord> nonBreakStatuses = EnumSet.complementOf(EnumSet.of(StatusRecord.IMPLICIT_BREAK, StatusRecord.DAY_OFF, StatusRecord.TIME_OFF, StatusRecord.ABSENCE));
 
         // 1. Buscar todos os registros de trabalho (non-breaks) do dia, exceto o que está sendo editado
         List<TimeRecord> workSegments = recordRepository.findByEmployeeId(employeeId).stream().filter(tr -> !tr.timeRecordId().equals(currentRecordId)).filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).filter(tr -> nonBreakStatuses.contains(tr.statusRecord())).filter(tr -> tr.endWork() != null) // Só checa segmentos fechados

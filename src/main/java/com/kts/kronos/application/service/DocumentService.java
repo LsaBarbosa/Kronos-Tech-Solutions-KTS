@@ -61,7 +61,7 @@ public class DocumentService implements DocumentUseCase {
                     file.getOriginalFilename(),
                     file.getContentType(),
                     storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL
+                    TIME_ZONE_BRAZIL,null
             );
             documentProvider.save(doc);
         } catch (Exception e) {
@@ -104,6 +104,11 @@ public class DocumentService implements DocumentUseCase {
     }
 
     @Override
+    public void uploadDocumentForTimeRecord(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
+        uploadDocumentInternal(type, employeeId, timeRecordId, file);
+    }
+
+    @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var doc = documentProvider.findById(documentId);
@@ -116,4 +121,33 @@ public class DocumentService implements DocumentUseCase {
         return employeeProvider.findById(employeeIdWith)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
+
+    private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
+        var fileMimeType = file.getContentType();
+        // 3. Verifique se o tipo está na lista permitida
+        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
+            // Se não estiver, lança a exceção
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+        try {
+            var employee = getEmployee(employeeId);
+
+            var bytes = file.getBytes();
+            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
+            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
+            var doc = new Document(
+                    employee.employeeId(),
+                    type,
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    storagePath, // USANDO O CAMINHO DO GCS
+                    TIME_ZONE_BRAZIL,
+                    timeRecordId // NOVO CAMPO: timeRecordId
+            );
+            documentProvider.save(doc);
+        } catch (Exception e) {
+            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
+        }
+    }
+
 }
