@@ -1,6 +1,9 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
@@ -8,6 +11,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
@@ -17,7 +21,11 @@ import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.*;
@@ -27,11 +35,6 @@ import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
-
-import org.springframework.data.domain.Page;         // Novo import
-import org.springframework.data.domain.PageRequest;  // Novo import
-import org.springframework.data.domain.Pageable;     // Novo import
-import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -296,13 +299,13 @@ public class TimeRecordService implements TimeRecordUseCase {
             var startDate = entry.getKey();
             List<TimeRecord> dailyRecords = entry.getValue();
 
-            LocalDateTime firstStartWork = dailyRecords.get(0).startWork();
+            LocalDateTime firstStartWork = dailyRecords.getFirst().startWork();
             String firstStartHour = firstStartWork.atZone(SAO_PAULO).toLocalTime().format(TIME_FORMATTER);
             LocalDateTime lastEndWork = dailyRecords.stream().map(TimeRecord::endWork).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(startDate.atStartOfDay());
 
             String lastEndHour = "";
             // Se houver um segmento PENDING, a saída é indefinida (string vazia)
-            if (!dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == PENDING)) { //
+            if (dailyRecords.stream().noneMatch(tr -> tr.statusRecord() == PENDING)) { //
                 lastEndHour = lastEndWork.atZone(SAO_PAULO).toLocalTime().format(TIME_FORMATTER);
             }
             // Ordena os registros pela hora de início (essencial para definir a última saída e primeiro trabalho)
@@ -377,7 +380,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
         // NOVO: Define todos os status que devem ser incluídos no relatório detalhado (trabalho + pausa)
-        var includedStatuses = new HashSet<>(Set.of(CREATED, PENDING, UPDATED, PENDING_APPROVAL, DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE, StatusRecord.IMPLICIT_BREAK // Inclui a pausa explícita no relatório
+        var includedStatuses = new HashSet<>(Set.of(CREATED, PENDING, UPDATED, PENDING_APPROVAL, DAY_OFF, StatusRecord.TIME_OFF, ABSENCE, StatusRecord.IMPLICIT_BREAK // Inclui a pausa explícita no relatório
         ));
 
         // 3. Filtra os registros de TRABALHO (segmentos) e PAUSAS
@@ -390,11 +393,18 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING || tr.statusRecord() == StatusRecord.IMPLICIT_BREAK || tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.ABSENCE || tr.statusRecord() == StatusRecord.TIME_OFF).collect(Collectors.toCollection(ArrayList::new));
 
 
-        List<TimeRecordResponse> finalResponse = workRecords.stream().map(timeRecord -> TimeRecordResponse.fromDomain(timeRecord, duration, employeeData)).collect(Collectors.toCollection(ArrayList::new));
+        List<TimeRecordResponse> finalResponse = workRecords.stream()
+                .map(timeRecord -> {
+                    // Busca o path do documento se houver um timeRecordId associado.
+                    String documentPath = documentProvider.findByTimeRecordId(timeRecord.timeRecordId())
+                            .map(doc -> doc.documentId().toString()) // Assumindo que DOCUMENTS é a constante "/documents" de ApiPaths
+                            .orElse(null);
 
+                    // Passa o path do documento para o DTO
+                    return TimeRecordResponse.fromDomain(timeRecord, duration, employeeData, documentPath);
+                }).sorted(Comparator.comparing(TimeRecordResponse::startWork)).collect(Collectors.toCollection(ArrayList::new));
 
         // Ordenar por horário de início para melhor visualização
-        finalResponse.sort(Comparator.comparing(TimeRecordResponse::startWork));
 
         return finalResponse;
     }
@@ -599,9 +609,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         var parseStartTime = LocalTime.parse(request.startHour(), TIME_FORMATTER);
         var parseEndTime = LocalTime.parse(request.endHour(), TIME_FORMATTER);
 
-        var newStart = LocalDateTime.of(request.startDate(), parseStartTime);
-        var newEnd = LocalDateTime.of(request.endDate(), parseEndTime);
-
         // Validações de lógica
         if (request.startDate().isAfter(request.endDate())) {
             throw new BadRequestException("A data de início não pode ser posterior à data de fim.");
@@ -620,34 +627,90 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException("O manager não pertence à mesma empresa.");
         }
 
-        // 1. Cria o registro de ponto com status TIME_OFF_REQUEST
-        var timeOffRecord = new TimeRecord(
-                null,
-                newStart,
-                newEnd,
-                StatusRecord.TIME_OFF_REQUEST,
-                true,
-                true,
-                employeeId
-        );
-        recordRepository.save(timeOffRecord);
+        LocalDate start = request.startDate();
+        LocalDate end = request.endDate();
+        long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
 
-        // 2. Se houver documento, salva-o e associa-o ao timeRecordId
-        if (document != null && !document.isEmpty()) {
-            try {
-                documentService.uploadDocumentForTimeRecord(
-                        DocumentType.DOCTOR_APPOINTMENT, // Assumindo este tipo para atestados/comprovantes
-                        employeeId,
-                        timeOffRecord.timeRecordId(),
-                        document
-                );
-            } catch (IOException e) {
-                log.error("Falha ao salvar o documento de abono para o registro {}: {}", timeOffRecord.timeRecordId(), e.getMessage());
-                throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
+        // Variáveis para reutilizar os metadados e o caminho do arquivo físico (storagePath)
+        String uploadedStoragePath = null;
+        String documentFileName = null;
+        String documentContentType = null;
+        Long firstRecordId = null; // Para retornar o primeiro ID criado
+
+
+        for (int i = 0; i < daysBetween; i++) {
+            LocalDate currentDay = start.plusDays(i);
+            LocalDateTime currentStart = currentDay.atTime(parseStartTime);
+            LocalDateTime currentEnd = currentDay.atTime(parseEndTime);
+
+            // 1. Cria o registro de ponto (TimeRecord)
+            var dailyTimeOffRecord = new TimeRecord(
+                    null,
+                    currentStart,
+                    currentEnd,
+                    StatusRecord.TIME_OFF_REQUEST,
+                    true,
+                    true,
+                    employeeId
+            );
+
+            // Validação: evita duplicidade no dia
+            if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
+                throw new BadRequestException("Já existe um registro de ponto ou solicitação para o dia: " + currentDay.format(DATE_FORMATTER));
+            }
+
+            // 2. Salva o registro e obtém o ID gerado pelo banco de dados
+            // Nota: Assumimos que recordRepository.save agora retorna o TimeRecord com o ID populado.
+            var savedRecord = recordRepository.save(dailyTimeOffRecord);
+            if (i == 0) {
+                firstRecordId = savedRecord.timeRecordId();
+            }
+
+            // 3. Lógica de Upload Físico e Associação de Documento
+            if (document != null && !document.isEmpty()) {
+                if (i == 0) {
+                    // Primeiro dia (i=0): Faz o upload físico (Bucket) e salva a primeira Document Entity.
+                    try {
+                        documentService.uploadDocumentForTimeRecord(
+                                DocumentType.TIME_OFF,
+                                employeeId,
+                                savedRecord.timeRecordId(), // Associa ao 1º registro
+                                document
+                        );
+
+                        // Busca a Document Entity recém-criada para capturar o storagePath e metadados.
+                        var uploadedDoc = documentProvider.findByTimeRecordId(savedRecord.timeRecordId())
+                                .orElseThrow(() -> new IllegalStateException("Documento não encontrado após upload para o 1º registro."));
+
+                        uploadedStoragePath = uploadedDoc.storagePath();
+                        documentFileName = uploadedDoc.fileName();
+                        documentContentType = uploadedDoc.contentType();
+
+                    } catch (IOException e) {
+                        log.error("Falha ao salvar o documento de abono para o registro {}: {}", savedRecord.timeRecordId(), e.getMessage());
+                        throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
+                    }
+                }
+                else if (uploadedStoragePath != null) {
+                     var docToLink = new Document(
+                            employeeId,
+                            DocumentType.TIME_OFF,
+                            documentFileName,
+                            documentContentType,
+                            uploadedStoragePath,
+                            TIME_ZONE_BRAZIL,
+                            savedRecord.timeRecordId()
+                    );
+                    documentProvider.save(docToLink);
+                }
             }
         }
 
-        return timeOffRecord.timeRecordId();
+
+        if (firstRecordId == null) {
+            throw new BadRequestException("Falha ao criar o primeiro registro de abono.");
+        }
+        return firstRecordId;
     }
 
     @Override
@@ -719,9 +782,16 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .map(tr -> {
                     var emp = employeeCache.get(tr.employeeId());
                     var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
-                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData);
+
+                    // --- INÍCIO DA NOVA LÓGICA: INCLUIR O PATH DO DOCUMENTO ---
+                    String documentPath = documentProvider.findByTimeRecordId(tr.timeRecordId()) //
+                            .map(doc ->  doc.documentId().toString()) //
+                            .orElse(null);
+                    // --- FIM DA NOVA LÓGICA ---
+
+                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath); //
                 })
-                .sorted(Comparator.comparing(TimeRecordResponse::startWork).reversed()) // Ordena por data/hora mais recente
+                .sorted(Comparator.comparing(TimeRecordResponse::startWork).reversed())
                 .collect(Collectors.toList());
 
         // 7. APLICAÇÃO DA PAGINAÇÃO MANUAL
@@ -774,7 +844,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         continue;
                     }
 
-                    LocalDate lastDayInPeriod = currentPeriod.get(currentPeriod.size() - 1).startWork().toLocalDate();
+                    LocalDate lastDayInPeriod = currentPeriod.getLast().startWork().toLocalDate();
 
                     // Verifica se o dia atual é o dia imediatamente consecutivo
                     if (currentDay.isEqual(lastDayInPeriod.plusDays(1))) {

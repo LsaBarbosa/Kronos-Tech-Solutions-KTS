@@ -26,7 +26,6 @@ public class ApiPaths {
     // Recods
     public static final String RECORDS = "/records";
     public static final String CHECKIN = "/checkin";
-    public static final String BREAK = "/break";
     public static final String UPDATE_TIME_RECORD = "/update/time-record/{timeRecordId}";
     public static final String UPDATE_STATUS = "/update/status/{employeeId}/{timeRecordId}";
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
@@ -41,8 +40,8 @@ public class ApiPaths {
     public static final String VACATION_REJECT = "/vacation-request/reject";
     public static final String TIME_OFF_REQUEST = "/time-off/request";
     public static final String TIME_OFF_REQUESTS = "/time-off/requests";
-    public static final String TIME_OFF_APPROVE = "/time-off/approve";
-    public static final String TIME_OFF_REJECT = "/time-off/reject";
+    public static final String TIME_OFF_APPROVE = "/time-off/approve/{timeRecordId}";
+    public static final String TIME_OFF_REJECT = "/time-off/reject/{timeRecordId}";
 
     //User
     public static final String USER = "/users";
