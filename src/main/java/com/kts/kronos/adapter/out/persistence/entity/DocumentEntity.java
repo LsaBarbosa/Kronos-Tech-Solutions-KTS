@@ -34,6 +34,9 @@ public class DocumentEntity {
     @Column(name = "content_type", nullable = false)
     private String contentType;
 
+    @Column(name = "time_record_id")
+    private Long timeRecordId;
+
     @Column(name = "storage_path", length = 512, nullable = false)
     private String storagePath;
 
@@ -53,7 +56,8 @@ public class DocumentEntity {
                 fileName,
                 contentType,
                 storagePath,
-                uploadedAt
+                uploadedAt,
+                timeRecordId
         );
     }
 
@@ -66,6 +70,7 @@ public class DocumentEntity {
                 .storagePath(document.storagePath())
                 .uploadedAt(document.uploadeAt())
                 .type(document.type())
+                .timeRecordId(document.timeRecordId())
                 .build();
     }
 }
