@@ -3,18 +3,11 @@ package com.kts.kronos.application.port.in.usecase;
 import java.util.List;
 import java.util.UUID;
 
-import com.kts.kronos.adapter.in.web.dto.timerecord.ActionResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.RequestVacationRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalPageResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.VacationApprovalRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.VacationRequestResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface TimeRecordUseCase {
     ActionResponse registerTime(GeolocationRequest request);
@@ -31,5 +24,9 @@ public interface TimeRecordUseCase {
     void approveVacation(VacationApprovalRequest request);
     void rejectVacation(VacationApprovalRequest request);
     List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size);
+    Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document);
+    void approveTimeOff(Long timeRecordId);
+    void rejectTimeOff(Long timeRecordId);
+    TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size);
 }
 

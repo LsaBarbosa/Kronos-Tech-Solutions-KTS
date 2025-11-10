@@ -2,12 +2,16 @@ package com.kts.kronos.adapter.in.web.http;
 
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import jakarta.validation.Valid;
+ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -123,6 +127,42 @@ public class TimeRecordController {
     ) {
         // A role MANAGER é exigida para listar as solicitações
         var requests = useCase.listVacationRequests(statusFilter, employeeName, page, size);
+        return ResponseEntity.ok(requests);
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @PostMapping(path = TIME_OFF_REQUEST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Long> requestTimeOff(
+            @RequestPart("request") @Valid RequestTimeOffRequest request,
+            @RequestPart(value = "document", required = false) MultipartFile document
+    ) {
+        var createdId = useCase.requestTimeOff(request, document);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdId);
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(TIME_OFF_APPROVE)
+    public ResponseEntity<Void> approveTimeOff(@PathVariable Long timeRecordId) {
+        useCase.approveTimeOff(timeRecordId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(MANAGER)
+    @PatchMapping(TIME_OFF_REJECT)
+    public ResponseEntity<Void> rejectTimeOff(@PathVariable Long timeRecordId) {
+        useCase.rejectTimeOff(timeRecordId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(MANAGER)
+    @GetMapping(TIME_OFF_REQUESTS) // ENDPOINT DE LISTAGEM
+    public ResponseEntity<TimeRecordPageResponse> listTimeOffRequests(
+            @RequestParam(value = "status", defaultValue = "PENDING") String statusFilter,
+            @RequestParam(value = "employeeName", required = false) String employeeName,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "5") int size
+    ) {
+         var requests = useCase.listTimeOffRequests(statusFilter, employeeName, page, size);
         return ResponseEntity.ok(requests);
     }
 }

@@ -8,6 +8,7 @@ public record TimeRecordApprovalResponse(Long timeRecordId,
                                          LocalDateTime newStartWork,
                                          LocalDateTime newEndWork,
                                          LocalDateTime currentStartWork,
-                                         LocalDateTime currentEndWork
+                                         LocalDateTime currentEndWork,
+                                         String documentDownloadPath
 ) {
 }
