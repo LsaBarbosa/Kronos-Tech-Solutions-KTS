@@ -1,6 +1,6 @@
 // NOVO ARQUIVO: lsabarbosa/kronos-tech-solutions-kts/Kronos-Tech-Solutions-KTS-2-feature-ferias/src/main/java/com/kts/kronos/adapter/in/web/dto/timerecord/VacationRequestResponse.java
 
-package com.kts.kronos.adapter.in.web.dto.timerecord;
+package com.kts.kronos.adapter.in.web.dto.timerecord.vacation;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.domain.model.Employee;
