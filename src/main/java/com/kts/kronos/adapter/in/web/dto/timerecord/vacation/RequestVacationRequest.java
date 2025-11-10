@@ -1,4 +1,4 @@
-package com.kts.kronos.adapter.in.web.dto.timerecord;
+package com.kts.kronos.adapter.in.web.dto.timerecord.vacation;
 
 import java.time.LocalDate;
 import java.util.UUID;

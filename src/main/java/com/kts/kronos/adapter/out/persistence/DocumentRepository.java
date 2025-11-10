@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> {
@@ -27,4 +28,6 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             @Param("type")  String documentType
     );
     void deleteByEmployeeId(UUID employeeId);
+
+    Optional<DocumentEntity> findByTimeRecordId(Long timeRecordId);
 }

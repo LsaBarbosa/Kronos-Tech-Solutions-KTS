@@ -15,4 +15,5 @@ public interface DocumentUseCase {
     DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException;
     List<Document> listDocuments(DocumentType type, UUID employeeId, LocalDate date);
     void deleteDocument(UUID employeeId, UUID documentId);
+    void uploadDocumentForTimeRecord(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException;
 }
