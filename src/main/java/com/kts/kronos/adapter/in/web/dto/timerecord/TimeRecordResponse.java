@@ -25,11 +25,13 @@ public record TimeRecordResponse(
         boolean edited,
         boolean active,
         UUID employeeId,
-        EmployeeData employeeData
+        EmployeeData employeeData,
+        String documentDownloadPath
 ) {
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
                                                 Duration reference,
-                                                EmployeeData employeeData) {
+                                                EmployeeData employeeData,
+                                                String documentDownloadPath) {
 
         var startDateTime = timeRecord.startWork()
                 .atZone(SAO_PAULO).toLocalDateTime();
@@ -94,7 +96,8 @@ public record TimeRecordResponse(
                 timeRecord.edited(),
                 timeRecord.active(),
                 timeRecord.employeeId(),
-                employeeData
+                employeeData,
+                documentDownloadPath
         );
     }
 }
