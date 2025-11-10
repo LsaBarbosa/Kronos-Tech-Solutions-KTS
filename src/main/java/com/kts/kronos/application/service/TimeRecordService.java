@@ -497,11 +497,6 @@ public class TimeRecordService implements TimeRecordUseCase {
                     employeeId
             );
 
-            // Validação: evita duplicidade no dia
-            if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
-                throw new BadRequestException("Já existe um registro de ponto ou solicitação para o dia: " + currentDay.format(DATE_FORMATTER));
-            }
-
             recordRepository.save(vacationRequestRecord);
             createdRecordIds.add(vacationRequestRecord.timeRecordId());
             log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
