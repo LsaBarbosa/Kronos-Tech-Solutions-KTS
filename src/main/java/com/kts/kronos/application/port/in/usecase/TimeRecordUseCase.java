@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.UUID;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface TimeRecordUseCase {

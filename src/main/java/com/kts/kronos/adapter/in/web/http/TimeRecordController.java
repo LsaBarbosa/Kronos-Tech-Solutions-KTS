@@ -2,6 +2,9 @@ package com.kts.kronos.adapter.in.web.http;
 
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
  import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -157,7 +160,7 @@ public class TimeRecordController {
             @RequestParam(value = "status", defaultValue = "PENDING") String statusFilter,
             @RequestParam(value = "employeeName", required = false) String employeeName,
             @RequestParam(value = "page", defaultValue = "0") int page,
-            @RequestParam(value = "size", defaultValue = "10") int size
+            @RequestParam(value = "size", defaultValue = "5") int size
     ) {
          var requests = useCase.listTimeOffRequests(statusFilter, employeeName, page, size);
         return ResponseEntity.ok(requests);
