@@ -50,13 +50,28 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final CompanyUseCase companyUseCase;
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
+    private final FaceDetectionProvider faceDetectionProvider;
 
 
     @Override
-    public ActionResponse registerTime(GeolocationRequest request) {
+    public ActionResponse registerTime(GeolocationRequest request, MultipartFile faceImage){
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
+
+        if (faceImage == null || faceImage.isEmpty()) {
+            throw new BadRequestException("A imagem da face é obrigatória para o check-in.");
+        }
+
+        try {
+            if (!faceDetectionProvider.detectFace(faceImage.getBytes())) {
+                throw new BadRequestException("Validação facial falhou. Certifique-se de que exatamente uma face esteja visível na imagem.");
+            }
+        } catch (IOException e) {
+            log.error("Erro ao ler a imagem para detecção facial: {}", e.getMessage());
+            throw new BadRequestException("Falha ao processar a imagem de validação facial.");
+        }
         isHomeOffice(request, employee, employeeId);
+
 
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
