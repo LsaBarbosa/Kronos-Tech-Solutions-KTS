@@ -21,6 +21,7 @@ configurations {
 
 repositories {
     mavenCentral()
+    google()
 }
 // Cloud
 dependencyManagement {
@@ -51,10 +52,6 @@ dependencies {
     implementation 'com.itextpdf:kernel:7.2.5'
     implementation 'com.itextpdf:layout:7.2.5'
 
-    implementation 'ai.djl:api:0.35.0'
-    runtimeOnly 'ai.djl.pytorch:pytorch-engine:0.35.0'
-    runtimeOnly 'ai.djl.pytorch:pytorch-native-cpu:2.7.1'
-    runtimeOnly 'ai.djl.zoo:djl-model-zoo:0.35.0'
 
     // DEV UTILS
     implementation "org.springframework.boot:spring-boot-starter-webflux"
