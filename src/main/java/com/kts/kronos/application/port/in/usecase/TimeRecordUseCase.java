@@ -10,7 +10,7 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResp
 import org.springframework.web.multipart.MultipartFile;
 
 public interface TimeRecordUseCase {
-    ActionResponse registerTime(GeolocationRequest request);
+    ActionResponse registerTime(GeolocationRequest request, MultipartFile faceImage);
     void updateStatus(UUID employeeId, Long recordId, UpdateTimeRecordStatusRequest request);
     void deleteTimeRecord(UUID employeeId, Long recordId);
     void toggleActivate(UUID employeeId, Long timeRecordId);

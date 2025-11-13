@@ -28,8 +28,8 @@ public class TimeRecordController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKIN)
-    public ResponseEntity<ActionResponse> registerTime(@Valid @RequestBody GeolocationRequest request) {
-        var response = useCase.registerTime(request);
+    public ResponseEntity<ActionResponse> registerTime(@Valid @RequestBody GeolocationRequest request, @RequestPart("faceImage") MultipartFile faceImage) {
+        var response = useCase.registerTime(request, faceImage);
         return ResponseEntity.ok(response);
     }
 
