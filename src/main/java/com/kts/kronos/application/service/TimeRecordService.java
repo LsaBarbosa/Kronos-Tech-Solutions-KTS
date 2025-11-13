@@ -272,10 +272,10 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Statuses de trabalho
         var workStatuses = Set.of(CREATED, UPDATED, PENDING_APPROVAL, PENDING);
-        var specialStatuses = Set.of(DAY_OFF, DOCTOR_APPOINTMENT, ABSENCE);
+        var specialStatuses = Set.of(DAY_OFF, TIME_OFF, ABSENCE, REQUEST_VACATION, VACATION, VACATION_REJECTED);
         var allRecordsStatuses = new HashSet<>(workStatuses);
         allRecordsStatuses.addAll(specialStatuses);
-        allRecordsStatuses.add(StatusRecord.IMPLICIT_BREAK); // Inclui o novo status de pausa
+        allRecordsStatuses.add(IMPLICIT_BREAK); // Inclui o novo status de pausa
 
         // 1. Busca todos os registros ativos e filtra pelas datas
         var allRecords = recordRepository.findByEmployeeIdAndActive(targetEmployeeId, true).stream().filter(tr -> tr.startWork() != null) // Deve ter startWork para ser válido
@@ -379,19 +379,31 @@ public class TimeRecordService implements TimeRecordUseCase {
         // 2. Busca TODOS os registros ATIVOS.
         List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
-        // NOVO: Define todos os status que devem ser incluídos no relatório detalhado (trabalho + pausa)
-        var includedStatuses = new HashSet<>(Set.of(CREATED, PENDING, UPDATED, PENDING_APPROVAL, DAY_OFF, StatusRecord.TIME_OFF, ABSENCE, StatusRecord.IMPLICIT_BREAK // Inclui a pausa explícita no relatório
-        ));
+        var allPossibleReportStatuses = EnumSet.of(
+                CREATED, PENDING, UPDATED, PENDING_APPROVAL,
+                DAY_OFF, TIME_OFF, ABSENCE, IMPLICIT_BREAK,
+                REQUEST_VACATION, VACATION, VACATION_REJECTED
+        );
+
+        Set<StatusRecord> finalFilterStatuses;
+        if (req.statuses() == null || req.statuses().isEmpty()) {
+            // Caso 1: NENHUM status é passado (ou lista vazia), retorna TODOS os possíveis.
+            finalFilterStatuses = allPossibleReportStatuses;
+        } else {
+            // Caso 2: 1 ou MAIS status são passados.
+            // Filtra a lista da requisição, garantindo que contenha apenas status válidos para relatórios.
+            finalFilterStatuses = req.statuses().stream()
+                    .filter(allPossibleReportStatuses::contains)
+                    .collect(Collectors.toSet());
+        }
 
         // 3. Filtra os registros de TRABALHO (segmentos) e PAUSAS
         List<TimeRecord> workRecords = allRecordsForEmployee.stream()
                 // Filtra por datas selecionadas (usa a data do startWork)
                 .filter(tr -> tr.startWork() != null && finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
-                // Aplica o filtro de status (se houver) - Inclui o IMPLICIT_BREAK se o status não for especificado.
-                .filter(tr -> req.status() == null ? includedStatuses.contains(tr.statusRecord()) : tr.statusRecord() == req.status())
-                // Garante que segmentos PENDING sem endWork sejam incluídos
-                .filter(tr -> tr.endWork() != null || tr.statusRecord() == PENDING || tr.statusRecord() == StatusRecord.IMPLICIT_BREAK || tr.statusRecord() == StatusRecord.DAY_OFF || tr.statusRecord() == StatusRecord.ABSENCE || tr.statusRecord() == StatusRecord.TIME_OFF).collect(Collectors.toCollection(ArrayList::new));
-
+                // Aplica o filtro de status determinado (finalFilterStatuses)
+                .filter(tr -> finalFilterStatuses.contains(tr.statusRecord()))
+                .collect(Collectors.toCollection(ArrayList::new));
 
         List<TimeRecordResponse> finalResponse = workRecords.stream()
                 .map(timeRecord -> {
@@ -426,9 +438,8 @@ public class TimeRecordService implements TimeRecordUseCase {
             var document = documentProvider.findByTimeRecordId(approvalData.timeRecordId()).orElse(null);
             String documentPath = null;
             if (document != null) {
-                 documentPath = "/documents/" + document.documentId();
+                documentPath = "/documents/" + document.documentId();
             }
-
 
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
@@ -655,8 +666,6 @@ public class TimeRecordService implements TimeRecordUseCase {
             );
 
 
-
-
             // 2. Salva o registro e obtém o ID gerado pelo banco de dados
             // Nota: Assumimos que recordRepository.save agora retorna o TimeRecord com o ID populado.
             var savedRecord = recordRepository.save(dailyTimeOffRecord);
@@ -688,9 +697,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                         log.error("Falha ao salvar o documento de abono para o registro {}: {}", savedRecord.timeRecordId(), e.getMessage());
                         throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
                     }
-                }
-                else if (uploadedStoragePath != null) {
-                     var docToLink = new Document(
+                } else if (uploadedStoragePath != null) {
+                    var docToLink = new Document(
                             employeeId,
                             DocumentType.TIME_OFF,
                             documentFileName,
@@ -783,7 +791,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                     // --- INÍCIO DA NOVA LÓGICA: INCLUIR O PATH DO DOCUMENTO ---
                     String documentPath = documentProvider.findByTimeRecordId(tr.timeRecordId()) //
-                            .map(doc ->  doc.documentId().toString()) //
+                            .map(doc -> doc.documentId().toString()) //
                             .orElse(null);
                     // --- FIM DA NOVA LÓGICA ---
 
