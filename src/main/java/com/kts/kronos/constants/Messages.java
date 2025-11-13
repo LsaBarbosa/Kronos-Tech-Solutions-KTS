@@ -102,7 +102,13 @@ public class Messages {
     public static final StatusRecord DAY_OFF = StatusRecord.DAY_OFF;
     public static final StatusRecord ABSENCE = StatusRecord.ABSENCE;
     public static final StatusRecord PENDING = StatusRecord.PENDING;
-    public static final StatusRecord DOCTOR_APPOINTMENT = StatusRecord.TIME_OFF;
+    public static final StatusRecord REQUEST_VACATION = StatusRecord.REQUEST_VACATION;
+    public static final StatusRecord VACATION = StatusRecord.VACATION;
+    public static final StatusRecord VACATION_REJECTED = StatusRecord.VACATION_REJECTED;
+    public static final StatusRecord IMPLICIT_BREAK = StatusRecord.IMPLICIT_BREAK;
+    public static final StatusRecord TIME_OFF = StatusRecord.TIME_OFF;
+    public static final StatusRecord TIME_OFF_REQUEST = StatusRecord.TIME_OFF_REQUEST;
+    public static final StatusRecord TIME_OFF_REJECTED = StatusRecord.TIME_OFF_REJECTED;
 
     //RabbitMQ & REDIS
     public static final String TIME_RECORD_APPROVAL_TOPIC = "time-record-approval-topic";
