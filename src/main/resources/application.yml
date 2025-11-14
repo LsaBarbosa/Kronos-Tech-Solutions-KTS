@@ -53,7 +53,7 @@
 
   jwt:
     # Variável para o segredo JWT
-    secret: ${JWT_SECRET:"***JWT_SECRET_REMOVED***"}
+    secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION:3600000}
 
   frontend:
@@ -62,6 +62,12 @@
     base-url-record: ${FRONTEND_BASE_URL_RECORD}
     base-url-local: ${FRONTEND_BASE_URL_LOCAL}
     base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
-
+    
+  aws:
+  region: ${AWS_REGION:us-east-1} # Padroniza para N. Virginia (us-east-1)
+  rekognition:
+    collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_render} # Nome da coleção
+  s3:
+    bucket-name: kronos-app-rekognition-imagens
 
 
