@@ -70,5 +70,3 @@ aws:
   s3:
     bucket-name: kronos-app-rekognition-imagens
 
-  access-key-id: AKIA5XMWTWT5HGX5KEV3
-  secret-access-key: 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
