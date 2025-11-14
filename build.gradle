@@ -28,7 +28,10 @@ dependencyManagement {
     imports {
         mavenBom('com.google.cloud:libraries-bom:26.60.0')
         mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.2.0')
+
+        mavenBom("software.amazon.awssdk:bom:2.25.10")
     }
+
 }
 dependencies {
     // CORE
@@ -75,11 +78,12 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.springframework.security:spring-security-test'
 
+    implementation 'software.amazon.awssdk:rekognition'
+    implementation 'software.amazon.awssdk:s3'
+
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}
+
 
 tasks.named('bootBuildImage') {
     builder = "paketobuildpacks/builder-jammy-base"
