@@ -107,7 +107,7 @@ public class EmployeeController {
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
-    @PatchMapping("/register-face-reference") // NOVO ENDPOINT
+    @PutMapping("/register-face-reference") // NOVO ENDPOINT
     public ResponseEntity<Void> registerFaceReference(
             @Valid @RequestBody RegisterFaceRequest request
     ) throws IOException {
