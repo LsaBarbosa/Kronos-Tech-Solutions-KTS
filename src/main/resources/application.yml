@@ -1,64 +1,67 @@
-spring:
-  datasource:
-    # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-  rabbitmq:
-    # Host/Porta
-    host: ${RABBITMQ_HOST:kronos-solutions-message}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:rabbitmq}       # Ajuste o valor default para 'rabbitmq'
-    password: ${RABBITMQ_PASSWORD:***RABBITMQ_PASSWORD_REMOVED***}
-  docker:
-    compose:
-      enabled: false
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
-  mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT:2525}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD} # A senha de aplicativo do Gmail
-    properties:
-      mail:
-        smtp:
-          auth: true
-          debug: true
-          starttls:
-            enable: true
+  spring:
+    datasource:
+      # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+      url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      username: ${DB_USER}
+      password: ${DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+    rabbitmq:
+      # Host/Porta
+      host: ${RABBITMQ_HOST:kronos-solutions-message}
+      port: ${RABBITMQ_PORT:5672}
+      username: ${RABBITMQ_USER:rabbitmq}       # Ajuste o valor default para 'rabbitmq'
+      password: ${RABBITMQ_PASSWORD:***RABBITMQ_PASSWORD_REMOVED***}
+    docker:
+      compose:
+        enabled: false
+    servlet:
+      multipart:
+        max-file-size: 5MB
+        max-request-size: 6MB
+    mail:
+      host: ${MAIL_HOST}
+      port: ${MAIL_PORT:2525}
+      username: ${MAIL_USERNAME}
+      password: ${MAIL_PASSWORD} # A senha de aplicativo do Gmail
+      properties:
+        mail:
+          smtp:
+            auth: true
+            debug: true
+            starttls:
+              enable: true
 
-file:
-  storage:
-    root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
+  file:
+    storage:
+      root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: '*'
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-logging:
-  pattern:
-    console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
-  level:
-    org.springframework:
-      security: DEBUG
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: '*'
+    metrics:
+      export:
+        prometheus:
+          enabled: true
+  logging:
+    pattern:
+      console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
+    level:
+      org.springframework:
+        security: DEBUG
 
-jwt:
-  # Variável para o segredo JWT
-  secret: ${JWT_SECRET:"***JWT_SECRET_REMOVED***"}
-  expiration: ${JWT_EXPIRATION:3600000}
+  jwt:
+    # Variável para o segredo JWT
+    secret: ${JWT_SECRET:"***JWT_SECRET_REMOVED***"}
+    expiration: ${JWT_EXPIRATION:3600000}
 
-frontend:
-  # Variável para a URL base do Frontend
-  base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
-  base-url-record: ${FRONTEND_BASE_URL_RECORD}
-  base-url-local: ${FRONTEND_BASE_URL_LOCAL}
-  base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
+  frontend:
+    # Variável para a URL base do Frontend
+    base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
+    base-url-record: ${FRONTEND_BASE_URL_RECORD}
+    base-url-local: ${FRONTEND_BASE_URL_LOCAL}
+    base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
+
+
+
