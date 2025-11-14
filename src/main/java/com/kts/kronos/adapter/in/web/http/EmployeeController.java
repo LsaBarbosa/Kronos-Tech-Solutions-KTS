@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
@@ -103,5 +104,14 @@ public class EmployeeController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @PatchMapping("/register-face-reference") // NOVO ENDPOINT
+    public ResponseEntity<Void> registerFaceReference(
+            @Valid @RequestBody RegisterFaceRequest request
+    ) throws IOException {
+        useCase.registerFaceReference(request);
+        return ResponseEntity.noContent().build();
     }
 }

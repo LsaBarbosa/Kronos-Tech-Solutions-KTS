@@ -3,6 +3,7 @@ package com.kts.kronos.application.port.in.usecase;
 import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.domain.model.Employee;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,5 +27,6 @@ public interface EmployeeUseCase {
     EmployeeProfile getOwnProfile();
 
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
+    void registerFaceReference(RegisterFaceRequest request) throws IOException;
 
 }
