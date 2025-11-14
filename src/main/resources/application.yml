@@ -53,7 +53,7 @@ logging:
 
 jwt:
   # Variável para o segredo JWT
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:"dGhpc19pcy1qd3Rfc2VjcmV0X3dpdGhfMzJfYnl0ZXNfISEhISEhISE="}
   expiration: ${JWT_EXPIRATION:3600000}
 
 frontend:
@@ -62,13 +62,3 @@ frontend:
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-local: ${FRONTEND_BASE_URL_LOCAL}
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
-
-aws:
-rekognition:
-  collection-id: ${AWS_REKOGNITION_COLLECTION_ID} # Nome da coleção
-region: ${AWS_REGION}
-access-key-id: ${AWS_ACCESS_KEY_ID}
-secret-access-key: ${AWS_SECRET_ACCESS_KEY}
-s3:
-  bucket-name: kronos-app-rekognition-imagens
- 
