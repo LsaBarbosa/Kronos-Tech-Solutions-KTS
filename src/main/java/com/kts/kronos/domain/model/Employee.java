@@ -15,7 +15,8 @@ public record Employee(
         Address address,
         UUID companyId,
         LocalDateTime lastSeenMessageTimestamp,
-        boolean homeOffice
+        boolean homeOffice,
+        String faceS3ObjectKey
 ) {
     public Employee(
             String fullName, String cpf, String jobPosition,
@@ -25,21 +26,21 @@ public record Employee(
         this(
                 UUID.randomUUID(),
                 fullName, cpf, jobPosition, email,
-                salary, phone, true, address, companyId, lastSeenMessageTimestamp, false
+                salary, phone, true, address, companyId, lastSeenMessageTimestamp, false,null
         );
     }
 
     public Employee withEmail(String email) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice
+                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice,null
         );
     }
 
     public Employee withActive(boolean active) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice
+                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice,null
         );
     }
 
@@ -47,14 +48,14 @@ public record Employee(
     public Employee withPhone(String phone) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice
+                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice,null
         );
     }
 
     public Employee withAddress(Address address) {
         return new Employee(
                 employeeId, fullName, cpf, jobPosition,
-                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice
+                email, salary, phone, active, address, companyId, lastSeenMessageTimestamp, homeOffice,null
         );
     }
 
@@ -71,7 +72,7 @@ public record Employee(
                 this.address,
                 this.companyId,
                 this.lastSeenMessageTimestamp,
-                homeOffice
+                homeOffice,null
         );
     }
 
@@ -88,7 +89,25 @@ public record Employee(
                 this.address,
                 this.companyId,
                 timestamp,
-                this.homeOffice
+                this.homeOffice,null
+        );
+    }
+
+    public Employee withFaceS3ObjectKey(String faceS3ObjectKey) { // NOVO Wither para imutabilidade
+        return new Employee(
+                this.employeeId,
+                this.fullName,
+                this.cpf,
+                this.jobPosition,
+                this.email,
+                this.salary,
+                this.phone,
+                this.active,
+                this.address,
+                this.companyId,
+                this.lastSeenMessageTimestamp,
+                this.homeOffice,
+                faceS3ObjectKey
         );
     }
 }
