@@ -27,6 +27,5 @@ public interface EmployeeUseCase {
     EmployeeProfile getOwnProfile();
 
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
-    void registerFaceReference(RegisterFaceRequest request) throws IOException;
 
 }

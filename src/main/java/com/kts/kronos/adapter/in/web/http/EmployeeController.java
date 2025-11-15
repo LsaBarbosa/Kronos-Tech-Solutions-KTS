@@ -106,12 +106,5 @@ public class EmployeeController {
         }
     }
 
-    @PreAuthorize(ANY_EMPLOYEE)
-    @PutMapping("/register-face-reference") // NOVO ENDPOINT
-    public ResponseEntity<Void> registerFaceReference(
-            @Valid @RequestBody RegisterFaceRequest request
-    ) throws IOException {
-        useCase.registerFaceReference(request);
-        return ResponseEntity.noContent().build();
-    }
+
 }

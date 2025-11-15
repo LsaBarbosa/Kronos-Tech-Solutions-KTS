@@ -52,6 +52,9 @@ public class EmployeeEntity {
     @Column(name = "is_home_office", nullable = false)
     private boolean homeOffice = false;
 
+    @Column(name = "face_s3_object_key", length = 512)
+    private String faceS3ObjectKey;
+
     @Embedded
     private AddressEmbeddable address;
 
@@ -62,7 +65,7 @@ public class EmployeeEntity {
     public Employee toDomain(){
         return new Employee(
                 employeeId, fullName, cpf, jobPosition, email,
-                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice
+                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice,faceS3ObjectKey
         );
     }
 
@@ -79,6 +82,7 @@ public class EmployeeEntity {
                 .companyId(employee.companyId())
                 .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())
                 .homeOffice(employee.homeOffice())
+                .faceS3ObjectKey(employee.faceS3ObjectKey())
                 .build();
     }
 

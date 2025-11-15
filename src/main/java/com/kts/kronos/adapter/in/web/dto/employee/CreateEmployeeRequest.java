@@ -35,6 +35,7 @@ public record  CreateEmployeeRequest(
         String phone,
         @Valid AddressRequest
         address, UUID companyId,
-        boolean homeOffice
+        boolean homeOffice,
+        String faceImageBase64
         ) {
 }
