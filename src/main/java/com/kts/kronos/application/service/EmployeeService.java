@@ -82,7 +82,16 @@ public class EmployeeService implements EmployeeUseCase {
         var savedEmployee = employeeProvider.save(newEmployee);
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
-            registerFaceInternal(savedEmployee.employeeId(), req.faceImageBase64());
+            // 1. Chama o método de registro (passando null para oldS3ObjectKey)
+            var s3Key = handleFaceRegistration(
+                    savedEmployee.employeeId(),
+                    savedEmployee.faceS3ObjectKey(),
+                    req.faceImageBase64()
+            );
+
+            // 2. Re-salva o Employee com a chave S3 (faceS3ObjectKey)
+            savedEmployee = savedEmployee.withFaceS3ObjectKey(s3Key);
+            employeeProvider.save(savedEmployee);
         }
 
         return savedEmployee;
@@ -130,9 +139,9 @@ public class EmployeeService implements EmployeeUseCase {
                 employee.active(),
                 employee.address(),
                 employee.companyId(),
-                null,
+                employee.lastSeenMessageTimestamp(),
                 req.homeOffice() != null ? req.homeOffice() : employee.homeOffice(),
-                null
+                employee.faceS3ObjectKey()
         );
 
         if (req.address() != null) {
@@ -140,6 +149,18 @@ public class EmployeeService implements EmployeeUseCase {
             var updatedAddress = lookup.withNumber(req.address().number());
             updatedEmployee = updatedEmployee.withAddress(updatedAddress);
         }
+
+        String newS3ObjectKey = updatedEmployee.faceS3ObjectKey();
+
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            newS3ObjectKey = handleFaceRegistration(
+                    updatedEmployee.employeeId(),
+                    updatedEmployee.faceS3ObjectKey(),
+                    req.faceImageBase64()
+            );
+        }
+        updatedEmployee = updatedEmployee.withFaceS3ObjectKey(newS3ObjectKey);
+
         employeeProvider.save(updatedEmployee);
     }
 
@@ -192,32 +213,42 @@ public class EmployeeService implements EmployeeUseCase {
         return employeeProvider.cpfExists(cpf);
     }
 
-    private void registerFaceInternal(UUID employeeId, String faceImageBase64) {
-        String s3ObjectKey = null;
+    private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {
+        String newS3ObjectKey = null;
         try {
-            // 1. Decodificar e criar Stream da Imagem
+            // 1. Decodifica e cria Stream da Imagem
             byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
             ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
 
-            // 2. Upload para o S3
-            // Salva a imagem no S3, sob a pasta 'faces/{employeeId}/'
-            s3ObjectKey = faceStorageProvider.uploadFaceImage(employeeId, inputStream, "image/jpeg");
+            // 2. Upload para o S3 (cria um novo arquivo)
+            newS3ObjectKey = faceStorageProvider.uploadFaceImage(employeeId, inputStream, "image/jpeg");
 
-            // 3. Indexar a Face no Rekognition
-            // O employeeId é o ExternalImageId
-            String faceId = faceRecognitionProvider.indexFace(s3ObjectKey, employeeId);
+            // 3. Indexar a Face no Rekognition (usa employeeId como ExternalImageId)
+            String faceId = faceRecognitionProvider.indexFace(newS3ObjectKey, employeeId);
 
             if (faceId == null) {
-                // Se nenhuma face for detectada, deletar o arquivo do S3 e lançar erro
-                faceStorageProvider.deleteFaceImage(s3ObjectKey);
+                // Se nenhuma face for detectada, deletar o novo arquivo do S3 e lançar erro
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
                 throw new BadRequestException(NO_FACE_DETECTED);
             }
+
+            // 4. Se a indexação foi bem-sucedida, deletar a imagem antiga do S3 (se existir)
+            if (oldS3ObjectKey != null && !oldS3ObjectKey.isBlank()) {
+                faceStorageProvider.deleteFaceImage(oldS3ObjectKey);
+            }
+
+            // 5. Retorna a nova chave S3
+            return newS3ObjectKey;
+
         } catch (IllegalArgumentException e) {
+            if (newS3ObjectKey != null) {
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
+            }
             throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
         } catch (RuntimeException e) {
             // Captura falhas de serviço do Rekognition ou S3
-            if (s3ObjectKey != null) {
-                faceStorageProvider.deleteFaceImage(s3ObjectKey);
+            if (newS3ObjectKey != null) {
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
             }
             throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
         }
