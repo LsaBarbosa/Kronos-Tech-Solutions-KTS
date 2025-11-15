@@ -27,6 +27,8 @@ public record UpdateEmployeeManagerRequest(
 
         String phone,
         Boolean homeOffice,
-        @Valid UpdateAddressRequest address
+        @Valid UpdateAddressRequest address,
+        String faceImageBase64
+
 ) {
 }
