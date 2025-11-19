@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
+import static com.kts.kronos.domain.model.enuns.StatusRecord.UPDATE_REJECTED;
 
 @Slf4j
 @Service
@@ -259,7 +260,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = findRecordAndCheckStatus(timeRecordId);
 
         // Reverte o status do registro.
-        var rejectedRecord = record.withStatus(StatusRecord.UPDATE_REJECTED).withEdited(false);
+        var rejectedRecord = record.withStatus(UPDATE_REJECTED).withEdited(false);
         recordRepository.save(rejectedRecord);
 
         // Limpa o registro de aprovação
@@ -418,9 +419,20 @@ public class TimeRecordService implements TimeRecordUseCase {
         List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
         var allPossibleReportStatuses = EnumSet.of(
-                CREATED, PENDING, UPDATED, PENDING_APPROVAL,
-                DAY_OFF, TIME_OFF, ABSENCE, IMPLICIT_BREAK,
-                REQUEST_VACATION, VACATION, VACATION_REJECTED
+                CREATED,
+                PENDING,
+                UPDATED,
+                UPDATE_REJECTED,
+                DAY_OFF,
+                ABSENCE,
+                PENDING_APPROVAL,
+                TIME_OFF,
+                TIME_OFF_REQUEST,
+                TIME_OFF_REJECTED,
+                IMPLICIT_BREAK,
+                REQUEST_VACATION,
+                VACATION,
+                VACATION_REJECTED
         );
 
         Set<StatusRecord> finalFilterStatuses;
