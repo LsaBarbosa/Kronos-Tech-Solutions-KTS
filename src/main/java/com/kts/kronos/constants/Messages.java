@@ -94,6 +94,10 @@ public class Messages {
     public static final String CHECKOUT_EXCEPTION = "Realize a entrada antes de realizar uma nova saída";
     public static final String FUTURE_TIME_EXCEPTION = "Não é possível usar data/hora futura";
     public static final String SALARY_MUST_BE_POSITIVE = "Salário deve ser positivo";
+    public static final String IMAGE_DATA_NOT_BLANK = "A imagem da face é obrigatória para o registro de ponto";
+    public static final String IMAGE_DATA_REGISTER_NOT_BLANK = "A imagem da face é obrigatória para o cadastro de referência.";
+    public static final String NO_FACE_DETECTED = "Nenhuma face válida detectada na imagem fornecida. Tente novamente.";
+    // ...
     //Status
     public static final String STATUS_CHECKOUT = "Só é possível fazer checkout de um registro PENDING (atual=";
     public static final String STATUS_UPDATE = "Só é possível editar um registro CREATED/UPDATED (atual=";
