@@ -5,12 +5,7 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
-  rabbitmq:
-    # Host/Porta
-    host: ${RABBITMQ_HOST:kronos-solutions-message}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:rabbitmq}       # Ajuste o valor default para 'rabbitmq'
-    password: ${RABBITMQ_PASSWORD:Bmsanti12126969!}
+
   docker:
     compose:
       enabled: false
@@ -53,7 +48,7 @@ logging:
 
 jwt:
   # Variável para o segredo JWT
-  secret: ${JWT_SECRET:"dGhpc19pcy1qd3Rfc2VjcmV0X3dpdGhfMzJfYnl0ZXNfISEhISEhISE="}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:3600000}
 
 frontend:
@@ -62,3 +57,18 @@ frontend:
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-local: ${FRONTEND_BASE_URL_LOCAL}
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
+
+aws:
+  # ATENÇÃO: Removemos o valor de fallback para que a aplicação falhe se a variável de ambiente não estiver definida.
+  # A região pode ter um valor de fallback se você souber que ela é fixa.
+  region: ${AWS_REGION:us-east-1}
+
+  # Chaves de acesso devem ser injetadas
+  access-key-id: ${AWS_ACCESS_KEY_ID}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+
+  # Variáveis de Configuração
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME}
+  rekognition:
+    collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_render}

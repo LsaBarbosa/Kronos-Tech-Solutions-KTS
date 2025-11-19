@@ -6,20 +6,20 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
-import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.CPF_ALREADY_EXIST;
-import static com.kts.kronos.constants.Messages.EMPLOYEE_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.*;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +30,8 @@ public class EmployeeService implements EmployeeUseCase {
     private final AddressLookupProvider viaCep;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final UserProvider userProvider;
+    private final FaceStorageProvider faceStorageProvider;
+    private final FaceRecognitionProvider faceRecognitionProvider;
 
 
     // MANAGER
@@ -37,7 +39,6 @@ public class EmployeeService implements EmployeeUseCase {
     public Employee createEmployee(CreateEmployeeRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken(); // Obtém a role
 
-        // Lógica para determinar o companyId baseado na role
         UUID companyId;
 
         if ("CTO".equals(userRole)) {
@@ -66,7 +67,7 @@ public class EmployeeService implements EmployeeUseCase {
 
         double salary = req.salary() != null ? req.salary() : 0.0;
 
-        var employee = new Employee(
+        var newEmployee = new Employee(
                 req.fullName(),
                 req.cpf(),
                 req.jobPosition(),
@@ -78,7 +79,22 @@ public class EmployeeService implements EmployeeUseCase {
                 null,
                 req.homeOffice()
         );
-        return employeeProvider.save(employee);
+        var savedEmployee = employeeProvider.save(newEmployee);
+
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            // 1. Chama o método de registro (passando null para oldS3ObjectKey)
+            var s3Key = handleFaceRegistration(
+                    savedEmployee.employeeId(),
+                    savedEmployee.faceS3ObjectKey(),
+                    req.faceImageBase64()
+            );
+
+            // 2. Re-salva o Employee com a chave S3 (faceS3ObjectKey)
+            savedEmployee = savedEmployee.withFaceS3ObjectKey(s3Key);
+            employeeProvider.save(savedEmployee);
+        }
+
+        return savedEmployee;
     }
 
     @Override
@@ -123,8 +139,9 @@ public class EmployeeService implements EmployeeUseCase {
                 employee.active(),
                 employee.address(),
                 employee.companyId(),
-                null,
-                req.homeOffice() != null ? req.homeOffice() : employee.homeOffice()
+                employee.lastSeenMessageTimestamp(),
+                req.homeOffice() != null ? req.homeOffice() : employee.homeOffice(),
+                employee.faceS3ObjectKey()
         );
 
         if (req.address() != null) {
@@ -132,6 +149,18 @@ public class EmployeeService implements EmployeeUseCase {
             var updatedAddress = lookup.withNumber(req.address().number());
             updatedEmployee = updatedEmployee.withAddress(updatedAddress);
         }
+
+        String newS3ObjectKey = updatedEmployee.faceS3ObjectKey();
+
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            newS3ObjectKey = handleFaceRegistration(
+                    updatedEmployee.employeeId(),
+                    updatedEmployee.faceS3ObjectKey(),
+                    req.faceImageBase64()
+            );
+        }
+        updatedEmployee = updatedEmployee.withFaceS3ObjectKey(newS3ObjectKey);
+
         employeeProvider.save(updatedEmployee);
     }
 
@@ -182,5 +211,46 @@ public class EmployeeService implements EmployeeUseCase {
     }
     public boolean cpfExists(String cpf) {
         return employeeProvider.cpfExists(cpf);
+    }
+
+    private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {
+        String newS3ObjectKey = null;
+        try {
+            // 1. Decodifica e cria Stream da Imagem
+            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+
+            // 2. Upload para o S3 (cria um novo arquivo)
+            newS3ObjectKey = faceStorageProvider.uploadFaceImage(employeeId, inputStream, "image/jpeg");
+
+            // 3. Indexar a Face no Rekognition (usa employeeId como ExternalImageId)
+            String faceId = faceRecognitionProvider.indexFace(newS3ObjectKey, employeeId);
+
+            if (faceId == null) {
+                // Se nenhuma face for detectada, deletar o novo arquivo do S3 e lançar erro
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
+                throw new BadRequestException(NO_FACE_DETECTED);
+            }
+
+            // 4. Se a indexação foi bem-sucedida, deletar a imagem antiga do S3 (se existir)
+            if (oldS3ObjectKey != null && !oldS3ObjectKey.isBlank()) {
+                faceStorageProvider.deleteFaceImage(oldS3ObjectKey);
+            }
+
+            // 5. Retorna a nova chave S3
+            return newS3ObjectKey;
+
+        } catch (IllegalArgumentException e) {
+            if (newS3ObjectKey != null) {
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
+            }
+            throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
+        } catch (RuntimeException e) {
+            // Captura falhas de serviço do Rekognition ou S3
+            if (newS3ObjectKey != null) {
+                faceStorageProvider.deleteFaceImage(newS3ObjectKey);
+            }
+            throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
+        }
     }
 }

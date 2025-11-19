@@ -26,7 +26,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import java.io.ByteArrayInputStream;
+import java.util.Base64;
 import java.io.IOException;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
@@ -50,13 +51,17 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final CompanyUseCase companyUseCase;
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
-
+    private final FaceRecognitionProvider faceRecognitionProvider;
 
     @Override
-    public ActionResponse registerTime(GeolocationRequest request) {
+    public ActionResponse registerTime(GeolocationRequest request){
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
+
+        validateFaceRecognition(employeeId, request.faceImageBase64());
+
         isHomeOffice(request, employee, employeeId);
+
 
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
@@ -116,6 +121,39 @@ public class TimeRecordService implements TimeRecordUseCase {
             recordRepository.save(record);
             log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
             return new ActionResponse("Entrada às " + currentTimeParsed + "!", "CHECKIN");
+        }
+    }
+
+    private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
+        try {
+            // 1. Decodifica a string Base64 para um array de bytes
+            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+
+            // 2. Cria um InputStream a partir dos bytes
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+
+            // 3. Executa a busca facial no Rekognition
+            UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
+
+            if (recognizedEmployeeId == null) {
+                throw new BadRequestException("Falha na validação facial: Nenhuma face correspondente encontrada.");
+            }
+
+            // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
+            if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
+                log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
+                throw new BadRequestException("Falha na validação facial: A face não corresponde ao colaborador autenticado.");
+            }
+
+            log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
+
+        } catch (IllegalArgumentException e) {
+            // Ocorre se a string Base64 for malformada
+            throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
+        } catch (RuntimeException e) {
+            // Captura falhas de serviço do Rekognition (lançadas pelo provider)
+            log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
+            throw new BadRequestException("Erro no serviço de reconhecimento facial: Falha de comunicação ou processamento.");
         }
     }
 
