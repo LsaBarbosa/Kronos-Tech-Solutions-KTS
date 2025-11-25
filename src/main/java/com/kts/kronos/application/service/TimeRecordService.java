@@ -65,7 +65,6 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
-        // var currentDateParsed = currentTime.format(DATE_FORMATTER); // Variável não utilizada na lógica atual
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
 
         // 1. TENTA REALIZAR O CHECKOUT SE HOUVER REGISTRO ABERTO
