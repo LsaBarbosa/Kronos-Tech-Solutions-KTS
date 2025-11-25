@@ -54,6 +54,7 @@ public class ApiPaths {
     public static final String PASSWORD = "/password";
     public static final String OWN_USER_PROFILE = "/own-profile";
     public static final String CHECK_USERNAME = "/check-username";
+    public static final String LOGIN_FACE = "/login-face";
 
 
 

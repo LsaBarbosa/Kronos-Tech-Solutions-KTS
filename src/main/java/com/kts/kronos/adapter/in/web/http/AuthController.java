@@ -1,18 +1,14 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.security.FaceLoginRequest;
 import com.kts.kronos.adapter.in.web.dto.security.LoginRequest;
 import com.kts.kronos.adapter.in.web.dto.security.LoginResponse;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
-import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.web.bind.annotation.*;
 
 import static com.kts.kronos.constants.ApiPaths.*;
@@ -33,6 +29,12 @@ public class AuthController {
             @RequestHeader(name = "Origin", required = false) String originUrl) {
         authUseCase.recoverPassword(req,originUrl);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping(LOGIN_FACE)
+    public ResponseEntity<LoginResponse> loginFace(@Valid @RequestBody FaceLoginRequest req) {
+        String token = authUseCase.loginFace(req.faceImageBase64());
+        return ResponseEntity.ok(new LoginResponse(token));
     }
 
     @PostMapping(RESET_PASSWORD)
