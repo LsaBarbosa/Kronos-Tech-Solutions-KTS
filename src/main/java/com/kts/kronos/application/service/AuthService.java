@@ -17,6 +17,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
+import java.util.Base64;
+
 import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
@@ -33,6 +36,7 @@ public class AuthService implements AuthUseCase {
     private final PasswordResetTokenProvider tokenProvider;
     private final EmailSenderProvider emailSenderProvider;
     private final PasswordEncoder passwordEncoder;
+    private final FaceRecognitionProvider faceRecognitionProvider;
 
     @Override
     public String login(String username, String password) {
@@ -42,6 +46,43 @@ public class AuthService implements AuthUseCase {
         return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId());
     }
 
+    @Override
+    public String loginFace(String faceImageBase64) {
+        try {
+            // 1. Decodifica a imagem Base64
+            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+            var inputStream = new ByteArrayInputStream(imageBytes);
+
+            // 2. Busca a face na AWS Rekognition
+            // O provider já retorna o UUID do Employee se houver Match > 90%
+            var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
+
+            if (employeeId == null) {
+                throw new ResourceNotFoundException("Face não reconhecida ou não cadastrada.");
+            }
+
+            // 3. Busca o Usuário vinculado ao EmployeeId encontrado
+            var user = userProvider.findByEmployeeId(employeeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Nenhum usuário vinculado a este colaborador."));
+
+            if (!user.active()) {
+                throw new BadRequestException("Usuário inativo.");
+            }
+
+            // 4. Gera o Token JWT (mesma lógica do login tradicional)
+            return jwtUtils.generateToken(
+                    user.employeeId(),
+                    user.username(),
+                    user.role().name(),
+                    user.userId()
+            );
+
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Imagem inválida (Base64 malformado).");
+        } catch (Exception e) {
+            throw new BadRequestException("Erro na autenticação facial: " + e.getMessage());
+        }
+    }
     @Override
     public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
         // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
