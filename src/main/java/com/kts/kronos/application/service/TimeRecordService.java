@@ -63,66 +63,79 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         isHomeOffice(request, employee, employeeId);
 
-
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
-        var currentDateParsed = currentTime.format(DATE_FORMATTER);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
 
+        // 1. TENTA REALIZAR O CHECKOUT SE HOUVER REGISTRO ABERTO
         if (openRecordOpt.isPresent()) {
-            // É um CHECKOUT (Finaliza o segmento de trabalho atual)
             var open = openRecordOpt.get();
 
-            log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
+            // LÓGICA NOVA: Verifica se o registro aberto pertence ao dia de HOJE
+            LocalDate openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
+            LocalDate todayDate = currentTime.atZone(SAO_PAULO).toLocalDate();
 
-            if (open.statusRecord() != PENDING) {
-                log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
-                throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
-            }
+            // Só processa o CHECKOUT se for no MESMO DIA.
+            if (openRecordDate.isEqual(todayDate)) {
+                log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
 
-            // Se for PENDING, realiza a transição e fecha o registro
-            var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
-            recordRepository.save(updated);
-            log.info("Checkout registrado para o segmento de trabalho {}.", open.timeRecordId());
-
-            return new ActionResponse("Saída às " + currentTimeParsed + "!", "CHECKOUT");
-        } else {
-            // É um CHECKIN (Inicia um novo segmento de trabalho)
-            var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
-
-            if (latestRecordOpt.isPresent()) {
-                var latest = latestRecordOpt.get();
-                var latestEndWork = latest.endWork();
-                var currentStartDay = currentTime.atZone(SAO_PAULO).toLocalDate();
-                var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
-
-                // Verifica se o último registro foi *encerrado* no MESMO DIA.
-                if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
-
-                    // 1. CRIA O REGISTRO DE PAUSA IMPLÍCITA (agora explícita)
-                    var breakRecord = new TimeRecord(null, // timeRecordId será gerado
-                            latestEndWork, // Início da pausa é o fim do último trabalho
-                            currentTime,   // Fim da pausa é o início do novo trabalho
-                            StatusRecord.IMPLICIT_BREAK, // Novo status de pausa
-                            false, true, employee.employeeId());
-                    recordRepository.save(breakRecord);
-                    log.info("Registro de Pausa Implícita criado entre {} e {}.", latestEndWork, currentTime);
-
-
-                    // 2. CRIA O NOVO REGISTRO DE PONTO (Segmento de trabalho)
-                    var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
-                    recordRepository.save(record);
-                    log.info("Novo Checkin (após pausa) registrado para o funcionário {}.", employee.employeeId());
-                    return new ActionResponse("Entrada após pausa às " + currentTimeParsed + "!", "CHECKIN_AFTER_BREAK");
+                if (open.statusRecord() != PENDING) {
+                    log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
+                    throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
                 }
-            }
 
-            // 2. Se for o primeiro ponto do dia/primeiro ponto geral
-            var record = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
-            recordRepository.save(record);
-            log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
-            return new ActionResponse("Entrada às " + currentTimeParsed + "!", "CHECKIN");
+                // Se for PENDING e do mesmo dia, realiza a transição e fecha o registro
+                var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
+                recordRepository.save(updated);
+                log.info("Checkout registrado para o segmento de trabalho {}.", open.timeRecordId());
+
+                return new ActionResponse("Saída às " + currentTimeParsed + "!", "CHECKOUT");
+            } else {
+                // Se o registro for de dia anterior, apenas logamos e seguimos para criar um novo (CHECKIN)
+                log.info("Registro anterior (ID: {}) ignorado no checkout pois pertence a uma data passada ({}). Iniciando novo ponto para hoje.", open.timeRecordId(), openRecordDate);
+            }
         }
+
+        // 2. LÓGICA DE CHECKIN (Inicia um novo segmento ou retorno de pausa)
+        // Busca o último registro para verificar se é um retorno de pausa no mesmo dia
+        var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+
+        TimeRecord timeRecord = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
+
+        if (latestRecordOpt.isPresent()) {
+            var latest = latestRecordOpt.get();
+            var latestEndWork = latest.endWork(); // Pode ser nulo se for o registro 'esquecido' do dia anterior
+
+            var currentStartDay = currentTime.atZone(SAO_PAULO).toLocalDate();
+
+            // Se latestEndWork for null (caso do ponto esquecido), latestEndDay será null, e a condição falha, indo para o checkin normal.
+            var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+
+            // Verifica se o último registro foi *encerrado* no MESMO DIA (Pausa Implícita)
+            if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+
+                // 2a. CRIA O REGISTRO DE PAUSA IMPLÍCITA
+                var breakRecord = new TimeRecord(null, // timeRecordId será gerado
+                        latestEndWork, // Início da pausa é o fim do último trabalho
+                        currentTime,   // Fim da pausa é o início do novo trabalho
+                        StatusRecord.IMPLICIT_BREAK, // Novo status de pausa
+                        false, true, employee.employeeId());
+                recordRepository.save(breakRecord);
+                log.info("Registro de Pausa Implícita criado entre {} e {}.", latestEndWork, currentTime);
+
+                // 2b. CRIA O NOVO REGISTRO DE PONTO (Retorno da pausa)
+                var record = timeRecord;
+                recordRepository.save(record);
+                log.info("Novo Checkin (após pausa) registrado para o funcionário {}.", employee.employeeId());
+                return new ActionResponse("Entrada após pausa às " + currentTimeParsed + "!", "CHECKIN_AFTER_BREAK");
+            }
+        }
+
+        // 3. CHECKIN PADRÃO (Primeiro ponto do dia ou Novo dia após esquecer o anterior aberto)
+        var record = timeRecord;
+        recordRepository.save(record);
+        log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
+        return new ActionResponse("Entrada às " + currentTimeParsed + "!", "CHECKIN");
     }
 
     private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
