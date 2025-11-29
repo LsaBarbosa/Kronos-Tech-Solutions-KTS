@@ -20,6 +20,7 @@ public interface EmployeeUseCase {
     void deleteEmployee(UUID employeeId);
 
     void markMessagesAsSeen();
+    void toggleActivate(UUID employeeId);
 
     // PARTNER
     boolean cpfExists(String cpf);
