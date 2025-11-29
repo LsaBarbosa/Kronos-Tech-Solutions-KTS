@@ -42,8 +42,9 @@ public class EmployeeEntity {
     @Column(name = "phone", length = 15)
     private String phone;
 
+    @Builder.Default // Adicione isso para o Lombok
     @Column(name = "is_active", nullable = false)
-    private final boolean active = true;
+    private boolean active = true;
 
     @Column(name = "last_seen_message_timestamp") // Novo campo
     private LocalDateTime lastSeenMessageTimestamp;
@@ -78,6 +79,7 @@ public class EmployeeEntity {
                 .email(employee.email())
                 .salary(employee.salary())
                 .phone(employee.phone())
+                .active(employee.active())
                 .address(AddressEmbeddable.fromDomain(employee.address()))
                 .companyId(employee.companyId())
                 .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())

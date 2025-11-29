@@ -22,6 +22,7 @@ public class ApiPaths {
     public static final String UPDATE_OWN_PROFILE = "/update-own-profile";
     public static final String OWN_PROFILE = "/own-profile";
     public static final String CHECK_CPF = "/check-cpf";
+    public static final String TOGGLE_ACTIVATE_EMPLOYEE = "/toggle-activate/{employeeId}";
 
     // Recods
     public static final String RECORDS = "/records";

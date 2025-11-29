@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -35,6 +36,7 @@ public class UserService implements UserUseCase {
     private final EmployeeProvider employeeProvider;
     private final PasswordEncoder passwordEncoder;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final EmployeeUseCase employeeUseCase;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -146,8 +148,7 @@ public class UserService implements UserUseCase {
         var existing = getUserId(userId);
         var active = existing.withActive(!existing.active());
         userProvider.save(active);
-        employeeProvider.findById(existing.employeeId())
-                .ifPresent(emp -> employeeProvider.save(emp.withActive(!existing.active())));
+        employeeUseCase.toggleActivate(existing.employeeId());
     }
 
     @Override
@@ -186,14 +187,16 @@ public class UserService implements UserUseCase {
     }
 
     private void validatePasswordPolicy(String raw) {
-         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
+        if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
             throw new BadRequestException(INVALID_PASSWORD_POLICY);
         }
     }
+
     private void findById(UUID userId) {
         employeeProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
+
     private User getUserId(UUID userId) {
         return userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
