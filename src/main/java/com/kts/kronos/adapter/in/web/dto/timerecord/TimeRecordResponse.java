@@ -26,7 +26,11 @@ public record TimeRecordResponse(
         boolean active,
         UUID employeeId,
         EmployeeData employeeData,
-        String documentDownloadPath
+        String documentDownloadPath,
+        Double latitude,
+        Double longitude,
+        Double endLatitude,
+        Double endLongitude
 ) {
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
                                                 Duration reference,
@@ -97,7 +101,11 @@ public record TimeRecordResponse(
                 timeRecord.active(),
                 timeRecord.employeeId(),
                 employeeData,
-                documentDownloadPath
+                documentDownloadPath,
+                timeRecord.latitude(),
+                timeRecord.longitude(),
+                timeRecord.endLatitude(),
+                timeRecord.endLongitude()
         );
     }
 }

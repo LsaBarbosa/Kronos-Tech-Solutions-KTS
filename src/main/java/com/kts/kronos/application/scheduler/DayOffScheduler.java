@@ -43,7 +43,9 @@ public class DayOffScheduler {
                         StatusRecord.DAY_OFF,
                         false,
                         true,
-                        empId
+                        empId,
+                        null,null,
+                        null,null
                 );
                 trRepo.save(dayOff);
             }
