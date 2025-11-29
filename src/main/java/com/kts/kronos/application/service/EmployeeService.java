@@ -253,4 +253,16 @@ public class EmployeeService implements EmployeeUseCase {
             throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
         }
     }
+
+    @Override
+    public void toggleActivate(UUID employeeId) {
+        var employee = getEmployee(employeeId);
+
+        var newStatus = !employee.active();
+
+        // 3. Atualiza o Employee
+        var updatedEmployee = employee.withActive(newStatus);
+        employeeProvider.save(updatedEmployee);
+
+    }
 }
