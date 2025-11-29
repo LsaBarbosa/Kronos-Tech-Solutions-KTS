@@ -59,6 +59,7 @@ dependencies {
     // DEV UTILS
     implementation "org.springframework.boot:spring-boot-starter-webflux"
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
      developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor 'org.projectlombok:lombok'
