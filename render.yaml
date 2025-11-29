@@ -2,6 +2,7 @@ services:
   - type: web
     name: kronos-solutions-service # Hostname interno
     env: docker # Usa Dockerfile
+    healthCheckPath: /actuator/health
 
     # =========================================================
     # 1. DISCO PERSISTENTE (Solução para Documentos/Arquivos)
