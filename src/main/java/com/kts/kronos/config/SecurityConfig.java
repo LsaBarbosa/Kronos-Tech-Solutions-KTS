@@ -55,7 +55,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**","/actuator/**").permitAll()
                         .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**","/auth/recover-password")
                         .permitAll()
                         .anyRequest().permitAll()
