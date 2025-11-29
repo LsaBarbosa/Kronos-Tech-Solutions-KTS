@@ -46,6 +46,12 @@ public class TimeRecordEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     public TimeRecord toDomain() {
         return new TimeRecord(
                 timeRecordId,
@@ -54,7 +60,9 @@ public class TimeRecordEntity {
                 statusRecord,
                 edited,
                 active,
-                employeeId
+                employeeId,
+                latitude,
+                longitude
         );
     }
 
@@ -67,6 +75,8 @@ public class TimeRecordEntity {
                 .edited(tr.edited())
                 .active(tr.active())
                 .employeeId(tr.employeeId())
+                .latitude(tr.latitude())
+                .longitude(tr.longitude())
                 .build();
     }
 }

@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.io.IOException;
@@ -55,7 +56,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
 
     @Override
-    public ActionResponse registerTime(GeolocationRequest request){
+    public ActionResponse registerTime(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
 
@@ -66,6 +67,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+
+        Double latitude = request.latitude();
+        Double longitude = request.longitude();
 
         // 1. TENTA REALIZAR O CHECKOUT SE HOUVER REGISTRO ABERTO
         if (openRecordOpt.isPresent()) {
@@ -100,7 +104,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         // Busca o último registro para verificar se é um retorno de pausa no mesmo dia
         var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
 
-        TimeRecord timeRecord = new TimeRecord(null, currentTime, null, PENDING, false, true, employee.employeeId());
+        TimeRecord timeRecord = new TimeRecord(
+                null,
+                currentTime,
+                null,
+                PENDING,
+                false,
+                true,
+                employee.employeeId(),
+                latitude, // Salva a Latitude
+                longitude);
 
         if (latestRecordOpt.isPresent()) {
             var latest = latestRecordOpt.get();
@@ -119,7 +132,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         latestEndWork, // Início da pausa é o fim do último trabalho
                         currentTime,   // Fim da pausa é o início do novo trabalho
                         StatusRecord.IMPLICIT_BREAK, // Novo status de pausa
-                        false, true, employee.employeeId());
+                        false, true, employee.employeeId(),null,null);
                 recordRepository.save(breakRecord);
                 log.info("Registro de Pausa Implícita criado entre {} e {}.", latestEndWork, currentTime);
 
@@ -136,49 +149,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         recordRepository.save(record);
         log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
         return new ActionResponse("Entrada às " + currentTimeParsed + "!", "CHECKIN");
-    }
-
-    private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
-        try {
-            // 1. Decodifica a string Base64 para um array de bytes
-            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
-
-            // 2. Cria um InputStream a partir dos bytes
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
-
-            // 3. Executa a busca facial no Rekognition
-            UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
-
-            if (recognizedEmployeeId == null) {
-                throw new BadRequestException("Falha na validação facial: Nenhuma face correspondente encontrada.");
-            }
-
-            // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
-            if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
-                log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
-                throw new BadRequestException("Falha na validação facial: A face não corresponde ao colaborador autenticado.");
-            }
-
-            log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
-
-        } catch (IllegalArgumentException e) {
-            // Ocorre se a string Base64 for malformada
-            throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
-        } catch (RuntimeException e) {
-            // Captura falhas de serviço do Rekognition (lançadas pelo provider)
-            log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
-            throw new BadRequestException("Erro no serviço de reconhecimento facial: Falha de comunicação ou processamento.");
-        }
-    }
-
-    private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
-        if (!employee.homeOffice()) {
-            // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
-            checkGeolocation(employeeId, request.latitude(), request.longitude());
-        } else {
-            // Log para indicar que a validação foi pulada
-            log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
-        }
     }
 
     @Override
@@ -568,7 +538,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                     StatusRecord.REQUEST_VACATION,
                     false,
                     true,
-                    employeeId
+                    employeeId,
+                    null, null
             );
 
             // Validação: evita duplicidade no dia
@@ -725,7 +696,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     StatusRecord.TIME_OFF_REQUEST,
                     true,
                     true,
-                    employeeId
+                    employeeId, null,null
             );
 
 
@@ -1063,7 +1034,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     // Caso contrário, ajusta o início da pausa
                     TimeRecord updatedBreak = new TimeRecord(succeeding.timeRecordId(), newStartBreak, // Novo start
                             succeeding.endWork(), // Fim original
-                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId());
+                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null);
                     recordRepository.save(updatedBreak);
                     log.info("Pausa {} ajustada para começar em {}.", succeeding.timeRecordId(), newStartBreak.format(TIME_FORMATTER));
                 }
@@ -1143,5 +1114,47 @@ public class TimeRecordService implements TimeRecordUseCase {
         return R * c * 1000; // Retorna a distância em metros
     }
 
+    private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
+        try {
+            // 1. Decodifica a string Base64 para um array de bytes
+            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+
+            // 2. Cria um InputStream a partir dos bytes
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+
+            // 3. Executa a busca facial no Rekognition
+            UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
+
+            if (recognizedEmployeeId == null) {
+                throw new BadRequestException("Falha na validação facial: Nenhuma face correspondente encontrada.");
+            }
+
+            // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
+            if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
+                log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
+                throw new BadRequestException("Falha na validação facial: A face não corresponde ao colaborador autenticado.");
+            }
+
+            log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
+
+        } catch (IllegalArgumentException e) {
+            // Ocorre se a string Base64 for malformada
+            throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
+        } catch (RuntimeException e) {
+            // Captura falhas de serviço do Rekognition (lançadas pelo provider)
+            log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
+            throw new BadRequestException("Erro no serviço de reconhecimento facial: Falha de comunicação ou processamento.");
+        }
+    }
+
+    private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
+        if (!employee.homeOffice()) {
+            // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
+            checkGeolocation(employeeId, request.latitude(), request.longitude());
+        } else {
+            // Log para indicar que a validação foi pulada
+            log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
+        }
+    }
 
 }

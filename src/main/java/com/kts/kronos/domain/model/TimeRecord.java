@@ -12,7 +12,10 @@ public record TimeRecord(
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
-        UUID employeeId
+        UUID employeeId,
+        Double latitude,
+        Double longitude
+
 ) {
     // Construtor de conveniência (apenas employeeId)
     public TimeRecord(UUID employeeId) {
@@ -23,33 +26,35 @@ public record TimeRecord(
                 StatusRecord.PENDING,
                 false,
                 true,
-                employeeId
+                employeeId,
+                null,
+                null
         );
     }
     // O construtor com 7 argumentos (o canônico) é gerado automaticamente pelo record.
     // O código anterior que causava o erro foi removido daqui.
 
     public TimeRecord withId(Long id) {
-        return new TimeRecord(id, startWork, endWork, statusRecord, edited, active, employeeId);
+        return new TimeRecord(id, startWork, endWork, statusRecord, edited, active, employeeId, latitude, longitude);
     }
 
-    public TimeRecord withCheckin(LocalDateTime  startTime) {
-        return new TimeRecord(timeRecordId, startTime, endWork, statusRecord, edited, active, employeeId);
+    public TimeRecord withCheckin(LocalDateTime startTime) {
+        return new TimeRecord(timeRecordId, startTime, endWork, statusRecord, edited, active, employeeId, latitude, longitude);
     }
 
-    public TimeRecord withCheckout(LocalDateTime  endTime) {
-        return new TimeRecord(timeRecordId, startWork, endTime, statusRecord, edited, active, employeeId);
+    public TimeRecord withCheckout(LocalDateTime endTime) {
+        return new TimeRecord(timeRecordId, startWork, endTime, statusRecord, edited, active, employeeId, latitude, longitude);
     }
 
     public TimeRecord withActive(boolean isActive) {
-        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, isActive, employeeId);
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, isActive, employeeId, latitude, longitude);
     }
 
     public TimeRecord withEdited(boolean edited) {
-        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId);
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude, longitude);
     }
 
     public TimeRecord withStatus(StatusRecord status) {
-        return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId);
+        return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId, latitude, longitude);
     }
 }
