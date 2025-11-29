@@ -28,7 +28,9 @@ public record TimeRecordResponse(
         EmployeeData employeeData,
         String documentDownloadPath,
         Double latitude,
-        Double longitude
+        Double longitude,
+        Double endLatitude,
+        Double endLongitude
 ) {
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
                                                 Duration reference,
@@ -101,7 +103,9 @@ public record TimeRecordResponse(
                 employeeData,
                 documentDownloadPath,
                 timeRecord.latitude(),
-                timeRecord.longitude()
+                timeRecord.longitude(),
+                timeRecord.endLatitude(),
+                timeRecord.endLongitude()
         );
     }
 }

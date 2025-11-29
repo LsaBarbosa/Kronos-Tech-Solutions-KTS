@@ -52,6 +52,12 @@ public class TimeRecordEntity {
     @Column(name = "longitude")
     private Double longitude;
 
+    @Column(name = "end_latitude")
+    private Double endLatitude;
+
+    @Column(name = "end_longitude")
+    private Double endLongitude;
+
     public TimeRecord toDomain() {
         return new TimeRecord(
                 timeRecordId,
@@ -62,7 +68,10 @@ public class TimeRecordEntity {
                 active,
                 employeeId,
                 latitude,
-                longitude
+                longitude,
+                endLatitude,
+                endLongitude
+
         );
     }
 
@@ -77,6 +86,8 @@ public class TimeRecordEntity {
                 .employeeId(tr.employeeId())
                 .latitude(tr.latitude())
                 .longitude(tr.longitude())
+                .endLatitude(tr.endLatitude())
+                .endLongitude(tr.endLongitude())
                 .build();
     }
 }
