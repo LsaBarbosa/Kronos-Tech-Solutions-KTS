@@ -89,9 +89,12 @@ public class TimeRecordService implements TimeRecordUseCase {
                 }
 
                 // Se for PENDING e do mesmo dia, realiza a transição e fecha o registro
-                var updated = open.withCheckout(currentTime).withStatus(open.statusRecord().onCheckout());
+                var updated = open.withCheckout(currentTime, request.latitude(), request.longitude())
+                        .withStatus(open.statusRecord().onCheckout());
+                
                 recordRepository.save(updated);
-                log.info("Checkout registrado para o segmento de trabalho {}.", open.timeRecordId());
+                log.info("Checkout realizado. Entrada: [{},{}], Saída: [{},{}]",
+                        open.latitude(), open.longitude(), request.latitude(), request.longitude());
 
                 return new ActionResponse("Saída às " + currentTimeParsed + "!", "CHECKOUT");
             } else {
@@ -113,7 +116,9 @@ public class TimeRecordService implements TimeRecordUseCase {
                 true,
                 employee.employeeId(),
                 latitude, // Salva a Latitude
-                longitude);
+                longitude,
+                null,
+                null);
 
         if (latestRecordOpt.isPresent()) {
             var latest = latestRecordOpt.get();
@@ -132,7 +137,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         latestEndWork, // Início da pausa é o fim do último trabalho
                         currentTime,   // Fim da pausa é o início do novo trabalho
                         StatusRecord.IMPLICIT_BREAK, // Novo status de pausa
-                        false, true, employee.employeeId(),null,null);
+                        false, true, employee.employeeId(),null,null,null,null);
                 recordRepository.save(breakRecord);
                 log.info("Registro de Pausa Implícita criado entre {} e {}.", latestEndWork, currentTime);
 
@@ -539,7 +544,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                     false,
                     true,
                     employeeId,
-                    null, null
+                    null,
+                    null,
+                    null,
+                    null
             );
 
             // Validação: evita duplicidade no dia
@@ -696,7 +704,11 @@ public class TimeRecordService implements TimeRecordUseCase {
                     StatusRecord.TIME_OFF_REQUEST,
                     true,
                     true,
-                    employeeId, null,null
+                    employeeId,
+                    null,
+                    null,
+                    null,
+                    null
             );
 
 
@@ -1034,7 +1046,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     // Caso contrário, ajusta o início da pausa
                     TimeRecord updatedBreak = new TimeRecord(succeeding.timeRecordId(), newStartBreak, // Novo start
                             succeeding.endWork(), // Fim original
-                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null);
+                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null,null,null);
                     recordRepository.save(updatedBreak);
                     log.info("Pausa {} ajustada para começar em {}.", succeeding.timeRecordId(), newStartBreak.format(TIME_FORMATTER));
                 }
