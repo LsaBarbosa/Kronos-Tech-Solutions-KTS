@@ -58,9 +58,21 @@ public class EmployeeService implements EmployeeUseCase {
             throw new ForbiddenException("Usuário sem permissão para criar colaboradores.");
         }
 
+        var existingEmployeeOpt = employeeProvider.findByCpf(req.cpf());
 
-        if (employeeProvider.findByCpf(req.cpf()).isPresent())
-            throw new BadRequestException(CPF_ALREADY_EXIST);
+        if (existingEmployeeOpt.isPresent()) {
+            var existingEmployee = existingEmployeeOpt.get();
+
+            if (userProvider.findByEmployeeId(existingEmployee.employeeId()).isPresent()) {
+                // Se tem usuário, é duplicidade real. Lança erro.
+                throw new BadRequestException(CPF_ALREADY_EXIST);
+            }
+
+            // Se NÃO tem usuário, é um "órfão" (cadastro falhou no passo 2).
+            // Reaproveitamos este registro atualizando seus dados.
+            return updateOrphanEmployee(existingEmployee, req, companyId);
+        }
+
 
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
@@ -82,14 +94,12 @@ public class EmployeeService implements EmployeeUseCase {
         var savedEmployee = employeeProvider.save(newEmployee);
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
-            // 1. Chama o método de registro (passando null para oldS3ObjectKey)
             var s3Key = handleFaceRegistration(
                     savedEmployee.employeeId(),
                     savedEmployee.faceS3ObjectKey(),
                     req.faceImageBase64()
             );
 
-            // 2. Re-salva o Employee com a chave S3 (faceS3ObjectKey)
             savedEmployee = savedEmployee.withFaceS3ObjectKey(s3Key);
             employeeProvider.save(savedEmployee);
         }
@@ -213,6 +223,18 @@ public class EmployeeService implements EmployeeUseCase {
         return employeeProvider.cpfExists(cpf);
     }
 
+    @Override
+    public void toggleActivate(UUID employeeId) {
+        var employee = getEmployee(employeeId);
+
+        var newStatus = !employee.active();
+
+        // 3. Atualiza o Employee
+        var updatedEmployee = employee.withActive(newStatus);
+        employeeProvider.save(updatedEmployee);
+
+    }
+
     private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {
         String newS3ObjectKey = null;
         try {
@@ -254,15 +276,46 @@ public class EmployeeService implements EmployeeUseCase {
         }
     }
 
-    @Override
-    public void toggleActivate(UUID employeeId) {
-        var employee = getEmployee(employeeId);
+    private Employee updateOrphanEmployee(Employee existing, CreateEmployeeRequest req, UUID companyId) {
+        var address = viaCep.lookup(req.address().postalCode())
+                .withNumber(req.address().number());
 
-        var newStatus = !employee.active();
+        double salary = req.salary() != null ? req.salary() : 0.0;
 
-        // 3. Atualiza o Employee
-        var updatedEmployee = employee.withActive(newStatus);
-        employeeProvider.save(updatedEmployee);
+        // Reconstrói o objeto mantendo o ID original e a chave S3 antiga (se houver)
+        var updatedEmployee = new Employee(
+                existing.employeeId(), // Importante: Mantém o UUID original
+                req.fullName(),
+                req.cpf(),
+                req.jobPosition(),
+                req.email(),
+                salary,
+                req.phone(),
+                true, // Reativa o funcionário caso estivesse inativo
+                address,
+                companyId,
+                null, // Reseta o timestamp de mensagem
+                req.homeOffice(),
+                existing.faceS3ObjectKey() // Mantém a chave antiga temporariamente
+        );
 
+        // Salva os dados cadastrais atualizados
+        var savedEmployee = employeeProvider.save(updatedEmployee);
+
+        // Processa a imagem facial novamente
+        // Se houver nova foto, o handleFaceRegistration cuidará de deletar a antiga do S3/Rekognition
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            var s3Key = handleFaceRegistration(
+                    savedEmployee.employeeId(),
+                    savedEmployee.faceS3ObjectKey(),
+                    req.faceImageBase64()
+            );
+            savedEmployee = savedEmployee.withFaceS3ObjectKey(s3Key);
+            employeeProvider.save(savedEmployee);
+        }
+
+        return savedEmployee;
     }
+
+
 }
