@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -110,8 +111,17 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var doc = documentProvider.findById(documentId);
+        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        if (doc.type() == DocumentType.TIME_OFF) {
+            if (!doc.employeeId().equals(loggedInEmployeeId)) {
+                throw new ForbiddenException(
+                        "Apenas o proprietário pode excluir documentos de justificativa de abono (TIME_OFF)."
+                );
+            }
+        }
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+
         bucketStorageProvider.deleteFile(doc.storagePath());
         documentProvider.delete(employeeIdWith, documentId);
     }
