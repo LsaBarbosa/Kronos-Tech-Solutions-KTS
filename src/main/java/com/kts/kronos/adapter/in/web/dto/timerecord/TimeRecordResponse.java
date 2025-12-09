@@ -20,7 +20,7 @@ public record TimeRecordResponse(
         LocalDateTime endWork,
         String endHour,
         String hoursWork,
-        String balance,
+        String balance, // Agora representará o saldo do DIA, se calculado agrupado
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
@@ -32,10 +32,12 @@ public record TimeRecordResponse(
         Double endLatitude,
         Double endLongitude
 ) {
+    // Adicionado parâmetro 'dailyBalance'
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
                                                 Duration reference,
                                                 EmployeeData employeeData,
-                                                String documentDownloadPath) {
+                                                String documentDownloadPath,
+                                                String dailyBalance) { // <--- NOVO PARÂMETRO
 
         var startDateTime = timeRecord.startWork()
                 .atZone(SAO_PAULO).toLocalDateTime();
@@ -61,31 +63,27 @@ public record TimeRecordResponse(
                     worked.toMinutesPart()
             );
 
-            // INÍCIO DA NOVA LÓGICA DE SALDO
-            if (timeRecord.statusRecord() == StatusRecord.ABSENCE) {
-                // Se for FALTA, o saldo é o valor da referência de forma negativa.
-                balanceString = String.format("-%02d:%02d",
-                        reference.toHours(),
-                        reference.toMinutesPart()
-                );
-            } else if (timeRecord.statusRecord() == StatusRecord.DAY_OFF
-                    || timeRecord.statusRecord() == StatusRecord.TIME_OFF
-                    || timeRecord.statusRecord() == StatusRecord.IMPLICIT_BREAK
-                    || timeRecord.statusRecord() == StatusRecord.REQUEST_VACATION // NOVO: Saldo zero durante a solicitação
-                    || timeRecord.statusRecord() == StatusRecord.VACATION        // NOVO: Saldo zero em férias aprovadas
-                    || timeRecord.statusRecord() == StatusRecord.VACATION_REJECTED) { // NOVO: Saldo zero em férias rejeitadas
-                // Para Abonos (DAY_OFF, DOCTOR_APPOINTMENT, VACATION*) e Pausas, o saldo é zerado.
-                balanceString = "+00:00";
+            // SE um saldo diário foi passado, usamos ele (Lógica Agrupada)
+            if (dailyBalance != null) {
+                balanceString = dailyBalance;
             } else {
-                // Cálculo de saldo normal
-                Duration balance = worked.minus(reference);
-                String sign = balance.isNegative() ? "-" : "+";
-                balanceString = sign + String.format("%02d:%02d",
-                        Math.abs(balance.toHours()),
-                        Math.abs(balance.toMinutesPart())
-                );
+                // Caso contrário, usa a lógica individual (Fallback)
+                if (timeRecord.statusRecord() == StatusRecord.ABSENCE) {
+                    balanceString = String.format("-%02d:%02d",
+                            reference.toHours(),
+                            reference.toMinutesPart()
+                    );
+                } else if (isBalanceZeroStatus(timeRecord.statusRecord())) {
+                    balanceString = "+00:00";
+                } else {
+                    Duration balance = worked.minus(reference);
+                    String sign = balance.isNegative() ? "-" : "+";
+                    balanceString = sign + String.format("%02d:%02d",
+                            Math.abs(balance.toHours()),
+                            Math.abs(balance.toMinutesPart())
+                    );
+                }
             }
-            // FIM DA NOVA LÓGICA DE SALDO
         }
 
         return new TimeRecordResponse(
@@ -107,5 +105,14 @@ public record TimeRecordResponse(
                 timeRecord.endLatitude(),
                 timeRecord.endLongitude()
         );
+    }
+
+    private static boolean isBalanceZeroStatus(StatusRecord status) {
+        return status == StatusRecord.DAY_OFF
+                || status == StatusRecord.TIME_OFF
+                || status == StatusRecord.IMPLICIT_BREAK
+                || status == StatusRecord.REQUEST_VACATION
+                || status == StatusRecord.VACATION
+                || status == StatusRecord.VACATION_REJECTED;
     }
 }
