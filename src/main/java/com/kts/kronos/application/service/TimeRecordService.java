@@ -391,11 +391,10 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
         var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-
         var employeeData = getEmployeeData(targetEmployeeId);
-        var duration = getDuration(req.reference());
+        var reference = getDuration(req.reference());
 
-        // 1. Define o conjunto de datas a serem consideradas.
+        // 1. Definição de datas
         final Set<LocalDate> finalDatesSet;
         if (req.dates() != null && req.dates().length > 0) {
             finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
@@ -403,60 +402,120 @@ public class TimeRecordService implements TimeRecordUseCase {
             return Collections.emptyList();
         }
 
-        // 2. Busca TODOS os registros ATIVOS.
+        // 2. Busca registros
         List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
 
+        // 3. Definição de status válidos
         var allPossibleReportStatuses = EnumSet.of(
-                CREATED,
-                PENDING,
-                UPDATED,
-                UPDATE_REJECTED,
-                DAY_OFF,
-                ABSENCE,
-                PENDING_APPROVAL,
-                TIME_OFF,
-                TIME_OFF_REQUEST,
-                TIME_OFF_REJECTED,
-                IMPLICIT_BREAK,
-                REQUEST_VACATION,
-                VACATION,
-                VACATION_REJECTED
+                CREATED, PENDING, UPDATED, UPDATE_REJECTED, DAY_OFF, ABSENCE,
+                PENDING_APPROVAL, TIME_OFF, TIME_OFF_REQUEST, TIME_OFF_REJECTED,
+                IMPLICIT_BREAK, REQUEST_VACATION, VACATION, VACATION_REJECTED
         );
 
         Set<StatusRecord> finalFilterStatuses;
         if (req.statuses() == null || req.statuses().isEmpty()) {
-            // Caso 1: NENHUM status é passado (ou lista vazia), retorna TODOS os possíveis.
             finalFilterStatuses = allPossibleReportStatuses;
         } else {
-            // Caso 2: 1 ou MAIS status são passados.
-            // Filtra a lista da requisição, garantindo que contenha apenas status válidos para relatórios.
             finalFilterStatuses = req.statuses().stream()
                     .filter(allPossibleReportStatuses::contains)
                     .collect(Collectors.toSet());
         }
 
-        // 3. Filtra os registros de TRABALHO (segmentos) e PAUSAS
-        List<TimeRecord> workRecords = allRecordsForEmployee.stream()
-                // Filtra por datas selecionadas (usa a data do startWork)
+        // 4. Filtra registros relevantes para as datas solicitadas
+        List<TimeRecord> recordsInRange = allRecordsForEmployee.stream()
                 .filter(tr -> tr.startWork() != null && finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
-                // Aplica o filtro de status determinado (finalFilterStatuses)
                 .filter(tr -> finalFilterStatuses.contains(tr.statusRecord()))
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        List<TimeRecordResponse> finalResponse = workRecords.stream()
-                .map(timeRecord -> {
-                    // Busca o path do documento se houver um timeRecordId associado.
-                    String documentPath = documentProvider.findByTimeRecordId(timeRecord.timeRecordId())
-                            .map(doc -> doc.documentId().toString()) // Assumindo que DOCUMENTS é a constante "/documents" de ApiPaths
+        // =================================================================================
+        // LÓGICA DE CÁLCULO DE SALDO ÚNICO POR DIA
+        // =================================================================================
+
+        // Agrupa por dia
+        Map<LocalDate, List<TimeRecord>> recordsByDay = recordsInRange.stream()
+                .collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()));
+
+        // Mapa para armazenar o saldo calculado de cada dia
+        Map<LocalDate, String> dailyBalanceMap = new HashMap<>();
+
+        recordsByDay.forEach((date, dailyRecords) -> {
+            // Verifica status especiais que anulam o cálculo (Faltas, Folgas, Férias)
+            boolean isAbsence = dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.ABSENCE);
+            boolean isDayOffOrVacation = dailyRecords.stream().anyMatch(tr ->
+                    tr.statusRecord() == StatusRecord.DAY_OFF ||
+                            tr.statusRecord() == StatusRecord.VACATION ||
+                            tr.statusRecord() == StatusRecord.TIME_OFF
+            );
+
+            String balanceStr;
+
+            if (isAbsence) {
+                balanceStr = String.format("-%02d:%02d", reference.toHours(), reference.toMinutesPart());
+            } else if (isDayOffOrVacation) {
+                balanceStr = "+00:00";
+            } else {
+                // Filtra apenas registros com horário de fim definido
+                List<TimeRecord> closedRecords = dailyRecords.stream()
+                        .filter(tr -> tr.endWork() != null)
+                        .sorted(Comparator.comparing(TimeRecord::startWork))
+                        .toList();
+
+                if (closedRecords.isEmpty()) {
+                    balanceStr = "+00:00"; // Ou lógica para dia sem registros fechados
+                } else {
+                    // 1. Primeira Hora e Última Hora
+                    LocalDateTime firstStart = closedRecords.get(0).startWork();
+                    LocalDateTime lastEnd = closedRecords.get(closedRecords.size() - 1).endWork();
+
+                    // 2. Duração Total Bruta (Primeira -> Última)
+                    Duration grossDuration = Duration.between(firstStart, lastEnd);
+
+                    // 3. Soma das Pausas (Registros de IMPLICIT_BREAK)
+                    // Nota: Isso assume que a pausa está registrada como IMPLICIT_BREAK, conforme seu payload.
+                    Duration totalBreakDuration = closedRecords.stream()
+                            .filter(tr -> tr.statusRecord() == StatusRecord.IMPLICIT_BREAK)
+                            .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
+                            .reduce(Duration.ZERO, Duration::plus);
+
+                    // Alternativa: Se quiser somar APENAS o tempo trabalhado (CREATED/UPDATED),
+                    // o resultado matemático é o mesmo que (Bruto - Pausas) se os intervalos forem contíguos.
+                    // Duration netWorkDuration = grossDuration.minus(totalBreakDuration);
+
+                    // Cálculo Robusto: Soma dos segmentos de TRABALHO efetivo (exclui pausas)
+                    // Isso evita problemas se houver "buracos" não registrados como pausa.
+                    Duration netWorkDuration = closedRecords.stream()
+                            .filter(tr -> tr.statusRecord() != StatusRecord.IMPLICIT_BREAK)
+                            .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
+                            .reduce(Duration.ZERO, Duration::plus);
+
+                    // 4. Saldo = Líquido - Referência
+                    Duration balance = netWorkDuration.minus(reference);
+
+                    String sign = balance.isNegative() ? "-" : "+";
+                    balanceStr = sign + String.format("%02d:%02d", Math.abs(balance.toHours()), Math.abs(balance.toMinutesPart()));
+                }
+            }
+            dailyBalanceMap.put(date, balanceStr);
+        });
+
+        // =================================================================================
+
+        // Monta a resposta final
+        return recordsInRange.stream()
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .map(tr -> {
+                    String documentPath = documentProvider.findByTimeRecordId(tr.timeRecordId())
+                            .map(doc -> doc.documentId().toString())
                             .orElse(null);
 
-                    // Passa o path do documento para o DTO
-                    return TimeRecordResponse.fromDomain(timeRecord, duration, employeeData, documentPath);
-                }).sorted(Comparator.comparing(TimeRecordResponse::startWork)).collect(Collectors.toCollection(ArrayList::new));
+                    LocalDate date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
+                    // Recupera o saldo calculado para aquele dia
+                    String dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
 
-        // Ordenar por horário de início para melhor visualização
-
-        return finalResponse;
+                    // Passa o saldo diário para o DTO
+                    return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
+                })
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Override
@@ -841,7 +900,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             .orElse(null);
                     // --- FIM DA NOVA LÓGICA ---
 
-                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath); //
+                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath,null); //
                 })
                 .sorted(Comparator.comparing(TimeRecordResponse::startWork).reversed())
                 .collect(Collectors.toList());
