@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -71,7 +72,8 @@ public class AfdService implements AdfUseCase {
 
         try (PrintWriter writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
 
-            // 1. Cabeçalho (Registro Tipo 1)
+            // 1. Cabeçalho (Registro Tipo 000000001)
+            // Nota: O layout padrão exige Cabeçalho + Registros + Trailer.
             String header = String.format("0000000011%s%s%s",
                     "1", // 1=CNPJ, 2=CPF
                     formatString(company.cnpj(), 14),
@@ -79,20 +81,26 @@ public class AfdService implements AdfUseCase {
             );
             writer.print(header + "\r\n");
 
+            // --- CONTADOR ATÔMICO PARA O TRAILER ---
+            AtomicLong recordCounter = new AtomicLong(0);
+
             // 2. Registros (Stream do banco)
             try (Stream<AfdEntry> stream = afdProvider.streamByCompanyIdOrderByNsr(companyId)) {
                 stream.forEach(entry -> {
                     String line = formatType7(entry);
                     writer.print(line + "\r\n");
+
+                    // Incrementa o contador a cada linha escrita
+                    recordCounter.incrementAndGet();
                 });
             }
 
-            // 3. Trailer (Registro Tipo 9)
-            // Nota: Para contar o total exato, precisaríamos de um count() antes ou contador no stream.
-            // Para performance máxima, fazemos um count query separado ou apenas imprimimos o trailer estático se a contagem não for crítica no trailer (depende do layout exato).
-            // Layout Anexo V: "999999999" é apenas identificador. O campo 'Quantidade de Registros' foi removido em layouts mais novos ou é específico.
-            // Assumindo layout padrão simples:
-            writer.print("999999999");
+            // 3. Trailer (Registro Tipo 999999999)
+            // Formato: "999999999" + Quantidade de Registros Tipo 7 (9 dígitos com zeros à esquerda)
+            long totalRegistros = recordCounter.get();
+            String trailer = String.format("999999999%09d", totalRegistros);
+
+            writer.print(trailer); // Trailer geralmente é a última linha, sem \r\n final obrigatório
 
             writer.flush();
         } catch (Exception e) {

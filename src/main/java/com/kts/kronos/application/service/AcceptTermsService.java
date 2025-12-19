@@ -3,10 +3,8 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
-import com.kts.kronos.application.port.out.provider.CompanyProvider;
-import com.kts.kronos.application.port.out.provider.DocumentProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.S3StorageProvider;
+import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.domain.model.AuditLog;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -15,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Slf4j
@@ -28,10 +28,21 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final DocumentUseCase documentUseCase; // Seu serviço existente de documentos
     private final DocumentProvider documentProvider;
     private final S3StorageProvider s3StorageProvider; // <--- Aqui o Spring injeta o S3StorageProviderImpl
-
+    private final AuditLogProvider auditLogProvider;
     @Override
     @Transactional
-    public void acceptBiometricTerms(UUID employeeId, String ipAddress) {
+    public void acceptBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
+
+        boolean exists = documentProvider.existsByEmployeeIdAndType(
+                employeeId,
+                DocumentType.BIOMETRIC_CONSENT_TERM
+        );
+
+        if (exists) {
+            log.warn("Usuário {} tentou aceitar o termo novamente, mas já possui registro.", employeeId);
+            return;
+        }
+
         log.info("Iniciando processo de aceite de termos para Employee ID: {}", employeeId);
 
         Employee employee = employeeProvider.findById(employeeId)
@@ -41,15 +52,19 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         // 1. Gera o PDF assinado eletronicamente
-        byte[] pdfBytes = pdfService.generateConsentTerm(employee, company, ipAddress);
+        byte[] pdfBytes = pdfService.generateConsentTerm(employee, company, ipAddress, userAgent);
 
         // 2. Define o nome do arquivo
         String filename = String.format("Termo_Aceite_Biometria_%s.pdf", employee.cpf());
 
-        // 3. Salva no Storage (S3/MinIO) e no Banco (tb_documents)
-        // Estamos usando o documentService existente. Precisamos garantir que ele aceite byte[]
-        // Se o seu método upload aceitar apenas MultipartFile, precisaremos de um adaptador ou chamar um método de baixo nível.
-        // Assumindo que você tem ou criará um método 'uploadGeneratedDocument' no DocumentService (vimos isso nos testes anteriores).
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String s3Key = String.format("legal/%s/%s/%s_termo_biometria.pdf",
+                company.companyId(),
+                employee.employeeId(),
+                timestamp
+        );
+
+        String storagePath = s3StorageProvider.uploadFile(s3Key, pdfBytes);
 
         documentUseCase.uploadGeneratedDocument(
                 DocumentType.BIOMETRIC_CONSENT_TERM,
@@ -59,7 +74,18 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 filename
         );
 
-        log.info("Termo de Consentimento salvo com sucesso para {}", employee.fullName());
+        AuditLog audit = AuditLog.create(
+                employeeId,
+                "ACEITE_TERMOS_BIOMETRIA",
+                ipAddress,
+                userAgent,
+                "Documento gerado e armazenado em: " + storagePath
+        );
+
+        auditLogProvider.registerLog(audit);
+        // ------------------------------------------
+
+        log.info("Fluxo de aceite e auditoria concluído com sucesso.");
     }
 
     @Override

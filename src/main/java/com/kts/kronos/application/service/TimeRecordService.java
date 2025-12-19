@@ -57,6 +57,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final ReceiptPdfService receiptPdfService;
     private final AdfUseCase adfUseCase;
+    private final NsrProvider nsrProvider;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -89,7 +90,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 }
 
                 // A. Gera NSR Sequencial de Saída
-                Long nsrCheckout = generateNextNsr(employee.companyId());
+                Long nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
 
                 // B. Cria o registro atualizado (Fechamento)
                 // Importante: Setamos 'originalEndWork' igual ao 'endWork' neste momento.
@@ -134,7 +135,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         // ---------------------------------------------------------------------
 
         // A. Gera NSR Sequencial de Entrada
-        Long nsrCheckin = generateNextNsr(employee.companyId());
+        Long nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
+
         String actionType = "CHECKIN"; // Default
 
         // B. Lógica de Pausa Implícita (Verifica se está voltando de uma pausa no mesmo dia)
@@ -1283,10 +1285,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
-    private Long generateNextNsr(UUID companyId) {
-        Long maxNsr = recordRepository.findMaxNsrByCompanyId(companyId);
-        return (maxNsr == null ? 0L : maxNsr) + 1;
-    }
+
 
     private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
         try {

@@ -1,10 +1,18 @@
 package com.kts.kronos.application.service;
 
+import com.itextpdf.io.font.constants.StandardFonts;
+import com.itextpdf.kernel.colors.ColorConstants;
+import com.itextpdf.kernel.colors.DeviceGray;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.borders.SolidBorder;
+import com.itextpdf.layout.element.*;
 import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import lombok.extern.slf4j.Slf4j;
@@ -23,74 +31,155 @@ public class BiometricTermPdfService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-    // CORREÇÃO: Injetando valor do YAML
     @Value("${kronos.security.biometric-term-salt}")
     private String secretSalt;
 
-    public byte[] generateConsentTerm(Employee employee, Company company, String ipAddress) {
+    public byte[] generateConsentTerm(Employee employee, Company company, String ipAddress, String userAgent) {
+
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
+            // Define tamanho A4
+            pdf.setDefaultPageSize(PageSize.A4);
 
-            // Dados do Momento da Assinatura
+            Document document = new Document(pdf);
+            document.setMargins(40, 40, 40, 40); // Margens elegantes
+
+            // --- 1. CARREGAMENTO DE FONTES (CORREÇÃO DO ERRO) ---
+            PdfFont fontBody = PdfFontFactory.createFont(StandardFonts.TIMES_ROMAN);
+            PdfFont fontBold = PdfFontFactory.createFont(StandardFonts.TIMES_BOLD);
+            PdfFont fontTech = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            PdfFont fontTechBold = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+
+            // --- 2. DADOS DE AUDITORIA ---
             LocalDateTime now = LocalDateTime.now();
             String formattedDate = now.format(DATE_FMT);
-            String finalIp = (ipAddress != null ? ipAddress : "IP Não Identificado");
+            String finalIp = (ipAddress != null && !ipAddress.isEmpty()) ? ipAddress : "IP Não Identificado";
+            String finalUserAgent = (userAgent != null && !userAgent.isEmpty()) ? userAgent : "Dispositivo Desconhecido";
 
-            // --- GERAÇÃO DO HASH REAL (SHA-256) ---
-            // Usamos o 'this.secretSalt' injetado pelo Spring
-            String dataToSign = String.format("%s|%s|%s|%s|%s",
-                    employee.cpf(),
-                    company.cnpj(),
-                    formattedDate,
-                    finalIp,
-                    this.secretSalt      // <--- Uso da chave do YAML
-            );
-
+            // Hash Calculation
+            String dataToSign = String.format("%s|%s|%s|%s|%s|%s",
+                    employee.cpf(), company.cnpj(), formattedDate, finalIp, finalUserAgent, this.secretSalt);
             String validationHash = calculateSha256(dataToSign);
-            // ----------------------------------------
 
-            // Título
-            document.add(new Paragraph("TERMO DE CONSENTIMENTO PARA TRATAMENTO DE DADOS BIOMÉTRICOS")
-                    .setBold().setFontSize(14).setTextAlignment(TextAlignment.CENTER));
-            document.add(new Paragraph("\n"));
+            // --- 3. CONSTRUÇÃO DO LAYOUT ---
 
-            // Identificação
-            document.add(new Paragraph("Pelo presente instrumento, de um lado:"));
-            document.add(new Paragraph(String.format("EMPREGADOR: %s, CNPJ: %s", company.name(), company.cnpj())).setBold());
-            document.add(new Paragraph("E de outro lado:"));
-            document.add(new Paragraph(String.format("COLABORADOR: %s, CPF: %s", employee.fullName(), employee.cpf())).setBold());
-            document.add(new Paragraph("\n"));
+            // TÍTULO
+            Paragraph title = new Paragraph("TERMO DE CONSENTIMENTO PARA\nTRATAMENTO DE DADOS BIOMÉTRICOS")
+                    .setFont(fontBold).setFontSize(16)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20);
+            document.add(title);
 
-            // Texto Legal
-            String text = "O TITULAR autoriza, de forma livre, informada e inequívoca, o tratamento de seus dados pessoais sensíveis, especificamente sua IMAGEM FACIAL (Biometria), para a finalidade exclusiva de REGISTRO E CONTROLE DE JORNADA DE TRABALHO, em conformidade com a LGPD e Portaria 671/2021.\n\n" +
-                    "1. FINALIDADE: Autenticação da identidade no registro de ponto.\n" +
-                    "2. ARMAZENAMENTO: Ambiente seguro (SaaS) da KRONOS TECH SOLUTIONS.\n" +
-                    "3. REVOGAÇÃO: O consentimento pode ser revogado a qualquer momento.";
-            document.add(new Paragraph(text).setTextAlignment(TextAlignment.JUSTIFIED));
+            // IDENTIFICAÇÃO DAS PARTES (Caixa sutil)
+            Table partiesTable = new Table(UnitValue.createPercentArray(new float[]{20, 80}))
+                    .useAllAvailableWidth()
+                    .setMarginBottom(20);
 
-            // --- RODAPÉ DE VALIDAÇÃO ---
-            document.add(new Paragraph("\n\n-------------------------------------------------------------"));
-            document.add(new Paragraph("REGISTRO DE ACEITE ELETRÔNICO").setBold());
-            document.add(new Paragraph("Documento assinado digitalmente na plataforma KRONOS."));
-            document.add(new Paragraph("Data/Hora: " + formattedDate));
-            document.add(new Paragraph("IP de Origem: " + finalIp));
-            document.add(new Paragraph("ID do Usuário: " + employee.employeeId()));
+            partiesTable.addCell(createLabelCell("EMPREGADOR:", fontTechBold));
+            partiesTable.addCell(createValueCell(company.name() + " (CNPJ: " + company.cnpj() + ")", fontTech));
 
-            // Exibe o Hash Verdadeiro
-            document.add(new Paragraph("Código de Validação (Hash SHA-256):").setBold().setFontSize(8));
-            document.add(new Paragraph(validationHash).setFontSize(8));
+            partiesTable.addCell(createLabelCell("COLABORADOR:", fontTechBold));
+            partiesTable.addCell(createValueCell(employee.fullName() + " (CPF: " + employee.cpf() + ")", fontTech));
 
-            document.add(new Paragraph("\nA integridade deste documento pode ser verificada tecnicamente recriando o hash com os dados acima.").setFontSize(7).setItalic());
+            document.add(partiesTable);
+
+            // TEXTO LEGAL (Justificado e Elegante)
+            String legalTextContent = "O TITULAR autoriza, de forma livre, informada e inequívoca, o tratamento de seus dados pessoais sensíveis, especificamente sua IMAGEM FACIAL (Biometria), para a finalidade exclusiva de REGISTRO E CONTROLE DE JORNADA DE TRABALHO, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e a Portaria 671/2021 do Ministério do Trabalho e Previdência.";
+
+            document.add(new Paragraph(legalTextContent)
+                    .setFont(fontBody).setFontSize(12)
+                    .setTextAlignment(TextAlignment.JUSTIFIED)
+                    .setFirstLineIndent(30)
+                    .setMarginBottom(10));
+
+            // LISTA DE ITENS
+            com.itextpdf.layout.element.List list = new com.itextpdf.layout.element.List()
+                    .setSymbolIndent(12)
+                    .setListSymbol("\u2022") // Bullet point
+                    .setFont(fontBody).setFontSize(12)
+                    .setMarginBottom(20)
+                    .setMarginLeft(20);
+
+            list.add(new ListItem("FINALIDADE: Autenticação segura da identidade no momento do registro de ponto eletrônico, prevenindo fraudes."));
+            list.add(new ListItem("ARMAZENAMENTO: Os dados serão armazenados em ambiente seguro de computação em nuvem (SaaS) provido pela KRONOS TECH SOLUTIONS."));
+            list.add(new ListItem("REVOGAÇÃO: Este consentimento poderá ser revogado a qualquer momento pelo Titular, mediante solicitação expressa ao departamento de Recursos Humanos."));
+
+            document.add(list);
+
+            // --- SEÇÃO DE VALIDAÇÃO TÉCNICA (Estilo "Certificado") ---
+            // Criamos uma caixa com borda para dar peso jurídico
+
+            document.add(new Paragraph("\n")); // Espaço
+
+            Table certTable = new Table(UnitValue.createPercentArray(1)).useAllAvailableWidth();
+            certTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
+
+            // Cabeçalho da Caixa
+            Cell headerCell = new Cell().add(new Paragraph("REGISTRO DE ACEITE ELETRÔNICO (Assinatura Eletrônica Avançada)")
+                    .setFont(fontTechBold).setFontSize(10).setFontColor(ColorConstants.WHITE)
+                    .setTextAlignment(TextAlignment.CENTER));
+            headerCell.setBackgroundColor(DeviceGray.BLACK); // Fundo preto, texto branco
+            certTable.addHeaderCell(headerCell);
+
+            // Corpo da Caixa
+            Cell bodyCell = new Cell();
+            bodyCell.setPadding(10);
+
+            bodyCell.add(new Paragraph("Este documento foi assinado digitalmente através da plataforma KRONOS, garantindo autenticidade e integridade conforme MP 2.200-2/2001.")
+                    .setFont(fontTech).setFontSize(9).setItalic().setMarginBottom(10));
+
+            bodyCell.add(new Paragraph("Data/Hora do Aceite: ").setFont(fontTechBold).setFontSize(9)
+                    .add(new Text(formattedDate).setFont(fontTech)));
+
+            bodyCell.add(new Paragraph("Endereço IP de Origem: ").setFont(fontTechBold).setFontSize(9)
+                    .add(new Text(finalIp).setFont(fontTech)));
+
+            // Tratamento User Agent
+            String displayUA = finalUserAgent.length() > 90 ? finalUserAgent.substring(0, 90) + "..." : finalUserAgent;
+            bodyCell.add(new Paragraph("Dispositivo/Navegador: ").setFont(fontTechBold).setFontSize(9)
+                    .add(new Text(displayUA).setFont(fontTech)));
+
+            bodyCell.add(new Paragraph("ID Único do Usuário: ").setFont(fontTechBold).setFontSize(9)
+                    .add(new Text(employee.employeeId().toString()).setFont(fontTech)));
+
+            // Hash em destaque
+            bodyCell.add(new Paragraph("\nCÓDIGO DE VALIDAÇÃO (HASH SHA-256):")
+                    .setFont(fontTechBold).setFontSize(8).setTextAlignment(TextAlignment.CENTER));
+            bodyCell.add(new Paragraph(validationHash)
+                    .setFont(PdfFontFactory.createFont(StandardFonts.COURIER_BOLD)) // Fonte monoespaçada para o hash
+                    .setFontSize(8).setTextAlignment(TextAlignment.CENTER)
+                    .setBackgroundColor(new DeviceGray(0.95f)) // Fundo cinza claro para o hash
+                    .setPadding(4));
+
+            certTable.addCell(bodyCell);
+            document.add(certTable);
+
+            // Rodapé simples
+            document.add(new Paragraph("Kronos Tech Solutions - Tecnologia em Gestão de Ponto")
+                    .setFont(fontTech).setFontSize(7).setFontColor(DeviceGray.GRAY)
+                    .setTextAlignment(TextAlignment.CENTER).setMarginTop(5));
 
             document.close();
             return baos.toByteArray();
 
         } catch (Exception e) {
             log.error("Erro ao gerar Termo de Consentimento", e);
-            throw new RuntimeException("Falha na geração do Termo PDF");
+            throw new RuntimeException("Falha na geração do Termo PDF: " + e.getMessage());
         }
+    }
+
+    // Métodos auxiliares para tabela limpa
+    private Cell createLabelCell(String text, PdfFont font) {
+        return new Cell().add(new Paragraph(text).setFont(font).setFontSize(10))
+                .setBorder(null)
+                .setPaddingBottom(5);
+    }
+
+    private Cell createValueCell(String text, PdfFont font) {
+        return new Cell().add(new Paragraph(text).setFont(font).setFontSize(10))
+                .setBorder(null)
+                .setPaddingBottom(5);
     }
 
     private String calculateSha256(String input) {
