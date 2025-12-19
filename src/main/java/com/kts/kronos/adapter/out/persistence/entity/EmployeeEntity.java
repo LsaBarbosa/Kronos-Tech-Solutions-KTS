@@ -10,6 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
@@ -29,6 +30,9 @@ public class EmployeeEntity {
 
     @Column(name = "cpf", length = 14, nullable = false, unique = true)
     private String cpf;
+
+    @Column(name = "pis", length = 14, unique = true)
+    private String pis;
 
     @Column(name = "job_position", length = 50, nullable = false)
     private String jobPosition;
@@ -63,10 +67,23 @@ public class EmployeeEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
+    @Column(name = "work_start_time")
+    private LocalTime workStartTime;
+
+    @Column(name = "work_end_time")
+    private LocalTime workEndTime;
+
+    @Column(name = "break_start_time")
+    private LocalTime breakStartTime;
+
+    @Column(name = "break_end_time")
+    private LocalTime breakEndTime;
+
     public Employee toDomain(){
         return new Employee(
-                employeeId, fullName, cpf, jobPosition, email,
-                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice,faceS3ObjectKey
+                employeeId, fullName, cpf, pis,jobPosition, email,
+                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice,faceS3ObjectKey,
+                workStartTime, workEndTime, breakStartTime, breakEndTime
         );
     }
 
@@ -75,6 +92,7 @@ public class EmployeeEntity {
                 .employeeId(employee.employeeId())
                 .fullName(employee.fullName())
                 .cpf(employee.cpf())
+                .pis(employee.pis())
                 .jobPosition(employee.jobPosition())
                 .email(employee.email())
                 .salary(employee.salary())
@@ -85,6 +103,10 @@ public class EmployeeEntity {
                 .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())
                 .homeOffice(employee.homeOffice())
                 .faceS3ObjectKey(employee.faceS3ObjectKey())
+                .workStartTime(employee.workStartTime())
+                .workEndTime(employee.workEndTime())
+                .breakStartTime(employee.breakStartTime())
+                .breakEndTime(employee.breakEndTime())
                 .build();
     }
 

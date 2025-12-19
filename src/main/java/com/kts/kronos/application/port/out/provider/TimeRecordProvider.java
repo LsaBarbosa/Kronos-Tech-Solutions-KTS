@@ -24,4 +24,5 @@ public interface TimeRecordProvider {
 
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
     void deleteByEmployeeId(UUID employeeId);
+    Long findMaxNsrByCompanyId(UUID companyId);
 }

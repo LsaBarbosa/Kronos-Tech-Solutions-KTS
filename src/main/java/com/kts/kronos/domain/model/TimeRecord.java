@@ -16,7 +16,11 @@ public record TimeRecord(
         Double latitude,
         Double longitude,
         Double endLatitude,
-        Double endLongitude
+        Double endLongitude,
+        Long nsrCheckin,   // Novo campo: NSR da Entrada
+        Long nsrCheckout,
+        LocalDateTime originalStartWork,
+        LocalDateTime originalEndWork
 
 ) {
     // Construtor de conveniência (apenas employeeId)
@@ -32,39 +36,50 @@ public record TimeRecord(
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                 null,
                 null
         );
     }
     // O construtor com 7 argumentos (o canônico) é gerado automaticamente pelo record.
     // O código anterior que causava o erro foi removido daqui.
-
-    public TimeRecord withId(Long id) {
-        return new TimeRecord(id, startWork, endWork, statusRecord, edited, active, employeeId, latitude, longitude, endLatitude, endLongitude);
+    public TimeRecord withCheckout(LocalDateTime endWork, Double endLatitude, Double endLongitude, Long nsrCheckout) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 
-    public TimeRecord withCheckin(LocalDateTime startTime) {
-        return new TimeRecord(timeRecordId, startTime, endWork, statusRecord, edited, active, employeeId, latitude, longitude, endLatitude, endLongitude);
+    // Sobrecarga usada no update manual (sem NSR novo)
+    public TimeRecord withCheckout(LocalDateTime endWork) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 
-    // ATENÇÃO: Atualize este método para receber a localização de saída
-    public TimeRecord withCheckout(LocalDateTime endTime, Double lat, Double lon) {
-        return new TimeRecord(timeRecordId, startWork, endTime, statusRecord, edited, active, employeeId, latitude, longitude, lat, lon);
+    public TimeRecord withStatus(StatusRecord statusRecord) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 
-    // Sobrecarga antiga (opcional, caso queira manter compatibilidade em outros lugares, passando null)
-    public TimeRecord withCheckout(LocalDateTime endTime) {
-        return withCheckout(endTime, null, null);
-    }
-
-    public TimeRecord withActive(boolean isActive) {
-        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, isActive, employeeId, latitude, longitude, endLatitude, endLongitude);
+    // Usado na edição: muda o startWork, mas MANTÉM o originalStartWork
+    public TimeRecord withCheckin(LocalDateTime startWork) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 
     public TimeRecord withEdited(boolean edited) {
-        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude, longitude, endLatitude, endLongitude);
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 
-    public TimeRecord withStatus(StatusRecord status) {
-        return new TimeRecord(timeRecordId, startWork, endWork, status, edited, active, employeeId, latitude, longitude, endLatitude, endLongitude);
+    public TimeRecord withActive(boolean active) {
+        return new TimeRecord(timeRecordId, startWork, endWork, statusRecord, edited, active, employeeId, latitude,
+                longitude, endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
+    }
+
+    // Novo auxiliar para setar o ID após salvar
+    public TimeRecord withId(Long id) {
+        return new TimeRecord(id, startWork, endWork, statusRecord, edited, active, employeeId, latitude, longitude,
+                endLatitude, endLongitude, nsrCheckin, nsrCheckout, originalStartWork, originalEndWork);
     }
 }

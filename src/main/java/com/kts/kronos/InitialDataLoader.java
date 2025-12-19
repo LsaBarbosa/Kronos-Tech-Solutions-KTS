@@ -56,6 +56,7 @@ public class InitialDataLoader implements CommandLineRunner {
             var ctoEmployee = new Employee(
                     "Lucas SantAnna",
                     "11366653742",
+                    "00000000000",
                     "CTO",
                     "kronos.time.tech.solutions@gmail.com",
                     1.00,
@@ -63,7 +64,11 @@ public class InitialDataLoader implements CommandLineRunner {
                     companyAddress,
                     company.companyId(),
                     null,
-                    false
+                    false,
+                    null,
+                    null,
+                    null,
+                    null
             );
             employeeProvider.save(ctoEmployee);
             var ctoUser = new User(

@@ -28,15 +28,19 @@ public class TimeRecordEntity {
     @Column(name = "end_work")
     private LocalDateTime  endWork;
 
+    @Column(name = "original_start_work")
+    private LocalDateTime originalStartWork;
+
+    @Column(name = "original_end_work")
+    private LocalDateTime originalEndWork;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status_record", length = 50)
     private StatusRecord statusRecord;
 
-
     @Builder.Default
     @Column(name = "is_edite", nullable = false)
     private boolean edited = false;
-
 
     @Builder.Default
     @Column(name = "is_active", nullable = false)
@@ -58,6 +62,12 @@ public class TimeRecordEntity {
     @Column(name = "end_longitude")
     private Double endLongitude;
 
+    @Column(name = "nsr_checkin")
+    private Long nsrCheckin;
+
+    @Column(name = "nsr_checkout")
+    private Long nsrCheckout;
+
     public TimeRecord toDomain() {
         return new TimeRecord(
                 timeRecordId,
@@ -70,8 +80,11 @@ public class TimeRecordEntity {
                 latitude,
                 longitude,
                 endLatitude,
-                endLongitude
-
+                endLongitude,
+                nsrCheckin,
+                nsrCheckout,
+                originalStartWork,
+                originalEndWork
         );
     }
 
@@ -80,6 +93,8 @@ public class TimeRecordEntity {
                 .timeRecordId(tr.timeRecordId())
                 .startWork(tr.startWork())
                 .endWork(tr.endWork())
+                .originalStartWork(tr.originalStartWork())
+                .originalEndWork(tr.originalEndWork())
                 .statusRecord(tr.statusRecord())
                 .edited(tr.edited())
                 .active(tr.active())
@@ -88,6 +103,8 @@ public class TimeRecordEntity {
                 .longitude(tr.longitude())
                 .endLatitude(tr.endLatitude())
                 .endLongitude(tr.endLongitude())
+                .nsrCheckin(tr.nsrCheckin())
+                .nsrCheckout(tr.nsrCheckout())
                 .build();
     }
 }
