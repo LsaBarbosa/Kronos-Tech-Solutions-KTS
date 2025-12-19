@@ -2,7 +2,6 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
-import com.kts.kronos.application.service.AcceptTermsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,16 +30,26 @@ public class TermsController {
 
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
 
-        // Captura o IP real do cliente (considerando proxies/load balancers)
         String ipAddress = request.getHeader("X-Forwarded-For");
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = request.getRemoteAddr();
         }
+        // Em alguns casos o header vem como "ip1, ip2", pegamos o primeiro
+        if (ipAddress != null && ipAddress.contains(",")) {
+            ipAddress = ipAddress.split(",")[0].trim();
+        }
 
-        acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress);
+        // --- BLINDAGEM 2: USER AGENT ---
+        // Identifica o dispositivo (Ex: Mozilla/5.0 (iPhone; CPU iPhone OS 16...))
+        String userAgent = request.getHeader("User-Agent");
+        if (userAgent == null) userAgent = "Desconhecido";
+
+        // Passamos os dois dados para o serviço
+        acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent);
 
         return ResponseEntity.ok().build();
     }
+
 
     @GetMapping("/status")
     @Operation(summary = "Verificar Status do Aceite", description = "Retorna true se o usuário já aceitou os termos.")
