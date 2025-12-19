@@ -17,4 +17,5 @@ public interface DocumentUseCase {
     void deleteDocument(UUID employeeId, UUID documentId);
     void uploadDocumentForTimeRecord(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException;
     void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName);
+
 }

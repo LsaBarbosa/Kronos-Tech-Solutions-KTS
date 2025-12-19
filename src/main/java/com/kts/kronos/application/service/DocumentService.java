@@ -36,8 +36,8 @@ public class DocumentService implements DocumentUseCase {
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
-    private final S3StorageProvider s3StorageProvider;
-    private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
+
+     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "application/pdf",
             "image/jpeg",
             "image/png",
@@ -174,7 +174,7 @@ public class DocumentService implements DocumentUseCase {
             var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + fileName;
 
             // Upload Físico
-            var storagePath = s3StorageProvider.uploadFile(uniqueObjectName, content);
+            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, content,contentType);
 
             // Salva Metadados no Banco
             var doc = new Document(
@@ -192,4 +192,5 @@ public class DocumentService implements DocumentUseCase {
             throw new BadRequestException("Falha ao salvar documento gerado automaticamente: " + e.getMessage());
         }
     }
+
 }
