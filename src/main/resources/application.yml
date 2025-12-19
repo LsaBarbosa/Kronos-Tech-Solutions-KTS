@@ -70,5 +70,13 @@ aws:
   # Variáveis de Configuração
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME}
+    bucket-name-doc: ${AWS_S3_BUCKET_NAME_DOCS:kronos-docs-legal-prod}
   rekognition:
     collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_render}
+
+kronos:
+  security:
+    certificate:
+      path: "caminho/para/certificado.pfx"
+      password: "sua_senha_secreta"
+    biometric-term-salt: ${SECRET_TERM}  
