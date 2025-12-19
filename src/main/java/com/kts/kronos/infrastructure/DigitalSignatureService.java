@@ -1,0 +1,93 @@
+package com.kts.kronos.infrastructure;
+
+import lombok.extern.slf4j.Slf4j;
+import org.bouncycastle.cert.jcajce.JcaCertStore;
+import org.bouncycastle.cms.*;
+import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
+import org.bouncycastle.util.Store;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
+
+@Slf4j
+@Service
+public class DigitalSignatureService {
+
+    @Value("${kronos.security.certificate.path}")
+    private String certificatePath;
+
+    @Value("${kronos.security.certificate.password}")
+    private String certificatePassword;
+
+    static {
+        // Registra o provider de segurança da Bouncy Castle
+        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+    }
+
+    /**
+     * Gera uma assinatura digital PKCS#7 (CMS) padrão ICP-Brasil.
+     * @param dataToSign Dados originais (ex: conteúdo do arquivo AEJ)
+     * @return Bytes da assinatura (para salvar como .p7s)
+     */
+    public byte[] signData(byte[] dataToSign) {
+        try {
+            log.info("Iniciando processo de assinatura digital com certificado: {}", certificatePath);
+
+            // 1. Carregar KeyStore (Certificado .pfx)
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            try (InputStream is = new FileInputStream(certificatePath)) {
+                keyStore.load(is, certificatePassword.toCharArray());
+            }
+
+            // 2. Obter Alias (Nome interno do certificado)
+            String alias = keyStore.aliases().nextElement();
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
+            X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+
+            // 3. Criar Cadeia de Certificação
+            List<Certificate> certList = new ArrayList<>();
+            certList.add(certificate);
+            Store certs = new JcaCertStore(certList);
+
+            // 4. Configurar Assinador (SHA256 com RSA)
+            ContentSigner sha256Signer = new JcaContentSignerBuilder("SHA256withRSA")
+                    .setProvider("BC")
+                    .build(privateKey);
+
+            CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
+            generator.addSignerInfoGenerator(
+                    new JcaSignerInfoGeneratorBuilder(
+                            new JcaDigestCalculatorProviderBuilder().setProvider("BC").build())
+                            .build(sha256Signer, certificate));
+
+            generator.addCertificates(certs);
+
+            // 5. Assinar o Conteúdo
+            CMSTypedData msg = new CMSProcessableByteArray(dataToSign);
+            
+            // true = Encapsulated (O arquivo .p7s contém o original + assinatura)
+            // false = Detached (O arquivo .p7s contém só a assinatura, precisa do .txt junto)
+            // Para AEJ, geralmente usamos Detached (false) ou conforme especificação do layout.
+            // Vamos usar TRUE (Attached) para garantir que o arquivo seja autocontido se baixado.
+            CMSSignedData signedData = generator.generate(msg, true); 
+
+            return signedData.getEncoded();
+
+        } catch (Exception e) {
+            log.error("Erro crítico na assinatura digital", e);
+            throw new RuntimeException("Falha ao assinar documento digitalmente: " + e.getMessage());
+        }
+    }
+}
