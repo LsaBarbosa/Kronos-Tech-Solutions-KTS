@@ -57,14 +57,19 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final ReceiptPdfService receiptPdfService;
     private final AdfUseCase adfUseCase;
-    private final NsrProvider nsrProvider;
+    private final NsrProvider nsrProvider;     // Provider de Sequência Atômica
+    private final NtpTimeService ntpTimeService; // Validação de Relógio
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = getEmployee(employeeId); // Recupera dados do funcionário
 
-        // 1. Validações Prévias
+        // 0. BLINDAGEM CONTRA FRAUDE DE RELÓGIO (NTP)
+        ntpTimeService.validateSystemTime(10);
+
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+
+        // 1. Validações Prévias (Biometria e Geolocalização)
         validateFaceRecognition(employeeId, request.faceImageBase64());
         isHomeOffice(request, employee, employeeId);
 
@@ -72,6 +77,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
@@ -89,11 +95,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                     throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
                 }
 
-                // A. Gera NSR Sequencial de Saída
+                // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Saída)
                 Long nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
 
                 // B. Cria o registro atualizado (Fechamento)
-                // Importante: Setamos 'originalEndWork' igual ao 'endWork' neste momento.
                 var updated = new TimeRecord(
                         open.timeRecordId(),
                         open.startWork(),
@@ -106,27 +111,26 @@ public class TimeRecordService implements TimeRecordUseCase {
                         open.longitude(),
                         request.latitude(),  // endLatitude
                         request.longitude(), // endLongitude
-                        open.nsrCheckin(),
-                        nsrCheckout,          // NSR Saída
-                        open.originalStartWork(), // Mantém o original da entrada
-                        currentTime           // Define o original da saída
+                        open.nsrCheckin(),   // Mantém NSR da Entrada
+                        nsrCheckout,         // Novo NSR da Saída
+                        open.originalStartWork(),
+                        currentTime          // Define o original da saída
                 );
 
                 recordRepository.save(updated);
 
-                // C. Auditoria Fiscal (AFD)
+                // C. Auditoria Fiscal (AFD) - Grava linha tipo 7
                 adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
 
-                // D. Comprovante (PDF)
+                // D. Comprovante (PDF) - Gera e salva no S3
                 generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, "SAIDA");
 
-                log.info("Checkout realizado. NSR: {}", nsrCheckout);
+                log.info("Checkout realizado com sucesso. NSR: {}", nsrCheckout);
                 return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", "CHECKOUT");
 
             } else {
-                // Se o registro aberto for de um dia anterior (esquecimento), ignoramos aqui
-                // e deixamos o fluxo seguir para criar um novo Check-in (início de nova jornada).
                 log.info("Registro anterior (ID: {}) ignorado pois pertence a data passada.", open.timeRecordId());
+                // Continua para criar um novo Check-in
             }
         }
 
@@ -134,7 +138,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         // CENÁRIO B: CHECKIN (Entrada)
         // ---------------------------------------------------------------------
 
-        // A. Gera NSR Sequencial de Entrada
+        // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Entrada)
         Long nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
 
         String actionType = "CHECKIN"; // Default
@@ -160,8 +164,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                         true,
                         employee.employeeId(),
                         null, null, null, null,
-                        null, null, // Sem NSR para pausa calculada pelo sistema
-                        latestEndWork, currentTime // Originais da pausa
+                        null, null, // Sem NSR para pausa calculada (não é marcação fiscal)
+                        latestEndWork, currentTime
                 );
                 recordRepository.save(breakRecord);
 
@@ -171,7 +175,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         // C. Cria o Novo Registro de Ponto (Entrada)
-        // Importante: Setamos 'originalStartWork' igual ao 'startWork'.
         TimeRecord newCheckin = new TimeRecord(
                 null,
                 currentTime, // startWork
@@ -191,13 +194,13 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var savedRecord = recordRepository.save(newCheckin);
 
-        // D. Auditoria Fiscal (AFD)
+        // D. Auditoria Fiscal (AFD) - Grava linha tipo 7
         adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
 
-        // E. Comprovante (PDF)
+        // E. Comprovante (PDF) - Gera e salva no S3
         generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
 
-        log.info("Checkin realizado. NSR: {}", nsrCheckin);
+        log.info("Checkin realizado com sucesso. NSR: {}", nsrCheckin);
 
         String message = actionType.equals("CHECKIN_AFTER_BREAK")
                 ? "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")"
