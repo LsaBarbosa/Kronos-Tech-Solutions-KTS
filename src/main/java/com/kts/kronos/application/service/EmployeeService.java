@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -79,9 +80,16 @@ public class EmployeeService implements EmployeeUseCase {
 
         double salary = req.salary() != null ? req.salary() : 0.0;
 
+
+        LocalTime start = req.workStartTime() != null ? req.workStartTime() : LocalTime.of(8, 0);
+        LocalTime end = req.workEndTime() != null ? req.workEndTime() : LocalTime.of(17, 0);
+        LocalTime breakStart = req.breakStartTime() != null ? req.breakStartTime() : LocalTime.of(12, 0);
+        LocalTime breakEnd = req.breakEndTime() != null ? req.breakEndTime() : LocalTime.of(13, 0);
+
         var newEmployee = new Employee(
                 req.fullName(),
                 req.cpf(),
+                req.pis(),
                 req.jobPosition(),
                 req.email(),
                 salary,
@@ -89,7 +97,11 @@ public class EmployeeService implements EmployeeUseCase {
                 address,
                 companyId,
                 null,
-                req.homeOffice()
+                req.homeOffice(),
+                start,
+                end,
+                breakStart,
+                breakEnd
         );
         var savedEmployee = employeeProvider.save(newEmployee);
 
@@ -137,22 +149,29 @@ public class EmployeeService implements EmployeeUseCase {
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
-        var employee = getEmployee(id);
+        var existingEmployee = getEmployee(id);
+
         var updatedEmployee = new Employee(
-                employee.employeeId(), // Garante que o ID é o mesmo do funcionário original
-                req.fullName() != null ? req.fullName() : employee.fullName(),
-                req.cpf() != null ? req.cpf() : employee.cpf(),
-                req.jobPosition() != null ? req.jobPosition() : employee.jobPosition(),
-                req.email() != null ? req.email() : employee.email(),
-                req.salary() != null ? req.salary() : employee.salary(),
-                req.phone() != null ? req.phone() : employee.phone(),
-                employee.active(),
-                employee.address(),
-                employee.companyId(),
-                employee.lastSeenMessageTimestamp(),
-                req.homeOffice() != null ? req.homeOffice() : employee.homeOffice(),
-                employee.faceS3ObjectKey()
-        );
+                existingEmployee.employeeId(), // Garante que o ID é o mesmo do funcionário original
+                req.fullName() != null ? req.fullName() : existingEmployee.fullName(),
+                existingEmployee.cpf(),
+                req.pis() != null ? req.pis() : existingEmployee.pis(),
+                req.jobPosition() != null ? req.jobPosition() : existingEmployee.jobPosition(),
+                req.email() != null ? req.email() : existingEmployee.email(),
+                req.salary() != null ? req.salary() : existingEmployee.salary(),
+                req.phone() != null ? req.phone() : existingEmployee.phone(),
+                existingEmployee.active(),
+                existingEmployee.address(),
+                existingEmployee.companyId(),
+                existingEmployee.lastSeenMessageTimestamp(),
+                req.homeOffice() != null ? req.homeOffice() : existingEmployee.homeOffice(),
+                existingEmployee.faceS3ObjectKey(),
+                req.workStartTime() != null ? req.workStartTime() : existingEmployee.workStartTime(),
+                req.workEndTime() != null ? req.workEndTime() : existingEmployee.workEndTime(),
+                req.breakStartTime() != null ? req.breakStartTime() : existingEmployee.breakStartTime(),
+                req.breakEndTime() != null ? req.breakEndTime() : existingEmployee.breakEndTime()
+
+                );
 
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
@@ -287,6 +306,7 @@ public class EmployeeService implements EmployeeUseCase {
                 existing.employeeId(), // Importante: Mantém o UUID original
                 req.fullName(),
                 req.cpf(),
+                req.pis(),
                 req.jobPosition(),
                 req.email(),
                 salary,
@@ -296,7 +316,12 @@ public class EmployeeService implements EmployeeUseCase {
                 companyId,
                 null, // Reseta o timestamp de mensagem
                 req.homeOffice(),
-                existing.faceS3ObjectKey() // Mantém a chave antiga temporariamente
+                existing.faceS3ObjectKey(),
+                existing.workStartTime(),
+                existing.workEndTime(),
+                existing.breakStartTime(),
+                existing.breakEndTime()
+                // Mantém a chave antiga temporariamente
         );
 
         // Salva os dados cadastrais atualizados

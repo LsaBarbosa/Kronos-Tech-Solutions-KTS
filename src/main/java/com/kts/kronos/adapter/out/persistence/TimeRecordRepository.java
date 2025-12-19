@@ -34,4 +34,9 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
     void deleteByEmployeeId(UUID employeeId);
+
+    @Query("SELECT MAX(GREATEST(COALESCE(tr.nsrCheckin, 0), COALESCE(tr.nsrCheckout, 0))) " +
+            "FROM TimeRecordEntity tr " +
+            "WHERE tr.employeeId IN (SELECT e.employeeId FROM EmployeeEntity e WHERE e.companyId = :companyId)")
+    Long findMaxNsrByCompanyId(@Param("companyId") UUID companyId);
 }

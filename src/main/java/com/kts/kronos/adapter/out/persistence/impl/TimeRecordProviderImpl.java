@@ -76,4 +76,9 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     public void deleteByEmployeeId(UUID employeeId) {
         jpa.deleteByEmployeeId(employeeId);
     }
+
+    @Override
+    public Long findMaxNsrByCompanyId(UUID companyId) {
+        return jpa.findMaxNsrByCompanyId(companyId);
+    }
 }

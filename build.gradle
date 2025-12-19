@@ -60,6 +60,7 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-webflux"
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'commons-net:commons-net:3.10.0'
      developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor 'org.projectlombok:lombok'
@@ -82,6 +83,7 @@ dependencies {
     implementation 'software.amazon.awssdk:rekognition'
     implementation 'software.amazon.awssdk:s3'
 
+
 }
 
 
@@ -89,4 +91,8 @@ dependencies {
 tasks.named('bootBuildImage') {
     builder = "paketobuildpacks/builder-jammy-base"
     imageName = "489540979930.dkr.ecr.sa-east-1.amazonaws.com/kronos:latest"
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

@@ -1,0 +1,257 @@
+package com.kts.kronos.application.service;
+
+import com.itextpdf.kernel.colors.DeviceRgb;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.properties.TextAlignment;
+import com.itextpdf.layout.properties.UnitValue;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.ByteArrayOutputStream;
+import java.time.DayOfWeek;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PointMirrorPdfService implements PointMirrorPdfUseCase {
+
+    private final CompanyProvider companyProvider;
+    private final EmployeeProvider employeeProvider;
+    private final TimeRecordProvider recordRepository;
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        Employee employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+        Company company = companyProvider.findById(employee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            document.setMargins(20, 20, 20, 20);
+
+            // 1. TÍTULO
+            document.add(new Paragraph("ESPELHO DE PONTO ELETRÔNICO")
+                    .setBold().setFontSize(16).setTextAlignment(TextAlignment.CENTER));
+            document.add(new Paragraph("Período: " + startDate.format(DATE_FMT) + " a " + endDate.format(DATE_FMT))
+                    .setFontSize(10).setTextAlignment(TextAlignment.CENTER));
+
+            // 2. DADOS CADASTRAIS
+            addEmployeeHeader(document, company, employee);
+
+            // 3. TABELA DE PONTO
+            Table table = new Table(UnitValue.createPercentArray(new float[]{3, 3, 5, 5, 3, 3}));
+            table.setWidth(UnitValue.createPercentValue(100));
+
+            // Cabeçalho da Tabela
+            addCellHeader(table, "DATA");
+            addCellHeader(table, "JORNADA");
+            addCellHeader(table, "MARC. ORIGINAIS");
+            addCellHeader(table, "MARC. TRATADAS");
+            addCellHeader(table, "TRABALHADO");
+            addCellHeader(table, "SALDO");
+
+            Duration totalBalance = Duration.ZERO;
+            Duration totalWorked = Duration.ZERO;
+
+            for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+
+                // Busca registros do dia
+                LocalDate finalDate = date;
+                List<TimeRecord> dailyRecords = recordRepository.findByEmployeeId(employee.employeeId()).stream()
+                        .filter(r -> r.startWork() != null && r.startWork().toLocalDate().equals(finalDate))
+                        .sorted(Comparator.comparing(TimeRecord::startWork))
+                        .toList();
+
+                // --- CÁLCULO REAL ---
+                ProcessedDay dayData = processDay(date, dailyRecords, employee);
+
+                totalWorked = totalWorked.plus(dayData.worked);
+                totalBalance = totalBalance.plus(dayData.balance);
+
+                // Montagem da Linha
+                addCell(table, date.format(DateTimeFormatter.ofPattern("dd/MM (EEE)")));
+                addCell(table, dayData.jornadaDisplay); // Exibe horário contratual ou "Folga"
+                addCell(table, dayData.originalMarks);
+                addCell(table, dayData.treatedMarks);
+                addCell(table, formatDuration(dayData.worked));
+                addCell(table, formatBalance(dayData.balance));
+            }
+
+            document.add(table);
+
+            // 4. RESUMO
+            document.add(new Paragraph("\nRESUMO DO PERÍODO").setBold());
+            document.add(new Paragraph("Total Trabalhado: " + formatDuration(totalWorked)));
+            document.add(new Paragraph("Saldo do Período: " + formatBalance(totalBalance)));
+
+            // 5. ASSINATURAS
+            addSignatures(document, employee.fullName());
+
+            document.close();
+            return baos.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Erro ao gerar Espelho de Ponto", e);
+            throw new RuntimeException("Erro na geração do PDF: " + e.getMessage());
+        }
+    }
+
+    // --- MÉTODOS AUXILIARES ---
+
+    private void addEmployeeHeader(Document doc, Company c, Employee e) {
+        Table header = new Table(UnitValue.createPercentArray(new float[]{1, 1}));
+        header.setWidth(UnitValue.createPercentValue(100));
+        header.setMarginBottom(10);
+
+        header.addCell(new Cell().add(new Paragraph("EMPREGADOR: " + c.name() + "\nCNPJ: " + c.cnpj())).setBorder(null));
+        header.addCell(new Cell().add(new Paragraph("FUNCIONÁRIO: " + e.fullName() + "\nCPF: " + e.cpf())).setBorder(null).setTextAlignment(TextAlignment.RIGHT));
+
+        doc.add(header);
+    }
+
+    private void addSignatures(Document doc, String empName) {
+        Paragraph p = new Paragraph("\n\n\n");
+        p.add("____________________________________            ____________________________________\n");
+        p.add("        " + empName + "                                    Gestor Responsável\n");
+        p.add("        (Funcionário)                                      (Empresa)");
+        p.setTextAlignment(TextAlignment.CENTER);
+        doc.add(p);
+    }
+
+    private void addCellHeader(Table table, String text) {
+        table.addHeaderCell(new Cell().add(new Paragraph(text).setBold().setFontSize(9))
+                .setBackgroundColor(new DeviceRgb(220, 220, 220)).setTextAlignment(TextAlignment.CENTER));
+    }
+
+    private void addCell(Table table, String text) {
+        table.addCell(new Cell().add(new Paragraph(text).setFontSize(9)).setTextAlignment(TextAlignment.CENTER));
+    }
+
+    // DTO Interno para organizar os dados processados do dia
+    private record ProcessedDay(
+            String jornadaDisplay,
+            String originalMarks,
+            String treatedMarks,
+            Duration worked,
+            Duration balance
+    ) {}
+
+    /**
+     * Lógica "Real" de Processamento Diário
+     */
+    private ProcessedDay processDay(LocalDate date, List<TimeRecord> records, Employee employee) {
+        StringBuilder originalSb = new StringBuilder();
+        StringBuilder treatedSb = new StringBuilder();
+        Duration worked = Duration.ZERO;
+
+        // 1. Determina a expectativa de trabalho para este dia específico
+        long expectedMinutes = employee.getDailyWorkMinutes(); // Método real do Employee
+        boolean isWeekend = (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY);
+
+        // Em produção, se for FDS, a expectativa padrão é zero (hora extra 100% se trabalhar)
+        if (isWeekend) {
+            expectedMinutes = 0;
+        }
+
+        Duration expected = Duration.ofMinutes(expectedMinutes);
+
+        // 2. Processa as marcações
+        for (TimeRecord r : records) {
+            // Formata Original
+            if (r.originalStartWork() != null) originalSb.append(r.originalStartWork().format(TIME_FMT)).append("E ");
+            if (r.originalEndWork() != null) originalSb.append(r.originalEndWork().format(TIME_FMT)).append("S ");
+
+            // Formata Tratado
+            if (r.startWork() != null) treatedSb.append(r.startWork().format(TIME_FMT)).append("E ");
+            if (r.endWork() != null) {
+                treatedSb.append(r.endWork().format(TIME_FMT)).append("S ");
+
+                // Soma horas trabalhadas (ignora pausas implícitas no cálculo de 'trabalhado')
+                if (r.statusRecord() != StatusRecord.IMPLICIT_BREAK) {
+                    worked = worked.plus(Duration.between(r.startWork(), r.endWork()));
+                }
+            }
+        }
+
+        // 3. Calcula Saldo
+        Duration balance = worked.minus(expected);
+
+        // 4. Define texto de exibição da Jornada
+        String jornadaDisplay;
+        if (expectedMinutes > 0) {
+            // Exibe horário contratual (Ex: 08:00 - 17:00)
+            LocalTime start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
+            LocalTime end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
+            jornadaDisplay = start.format(TIME_FMT) + " - " + end.format(TIME_FMT);
+        } else {
+            jornadaDisplay = "FOLGA / DSR";
+        }
+
+        // 5. Ajustes Visuais para dias sem marcação
+        if (records.isEmpty()) {
+            if (expectedMinutes > 0) {
+                // Dia útil sem marcação = FALTA (Saldo Negativo)
+                treatedSb.append("FALTA");
+            } else {
+                // Fim de semana sem marcação = FOLGA (Saldo Zero)
+                treatedSb.append("-");
+                balance = Duration.ZERO;
+            }
+        }
+
+        // 6. Tratamento para Abonos/Férias
+        boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF);
+        boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION);
+
+        if (isAbono) {
+            treatedSb = new StringBuilder("ABONO");
+            balance = Duration.ZERO; // Abono zera o débito
+        } else if (isFerias) {
+            treatedSb = new StringBuilder("FÉRIAS");
+            balance = Duration.ZERO;
+        }
+
+        return new ProcessedDay(jornadaDisplay, originalSb.toString(), treatedSb.toString(), worked, balance);
+    }
+
+    private String formatDuration(Duration d) {
+        long hours = d.toHours();
+        long minutes = d.toMinutesPart();
+        return String.format("%02d:%02d", hours, Math.abs(minutes));
+    }
+
+    private String formatBalance(Duration d) {
+        String sign = d.isNegative() ? "-" : "+";
+        return sign + formatDuration(d.abs());
+    }
+}

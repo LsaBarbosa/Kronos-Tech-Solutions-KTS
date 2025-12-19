@@ -1,9 +1,11 @@
 package com.kts.kronos.adapter.in.web.dto.employee;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.adapter.in.web.dto.address.AddressResponse;
 import com.kts.kronos.domain.model.Employee;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record EmployeeResponse(
@@ -18,13 +20,18 @@ public record EmployeeResponse(
         String companyName,
         LocalDateTime lastSeenMessageTimestamp,
         boolean homeOffice,
-        String role
+        String role,
+
+        @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime
 ) {
     public static EmployeeResponse fromDomain(Employee employee, String companyName, String role) {
         return new EmployeeResponse(
                 employee.employeeId(),
                 employee.fullName(),
-                maskCpf(employee.cpf()),
+                employee.cpf(),
                 employee.jobPosition(),
                 employee.email(),
                 employee.salary(),
@@ -33,11 +40,15 @@ public record EmployeeResponse(
                 companyName,
                 employee.lastSeenMessageTimestamp(),
                 employee.homeOffice(),
-                role
+                role,
+                employee.workStartTime(),
+                employee.workEndTime(),
+                employee.breakStartTime(),
+                employee.breakEndTime()
         );
     }
 
-    private static String maskCpf(String cpf) {
-        return cpf.substring(0, 5) + "..." + cpf.substring(cpf.length() - 2);
-    }
+//    private static String maskCpf(String cpf) {
+//        return cpf.substring(0, 5) + "..." + cpf.substring(cpf.length() - 2);
+//    }
 }

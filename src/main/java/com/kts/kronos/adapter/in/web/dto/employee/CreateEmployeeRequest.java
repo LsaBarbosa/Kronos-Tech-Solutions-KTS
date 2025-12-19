@@ -1,10 +1,13 @@
 package com.kts.kronos.adapter.in.web.dto.employee;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
+import jakarta.annotation.Nullable;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.br.CPF;
 
+import java.time.LocalTime;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
@@ -19,6 +22,10 @@ public record  CreateEmployeeRequest(
         @NotBlank(message = CPF_NOT_BLANK)
         @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
         String cpf,
+
+        @Nullable
+        @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
+        String pis,
 
         @NotBlank(message = JOB_POSITION_NOT_BLANK)
         @Size(max = 50)
@@ -36,6 +43,10 @@ public record  CreateEmployeeRequest(
         @Valid AddressRequest
         address, UUID companyId,
         boolean homeOffice,
-        String faceImageBase64
+        String faceImageBase64,
+        @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime
         ) {
 }

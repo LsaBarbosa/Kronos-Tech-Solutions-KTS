@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
@@ -54,108 +55,154 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final UserProvider userProvider;
     private final TimeRecordApprovalProvider approvalProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final ReceiptPdfService receiptPdfService;
+    private final AdfUseCase adfUseCase;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = getEmployee(employeeId);
+        var employee = getEmployee(employeeId); // Recupera dados do funcionário
 
+        // 1. Validações Prévias
         validateFaceRecognition(employeeId, request.faceImageBase64());
-
         isHomeOffice(request, employee, employeeId);
 
+        // 2. Preparação de Dados
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+        var company = companyProvider.findById(employee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        Double latitude = request.latitude();
-        Double longitude = request.longitude();
-
-        // 1. TENTA REALIZAR O CHECKOUT SE HOUVER REGISTRO ABERTO
+        // ---------------------------------------------------------------------
+        // CENÁRIO A: CHECKOUT (Saída)
+        // ---------------------------------------------------------------------
         if (openRecordOpt.isPresent()) {
             var open = openRecordOpt.get();
-
-            // LÓGICA NOVA: Verifica se o registro aberto pertence ao dia de HOJE
             LocalDate openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
             LocalDate todayDate = currentTime.atZone(SAO_PAULO).toLocalDate();
 
-            // Só processa o CHECKOUT se for no MESMO DIA.
+            // Só permite checkout se o registro aberto for do MESMO DIA
             if (openRecordDate.isEqual(todayDate)) {
-                log.debug("Tentativa de Checkout. Registro ID: {}, Status Atual: {}", open.timeRecordId(), open.statusRecord());
-
-                if (open.statusRecord() != PENDING) {
-                    log.error("Tentativa de Checkout falhou. Status do registro ID {} é: {} (Esperado: PENDING)", open.timeRecordId(), open.statusRecord());
+                if (open.statusRecord() != StatusRecord.PENDING) {
                     throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
                 }
 
-                // Se for PENDING e do mesmo dia, realiza a transição e fecha o registro
-                var updated = open.withCheckout(currentTime, request.latitude(), request.longitude())
-                        .withStatus(open.statusRecord().onCheckout());
-                
-                recordRepository.save(updated);
-                log.info("Checkout realizado. Entrada: [{},{}], Saída: [{},{}]",
-                        open.latitude(), open.longitude(), request.latitude(), request.longitude());
+                // A. Gera NSR Sequencial de Saída
+                Long nsrCheckout = generateNextNsr(employee.companyId());
 
-                return new ActionResponse("Saída às " + currentTimeParsed + "!", "CHECKOUT");
+                // B. Cria o registro atualizado (Fechamento)
+                // Importante: Setamos 'originalEndWork' igual ao 'endWork' neste momento.
+                var updated = new TimeRecord(
+                        open.timeRecordId(),
+                        open.startWork(),
+                        currentTime, // endWork
+                        open.statusRecord().onCheckout(),
+                        open.edited(),
+                        open.active(),
+                        open.employeeId(),
+                        open.latitude(),
+                        open.longitude(),
+                        request.latitude(),  // endLatitude
+                        request.longitude(), // endLongitude
+                        open.nsrCheckin(),
+                        nsrCheckout,          // NSR Saída
+                        open.originalStartWork(), // Mantém o original da entrada
+                        currentTime           // Define o original da saída
+                );
+
+                recordRepository.save(updated);
+
+                // C. Auditoria Fiscal (AFD)
+                adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
+
+                // D. Comprovante (PDF)
+                generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, "SAIDA");
+
+                log.info("Checkout realizado. NSR: {}", nsrCheckout);
+                return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", "CHECKOUT");
+
             } else {
-                // Se o registro for de dia anterior, apenas logamos e seguimos para criar um novo (CHECKIN)
-                log.info("Registro anterior (ID: {}) ignorado no checkout pois pertence a uma data passada ({}). Iniciando novo ponto para hoje.", open.timeRecordId(), openRecordDate);
+                // Se o registro aberto for de um dia anterior (esquecimento), ignoramos aqui
+                // e deixamos o fluxo seguir para criar um novo Check-in (início de nova jornada).
+                log.info("Registro anterior (ID: {}) ignorado pois pertence a data passada.", open.timeRecordId());
             }
         }
 
-        // 2. LÓGICA DE CHECKIN (Inicia um novo segmento ou retorno de pausa)
-        // Busca o último registro para verificar se é um retorno de pausa no mesmo dia
-        var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+        // ---------------------------------------------------------------------
+        // CENÁRIO B: CHECKIN (Entrada)
+        // ---------------------------------------------------------------------
 
-        TimeRecord timeRecord = new TimeRecord(
-                null,
-                currentTime,
-                null,
-                PENDING,
-                false,
-                true,
-                employee.employeeId(),
-                latitude, // Salva a Latitude
-                longitude,
-                null,
-                null);
+        // A. Gera NSR Sequencial de Entrada
+        Long nsrCheckin = generateNextNsr(employee.companyId());
+        String actionType = "CHECKIN"; // Default
+
+        // B. Lógica de Pausa Implícita (Verifica se está voltando de uma pausa no mesmo dia)
+        var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
 
         if (latestRecordOpt.isPresent()) {
             var latest = latestRecordOpt.get();
-            var latestEndWork = latest.endWork(); // Pode ser nulo se for o registro 'esquecido' do dia anterior
-
+            var latestEndWork = latest.endWork();
             var currentStartDay = currentTime.atZone(SAO_PAULO).toLocalDate();
-
-            // Se latestEndWork for null (caso do ponto esquecido), latestEndDay será null, e a condição falha, indo para o checkin normal.
             var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
 
-            // Verifica se o último registro foi *encerrado* no MESMO DIA (Pausa Implícita)
+            // Se o último registro fechado foi HOJE, cria o registro de intervalo (gap)
             if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
 
-                // 2a. CRIA O REGISTRO DE PAUSA IMPLÍCITA
-                var breakRecord = new TimeRecord(null, // timeRecordId será gerado
-                        latestEndWork, // Início da pausa é o fim do último trabalho
-                        currentTime,   // Fim da pausa é o início do novo trabalho
-                        StatusRecord.IMPLICIT_BREAK, // Novo status de pausa
-                        false, true, employee.employeeId(),null,null,null,null);
+                var breakRecord = new TimeRecord(
+                        null,
+                        latestEndWork, // Início da Pausa
+                        currentTime,   // Fim da Pausa
+                        StatusRecord.IMPLICIT_BREAK,
+                        false,
+                        true,
+                        employee.employeeId(),
+                        null, null, null, null,
+                        null, null, // Sem NSR para pausa calculada pelo sistema
+                        latestEndWork, currentTime // Originais da pausa
+                );
                 recordRepository.save(breakRecord);
-                log.info("Registro de Pausa Implícita criado entre {} e {}.", latestEndWork, currentTime);
 
-                // 2b. CRIA O NOVO REGISTRO DE PONTO (Retorno da pausa)
-                var record = timeRecord;
-                recordRepository.save(record);
-                log.info("Novo Checkin (após pausa) registrado para o funcionário {}.", employee.employeeId());
-                return new ActionResponse("Entrada após pausa às " + currentTimeParsed + "!", "CHECKIN_AFTER_BREAK");
+                actionType = "CHECKIN_AFTER_BREAK";
+                log.info("Pausa implícita registrada entre {} e {}", latestEndWork, currentTime);
             }
         }
 
-        // 3. CHECKIN PADRÃO (Primeiro ponto do dia ou Novo dia após esquecer o anterior aberto)
-        var record = timeRecord;
-        recordRepository.save(record);
-        log.info("Primeiro Checkin do dia registrado para o funcionário {}.", employee.employeeId());
-        return new ActionResponse("Entrada às " + currentTimeParsed + "!", "CHECKIN");
-    }
+        // C. Cria o Novo Registro de Ponto (Entrada)
+        // Importante: Setamos 'originalStartWork' igual ao 'startWork'.
+        TimeRecord newCheckin = new TimeRecord(
+                null,
+                currentTime, // startWork
+                null,
+                StatusRecord.PENDING,
+                false,
+                true,
+                employee.employeeId(),
+                request.latitude(),
+                request.longitude(),
+                null, null,
+                nsrCheckin, // NSR Entrada
+                null,       // NSR Saída (ainda null)
+                currentTime, // originalStartWork
+                null
+        );
 
+        var savedRecord = recordRepository.save(newCheckin);
+
+        // D. Auditoria Fiscal (AFD)
+        adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
+
+        // E. Comprovante (PDF)
+        generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
+
+        log.info("Checkin realizado. NSR: {}", nsrCheckin);
+
+        String message = actionType.equals("CHECKIN_AFTER_BREAK")
+                ? "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")"
+                : "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+
+        return new ActionResponse(message, actionType);
+    }
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
@@ -606,6 +653,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                     null,
                     null,
                     null,
+                    null,
+                    null,
+                    null,
+                    null,
                     null
             );
 
@@ -764,6 +815,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                     true,
                     true,
                     employeeId,
+                    null,
+                    null,
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -1105,7 +1160,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     // Caso contrário, ajusta o início da pausa
                     TimeRecord updatedBreak = new TimeRecord(succeeding.timeRecordId(), newStartBreak, // Novo start
                             succeeding.endWork(), // Fim original
-                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null,null,null);
+                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null,null,null,null,null,null,null);
                     recordRepository.save(updatedBreak);
                     log.info("Pausa {} ajustada para começar em {}.", succeeding.timeRecordId(), newStartBreak.format(TIME_FORMATTER));
                 }
@@ -1225,6 +1280,41 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             // Log para indicar que a validação foi pulada
             log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
+        }
+    }
+
+    private Long generateNextNsr(UUID companyId) {
+        Long maxNsr = recordRepository.findMaxNsrByCompanyId(companyId);
+        return (maxNsr == null ? 0L : maxNsr) + 1;
+    }
+
+    private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
+        try {
+            // 1. Busca dados da empresa (Caching recomendado em produção)
+            var company = companyProvider.findById(employee.companyId())
+                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+
+            // 2. Gera os bytes do PDF (Assinado e com Hash) via ReceiptPdfService
+            byte[] pdfContent = receiptPdfService.generateReceipt(company, employee, recordTime, nsr);
+
+            // 3. Define nomenclatura padrão do arquivo
+            String fileName = String.format("comprovante_%d_%s_%s.pdf",
+                    nsr,
+                    typeSuffix,
+                    recordTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+
+            // 4. Salva usando o método otimizado do DocumentService
+            documentService.uploadGeneratedDocument(
+                    DocumentType.POINT_RECORD_RECEIPT,
+                    employee.employeeId(),
+                    timeRecordId,
+                    pdfContent,
+                    fileName
+            );
+
+        } catch (Exception e) {
+            // Loga erro crítico mas não aborta a transação principal do ponto para não prejudicar o usuário
+            log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
         }
     }
 

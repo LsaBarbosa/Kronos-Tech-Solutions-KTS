@@ -45,7 +45,7 @@ public class DayOffScheduler {
                         true,
                         empId,
                         null,null,
-                        null,null
+                        null,null,null,null,null,null
                 );
                 trRepo.save(dayOff);
             }
