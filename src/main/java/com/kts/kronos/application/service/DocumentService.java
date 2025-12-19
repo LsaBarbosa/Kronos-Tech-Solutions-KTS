@@ -8,6 +8,7 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.port.out.provider.S3StorageProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.Employee;
@@ -35,6 +36,7 @@ public class DocumentService implements DocumentUseCase {
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
+    private final S3StorageProvider s3StorageProvider;
     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "application/pdf",
             "image/jpeg",
@@ -160,4 +162,34 @@ public class DocumentService implements DocumentUseCase {
         }
     }
 
+    @Override
+    public void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
+        try {
+            // Validação interna básica (opcional, já que geramos o PDF confiável)
+            String contentType = "application/pdf";
+
+            var employee = getEmployee(employeeId); // Garante que funcionário existe
+
+            // Define o caminho no Bucket
+            var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + fileName;
+
+            // Upload Físico
+            var storagePath = s3StorageProvider.uploadFile(uniqueObjectName, content);
+
+            // Salva Metadados no Banco
+            var doc = new Document(
+                    employee.employeeId(),
+                    type,
+                    fileName,
+                    contentType,
+                    storagePath,
+                    TIME_ZONE_BRAZIL,
+                    timeRecordId
+            );
+            documentProvider.save(doc);
+
+        } catch (Exception e) {
+            throw new BadRequestException("Falha ao salvar documento gerado automaticamente: " + e.getMessage());
+        }
+    }
 }

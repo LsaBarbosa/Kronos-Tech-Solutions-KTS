@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.in.web.dto.employee;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.adapter.in.web.dto.address.UpdateAddressRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -7,6 +8,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.hibernate.validator.constraints.br.CPF;
+
+import java.time.LocalTime;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -16,6 +19,9 @@ public record UpdateEmployeeManagerRequest(
         @CPF
         @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
         String cpf,
+
+        @Pattern(regexp = "\\d{11}", message = MUST_HAVE_11_CHARACTERES)
+        String pis,
 
         String jobPosition,
         @Email(message = INVALID_EMAIL_FORMAT)
@@ -28,7 +34,11 @@ public record UpdateEmployeeManagerRequest(
         String phone,
         Boolean homeOffice,
         @Valid UpdateAddressRequest address,
-        String faceImageBase64
+        String faceImageBase64,
+        @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime
 
 ) {
 }

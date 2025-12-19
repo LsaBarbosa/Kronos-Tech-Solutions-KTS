@@ -88,4 +88,10 @@ public class DocumentProviderImpl implements DocumentProvider {
                 .map(DocumentEntity::toDomain);
     }
 
+    @Override
+    public boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type) {
+        return documentRepository.existsByEmployeeIdAndType(employeeId,type);
+    }
+
+
 }

@@ -30,4 +30,6 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     void deleteByEmployeeId(UUID employeeId);
 
     Optional<DocumentEntity> findByTimeRecordId(Long timeRecordId);
+
+    boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
 }
