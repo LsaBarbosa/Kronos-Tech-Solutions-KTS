@@ -83,9 +83,11 @@ public class DocumentProviderImpl implements DocumentProvider {
     }
 
     @Override
-    public Optional<Document> findByTimeRecordId(Long timeRecordId) {
+    public List<Document> findByTimeRecordId(Long timeRecordId) {
         return documentRepository.findByTimeRecordId(timeRecordId)
-                .map(DocumentEntity::toDomain);
+                .stream()
+                .map(DocumentEntity::toDomain)
+                .collect(Collectors.toList());
     }
 
     @Override
