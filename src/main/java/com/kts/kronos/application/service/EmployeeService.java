@@ -49,14 +49,10 @@ public class EmployeeService implements EmployeeUseCase {
             }
             companyId = req.companyId();
         } else if ("MANAGER".equals(userRole)) {
-            // MANAGER: Obtém o companyId do próprio funcionário autenticado
-            var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-            var managerEmployee = employeeProvider.findById(managerEmployeeId)
-                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-            companyId = managerEmployee.companyId();
+            // SEGURANÇA: Manager só cria para a PRÓPRIA empresa
+            companyId = getCompanyIdFromLoggedUser();
         } else {
-            // Proteção extra
-            throw new ForbiddenException("Usuário sem permissão para criar colaboradores.");
+            throw new ForbiddenException("Permissão negada.");
         }
 
         var existingEmployeeOpt = employeeProvider.findByCpf(req.cpf());
@@ -119,28 +115,30 @@ public class EmployeeService implements EmployeeUseCase {
         return savedEmployee;
     }
 
+
     @Override
     public List<Employee> listEmployees(Boolean active) {
-        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var managerEmployee = employeeProvider.findById(managerEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var companyId = managerEmployee.companyId();
-        return active == null
-                ? employeeProvider.findByCompanyId(companyId)
-                : employeeProvider.findByCompanyIdAndActive(companyId, active);
+        // 1. Obtém a empresa do gerente logado
+        UUID companyId = getCompanyIdFromLoggedUser();
+
+        // 2. Busca APENAS dentro dessa empresa
+        if (active == null) {
+            return employeeProvider.findByCompanyId(companyId);
+        } else {
+            return employeeProvider.findByCompanyIdAndActive(companyId, active);
+        }
     }
 
     @Override
-
     public Employee getEmployee(UUID employeeId) {
-        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var managerEmployee = employeeProvider.findById(managerEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        UUID managerCompanyId = getCompanyIdFromLoggedUser();
 
         var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId));
 
-        if (!employee.companyId().equals(managerEmployee.companyId())) {
+        // SEGURANÇA: Se o funcionário buscado não for da mesma empresa do gerente, BLOQUEIA.
+        if (!employee.companyId().equals(managerCompanyId)) {
+            // Lança 404 para não revelar que o ID existe em outra empresa
             throw new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + employeeId);
         }
 
@@ -171,7 +169,7 @@ public class EmployeeService implements EmployeeUseCase {
                 req.breakStartTime() != null ? req.breakStartTime() : existingEmployee.breakStartTime(),
                 req.breakEndTime() != null ? req.breakEndTime() : existingEmployee.breakEndTime()
 
-                );
+        );
 
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
@@ -217,7 +215,7 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-         var employee = getEmployee(employeeId);
+        var employee = getEmployee(employeeId);
         var updateAddress = employee.address();
         if (req.address() != null) {
             var lookup = viaCep.lookup(req.address().postalCode());
@@ -238,6 +236,7 @@ public class EmployeeService implements EmployeeUseCase {
         var updatedEmployee = employee.withLastSeenMessageTimestamp(LocalDateTime.now());
         employeeProvider.save(updatedEmployee);
     }
+
     public boolean cpfExists(String cpf) {
         return employeeProvider.cpfExists(cpf);
     }
@@ -293,6 +292,13 @@ public class EmployeeService implements EmployeeUseCase {
             }
             throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
         }
+    }
+
+    private UUID getCompanyIdFromLoggedUser() {
+        var managerId = jwtAuthenticatedUser.getEmployeeId();
+        var manager = employeeProvider.findById(managerId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        return manager.companyId();
     }
 
     private Employee updateOrphanEmployee(Employee existing, CreateEmployeeRequest req, UUID companyId) {

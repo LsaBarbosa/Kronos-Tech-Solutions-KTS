@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
+
 public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordApprovalEntity, Long> {
     @Modifying
     @Transactional
@@ -22,4 +24,18 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
         WHERE (:employeeName IS NULL OR e.fullName ILIKE %:employeeName%)
     """)
     Page<TimeRecordApprovalEntity> findAllPageable(Pageable pageable, @Param("employeeName") String employeeName);
+
+    @Query("""
+        SELECT t FROM TimeRecordApprovalEntity t
+        WHERE t.requestingEmployeeId IN (
+            SELECT e.employeeId FROM EmployeeEntity e
+            WHERE e.companyId = :companyId
+            AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
+        )
+    """)
+    Page<TimeRecordApprovalEntity> findAllByCompanyId(
+            Pageable pageable,
+            @Param("companyId") UUID companyId,
+            @Param("employeeName") String employeeName
+    );
 }

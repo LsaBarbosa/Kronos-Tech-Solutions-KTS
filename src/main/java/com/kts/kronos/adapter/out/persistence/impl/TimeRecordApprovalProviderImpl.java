@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvider {
@@ -29,9 +31,16 @@ public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvide
     }
 
     @Override
-    public Page<TimeRecordApprovalRequest> findAll(Pageable pageable, String employeeName) {
-        // Delega para o novo método no Repository
-        return repository.findAllPageable(pageable, employeeName)
+    public Page<TimeRecordApprovalRequest> findAllByCompanyId(Pageable pageable, String employeeName, UUID companyId) {
+
+        String searchName = null;
+        if (employeeName != null && !employeeName.isBlank()) {
+            // Formata o padrão de busca no Java para evitar problemas de tipagem no Postgres
+            searchName = "%" + employeeName.toLowerCase() + "%";
+        }
+
+        // Passa o searchName já formatado (ex: "%joao%")
+        return repository.findAllByCompanyId(pageable, companyId, searchName)
                 .map(TimeRecordApprovalEntity::toDomain);
     }
 
