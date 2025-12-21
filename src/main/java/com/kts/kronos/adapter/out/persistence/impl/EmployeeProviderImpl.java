@@ -45,16 +45,6 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .toList();
     }
 
-    @Override
-    public List<Employee> findByActive(boolean active) {
-        List<EmployeeEntity> entities = active
-                ? repository.findByActiveTrue()
-                : repository.findByActiveFalse();
-        return entities.stream()
-                .map(EmployeeEntity::toDomain)
-                .toList();
-    }
-
 
     @Override
     public void deleteById(UUID id) {

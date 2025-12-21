@@ -11,8 +11,7 @@ public interface EmployeeProvider {
     Optional<Employee> findById(UUID id);
     Optional<Employee> findByCpf(String cpf);
     List<Employee> findAll();
-    List<Employee> findByActive(boolean active);
-    void deleteById(UUID id);
+     void deleteById(UUID id);
     List<Employee> findByCompanyId(UUID companyId);
     List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active);
     boolean cpfExists(String cpf);

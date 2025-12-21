@@ -10,8 +10,7 @@ import java.util.UUID;
 public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
     boolean existsByCpf(String cpf);
     Optional<EmployeeEntity> findByCpf(String cpf);
-    List<EmployeeEntity> findByActiveTrue();
-    List<EmployeeEntity> findByActiveFalse();
+
     void deleteById(UUID id);
     List<EmployeeEntity> findByCompanyId(UUID companyId);
     List<EmployeeEntity> findByCompanyIdAndActive(UUID companyId, boolean active);
