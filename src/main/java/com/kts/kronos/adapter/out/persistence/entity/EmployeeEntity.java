@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,10 +10,15 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
-
+import java.util.stream.Collectors;
 @Entity
 @Table(name = "tb_employee")
 @Data
@@ -78,36 +84,81 @@ public class EmployeeEntity {
 
     @Column(name = "break_end_time")
     private LocalTime breakEndTime;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "schedule_type")
+    private WorkScheduleType scheduleType;
 
-    public Employee toDomain(){
+    @Column(name = "scale_start_date")
+    private LocalDate scaleStartDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "preferred_day_off")
+    private DayOfWeek preferredDayOff;
+
+    @Column(name = "weekend_off_index")
+    private Integer weekendOffIndex;
+
+    // Salvamos a lista de dias (ex: "MONDAY,TUESDAY") como texto no banco
+    @Column(name = "fixed_work_days")
+    private String fixedWorkDays;
+
+    // --- MÉTODOS DE CONVERSÃO ---
+
+    public Employee toDomain() {
         return new Employee(
-                employeeId, fullName, cpf, pis,jobPosition, email,
-                salary, phone, active, address.toDomain(), companyId, lastSeenMessageTimestamp,homeOffice,faceS3ObjectKey,
-                workStartTime, workEndTime, breakStartTime, breakEndTime
+                employeeId, fullName, cpf, pis, jobPosition, email,
+                salary, phone, active,
+                address != null ? address.toDomain() : null,
+                companyId, lastSeenMessageTimestamp,
+                homeOffice,
+                faceS3ObjectKey,
+                workStartTime, workEndTime, breakStartTime, breakEndTime,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex,
+                convertStringToSet(this.fixedWorkDays) // Converte String -> Set<DayOfWeek>
         );
     }
 
-    public static EmployeeEntity fromDomain(Employee employee) {
+    public static EmployeeEntity fromDomain(Employee domain) {
         return EmployeeEntity.builder()
-                .employeeId(employee.employeeId())
-                .fullName(employee.fullName())
-                .cpf(employee.cpf())
-                .pis(employee.pis())
-                .jobPosition(employee.jobPosition())
-                .email(employee.email())
-                .salary(employee.salary())
-                .phone(employee.phone())
-                .active(employee.active())
-                .address(AddressEmbeddable.fromDomain(employee.address()))
-                .companyId(employee.companyId())
-                .lastSeenMessageTimestamp(employee.lastSeenMessageTimestamp())
-                .homeOffice(employee.homeOffice())
-                .faceS3ObjectKey(employee.faceS3ObjectKey())
-                .workStartTime(employee.workStartTime())
-                .workEndTime(employee.workEndTime())
-                .breakStartTime(employee.breakStartTime())
-                .breakEndTime(employee.breakEndTime())
+                .employeeId(domain.employeeId())
+                .fullName(domain.fullName())
+                .cpf(domain.cpf())
+                .pis(domain.pis())
+                .jobPosition(domain.jobPosition())
+                .email(domain.email())
+                .salary(domain.salary())
+                .phone(domain.phone())
+                .active(domain.active())
+                .address(domain.address() != null ? AddressEmbeddable.fromDomain(domain.address()) : null)
+                .companyId(domain.companyId())
+                .lastSeenMessageTimestamp(domain.lastSeenMessageTimestamp())
+                .homeOffice(domain.homeOffice())
+                .faceS3ObjectKey(domain.faceS3ObjectKey())
+                .workStartTime(domain.workStartTime())
+                .workEndTime(domain.workEndTime())
+                .breakStartTime(domain.breakStartTime())
+                .breakEndTime(domain.breakEndTime())
+                // Novos campos
+                .scheduleType(domain.scheduleType())
+                .scaleStartDate(domain.scaleStartDate())
+                .preferredDayOff(domain.preferredDayOff())
+                .weekendOffIndex(domain.weekendOffIndex())
+                .fixedWorkDays(convertSetToString(domain.fixedWorkDays())) // Converte Set<DayOfWeek> -> String
                 .build();
     }
 
+    // Auxiliares de Conversão
+    private static Set<DayOfWeek> convertStringToSet(String data) {
+        if (data == null || data.isBlank()) return Collections.emptySet();
+        return Arrays.stream(data.split(","))
+                .map(DayOfWeek::valueOf)
+                .collect(Collectors.toSet());
+    }
+
+    private static String convertSetToString(Set<DayOfWeek> days) {
+        if (days == null || days.isEmpty()) return null;
+        return days.stream()
+                .map(DayOfWeek::name)
+                .collect(Collectors.joining(","));
+    }
 }

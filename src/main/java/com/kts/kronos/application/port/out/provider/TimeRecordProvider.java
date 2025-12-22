@@ -22,7 +22,10 @@ public interface TimeRecordProvider {
 
     List<TimeRecord> findByEmployeeId(UUID employeeId);
 
+
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
     void deleteByEmployeeId(UUID employeeId);
     Long findMaxNsrByCompanyId(UUID companyId);
+
+    long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
 }
