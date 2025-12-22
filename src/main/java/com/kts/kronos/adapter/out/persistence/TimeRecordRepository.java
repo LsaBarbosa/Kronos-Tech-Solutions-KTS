@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +20,7 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             nativeQuery = true
     )
     Optional<TimeRecordEntity> findLatestByEmployeeId(@Param("employeeId") UUID employeeId);
+
     @Query("""
       SELECT CASE WHEN COUNT(e)>0 THEN TRUE ELSE FALSE END
       FROM TimeRecordEntity e
@@ -39,4 +41,14 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             "FROM TimeRecordEntity tr " +
             "WHERE tr.employeeId IN (SELECT e.employeeId FROM EmployeeEntity e WHERE e.companyId = :companyId)")
     Long findMaxNsrByCompanyId(@Param("companyId") UUID companyId);
+
+
+    // --- NOVO MÉTODO ESSENCIAL ---
+    // Busca registros por intervalo. Usado para contar folgas no mês.
+    List<TimeRecordEntity> findByEmployeeIdAndStartWorkBetween(
+            UUID employeeId,
+            LocalDateTime startWorkStart,
+            LocalDateTime startWorkEnd
+    );
+
 }

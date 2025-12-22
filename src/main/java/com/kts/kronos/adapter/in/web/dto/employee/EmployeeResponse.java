@@ -3,9 +3,13 @@ package com.kts.kronos.adapter.in.web.dto.employee;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.adapter.in.web.dto.address.AddressResponse;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Set;
 import java.util.UUID;
 
 public record EmployeeResponse(
@@ -25,7 +29,17 @@ public record EmployeeResponse(
         @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
-        @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime
+        @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime,
+        WorkScheduleType scheduleType,       // Ex: TRADITIONAL_5X2, SIX_BY_ONE...
+
+        @JsonFormat(pattern = "yyyy-MM-dd")
+        LocalDate scaleStartDate,            // Data base para cálculo de ciclos (6x1, 12x36)
+
+        DayOfWeek preferredDayOff,           // Dia da folga fixa (se houver)
+
+        Integer weekendOffIndex,             // Controle de qual FDS é folga (para 6x1 variantes)
+
+        Set<DayOfWeek> fixedWorkDays         // Dias fixos de trabalho (para 5x2)
 ) {
     public static EmployeeResponse fromDomain(Employee employee, String companyName, String role) {
         return new EmployeeResponse(
@@ -44,7 +58,13 @@ public record EmployeeResponse(
                 employee.workStartTime(),
                 employee.workEndTime(),
                 employee.breakStartTime(),
-                employee.breakEndTime()
+                employee.breakEndTime(),
+                employee.scheduleType(),
+                employee.scaleStartDate(),
+                employee.preferredDayOff(),
+                employee.weekendOffIndex(),
+                employee.fixedWorkDays()
+
         );
     }
 
