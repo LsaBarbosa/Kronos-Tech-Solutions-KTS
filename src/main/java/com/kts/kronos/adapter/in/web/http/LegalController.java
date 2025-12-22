@@ -25,7 +25,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/legal")
+@RequestMapping("/legal")
 @RequiredArgsConstructor
 @Tag(name = "Fiscal - Arquivos Legais", description = "Geração de arquivos para fiscalização e espelhos de ponto (Portaria 671)")
 public class LegalController {
