@@ -38,51 +38,46 @@ public class EmployeeService implements EmployeeUseCase {
     // MANAGER
     @Override
     public Employee createEmployee(CreateEmployeeRequest req) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken(); // Obtém a role
-
+        var userRole = jwtAuthenticatedUser.getRoleFromToken();
         UUID companyId;
 
         if ("CTO".equals(userRole)) {
-            // CTO deve passar o companyId no request
             if (req.companyId() == null) {
                 throw new BadRequestException("O companyId é obrigatório para a criação de um colaborador por um CTO.");
             }
             companyId = req.companyId();
         } else if ("MANAGER".equals(userRole)) {
-            // SEGURANÇA: Manager só cria para a PRÓPRIA empresa
-            companyId = getCompanyIdFromLoggedUser();
+            var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+            var managerEmployee = employeeProvider.findById(managerEmployeeId)
+                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+            companyId = managerEmployee.companyId();
         } else {
-            throw new ForbiddenException("Permissão negada.");
+            throw new ForbiddenException("Usuário sem permissão para criar colaboradores.");
         }
 
         var existingEmployeeOpt = employeeProvider.findByCpf(req.cpf());
 
         if (existingEmployeeOpt.isPresent()) {
             var existingEmployee = existingEmployeeOpt.get();
-
             if (userProvider.findByEmployeeId(existingEmployee.employeeId()).isPresent()) {
-                // Se tem usuário, é duplicidade real. Lança erro.
                 throw new BadRequestException(CPF_ALREADY_EXIST);
             }
-
-            // Se NÃO tem usuário, é um "órfão" (cadastro falhou no passo 2).
-            // Reaproveitamos este registro atualizando seus dados.
             return updateOrphanEmployee(existingEmployee, req, companyId);
         }
-
 
         var address = viaCep.lookup(req.address().postalCode())
                 .withNumber(req.address().number());
 
         double salary = req.salary() != null ? req.salary() : 0.0;
 
-
         LocalTime start = req.workStartTime() != null ? req.workStartTime() : LocalTime.of(8, 0);
         LocalTime end = req.workEndTime() != null ? req.workEndTime() : LocalTime.of(17, 0);
         LocalTime breakStart = req.breakStartTime() != null ? req.breakStartTime() : LocalTime.of(12, 0);
         LocalTime breakEnd = req.breakEndTime() != null ? req.breakEndTime() : LocalTime.of(13, 0);
 
+        // --- MAPEAR NOVOS CAMPOS PARA O DOMÍNIO ---
         var newEmployee = new Employee(
+                UUID.randomUUID(), // Gera ID
                 req.fullName(),
                 req.cpf(),
                 req.pis(),
@@ -90,15 +85,24 @@ public class EmployeeService implements EmployeeUseCase {
                 req.email(),
                 salary,
                 req.phone(),
+                true, // Active
                 address,
                 companyId,
                 null,
                 req.homeOffice(),
+                null, // S3 Key (será setada abaixo)
                 start,
                 end,
                 breakStart,
-                breakEnd
+                breakEnd,
+                // Novos Campos de Escala
+                req.scheduleType(),
+                req.scaleStartDate(),
+                req.preferredDayOff(),
+                req.weekendOffIndex(),
+                req.fixedWorkDays()
         );
+
         var savedEmployee = employeeProvider.save(newEmployee);
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
@@ -167,7 +171,12 @@ public class EmployeeService implements EmployeeUseCase {
                 req.workStartTime() != null ? req.workStartTime() : existingEmployee.workStartTime(),
                 req.workEndTime() != null ? req.workEndTime() : existingEmployee.workEndTime(),
                 req.breakStartTime() != null ? req.breakStartTime() : existingEmployee.breakStartTime(),
-                req.breakEndTime() != null ? req.breakEndTime() : existingEmployee.breakEndTime()
+                req.breakEndTime() != null ? req.breakEndTime() : existingEmployee.breakEndTime(),
+                req.scheduleType() != null ? req.scheduleType() : existingEmployee.scheduleType(),
+                req.scaleStartDate() != null ? req.scaleStartDate() : existingEmployee.scaleStartDate(),
+                req.preferredDayOff() != null ? req.preferredDayOff() : existingEmployee.preferredDayOff(),
+                req.weekendOffIndex() != null ? req.weekendOffIndex() : existingEmployee.weekendOffIndex(),
+                req.fixedWorkDays() != null ? req.fixedWorkDays() : existingEmployee.fixedWorkDays()
 
         );
 
@@ -326,7 +335,12 @@ public class EmployeeService implements EmployeeUseCase {
                 existing.workStartTime(),
                 existing.workEndTime(),
                 existing.breakStartTime(),
-                existing.breakEndTime()
+                existing.breakEndTime(),
+                req.scheduleType(),
+                req.scaleStartDate(),
+                req.preferredDayOff(),
+                req.weekendOffIndex(),
+                req.fixedWorkDays()
                 // Mantém a chave antiga temporariamente
         );
 

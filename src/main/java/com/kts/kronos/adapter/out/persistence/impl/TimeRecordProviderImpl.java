@@ -4,10 +4,14 @@ import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,5 +84,21 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     @Override
     public Long findMaxNsrByCompanyId(UUID companyId) {
         return jpa.findMaxNsrByCompanyId(companyId);
+    }
+
+    @Override
+    public long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate) {
+        LocalDateTime startOfMonth = referenceDate.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+        LocalDateTime endOfReferenceDay = referenceDate.atStartOfDay(); // Conta até ontem/hoje antes do processamento
+
+        // Busca registros do mês e filtra em memória (Seguro e compatível com qualquer banco)
+        return jpa.findByEmployeeIdAndStartWorkBetween(empId, startOfMonth, endOfReferenceDay)
+                .stream()
+                .filter(t -> t.getStatusRecord() == StatusRecord.DAY_OFF) // Apenas folgas
+                .filter(t -> {
+                    DayOfWeek day = t.getStartWork().getDayOfWeek();
+                    return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY; // Apenas finais de semana
+                })
+                .count();
     }
 }
