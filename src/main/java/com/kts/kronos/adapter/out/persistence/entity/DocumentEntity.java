@@ -48,6 +48,12 @@ public class DocumentEntity {
     @Column(name = "document_type", nullable = false)
     private DocumentType type;
 
+    @Column(name = "deleted_by_employee", nullable = false)
+    private boolean deletedByEmployee = false;
+
+    @Column(name = "deleted_by_manager", nullable = false)
+    private boolean deletedByManager = false;
+
     public Document toDomain() {
         return new Document(
                 documentId,
@@ -57,7 +63,7 @@ public class DocumentEntity {
                 contentType,
                 storagePath,
                 uploadedAt,
-                timeRecordId
+                timeRecordId,deletedByEmployee, deletedByManager
         );
     }
 
@@ -71,6 +77,8 @@ public class DocumentEntity {
                 .uploadedAt(document.uploadeAt())
                 .type(document.type())
                 .timeRecordId(document.timeRecordId())
+                .deletedByEmployee(document.deletedByEmployee())
+                .deletedByManager(document.deletedByManager())
                 .build();
     }
 }
