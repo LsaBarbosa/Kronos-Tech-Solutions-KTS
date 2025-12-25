@@ -16,10 +16,6 @@ public record CreateUserRequest(
         @NotBlank(message = USERNAME_NOT_BLANK)
         String username,
 
-        @NotBlank(message = PASSWORD_NOT_BLANK)
-        @NotNull
-        String password,
-
         @NotBlank(message = ROLE_NOT_BLANK)
         @Pattern(regexp = "^(CTO|MANAGER|PARTNER)$", message = INVALID_ROLE)
         String role,

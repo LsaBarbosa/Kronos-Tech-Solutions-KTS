@@ -11,8 +11,8 @@ import java.util.UUID;
 public interface DocumentProvider {
     void save(Document doc);
     Document findById(UUID documentId);
-    List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type);
-    List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type);
+    List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type, boolean isManagerView);
+    List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type, boolean isManagerView) ;
     void delete(UUID employeeId, UUID documentId);
     void deleteByEmployeeId(UUID employeeId);
     List<Document> findByTimeRecordId(Long timeRecordId);

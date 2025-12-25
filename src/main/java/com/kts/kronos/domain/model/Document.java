@@ -13,21 +13,13 @@ public record Document(
         String contentType,
         String storagePath,
         LocalDateTime uploadeAt,
-        Long timeRecordId
+        Long timeRecordId,
+        boolean deletedByEmployee,
+        boolean deletedByManager
 ) {
-    public Document(UUID documentId, UUID employeeId, DocumentType type, String fileName, String contentType, String storagePath, LocalDateTime uploadeAt, Long timeRecordId) {
-        this.documentId = documentId;
-        this.employeeId = employeeId;
-        this.type = type;
-        this.fileName = fileName;
-        this.contentType = contentType;
-        this.storagePath = storagePath;
-        this.uploadeAt = uploadeAt;
-        this.timeRecordId = timeRecordId; // Atribuição do novo campo
-    }
-
-    // Construtor para criação de novo documento (chamado do Service)
-    public Document(UUID employeeId, DocumentType type, String fileName, String contentType, String storagePath, LocalDateTime uploadeAt, Long timeRecordId) {
+  // Construtor para criação de novo documento (chamado do Service)
+    public Document(UUID employeeId, DocumentType type, String fileName, String contentType, String storagePath, LocalDateTime uploadeAt, Long timeRecordId,  boolean deletedByEmployee,
+                    boolean deletedByManager) {
         this(
                 UUID.randomUUID(),
                 employeeId,
@@ -36,7 +28,15 @@ public record Document(
                 contentType,
                 storagePath,
                 uploadeAt,
-                timeRecordId);
+                timeRecordId,deletedByEmployee,deletedByManager);
     }
 
+    public Document markDeletedByEmployee() {
+        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadeAt, timeRecordId, true, deletedByManager);
+    }
+
+    // Método auxiliar para "marcar" como deletado pelo manager
+    public Document markDeletedByManager() {
+        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadeAt, timeRecordId, deletedByEmployee, true);
+    }
 }
