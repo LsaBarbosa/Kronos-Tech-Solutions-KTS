@@ -64,7 +64,7 @@ public class DocumentService implements DocumentUseCase {
                     file.getOriginalFilename(),
                     file.getContentType(),
                     storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL,null
+                    TIME_ZONE_BRAZIL,null,false,false
             );
             documentProvider.save(doc);
         } catch (Exception e) {
@@ -98,12 +98,26 @@ public class DocumentService implements DocumentUseCase {
         }
     }
 
+
     @Override
     public List<Document> listDocuments(DocumentType type, UUID employeeId, LocalDate date) {
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-        return date == null
-                ? documentProvider.findByEmployeeAndType(employeeIdWith, type)
-                : documentProvider.findByEmployeeAndDateAndType(employeeIdWith, date, type);
+        // 1. Identifica a Role de quem está logado
+        String currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
+
+        // 2. Define se é uma "Visão de Gestor"
+        boolean isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+
+        // 3. Define o alvo (de quem são os documentos?)
+        // O método 'isWithEmployeeId' já garante que um PARTNER só veja os seus próprios docs
+        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+
+        // 4. Chama o Provider passando a flag de visão
+        // O Provider decidirá qual query do Repository executar baseada no booleano
+        if (date == null) {
+            return documentProvider.findByEmployeeAndType(targetEmployeeId, type, isManagerView);
+        } else {
+            return documentProvider.findByEmployeeAndDateAndType(targetEmployeeId, date, type, isManagerView);
+        }
     }
 
     @Override
@@ -113,8 +127,12 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
+        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
+        var currentUserId = jwtAuthenticatedUser.getEmployeeId(); // ou getUserId dependendo da sua lógica de auth
         var doc = documentProvider.findById(documentId);
+
         var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+
         if (doc.type() == DocumentType.TIME_OFF) {
             if (!doc.employeeId().equals(loggedInEmployeeId)) {
                 throw new ForbiddenException(
@@ -122,10 +140,30 @@ public class DocumentService implements DocumentUseCase {
                 );
             }
         }
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        Document updatedDoc;
+        boolean isManager = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
 
-        bucketStorageProvider.deleteFile(doc.storagePath());
-        documentProvider.delete(employeeIdWith, documentId);
+        if (isManager) {
+            updatedDoc = doc.markDeletedByManager();
+        } else {
+            // Se for funcionário, garante que é o dono
+            if (!doc.employeeId().equals(currentUserId)) {
+                throw new ForbiddenException("Você não pode apagar documentos de outro funcionário.");
+            }
+            updatedDoc = doc.markDeletedByEmployee();
+        }
+        if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
+
+            // Remove arquivo do S3/Disco
+            bucketStorageProvider.deleteFile(doc.storagePath());
+
+            // Remove registro do Banco
+            documentProvider.delete(doc.employeeId(), doc.documentId()); // Método delete físico existente
+
+        } else {
+            // 6. Caso contrário, apenas salvamos o estado atualizado (Soft Delete)
+            documentProvider.save(updatedDoc);
+        }
     }
 
     private Employee getEmployee(UUID employeeId) {
@@ -154,7 +192,8 @@ public class DocumentService implements DocumentUseCase {
                     file.getContentType(),
                     storagePath, // USANDO O CAMINHO DO GCS
                     TIME_ZONE_BRAZIL,
-                    timeRecordId // NOVO CAMPO: timeRecordId
+                    timeRecordId,
+                    false,false
             );
             documentProvider.save(doc);
         } catch (Exception e) {
@@ -184,7 +223,7 @@ public class DocumentService implements DocumentUseCase {
                     contentType,
                     storagePath,
                     TIME_ZONE_BRAZIL,
-                    timeRecordId
+                    timeRecordId,false,false
             );
             documentProvider.save(doc);
 

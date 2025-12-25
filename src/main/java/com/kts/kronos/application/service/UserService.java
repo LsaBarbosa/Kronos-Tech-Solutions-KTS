@@ -47,8 +47,8 @@ public class UserService implements UserUseCase {
 
         findById(req.employeeId());
 
-        validatePasswordPolicy(req.password());
-        var hashed = passwordEncoder.encode(req.password());
+        String randomSystemPassword = UUID.randomUUID().toString();
+        var hashed = passwordEncoder.encode(randomSystemPassword);
 
         var user = new User(
                 req.username(),

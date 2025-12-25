@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,45 +37,48 @@ public class DocumentProviderImpl implements DocumentProvider {
 
     @Override
     public Document findById(UUID documentId) {
-        var entity = documentRepository.findById(documentId).
-                orElseThrow(()-> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+        var entity = documentRepository.findById(documentId).orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
         return entity.toDomain();
     }
 
     @Override
-    public List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type) {
-        return documentRepository.findByEmployeeIdAndType(employeeId,type ).stream()
-                .map(DocumentEntity::toDomain)
-                .collect(Collectors.toList());
+    public List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type, boolean isManagerView) {
+        if (isManagerView) {
+            return documentRepository.findVisibleToManager(employeeId, type).stream().map(DocumentEntity::toDomain).collect(Collectors.toList());
+        } else {
+            return documentRepository.findVisibleToEmployee(employeeId, type).stream().map(DocumentEntity::toDomain).collect(Collectors.toList());
+        }
     }
 
     @Override
-    public List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type) {
+    public List<Document> findByEmployeeAndDateAndType(UUID employeeId, LocalDate date, DocumentType type, boolean isManagerView) {
 
-        Instant start = date.atStartOfDay(SAO_PAULO).toInstant();
-        Instant end = date.plusDays(1)
-                .atStartOfDay(SAO_PAULO)
-                .minusNanos(1)
-                .toInstant();
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(23, 59, 59);
 
-        return documentRepository
-                .findByEmployeeIdAndTypeAndUploadedAtBetween(employeeId, start, end, String.valueOf(type))
-                .stream()
+        List<DocumentEntity> entities;
+
+        if (isManagerView) {
+            entities = documentRepository.findVisibleToManagerByDate(employeeId, start, end, type);
+        } else {
+            entities = documentRepository.findVisibleToEmployeeByDate(employeeId, start, end, type);
+        }
+
+        return entities.stream()
                 .map(DocumentEntity::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
     public void delete(UUID employeeId, UUID documentId) {
-        var employee = employeeRepository.findById(employeeId)
-                .orElseThrow(()-> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-       var doc =  findById(documentId);
+        var employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var doc = findById(documentId);
 
-       if (!doc.employeeId().equals(employee.getEmployeeId())){
-           throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
-       }
+        if (!doc.employeeId().equals(employee.getEmployeeId())) {
+            throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
+        }
 
-       documentRepository.deleteById(doc.documentId());
+        documentRepository.deleteById(doc.documentId());
     }
 
     @Override
@@ -84,15 +88,12 @@ public class DocumentProviderImpl implements DocumentProvider {
 
     @Override
     public List<Document> findByTimeRecordId(Long timeRecordId) {
-        return documentRepository.findByTimeRecordId(timeRecordId)
-                .stream()
-                .map(DocumentEntity::toDomain)
-                .collect(Collectors.toList());
+        return documentRepository.findByTimeRecordId(timeRecordId).stream().map(DocumentEntity::toDomain).collect(Collectors.toList());
     }
 
     @Override
     public boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type) {
-        return documentRepository.existsByEmployeeIdAndType(employeeId,type);
+        return documentRepository.existsByEmployeeIdAndType(employeeId, type);
     }
 
 

@@ -890,7 +890,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             documentContentType,
                             uploadedStoragePath,
                             TIME_ZONE_BRAZIL,
-                            savedRecord.timeRecordId()
+                            savedRecord.timeRecordId(),false,false
                     );
                     documentProvider.save(docToLink);
                 }

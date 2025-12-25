@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,4 +33,41 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     List<DocumentEntity> findByTimeRecordId(Long timeRecordId);
 
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
+
+    @Query("""
+        SELECT d FROM DocumentEntity d
+        WHERE d.employeeId = :employeeId
+          AND d.type = :type
+          AND d.uploadedAt BETWEEN :start AND :end
+          AND d.deletedByManager = false
+    """)
+    List<DocumentEntity> findVisibleToManagerByDate(
+            @Param("employeeId") UUID employeeId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("type") DocumentType type
+    );
+
+    // 2. Busca para o EMPLOYEE (Filtra por data e ignora os deletados pelo Employee)
+    @Query("""
+        SELECT d FROM DocumentEntity d
+        WHERE d.employeeId = :employeeId
+          AND d.type = :type
+          AND d.uploadedAt BETWEEN :start AND :end
+          AND d.deletedByEmployee = false
+    """)
+    List<DocumentEntity> findVisibleToEmployeeByDate(
+            @Param("employeeId") UUID employeeId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("type") DocumentType type
+    );
+
+    // (Opcional) Queries sem data, caso precise para a listagem geral sem filtro de período:
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByManager = false")
+    List<DocumentEntity> findVisibleToManager(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false")
+    List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
 }
