@@ -17,7 +17,7 @@ public class Messages {
     // Formatadores reutilizáveis
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
     public static final DateTimeFormatter DATE_FMT_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy"); // Novo
-    public static final DateTimeFormatter DATE_TIME_FMT_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"); // Novo
+    private static final DateTimeFormatter GENERATION_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(""); // Mantenha se estiver usando
     public static final String DATE_TIME = "dd/MM/yyyy 'às' HH:mm";

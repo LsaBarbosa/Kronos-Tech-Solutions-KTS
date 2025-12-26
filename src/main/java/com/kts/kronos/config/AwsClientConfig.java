@@ -25,7 +25,7 @@ public class AwsClientConfig {
     // NOVO BEAN: Cria um provedor de credenciais estáticas que lê do YAML
     @Bean
     public AwsCredentialsProvider awsCredentialsProvider() {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
+        var credentials = AwsBasicCredentials.create(accessKeyId, secretAccessKey);
         return StaticCredentialsProvider.create(credentials);
     }
 
