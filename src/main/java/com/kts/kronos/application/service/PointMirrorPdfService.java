@@ -234,7 +234,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION);
 
         if (isAbono) {
-            treatedSb = new StringBuilder("ABONO");
+            treatedSb = new StringBuilder("TIME_OFF_REQUEST");
             balance = Duration.ZERO; // Abono zera o débito
         } else if (isFerias) {
             treatedSb = new StringBuilder("FÉRIAS");
