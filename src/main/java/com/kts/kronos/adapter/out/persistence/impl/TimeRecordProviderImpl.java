@@ -101,4 +101,16 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 })
                 .count();
     }
+
+    // ... outros métodos ...
+
+    @Override
+    public List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end) {
+        // Usa o método mágico do repositório que você já criou
+        return jpa.findByEmployeeIdAndStartWorkBetween(employeeId, start, end)
+                .stream()
+                .map(TimeRecordEntity::toDomain) // Converte para o modelo de domínio
+                .toList();
+    }
 }
+

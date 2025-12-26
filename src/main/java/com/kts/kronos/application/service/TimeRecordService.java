@@ -17,6 +17,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import jakarta.transaction.Transactional;
@@ -24,7 +25,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -45,6 +45,19 @@ import static com.kts.kronos.domain.model.enuns.StatusRecord.UPDATE_REJECTED;
 @RequiredArgsConstructor
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
+    public static final String UNAUTHORIZED_ROLE = "Role não autorizada para esta operação.";
+    public static final String REQUEST_NOT_FOUND = "Solicitação de aprovação não encontrada ou expirada para o registro: ";
+    public static final String AWAITING_APPROVAL = "O status do registro não pode ser alterado, pois está aguardando aprovação.";
+    public static final String ALREADY_UPDATED = "O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitção.";
+    public static final String ROLE_IS_NOT_MANAGER = "O usuário informado não é um manager.";
+    public static final String START_DATE_BIGGER_THAN_END_DATE = "A data de início das férias não pode ser posterior à data de fim.";
+    public static final String ALREADY_REQUESTED = "Já existe um registro de ponto ou solicitação para o dia: ";
+    public static final String ONLY_MANAGERS_CAN_GRANT_VACATION = "Apenas Managers ou CTO podem aprovar solicitações de férias.";
+    public static final String ONLY_MANAGERS_CAN_REJECT_VACATION = "Apenas Managers ou CTO podem rejeitar solicitações de férias.";
+    public static final String MANAGER_NOT_FOUND = "Manager não encontrado.";
+    public static final String USER_NOT_IS_MANAGER = "O usuário informado não é um manager.";
+    public static final String DOC_NOT_FOUND = "Documento não encontrado após upload para o 1º registro.";
+    public static final String FAILED_TO_CREATE_FIRST_RECORD = "Falha ao criar o primeiro registro de abono.";
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
@@ -64,7 +77,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public ActionResponse registerTime(GeolocationRequest request) {
 
         // 0. BLINDAGEM CONTRA FRAUDE DE RELÓGIO (NTP)
-        ntpTimeService.validateSystemTime(10);
+        ntpTimeService.validateSystemTime(10); //
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
@@ -77,6 +90,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+        LocalDate todayDate = currentTime.toLocalDate();
 
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
@@ -87,7 +101,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (openRecordOpt.isPresent()) {
             var open = openRecordOpt.get();
             LocalDate openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
-            LocalDate todayDate = currentTime.atZone(SAO_PAULO).toLocalDate();
 
             // Só permite checkout se o registro aberto for do MESMO DIA
             if (openRecordDate.isEqual(todayDate)) {
@@ -135,76 +148,123 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         // ---------------------------------------------------------------------
-        // CENÁRIO B: CHECKIN (Entrada)
+        // CENÁRIO B: CHECKIN (Entrada) - Com lógica de suporte a DIA DE FOLGA
         // ---------------------------------------------------------------------
 
         // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Entrada)
         Long nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
-
         String actionType = "CHECKIN"; // Default
 
-        // B. Lógica de Pausa Implícita (Verifica se está voltando de uma pausa no mesmo dia)
-        var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+        // >>> NOVA LÓGICA: Verifica se já existe um registro de FOLGA ou FALTA para hoje <<<
+        // Isso permite que o funcionário trabalhe no dia que o sistema achava que era folga.
+        // Necessário buscar qualquer registro do dia, independente de estar "open"
+        LocalDateTime startOfDay = todayDate.atStartOfDay();
+        LocalDateTime endOfDay = todayDate.atTime(23, 59, 59);
 
-        if (latestRecordOpt.isPresent()) {
-            var latest = latestRecordOpt.get();
-            var latestEndWork = latest.endWork();
-            var currentStartDay = currentTime.atZone(SAO_PAULO).toLocalDate();
-            var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+        // Estamos usando o método findByEmployeeIdAndStartWorkBetween que retorna uma lista.
+        // Pegamos o primeiro se existir.
+        List<TimeRecord> recordsToday = recordRepository.findByRange(
+                employee.employeeId(), startOfDay, endOfDay); //
 
-            // Se o último registro fechado foi HOJE, cria o registro de intervalo (gap)
-            if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+        Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
+                .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
+                .findFirst();
 
-                var breakRecord = new TimeRecord(
-                        null,
-                        latestEndWork, // Início da Pausa
-                        currentTime,   // Fim da Pausa
-                        StatusRecord.IMPLICIT_BREAK,
-                        false,
-                        true,
-                        employee.employeeId(),
-                        null, null, null, null,
-                        null, null, // Sem NSR para pausa calculada (não é marcação fiscal)
-                        latestEndWork, currentTime
-                );
-                recordRepository.save(breakRecord);
+        TimeRecord recordToSave;
 
-                actionType = "CHECKIN_AFTER_BREAK";
-                log.info("Pausa implícita registrada entre {} e {}", latestEndWork, currentTime);
+        if (dayOffOrAbsenceRecord.isPresent()) {
+            // CENÁRIO: Transformar FOLGA/FALTA em TRABALHO
+            var existing = dayOffOrAbsenceRecord.get();
+            log.info("Convertendo registro {} (Status: {}) para PENDING (Trabalho) devido a Check-in manual.",
+                    existing.timeRecordId(), existing.statusRecord());
+
+            // Reaproveita o ID e atualiza os dados para um check-in válido
+            recordToSave = new TimeRecord(
+                    existing.timeRecordId(), // Mantém o ID
+                    currentTime,             // Novo StartWork (agora)
+                    null,                    // EndWork nulo (está trabalhando)
+                    StatusRecord.PENDING,    // Novo Status
+                    false,                   // Não é editado (é um registro original de ponto)
+                    true,
+                    employee.employeeId(),
+                    request.latitude(),
+                    request.longitude(),
+                    null, null,
+                    nsrCheckin,              // Atribui o NSR gerado
+                    null,
+                    currentTime,             // Original Start
+                    null
+            );
+
+            actionType = "CHECKIN_ON_DAY_OFF";
+
+        } else {
+            // CENÁRIO PADRÃO: Criar novo registro
+
+            // Lógica de Pausa Implícita (Gap)
+            var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+
+            if (latestRecordOpt.isPresent()) {
+                var latest = latestRecordOpt.get();
+                var latestEndWork = latest.endWork();
+                var currentStartDay = currentTime.toLocalDate();
+                var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+
+                // Se o último registro fechado foi HOJE, cria o registro de intervalo (gap)
+                if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+                    var breakRecord = new TimeRecord(
+                            null,
+                            latestEndWork, // Início da Pausa
+                            currentTime,   // Fim da Pausa
+                            StatusRecord.IMPLICIT_BREAK,
+                            false,
+                            true,
+                            employee.employeeId(),
+                            null, null, null, null,
+                            null, null,
+                            latestEndWork, currentTime
+                    );
+                    recordRepository.save(breakRecord);
+                    actionType = "CHECKIN_AFTER_BREAK";
+                    log.info("Pausa implícita registrada entre {} e {}", latestEndWork, currentTime);
+                }
             }
+
+            // Cria o objeto novo
+            recordToSave = new TimeRecord(
+                    null,
+                    currentTime,
+                    null,
+                    StatusRecord.PENDING,
+                    false,
+                    true,
+                    employee.employeeId(),
+                    request.latitude(),
+                    request.longitude(),
+                    null, null,
+                    nsrCheckin,
+                    null,
+                    currentTime,
+                    null
+            );
         }
 
-        // C. Cria o Novo Registro de Ponto (Entrada)
-        TimeRecord newCheckin = new TimeRecord(
-                null,
-                currentTime, // startWork
-                null,
-                StatusRecord.PENDING,
-                false,
-                true,
-                employee.employeeId(),
-                request.latitude(),
-                request.longitude(),
-                null, null,
-                nsrCheckin, // NSR Entrada
-                null,       // NSR Saída (ainda null)
-                currentTime, // originalStartWork
-                null
-        );
+        // C. Salva (Create ou Update)
+        var savedRecord = recordRepository.save(recordToSave);
 
-        var savedRecord = recordRepository.save(newCheckin);
-
-        // D. Auditoria Fiscal (AFD) - Grava linha tipo 7
+        // D. Auditoria Fiscal (AFD)
         adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
 
-        // E. Comprovante (PDF) - Gera e salva no S3
+        // E. Comprovante (PDF)
         generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
 
         log.info("Checkin realizado com sucesso. NSR: {}", nsrCheckin);
 
-        String message = actionType.equals("CHECKIN_AFTER_BREAK")
-                ? "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")"
-                : "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+        String message = switch (actionType) {
+            case "CHECKIN_AFTER_BREAK" -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+            case "CHECKIN_ON_DAY_OFF" -> "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+            default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+        };
 
         return new ActionResponse(message, actionType);
     }
@@ -268,7 +328,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             var updated = record.withCheckin(newStart).withCheckout(newEnd).withEdited(true).withStatus(statusUpdate);
             recordRepository.save(updated);
         } else {
-            throw new BadRequestException("Role não autorizada para esta operação.");
+            throw new ForbiddenException(UNAUTHORIZED_ROLE);
         }
     }
 
@@ -277,7 +337,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = findRecordAndCheckStatus(timeRecordId);
 
         // Busca a solicitação
-        TimeRecordApprovalRequest approvalData = approvalProvider.findByTimeRecordId(timeRecordId).orElseThrow(() -> new ResourceNotFoundException("Solicitação de aprovação não encontrada ou expirada para o registro: " + timeRecordId));
+        var approvalData = approvalProvider.findByTimeRecordId(timeRecordId).orElseThrow(()
+                -> new ResourceNotFoundException(REQUEST_NOT_FOUND + timeRecordId));
 
         // --- NOVO: Executa o ajuste dos registros de Pausa vizinhos ANTES de aplicar o ponto ---
         adjustAdjacentRecordsOnUpdate(record.employeeId(), record, approvalData.newStartWork(), approvalData.newEndWork());
@@ -331,10 +392,10 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = getRecord(employeeId, timeRecordId);
         var currentStatus = record.statusRecord();
         if (currentStatus == PENDING_APPROVAL) {
-            throw new BadRequestException("O status do registro não pode ser alterado, pois está aguardando aprovação.");
+            throw new BadRequestException(AWAITING_APPROVAL);
         }
         if (currentStatus == StatusRecord.UPDATED) {
-            throw new BadRequestException("O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitção.");
+            throw new BadRequestException(ALREADY_UPDATED);
         }
         var updateStatus = record.withStatus(req.statusRecord());
         recordRepository.save(updateStatus);
@@ -378,11 +439,11 @@ public class TimeRecordService implements TimeRecordUseCase {
             var startDate = entry.getKey();
             List<TimeRecord> dailyRecords = entry.getValue();
 
-            LocalDateTime firstStartWork = dailyRecords.getFirst().startWork();
-            String firstStartHour = firstStartWork.atZone(SAO_PAULO).toLocalTime().format(TIME_FORMATTER);
-            LocalDateTime lastEndWork = dailyRecords.stream().map(TimeRecord::endWork).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(startDate.atStartOfDay());
+            var firstStartWork = dailyRecords.getFirst().startWork();
+            var firstStartHour = firstStartWork.atZone(SAO_PAULO).toLocalTime().format(TIME_FORMATTER);
+            var lastEndWork = dailyRecords.stream().map(TimeRecord::endWork).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(startDate.atStartOfDay());
 
-            String lastEndHour = "";
+            var lastEndHour = "";
             // Se houver um segmento PENDING, a saída é indefinida (string vazia)
             if (dailyRecords.stream().noneMatch(tr -> tr.statusRecord() == PENDING)) { //
                 lastEndHour = lastEndWork.atZone(SAO_PAULO).toLocalTime().format(TIME_FORMATTER);
@@ -391,20 +452,20 @@ public class TimeRecordService implements TimeRecordUseCase {
             dailyRecords.sort(Comparator.comparing(TimeRecord::startWork, Comparator.nullsLast(Comparator.naturalOrder())));
 
             // 1. Soma Duração Total das Pausas (Filtra pelo novo status IMPLICIT_BREAK)
-            Duration dailyBreakDuration = dailyRecords.stream().filter(tr -> tr.statusRecord() == StatusRecord.IMPLICIT_BREAK).filter(tr -> tr.endWork() != null).map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
+            var dailyBreakDuration = dailyRecords.stream().filter(tr -> tr.statusRecord() == StatusRecord.IMPLICIT_BREAK).filter(tr -> tr.endWork() != null).map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
 
             // 2. Calcula Duração de Trabalho Líquida (Soma do tempo de todos os segmentos de TRABALHO)
-            Duration dailyWorkedLiquid = dailyRecords.stream().filter(tr -> workStatuses.contains(tr.statusRecord()) || specialStatuses.contains(tr.statusRecord())) // Apenas segmentos de trabalho (e abonos)
+            var dailyWorkedLiquid = dailyRecords.stream().filter(tr -> workStatuses.contains(tr.statusRecord()) || specialStatuses.contains(tr.statusRecord())) // Apenas segmentos de trabalho (e abonos)
                     .filter(tr -> tr.endWork() != null) // Ignora segmentos de trabalho não finalizados (PENDING)
                     .map(tr -> Duration.between(tr.startWork(), tr.endWork())).reduce(Duration.ZERO, Duration::plus);
 
-            LocalDate endDate = lastEndWork.atZone(SAO_PAULO).toLocalDate();
+            var endDate = lastEndWork.atZone(SAO_PAULO).toLocalDate();
 
             // 4. Determina Status e Balanço
-            // O status do dia será o status do primeiro segmento de TRABALHO/ABONO do dia
-            StatusRecord dailyStatus = dailyRecords.stream().filter(tr -> workStatuses.contains(tr.statusRecord()) || specialStatuses.contains(tr.statusRecord())).min(Comparator.comparing(TimeRecord::startWork)).map(TimeRecord::statusRecord).orElse(StatusRecord.DAY_OFF); // Default para DAY_OFF se não houver registros de trabalho/abono.
+            // O status do dia será o status do primeiro segmento de TRABALHO/TIME_OFF_REQUEST do dia
+            var dailyStatus = dailyRecords.stream().filter(tr -> workStatuses.contains(tr.statusRecord()) || specialStatuses.contains(tr.statusRecord())).min(Comparator.comparing(TimeRecord::startWork)).map(TimeRecord::statusRecord).orElse(StatusRecord.DAY_OFF); // Default para DAY_OFF se não houver registros de trabalho/abono.
 
-            Duration dailyBalance = Duration.ZERO;
+            var dailyBalance = Duration.ZERO;
             boolean isSpecialStatus = specialStatuses.contains(dailyStatus);
 
             if (!isSpecialStatus) {
@@ -516,15 +577,15 @@ public class TimeRecordService implements TimeRecordUseCase {
                     balanceStr = "+00:00"; // Ou lógica para dia sem registros fechados
                 } else {
                     // 1. Primeira Hora e Última Hora
-                    LocalDateTime firstStart = closedRecords.get(0).startWork();
-                    LocalDateTime lastEnd = closedRecords.get(closedRecords.size() - 1).endWork();
+                    var firstStart = closedRecords.get(0).startWork();
+                    var lastEnd = closedRecords.get(closedRecords.size() - 1).endWork();
 
                     // 2. Duração Total Bruta (Primeira -> Última)
-                    Duration grossDuration = Duration.between(firstStart, lastEnd);
+                    var grossDuration = Duration.between(firstStart, lastEnd);
 
                     // 3. Soma das Pausas (Registros de IMPLICIT_BREAK)
                     // Nota: Isso assume que a pausa está registrada como IMPLICIT_BREAK, conforme seu payload.
-                    Duration totalBreakDuration = closedRecords.stream()
+                    var totalBreakDuration = closedRecords.stream()
                             .filter(tr -> tr.statusRecord() == StatusRecord.IMPLICIT_BREAK)
                             .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
                             .reduce(Duration.ZERO, Duration::plus);
@@ -535,15 +596,15 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                     // Cálculo Robusto: Soma dos segmentos de TRABALHO efetivo (exclui pausas)
                     // Isso evita problemas se houver "buracos" não registrados como pausa.
-                    Duration netWorkDuration = closedRecords.stream()
+                    var netWorkDuration = closedRecords.stream()
                             .filter(tr -> tr.statusRecord() != StatusRecord.IMPLICIT_BREAK)
                             .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
                             .reduce(Duration.ZERO, Duration::plus);
 
                     // 4. Saldo = Líquido - Referência
-                    Duration balance = netWorkDuration.minus(reference);
+                    var balance = netWorkDuration.minus(reference);
 
-                    String sign = balance.isNegative() ? "-" : "+";
+                    var sign = balance.isNegative() ? "-" : "+";
                     balanceStr = sign + String.format("%02d:%02d", Math.abs(balance.toHours()), Math.abs(balance.toMinutesPart()));
                 }
             }
@@ -588,7 +649,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = manager.companyId();
 
-        Pageable pageable = PageRequest.of(page, size);
+        var pageable = PageRequest.of(page, size);
 
         // 2. BUSCA SEGURA: Passa o companyId para filtrar no banco
         Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAllByCompanyId(pageable, employeeName, companyId);
@@ -640,27 +701,27 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
 
         if (managerUser.role() != Role.MANAGER) {
-            throw new BadRequestException("O usuário informado não é um manager.");
+            throw new ForbiddenException(ROLE_IS_NOT_MANAGER);
         }
 
         if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException("O manager não pertence à mesma empresa.");
+            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
         }
 
-        LocalDate start = request.startDate();
-        LocalDate end = request.endDate();
+        var start = request.startDate();
+        var end = request.endDate();
         List<Long> createdRecordIds = new ArrayList<>();
 
         // Validação básica: data de início não pode ser após a data de fim
         if (start.isAfter(end)) {
-            throw new BadRequestException("A data de início das férias não pode ser posterior à data de fim.");
+            throw new BadRequestException(START_DATE_BIGGER_THAN_END_DATE);
         }
 
 
         long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
         for (int i = 0; i < daysBetween; i++) {
-            LocalDate currentDay = start.plusDays(i);
-            LocalDateTime midnight = currentDay.atStartOfDay();
+            var currentDay = start.plusDays(i);
+            var midnight = currentDay.atStartOfDay();
 
             // 2. Cria um registro para cada dia com status REQUEST_VACATION e 00:00 como hora
             var vacationRequestRecord = new TimeRecord(
@@ -683,7 +744,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
             // Validação: evita duplicidade no dia
             if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
-                throw new BadRequestException("Já existe um registro de ponto ou solicitação para o dia: " + currentDay.format(DATE_FORMATTER));
+                throw new BadRequestException(ALREADY_REQUESTED + currentDay.format(DATE_FORMATTER));
             }
 
             recordRepository.save(vacationRequestRecord);
@@ -699,11 +760,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         // Validação da Role: Apenas MANAGER ou CTO podem aprovar
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
         if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
-            throw new ForbiddenException("Apenas Managers ou CTO podem aprovar solicitações de férias.");
+            throw new ForbiddenException(ONLY_MANAGERS_CAN_GRANT_VACATION);
         }
 
         // Aprova (muda o status) todos os registros na lista
-        for (Long recordId : request.timeRecordIds()) {
+        for (var recordId : request.timeRecordIds()) {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
@@ -723,11 +784,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         // Validação da Role: Apenas MANAGER ou CTO podem rejeitar
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
         if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
-            throw new ForbiddenException("Apenas Managers ou CTO podem rejeitar solicitações de férias.");
+            throw new ForbiddenException(ONLY_MANAGERS_CAN_REJECT_VACATION);
         }
 
         // Rejeita (muda o status) todos os registros na lista
-        for (Long recordId : request.timeRecordIds()) {
+        for (var recordId : request.timeRecordIds()) {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
@@ -795,7 +856,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Validações de lógica
         if (request.startDate().isAfter(request.endDate())) {
-            throw new BadRequestException("A data de início não pode ser posterior à data de fim.");
+            throw new BadRequestException(START_DATE_BIGGER_THAN_END_DATE);
         }
         if (request.startDate().equals(request.endDate()) && parseStartTime.isAfter(parseEndTime)) {
             throw new BadRequestException(HOURS_EXCEPTIONS);
@@ -803,16 +864,25 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Validação do Manager
         var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
         if (managerUser.role() != Role.MANAGER) {
-            throw new BadRequestException("O usuário informado não é um manager.");
+            throw new BadRequestException(USER_NOT_IS_MANAGER);
         }
         if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException("O manager não pertence à mesma empresa.");
+            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
         }
 
-        LocalDate start = request.startDate();
-        LocalDate end = request.endDate();
+        var type = request.type() != null ? request.type() : RequestType.TIME_OFF_REQUEST;
+
+        StatusRecord initialStatus;
+        if (type == RequestType.FORGOTTEN_REGISTRATION) {
+            initialStatus = StatusRecord.WORK_TIME_REQUEST; // Esquecimento -> Solicitação de Trabalho
+        } else {
+            initialStatus = StatusRecord.TIME_OFF_REQUEST;  // Abono -> Solicitação de Abono
+        }
+
+        var start = request.startDate();
+        var end = request.endDate();
         long daysBetween = ChronoUnit.DAYS.between(start, end) + 1;
 
         // Variáveis para reutilizar os metadados e o caminho do arquivo físico (storagePath)
@@ -822,16 +892,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         Long firstRecordId = null;
 
         for (int i = 0; i < daysBetween; i++) {
-            LocalDate currentDay = start.plusDays(i);
-            LocalDateTime currentStart = currentDay.atTime(parseStartTime);
-            LocalDateTime currentEnd = currentDay.atTime(parseEndTime);
+            var currentDay = start.plusDays(i);
+            var currentStart = currentDay.atTime(parseStartTime);
+            var currentEnd = currentDay.atTime(parseEndTime);
 
             // 1. Cria o registro de ponto
             var dailyTimeOffRecord = new TimeRecord(
                     null,
                     currentStart,
                     currentEnd,
-                    StatusRecord.TIME_OFF_REQUEST,
+                    initialStatus,
                     true,
                     true,
                     employeeId,
@@ -866,7 +936,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         var uploadedDocs = documentProvider.findByTimeRecordId(savedRecord.timeRecordId());
 
                         if (uploadedDocs.isEmpty()) {
-                            throw new IllegalStateException("Documento não encontrado após upload para o 1º registro.");
+                            throw new IllegalStateException(DOC_NOT_FOUND);
                         }
 
                         // Pega o primeiro (ou único) documento da lista
@@ -890,7 +960,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             documentContentType,
                             uploadedStoragePath,
                             TIME_ZONE_BRAZIL,
-                            savedRecord.timeRecordId(),false,false
+                            savedRecord.timeRecordId(), false, false
                     );
                     documentProvider.save(docToLink);
                 }
@@ -898,34 +968,47 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         if (firstRecordId == null) {
-            throw new BadRequestException("Falha ao criar o primeiro registro de abono.");
+            throw new BadRequestException(FAILED_TO_CREATE_FIRST_RECORD);
         }
         return firstRecordId;
     }
+
     @Override
     public void approveTimeOff(Long timeRecordId) {
         var record = getTimeRecord(timeRecordId);
 
-        if (record.statusRecord() != StatusRecord.TIME_OFF_REQUEST) {
-            throw new BadRequestException("O registro não é uma solicitação de abono pendente (status atual: " + record.statusRecord() + ").");
+        if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
+            var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
+            recordRepository.save(approvedRecord);
+            log.info("Abono aprovado para registro {}", timeRecordId);
         }
-
-        // 1. Manager/CTO aprova: Status muda para TIME_OFF
-        var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
-        recordRepository.save(approvedRecord);
+        else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
+            var approvedRecord = record.withStatus(StatusRecord.UPDATED);
+            recordRepository.save(approvedRecord);
+            log.info("Esquecimento aprovado (convertido em trabalho) para registro {}", timeRecordId);
+        }
+        else {
+            throw new BadRequestException("O registro não é uma solicitação pendente válida (Status: " + record.statusRecord() + ").");
+        }
     }
 
     @Override
     public void rejectTimeOff(Long timeRecordId) {
         var record = getTimeRecord(timeRecordId);
 
-        if (record.statusRecord() != StatusRecord.TIME_OFF_REQUEST) {
-            throw new BadRequestException("O registro não é uma solicitação de abono pendente (status atual: " + record.statusRecord() + ").");
+
+        if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
+            var rejectedRecord = record.withStatus(StatusRecord.TIME_OFF_REJECTED);
+            recordRepository.save(rejectedRecord);
+            log.info("Abono negada para registro {}", timeRecordId);
+        } else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
+            var rejectedRecord = record.withStatus(StatusRecord.WORK_TIME_REJECTED);
+            recordRepository.save(rejectedRecord);
+            log.info("Alteração para esquecimento negado para registro {}", timeRecordId);
+        } else {
+            throw new BadRequestException("O registro não é uma solicitação pendente válida (Status: " + record.statusRecord() + ").");
         }
 
-        // 1. Manager/CTO rejeita: Status muda para TIME_OFF_REJECTED
-        var rejectedRecord = record.withStatus(StatusRecord.TIME_OFF_REJECTED);
-        recordRepository.save(rejectedRecord);
     }
 
     @Override
@@ -935,9 +1018,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         var companyId = getEmployee(managerEmployeeId).companyId();
 
         Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
-            case "PENDING" -> Set.of(StatusRecord.TIME_OFF_REQUEST);
-            case "APPROVED" -> Set.of(StatusRecord.TIME_OFF);
-            case "REJECTED" -> Set.of(StatusRecord.TIME_OFF_REJECTED);
+            case "PENDING" -> Set.of(StatusRecord.TIME_OFF_REQUEST,StatusRecord.WORK_TIME_REQUEST);
+            case "APPROVED" -> Set.of(StatusRecord.TIME_OFF,StatusRecord.UPDATED);
+            case "REJECTED" -> Set.of(StatusRecord.TIME_OFF_REJECTED,StatusRecord.WORK_TIME_REJECTED);
             default -> EnumSet.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.TIME_OFF, StatusRecord.TIME_OFF_REJECTED);
         };
 
@@ -994,6 +1077,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 page >= totalPages - 1
         );
     }
+
     private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
 
         // 1. Agrupar por EmployeeId e Status
@@ -1175,7 +1259,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     // Caso contrário, ajusta o início da pausa
                     TimeRecord updatedBreak = new TimeRecord(succeeding.timeRecordId(), newStartBreak, // Novo start
                             succeeding.endWork(), // Fim original
-                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(),null,null,null,null,null,null,null,null);
+                            StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(), null, null, null, null, null, null, null, null);
                     recordRepository.save(updatedBreak);
                     log.info("Pausa {} ajustada para começar em {}.", succeeding.timeRecordId(), newStartBreak.format(TIME_FORMATTER));
                 }
@@ -1297,7 +1381,6 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
         }
     }
-
 
 
     private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {

@@ -51,4 +51,5 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             LocalDateTime startWorkEnd
     );
 
+
 }

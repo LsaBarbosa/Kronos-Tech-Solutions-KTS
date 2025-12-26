@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.kts.kronos.domain.model.enuns.RequestType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -29,6 +30,8 @@ public record RequestTimeOffRequest(
         String endHour,
 
         @NotNull(message = ID_NOT_BLANK)
-        UUID managerId
+        UUID managerId,
+
+        RequestType type
 ) {
 }
