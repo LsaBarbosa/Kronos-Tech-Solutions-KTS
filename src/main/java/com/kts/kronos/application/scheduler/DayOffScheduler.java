@@ -43,11 +43,11 @@ public class DayOffScheduler {
 
         List<Company> activeCompanies = companyProvider.findByActive(true);
 
-        for (Company company : activeCompanies) {
+        for (var company : activeCompanies) {
             List<Employee> activeEmployees = empRepo.findByCompanyIdAndActive(company.companyId(), true);
 
-            for (Employee employee : activeEmployees) {
-                UUID empId = employee.employeeId();
+            for (var employee : activeEmployees) {
+                var empId = employee.employeeId();
 
                 // BLINDAGEM: Se já existe registro hoje (Trabalho, Folga Manual, Atestado),
                 // não fazemos nada. Respeitamos o status atual.
@@ -60,7 +60,7 @@ public class DayOffScheduler {
 
                 // Se era dia de trabalho e está vazio = FALTA
                 // Se era dia de folga e está vazio = FOLGA
-                StatusRecord status = isWorkDay ? StatusRecord.ABSENCE : StatusRecord.DAY_OFF;
+                var status = isWorkDay ? StatusRecord.ABSENCE : StatusRecord.DAY_OFF;
 
                 var midnight = today.atStartOfDay();
                 var record = new TimeRecord(
@@ -82,16 +82,16 @@ public class DayOffScheduler {
     public void reconcileWeeklySwaps() {
         log.info("Iniciando reconciliação semanal de trocas de folga...");
 
-        LocalDate today = LocalDate.now(SAO_PAULO);
-        LocalDate endOfLastWeek = today.minusDays(1); // Domingo
-        LocalDate startOfLastWeek = endOfLastWeek.minusDays(6); // Segunda anterior
+        var today = LocalDate.now(SAO_PAULO);
+        var endOfLastWeek = today.minusDays(1); // Domingo
+        var startOfLastWeek = endOfLastWeek.minusDays(6); // Segunda anterior
 
         List<Company> activeCompanies = companyProvider.findByActive(true);
 
-        for (Company company : activeCompanies) {
+        for (var company : activeCompanies) {
             List<Employee> employees = empRepo.findByCompanyIdAndActive(company.companyId(), true);
 
-            for (Employee employee : employees) {
+            for (var employee : employees) {
                 if (shouldAnalyzeSwap(employee)) {
                     processEmployeeSwap(employee, startOfLastWeek, endOfLastWeek);
                 }
@@ -119,7 +119,7 @@ public class DayOffScheduler {
                 end.atTime(23, 59, 59)
         );
 
-        DayOfWeek preferredDayOff = employee.preferredDayOff();
+        var preferredDayOff = employee.preferredDayOff();
         if (preferredDayOff == null) return;
 
         // Se trabalhou no dia fixo de folga
@@ -135,8 +135,8 @@ public class DayOffScheduler {
                     .min(Comparator.comparing(TimeRecord::startWork));
 
             if (absenceRecord.isPresent()) {
-                TimeRecord recordToUpdate = absenceRecord.get();
-                TimeRecord swappedRecord = recordToUpdate.withStatus(StatusRecord.DAY_OFF);
+                var recordToUpdate = absenceRecord.get();
+                var swappedRecord = recordToUpdate.withStatus(StatusRecord.DAY_OFF);
                 trRepo.save(swappedRecord);
                 log.info("Troca Automática: Func. {} trabalhou na folga fixa e teve a falta de {} abonada.",
                         employee.fullName(), recordToUpdate.startWork().toLocalDate());

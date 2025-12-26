@@ -46,27 +46,27 @@ public class DigitalSignatureService {
             log.info("Iniciando processo de assinatura digital com certificado: {}", certificatePath);
 
             // 1. Carregar KeyStore (Certificado .pfx)
-            KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            try (InputStream is = new FileInputStream(certificatePath)) {
+            var keyStore = KeyStore.getInstance("PKCS12");
+            try (var is = new FileInputStream(certificatePath)) {
                 keyStore.load(is, certificatePassword.toCharArray());
             }
 
             // 2. Obter Alias (Nome interno do certificado)
-            String alias = keyStore.aliases().nextElement();
-            PrivateKey privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
-            X509Certificate certificate = (X509Certificate) keyStore.getCertificate(alias);
+            var alias = keyStore.aliases().nextElement();
+            var privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
+            var certificate = (X509Certificate) keyStore.getCertificate(alias);
 
             // 3. Criar Cadeia de Certificação
             List<Certificate> certList = new ArrayList<>();
             certList.add(certificate);
-            Store certs = new JcaCertStore(certList);
+            var certs = new JcaCertStore(certList);
 
             // 4. Configurar Assinador (SHA256 com RSA)
-            ContentSigner sha256Signer = new JcaContentSignerBuilder("SHA256withRSA")
+            var sha256Signer = new JcaContentSignerBuilder("SHA256withRSA")
                     .setProvider("BC")
                     .build(privateKey);
 
-            CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
+            var generator = new CMSSignedDataGenerator();
             generator.addSignerInfoGenerator(
                     new JcaSignerInfoGeneratorBuilder(
                             new JcaDigestCalculatorProviderBuilder().setProvider("BC").build())
@@ -75,13 +75,13 @@ public class DigitalSignatureService {
             generator.addCertificates(certs);
 
             // 5. Assinar o Conteúdo
-            CMSTypedData msg = new CMSProcessableByteArray(dataToSign);
+            var msg = new CMSProcessableByteArray(dataToSign);
             
             // true = Encapsulated (O arquivo .p7s contém o original + assinatura)
             // false = Detached (O arquivo .p7s contém só a assinatura, precisa do .txt junto)
             // Para AEJ, geralmente usamos Detached (false) ou conforme especificação do layout.
             // Vamos usar TRUE (Attached) para garantir que o arquivo seja autocontido se baixado.
-            CMSSignedData signedData = generator.generate(msg, true); 
+            var signedData = generator.generate(msg, true);
 
             return signedData.getEncoded();
 
