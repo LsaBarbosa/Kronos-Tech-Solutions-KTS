@@ -27,6 +27,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -54,7 +56,7 @@ public class AejService implements AejUseCase {
     @Transactional(readOnly = true)
     public void generateAej(UUID companyId, LocalDate startDate, LocalDate endDate, OutputStream outputStream) {
         Company company = companyProvider.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         log.info("Iniciando geração de AEJ para empresa {} de {} a {}", companyId, startDate, endDate);
 

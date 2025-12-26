@@ -21,8 +21,8 @@ public class TimeSyncScheduler {
     @Scheduled(fixedRate = 3600000) 
     public void checkTimeSynchronization() {
         log.info("Iniciando verificação periódica de sincronismo de tempo (NTP)...");
-        
-        Long offset = ntpService.getNetworkTimeOffset();
+
+        var offset = ntpService.getNetworkTimeOffset();
         
         if (offset == null) {
             log.warn("Não foi possível verificar o sincronismo de tempo. Verifique a conexão com a internet ou firewall (Porta UDP 123).");
