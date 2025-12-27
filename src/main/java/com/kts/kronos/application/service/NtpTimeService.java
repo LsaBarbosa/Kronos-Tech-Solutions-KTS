@@ -2,12 +2,13 @@ package com.kts.kronos.application.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ntp.NTPUDPClient;
-import org.apache.commons.net.ntp.TimeInfo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.net.InetAddress;
+
+import static com.kts.kronos.constants.Messages.INTERNAL_CLOCK_OUT_OF_SYNC;
 
 @Slf4j
 @Service
@@ -25,19 +26,19 @@ public class NtpTimeService {
      */
     public Long getNetworkTimeOffset() {
         // Usa o método protegido para permitir Mock nos testes
-        NTPUDPClient client = createClient();
+        var client = createClient();
         client.setDefaultTimeout(timeout);
 
         try {
             client.open();
-            InetAddress hostAddr = InetAddress.getByName(ntpServer);
+            var hostAddr = InetAddress.getByName(ntpServer);
 
             // Faz a consulta
-            TimeInfo info = client.getTime(hostAddr);
+            var info = client.getTime(hostAddr);
             info.computeDetails(); // Essencial para calcular o offset
 
             // Offset: Diferença entre (NTP) e (Sistema Local)
-            Long offset = info.getOffset();
+            var offset = info.getOffset();
 
             log.debug("Sincronismo NTP realizado com sucesso. Server: {}, Offset: {}ms", ntpServer, offset);
             return offset;
@@ -59,14 +60,13 @@ public class NtpTimeService {
      * * @param maxDriftSeconds Limite aceitável de desvio em segundos.
      */
     public void validateSystemTime(int maxDriftSeconds) {
-        Long offset = getNetworkTimeOffset();
+        var offset = getNetworkTimeOffset();
 
         if (offset != null && Math.abs(offset) > (maxDriftSeconds * 1000L)) {
-            String msg = String.format("ALERTA CRÍTICO: RELÓGIO DO SERVIDOR DESSINCRONIZADO! Diferença de %d ms detectada. O limite é %d ms.", offset, maxDriftSeconds * 1000);
+            var msg = String.format("ALERTA CRÍTICO: RELÓGIO DO SERVIDOR DESSINCRONIZADO! Diferença de %d ms detectada. O limite é %d ms.", offset, maxDriftSeconds * 1000);
             log.error(msg);
 
-            // Se quiser bloquear o ponto em caso de relógio errado, descomente a linha abaixo:
-            // throw new IllegalStateException("Sistema temporariamente indisponível: Relógio interno dessincronizado.");
+            throw new IllegalStateException(INTERNAL_CLOCK_OUT_OF_SYNC);
         }
     }
 

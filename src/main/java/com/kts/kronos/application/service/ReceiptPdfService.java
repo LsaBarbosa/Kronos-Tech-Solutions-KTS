@@ -36,9 +36,9 @@ public class ReceiptPdfService {
     public byte[] generateReceipt(Company company, Employee employee, LocalDateTime recordDate, Long nsr) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
 
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
+            var writer = new PdfWriter(baos);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
 
             // 1. Cabeçalho Obrigatório (Art. 79, I)
             addTitle(document, "Comprovante de Registro de Ponto do Trabalhador");
@@ -66,14 +66,14 @@ public class ReceiptPdfService {
 
             // 6. Código Hash (SHA-256) (Art. 79, VI)
             // O hash garante que esses dados não foram alterados.
-            String rawData = String.format("%s%s%s%s%s",
+            var rawData = String.format("%s%s%s%s%s",
                     nsr,
                     company.cnpj(),
                     employee.cpf(),
                     recordDate.format(DATETIME_FMT),
                     INPI_REGISTRATION_NUMBER);
 
-            String hash = calculateSha256(rawData);
+            var hash = calculateSha256(rawData);
 
             addSection(document, "SEGURANÇA");
             addInfo(document, "Código Hash (SHA-256): ", hash);
@@ -97,7 +97,7 @@ public class ReceiptPdfService {
     }
 
     private void addTitle(Document doc, String text) {
-        Paragraph p = new Paragraph(text)
+        var p = new Paragraph(text)
                 .setTextAlignment(TextAlignment.CENTER)
                 .setBold()
                 .setFontSize(14);
@@ -105,7 +105,7 @@ public class ReceiptPdfService {
     }
 
     private void addSection(Document doc, String text) {
-        Paragraph p = new Paragraph("\n" + text)
+        var p = new Paragraph("\n" + text)
                 .setBold()
                 .setFontSize(12)
                 .setUnderline();
@@ -113,9 +113,9 @@ public class ReceiptPdfService {
     }
 
     private void addInfo(Document doc, String label, String value) {
-        Text labelText = new Text(label).setBold();
-        Text valueText = new Text(value != null ? value : "");
-        Paragraph p = new Paragraph().add(labelText).add(valueText);
+        var labelText = new Text(label).setBold();
+        var valueText = new Text(value != null ? value : "");
+        var p = new Paragraph().add(labelText).add(valueText);
         doc.add(p);
     }
 
@@ -125,11 +125,11 @@ public class ReceiptPdfService {
 
     private String calculateSha256(String data) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            var digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
+            var hexString = new StringBuilder();
             for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
+                var hex = Integer.toHexString(0xff & b);
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }

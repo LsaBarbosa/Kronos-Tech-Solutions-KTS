@@ -27,6 +27,7 @@ import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
 @Transactional
 public class CompanyService implements CompanyUseCase {
 
+    public static final String GEOLOCATION_IS_REQUIRED = "Location (latitude e longitude) é obrigatório se o endereço for alterado.";
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
     private final EmployeeProvider employeeProvider;
@@ -93,7 +94,7 @@ public class CompanyService implements CompanyUseCase {
 
         if (request.address() != null) {
             if (request.location() == null || request.location().latitude() == null || request.location().longitude() == null) {
-                throw new BadRequestException("Location (latitude e longitude) é obrigatório se o endereço for alterado.");
+                throw new BadRequestException(GEOLOCATION_IS_REQUIRED);
             }
             var lookup = viaCep.lookup(request.address().postalCode());
             updateAddress = lookup.withNumber(request.address().number());

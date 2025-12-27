@@ -33,6 +33,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.DATE_FMT_BR;
+import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,34 +45,33 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider recordRepository;
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
 
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
-        Employee employee = employeeProvider.findById(employeeId)
+        var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
-        Company company = companyProvider.findById(employee.companyId())
+        var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
+        try (var baos = new ByteArrayOutputStream()) {
+            var writer = new PdfWriter(baos);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
             document.setMargins(20, 20, 20, 20);
 
             // 1. TÍTULO
             document.add(new Paragraph("ESPELHO DE PONTO ELETRÔNICO")
                     .setBold().setFontSize(16).setTextAlignment(TextAlignment.CENTER));
-            document.add(new Paragraph("Período: " + startDate.format(DATE_FMT) + " a " + endDate.format(DATE_FMT))
+            document.add(new Paragraph("Período: " + startDate.format(DATE_FMT_BR) + " a " + endDate.format(DATE_FMT_BR))
                     .setFontSize(10).setTextAlignment(TextAlignment.CENTER));
 
             // 2. DADOS CADASTRAIS
             addEmployeeHeader(document, company, employee);
 
             // 3. TABELA DE PONTO
-            Table table = new Table(UnitValue.createPercentArray(new float[]{3, 3, 5, 5, 3, 3}));
+            var table = new Table(UnitValue.createPercentArray(new float[]{3, 3, 5, 5, 3, 3}));
             table.setWidth(UnitValue.createPercentValue(100));
 
             // Cabeçalho da Tabela
@@ -80,20 +82,20 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             addCellHeader(table, "TRABALHADO");
             addCellHeader(table, "SALDO");
 
-            Duration totalBalance = Duration.ZERO;
-            Duration totalWorked = Duration.ZERO;
+            var totalBalance = Duration.ZERO;
+            var totalWorked = Duration.ZERO;
 
-            for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            for (var date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
 
                 // Busca registros do dia
-                LocalDate finalDate = date;
+                var finalDate = date;
                 List<TimeRecord> dailyRecords = recordRepository.findByEmployeeId(employee.employeeId()).stream()
                         .filter(r -> r.startWork() != null && r.startWork().toLocalDate().equals(finalDate))
                         .sorted(Comparator.comparing(TimeRecord::startWork))
                         .toList();
 
                 // --- CÁLCULO REAL ---
-                ProcessedDay dayData = processDay(date, dailyRecords, employee);
+                var dayData = processDay(date, dailyRecords, employee);
 
                 totalWorked = totalWorked.plus(dayData.worked);
                 totalBalance = totalBalance.plus(dayData.balance);
@@ -129,7 +131,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     // --- MÉTODOS AUXILIARES ---
 
     private void addEmployeeHeader(Document doc, Company c, Employee e) {
-        Table header = new Table(UnitValue.createPercentArray(new float[]{1, 1}));
+        var header = new Table(UnitValue.createPercentArray(new float[]{1, 1}));
         header.setWidth(UnitValue.createPercentValue(100));
         header.setMarginBottom(10);
 
@@ -170,9 +172,9 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
      * Lógica "Real" de Processamento Diário
      */
     private ProcessedDay processDay(LocalDate date, List<TimeRecord> records, Employee employee) {
-        StringBuilder originalSb = new StringBuilder();
-        StringBuilder treatedSb = new StringBuilder();
-        Duration worked = Duration.ZERO;
+        var originalSb = new StringBuilder();
+        var treatedSb = new StringBuilder();
+        var worked = Duration.ZERO;
 
         // 1. Determina a expectativa de trabalho para este dia específico
         long expectedMinutes = employee.getDailyWorkMinutes(); // Método real do Employee
@@ -183,18 +185,18 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             expectedMinutes = 0;
         }
 
-        Duration expected = Duration.ofMinutes(expectedMinutes);
+        var expected = Duration.ofMinutes(expectedMinutes);
 
         // 2. Processa as marcações
-        for (TimeRecord r : records) {
+        for (var r : records) {
             // Formata Original
-            if (r.originalStartWork() != null) originalSb.append(r.originalStartWork().format(TIME_FMT)).append("E ");
-            if (r.originalEndWork() != null) originalSb.append(r.originalEndWork().format(TIME_FMT)).append("S ");
+            if (r.originalStartWork() != null) originalSb.append(r.originalStartWork().format(TIME_FORMATTER)).append("E ");
+            if (r.originalEndWork() != null) originalSb.append(r.originalEndWork().format(TIME_FORMATTER)).append("S ");
 
             // Formata Tratado
-            if (r.startWork() != null) treatedSb.append(r.startWork().format(TIME_FMT)).append("E ");
+            if (r.startWork() != null) treatedSb.append(r.startWork().format(TIME_FORMATTER)).append("E ");
             if (r.endWork() != null) {
-                treatedSb.append(r.endWork().format(TIME_FMT)).append("S ");
+                treatedSb.append(r.endWork().format(TIME_FORMATTER)).append("S ");
 
                 // Soma horas trabalhadas (ignora pausas implícitas no cálculo de 'trabalhado')
                 if (r.statusRecord() != StatusRecord.IMPLICIT_BREAK) {
@@ -204,15 +206,15 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         }
 
         // 3. Calcula Saldo
-        Duration balance = worked.minus(expected);
+        var balance = worked.minus(expected);
 
         // 4. Define texto de exibição da Jornada
         String jornadaDisplay;
         if (expectedMinutes > 0) {
             // Exibe horário contratual (Ex: 08:00 - 17:00)
-            LocalTime start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
-            LocalTime end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
-            jornadaDisplay = start.format(TIME_FMT) + " - " + end.format(TIME_FMT);
+            var start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
+            var end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
+            jornadaDisplay = start.format(TIME_FORMATTER) + " - " + end.format(TIME_FORMATTER);
         } else {
             jornadaDisplay = "FOLGA / DSR";
         }
@@ -251,7 +253,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     }
 
     private String formatBalance(Duration d) {
-        String sign = d.isNegative() ? "-" : "+";
+        var sign = d.isNegative() ? "-" : "+";
         return sign + formatDuration(d.abs());
     }
 }

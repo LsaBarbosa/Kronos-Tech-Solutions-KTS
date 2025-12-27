@@ -16,34 +16,27 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import static com.kts.kronos.constants.LegalCompanyData.*;
+import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TechnicalCertificateService implements TechnicalCertificateUseCase {
 
-    private final CompanyProvider companyProvider;
 
-    // Dados da Desenvolvedora (KRONOS) - Em produção, coloque em application.yml
-    private static final String DEV_RAZAO_SOCIAL = "KRONOS TECH SOLUTIONS LTDA";
-    private static final String DEV_CNPJ = "00.000.000/0001-00";
-    private static final String SOFTWARE_NAME = "KRONOS SYSTEM";
-    private static final String SOFTWARE_VERSION = "1.0";
-    private static final String INPI_NUMBER = "999999999";
-    
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private final CompanyProvider companyProvider;
 
     @Override
     public byte[] generateCertificate(UUID companyId) {
-        Company company = companyProvider.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa cliente não encontrada."));
+        var company = companyProvider.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf);
+        try (var baos = new ByteArrayOutputStream()) {
+            var writer = new PdfWriter(baos);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf);
 
             // 1. TÍTULO
             addTitle(document, "ATESTADO TÉCNICO E TERMO DE RESPONSABILIDADE");
@@ -68,7 +61,7 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
 
             // 5. DECLARAÇÃO JURÍDICA (TEXTO OBRIGATÓRIO/PADRÃO)
             addSection(document, "4. DECLARAÇÃO DE CONFORMIDADE");
-            String declaration = "Declaramos, para fins de comprovação junto à Auditoria-Fiscal do Trabalho, que o programa de computador acima identificado, denominado REP-P (Registrador Eletrônico de Ponto via Programa), atende integralmente aos requisitos estabelecidos pela Portaria MTP nº 671, de 8 de novembro de 2021, especialmente quanto:\n" +
+            var declaration = "Declaramos, para fins de comprovação junto à Auditoria-Fiscal do Trabalho, que o programa de computador acima identificado, denominado REP-P (Registrador Eletrônico de Ponto via Programa), atende integralmente aos requisitos estabelecidos pela Portaria MTP nº 671, de 8 de novembro de 2021, especialmente quanto:\n" +
                     "a) Ao registro fiel das marcações de ponto;\n" +
                     "b) À não restrição de marcação de ponto;\n" +
                     "c) À não alteração ou eliminação dos dados registrados pelo empregado;\n" +
@@ -80,12 +73,12 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
 
             // 6. TERMO DE RESPONSABILIDADE
             addSection(document, "5. TERMO DE RESPONSABILIDADE");
-            String responsibility = "A empresa desenvolvedora assume a responsabilidade técnica pelo funcionamento do programa e garante que este não possui mecanismos que permitam a adulteração dos dados de ponto ou o bloqueio à marcação, estando sujeito às sanções legais em caso de desconformidade.";
+            var responsibility = "A empresa desenvolvedora assume a responsabilidade técnica pelo funcionamento do programa e garante que este não possui mecanismos que permitam a adulteração dos dados de ponto ou o bloqueio à marcação, estando sujeito às sanções legais em caso de desconformidade.";
             document.add(new Paragraph(responsibility).setTextAlignment(TextAlignment.JUSTIFIED));
 
             // 7. DATA E ASSINATURA
             addParagraph(document, "\n\n");
-            addParagraph(document, "Magé, RJ, " + LocalDateTime.now().format(DATE_FMT));
+            addParagraph(document, "Magé, RJ, " + LocalDateTime.now().format(DATE_FMT_BR));
             addParagraph(document, "\n\n___________________________________________________");
             addParagraph(document, "Assinado Eletronicamente por");
             addParagraph(document, DEV_RAZAO_SOCIAL);
@@ -96,7 +89,7 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
 
         } catch (Exception e) {
             log.error("Erro ao gerar Atestado Técnico", e);
-            throw new RuntimeException("Falha na geração do Atestado Técnico", e);
+            throw new RuntimeException(ERROR_GENERATING_TECHNICAL_CERTIFICATE, e);
         }
     }
 
@@ -117,7 +110,7 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
     }
 
     private String formatAddress(Company c) {
-        if (c.address() == null) return "Endereço não cadastrado";
+        if (c.address() == null) return ADDRESS_NOT_REGISTERED;
         return String.format("%s, %s - %s, %s - %s",
                 c.address().street(), c.address().number(),
                 c.address().city(), c.address().state(), c.address().postalCode());

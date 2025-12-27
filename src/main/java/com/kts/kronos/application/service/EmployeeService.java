@@ -43,7 +43,7 @@ public class EmployeeService implements EmployeeUseCase {
 
         if ("CTO".equals(userRole)) {
             if (req.companyId() == null) {
-                throw new BadRequestException("O companyId é obrigatório para a criação de um colaborador por um CTO.");
+                throw new BadRequestException(COMPANY_ID_IS_REQUIRED_TO_CREATE_FIRST_MANAGER);
             }
             companyId = req.companyId();
         } else if ("MANAGER".equals(userRole)) {

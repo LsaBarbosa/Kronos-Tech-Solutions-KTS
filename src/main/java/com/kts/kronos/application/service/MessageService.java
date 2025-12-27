@@ -23,8 +23,7 @@ import static com.kts.kronos.constants.Messages.*;
 @Transactional
 public class MessageService implements MessageUseCase {
 
-    public static final String CHOOSE_EMPLOYEE = "Necessário escolher os colaboradores que receberão o aviso";
-    public static final String INVALID_EMPLOYEE = "Nenhum destinatário válido encontrado na sua empresa.";
+
     private final MessageProvider messageProvider;
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
@@ -49,7 +48,7 @@ public class MessageService implements MessageUseCase {
             }
 
             // Cria uma nova Message entity para cada destinatário individual
-            for (UUID recipientId : validRecipients) {
+            for (var recipientId : validRecipients) {
                 var message = new Message(
                         senderEmployeeId,
                         employee.companyId(),
