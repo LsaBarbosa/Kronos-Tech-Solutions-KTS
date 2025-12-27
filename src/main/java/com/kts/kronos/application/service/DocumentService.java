@@ -31,18 +31,12 @@ import static com.kts.kronos.constants.Messages.*;
 @Transactional
 public class DocumentService implements DocumentUseCase {
 
-    public static final String ERROR_GET_FILE = "Falha ao buscar o arquivo no storage: ";
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
 
-     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
-            "application/msword");
+     
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
 
@@ -135,9 +129,7 @@ public class DocumentService implements DocumentUseCase {
 
         if (doc.type() == DocumentType.TIME_OFF) {
             if (!doc.employeeId().equals(loggedInEmployeeId)) {
-                throw new ForbiddenException(
-                        "Apenas o proprietário pode excluir documentos de justificativa de abono (TIME_OFF)."
-                );
+                throw new ForbiddenException(ONLY_OWNER_DELETE_TIME_OFF_DOCS);
             }
         }
         Document updatedDoc;
@@ -205,7 +197,7 @@ public class DocumentService implements DocumentUseCase {
     public void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
         try {
             // Validação interna básica (opcional, já que geramos o PDF confiável)
-            String contentType = "application/pdf";
+            var contentType = "application/pdf";
 
             var employee = getEmployee(employeeId); // Garante que funcionário existe
 
@@ -228,7 +220,7 @@ public class DocumentService implements DocumentUseCase {
             documentProvider.save(doc);
 
         } catch (Exception e) {
-            throw new BadRequestException("Falha ao salvar documento gerado automaticamente: " + e.getMessage());
+            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC + e.getMessage());
         }
     }
 

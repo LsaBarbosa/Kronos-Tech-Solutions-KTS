@@ -47,7 +47,7 @@ public class UserService implements UserUseCase {
 
         findById(req.employeeId());
 
-        String randomSystemPassword = UUID.randomUUID().toString();
+        var randomSystemPassword = UUID.randomUUID().toString();
         var hashed = passwordEncoder.encode(randomSystemPassword);
 
         var user = new User(
@@ -66,7 +66,7 @@ public class UserService implements UserUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = authenticatedUserEmployee.companyId();
 
-        User targetUser = userProvider.findByUsername(username.toLowerCase())
+        var targetUser = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
         if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
@@ -125,7 +125,7 @@ public class UserService implements UserUseCase {
             password = passwordEncoder.encode(req.password());
         }
 
-        Role role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
+        var role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
         boolean active = req.enabled() != null ? req.enabled() : existing.active();
         var updated = new User(userId, username, password, role, active, existing.employeeId());
 
@@ -154,7 +154,7 @@ public class UserService implements UserUseCase {
     @Override
     public void changeOwnPassword(ChangePasswordRequest req) {
         var userId = jwtAuthenticatedUser.getuserId();
-        User user = getUserId(userId);
+        var user = getUserId(userId);
 
         if (!passwordEncoder.matches(req.currentPassword(), user.password())) {
             throw new BadRequestException(INVALID_PASSWORD);

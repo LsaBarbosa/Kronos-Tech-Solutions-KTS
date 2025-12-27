@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.*;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,9 +27,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final BiometricTermPdfService pdfService;
-    private final DocumentUseCase documentUseCase; // Seu serviço existente de documentos
+    private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
-    private final S3StorageProvider s3StorageProvider; // <--- Aqui o Spring injeta o S3StorageProviderImpl
+    private final S3StorageProvider s3StorageProvider;
     private final AuditLogProvider auditLogProvider;
     @Override
     @Transactional
@@ -45,26 +47,26 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         log.info("Iniciando processo de aceite de termos para Employee ID: {}", employeeId);
 
-        Employee employee = employeeProvider.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colaborador não encontrado"));
+        var employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
-        Company company = companyProvider.findById(employee.companyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+        var company = companyProvider.findById(employee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         // 1. Gera o PDF assinado eletronicamente
         byte[] pdfBytes = pdfService.generateConsentTerm(employee, company, ipAddress, userAgent);
 
         // 2. Define o nome do arquivo
-        String filename = String.format("Termo_Aceite_Biometria_%s.pdf", employee.cpf());
+        var filename = String.format("Termo_Aceite_Biometria_%s.pdf", employee.cpf());
 
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-        String s3Key = String.format("legal/%s/%s/%s_termo_biometria.pdf",
+        var timestamp = LocalDateTime.now().format(DATE_TIME);
+        var s3Key = String.format("legal/%s/%s/%s_termo_biometria.pdf",
                 company.companyId(),
                 employee.employeeId(),
                 timestamp
         );
 
-        String storagePath = s3StorageProvider.uploadFile(s3Key, pdfBytes);
+        var storagePath = s3StorageProvider.uploadFile(s3Key, pdfBytes);
 
         documentUseCase.uploadGeneratedDocument(
                 DocumentType.BIOMETRIC_CONSENT_TERM,
@@ -74,7 +76,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 filename
         );
 
-        AuditLog audit = AuditLog.create(
+        var audit = AuditLog.create(
                 employeeId,
                 "ACEITE_TERMOS_BIOMETRIA",
                 ipAddress,
