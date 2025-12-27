@@ -27,7 +27,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
 @Service
@@ -48,21 +48,17 @@ public class AejService implements AejUseCase {
     @Value("${kronos.legal.software-version:1.0}")
     private String softwareVersion;
 
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HHmm");
-    private static final DateTimeFormatter GENERATION_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
     @Override
     @Transactional(readOnly = true)
     public void generateAej(UUID companyId, LocalDate startDate, LocalDate endDate, OutputStream outputStream) {
-        Company company = companyProvider.findById(companyId)
+        var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         log.info("Iniciando geração de AEJ para empresa {} de {} a {}", companyId, startDate, endDate);
 
         // Buffer em memória para montar o texto antes de assinar
-        try (ByteArrayOutputStream textBuffer = new ByteArrayOutputStream();
-             PrintWriter writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
+        try (var textBuffer = new ByteArrayOutputStream();
+             var writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
 
             // --- GERAÇÃO DO CONTEÚDO TEXTUAL (LAYOUT PORTARIA 671) ---
 
@@ -76,15 +72,15 @@ public class AejService implements AejUseCase {
             List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
             int sequenceId = 1;
 
-            for (Employee employee : employees) {
+            for (var employee : employees) {
                 // ID de Vínculo Sequencial no arquivo
-                String bondId = String.format("%09d", sequenceId++);
+                var bondId = String.format("%09d", sequenceId++);
 
                 // REGISTRO 03: VÍNCULO
                 writeLine(writer, generateType03(bondId, employee));
 
                 // REGISTRO 04: HORÁRIO CONTRATUAL
-                String scheduleId = "H" + bondId;
+                var scheduleId = "H" + bondId;
                 writeLine(writer, generateType04(scheduleId, employee));
 
                 // Busca registros do período
@@ -95,12 +91,12 @@ public class AejService implements AejUseCase {
                         .toList();
 
                 // REGISTRO 05: MARCAÇÕES
-                for (TimeRecord record : records) {
+                for (var record : records) {
                     generateType05Lines(bondId, scheduleId, record).forEach(line -> writeLine(writer, line));
                 }
 
                 // REGISTRO 07: AUSÊNCIAS E FÉRIAS
-                for (TimeRecord record : records) {
+                for (var record : records) {
                     if (isAbsence(record)) {
                         writeLine(writer, generateType07(bondId, record));
                     }
@@ -131,7 +127,7 @@ public class AejService implements AejUseCase {
 
         } catch (Exception e) {
             log.error("Erro crítico na geração/assinatura do AEJ", e);
-            throw new RuntimeException("Falha ao gerar arquivo fiscal AEJ: " + e.getMessage());
+            throw new RuntimeException(FAILURE_TO_GENERAT_AEJ + e.getMessage());
         }
     }
 
@@ -160,10 +156,10 @@ public class AejService implements AejUseCase {
 
     private String generateType04(String scheduleId, Employee e) {
         // Horários Padrão (Fallback se não tiver configurado no funcionário)
-        LocalTime start = e.workStartTime() != null ? e.workStartTime() : LocalTime.of(8, 0);
-        LocalTime end = e.workEndTime() != null ? e.workEndTime() : LocalTime.of(17, 0);
-        LocalTime breakStart = e.breakStartTime() != null ? e.breakStartTime() : LocalTime.of(12, 0);
-        LocalTime breakEnd = e.breakEndTime() != null ? e.breakEndTime() : LocalTime.of(13, 0);
+        var start = e.workStartTime() != null ? e.workStartTime() : LocalTime.of(8, 0);
+        var end = e.workEndTime() != null ? e.workEndTime() : LocalTime.of(17, 0);
+        var breakStart = e.breakStartTime() != null ? e.breakStartTime() : LocalTime.of(12, 0);
+        var breakEnd = e.breakEndTime() != null ? e.breakEndTime() : LocalTime.of(13, 0);
 
         long dailyMinutes = e.getDailyWorkMinutes();
 
@@ -184,14 +180,14 @@ public class AejService implements AejUseCase {
 
         // Linha de Entrada (Check-in)
         if (r.startWork() != null) {
-            String source = determineSource(r.edited(), r.startWork(), r.originalStartWork());
+            var source = determineSource(r.edited(), r.startWork(), r.originalStartWork());
             lines.add(String.join("|", "05", bondId, formatDateTimeIso(r.startWork()),
                     "001", "E", "", source, scheduleId, "") + "|");
         }
 
         // Linha de Saída (Check-out)
         if (r.endWork() != null) {
-            String source = determineSource(r.edited(), r.endWork(), r.originalEndWork());
+            var source = determineSource(r.edited(), r.endWork(), r.originalEndWork());
             lines.add(String.join("|", "05", bondId, formatDateTimeIso(r.endWork()),
                     "001", "S", "", source, scheduleId, "") + "|");
         }
@@ -200,7 +196,7 @@ public class AejService implements AejUseCase {
 
     // Lógica para determinar a Fonte da Marcação (Original 'O' ou Editada/Inserida 'I')
     private String determineSource(boolean isEditedRecord, LocalDateTime current, LocalDateTime original) {
-        if (!isEditedRecord && original != null && current.equals(original)) {
+        if (!isEditedRecord && current.equals(original)) {
             return "O"; // Original
         }
         // Se foi editado OU se não tem original (inserção manual posterior), é 'I'
@@ -208,7 +204,7 @@ public class AejService implements AejUseCase {
     }
 
     private String generateType07(String bondId, TimeRecord r) {
-        String type = "05"; // Default: Outras Ausências
+        var type = "05"; // Default: Outras Ausências
         if (r.statusRecord() == StatusRecord.VACATION) type = "04"; // Férias
 
         long minutes = 0;
@@ -254,6 +250,6 @@ public class AejService implements AejUseCase {
     private String formatDateTimeIso(LocalDateTime dt) {
         // Formato ISO extendido exigido no layout: yyyy-MM-ddThh:mm:ss-Offset
         // Aqui fixamos -0300 (Brasília), mas o ideal é pegar do ZoneId se multi-região.
-        return dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")) + "-0300";
+        return dt.format(GENERATION_DATE_FMT) + "-0300";
     }
 }

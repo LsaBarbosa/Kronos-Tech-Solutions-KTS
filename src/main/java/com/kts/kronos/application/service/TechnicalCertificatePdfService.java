@@ -23,6 +23,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import static com.kts.kronos.constants.Messages.*;
+
 @Slf4j
 @Service
 public class TechnicalCertificatePdfService {
@@ -38,15 +40,15 @@ public class TechnicalCertificatePdfService {
     private String softwareVersion;
 
     public byte[] generateCertificate(Company clientCompany) {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdf = new PdfDocument(writer);
-            Document document = new Document(pdf, PageSize.A4);
+        try (var baos = new ByteArrayOutputStream()) {
+            var writer = new PdfWriter(baos);
+            var pdf = new PdfDocument(writer);
+            var document = new Document(pdf, PageSize.A4);
             document.setMargins(50, 50, 50, 50);
 
             // Fontes padrão (não precisa de arquivo .ttf externo)
-            PdfFont fontBold = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
-            PdfFont fontRegular = PdfFontFactory.createFont(StandardFonts.HELVETICA);
+            var fontBold = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+            var fontRegular = PdfFontFactory.createFont(StandardFonts.HELVETICA);
 
             // Título
             document.add(new Paragraph("ATESTADO TÉCNICO E TERMO DE RESPONSABILIDADE\n(PORTARIA MTP 671/2021)")
@@ -55,7 +57,7 @@ public class TechnicalCertificatePdfService {
 
             // 1. Identificação do Software House (Fabricante)
             addSectionTitle(document, "1. IDENTIFICAÇÃO DO DESENVOLVEDOR (REP-P)", fontBold);
-            Table tableDev = new Table(UnitValue.createPercentArray(new float[]{30, 70})).useAllAvailableWidth();
+            var tableDev = new Table(UnitValue.createPercentArray(new float[]{30, 70})).useAllAvailableWidth();
 
             // Usa as variáveis injetadas em vez de texto fixo
             addRow(tableDev, "Razão Social:", this.devName, fontBold, fontRegular);
@@ -67,7 +69,7 @@ public class TechnicalCertificatePdfService {
 
             // 2. Identificação do Cliente (A Padaria)
             addSectionTitle(document, "2. IDENTIFICAÇÃO DO EMPREGADOR USUÁRIO", fontBold);
-            Table tableCli = new Table(UnitValue.createPercentArray(new float[]{30, 70})).useAllAvailableWidth();
+            var tableCli = new Table(UnitValue.createPercentArray(new float[]{30, 70})).useAllAvailableWidth();
             addRow(tableCli, "Razão Social:", clientCompany.name(), fontBold, fontRegular);
 
             // Formata o CNPJ do cliente para ficar bonito (opcional, mas recomendado)
@@ -77,7 +79,7 @@ public class TechnicalCertificatePdfService {
 
             // 3. Texto Legal (Declaração)
             addSectionTitle(document, "3. DECLARAÇÃO DE CONFORMIDADE", fontBold);
-            String declaration = "Declaramos para os devidos fins que o software mencionado atende integralmente aos requisitos do REGISTRADOR ELETRÔNICO DE PONTO VIA PROGRAMA (REP-P), conforme Art. 76 a 80 da Portaria 671/2021.\n\n" +
+            var declaration = "Declaramos para os devidos fins que o software mencionado atende integralmente aos requisitos do REGISTRADOR ELETRÔNICO DE PONTO VIA PROGRAMA (REP-P), conforme Art. 76 a 80 da Portaria 671/2021.\n\n" +
                     "O sistema garante:\n" +
                     "I - Registro fiel das marcações, sem restrições de horário;\n" +
                     "II - Geração do Arquivo Fonte de Dados (AFD) e Arquivo Eletrônico de Jornada (AEJ);\n" +
@@ -95,8 +97,8 @@ public class TechnicalCertificatePdfService {
                     .setFont(fontBold).setTextAlignment(TextAlignment.CENTER));
 
             // Data com Locale BR garantido
-            Locale localeBr = new Locale("pt", "BR");
-            String date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", localeBr));
+            var localeBr = new Locale("pt", "BR");
+            var date = LocalDate.now().format(DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", localeBr));
             document.add(new Paragraph("Emitido em: " + date).setFontSize(10).setTextAlignment(TextAlignment.CENTER));
 
             // Rodapé
@@ -108,7 +110,7 @@ public class TechnicalCertificatePdfService {
 
         } catch (Exception e) {
             log.error("Erro ao gerar PDF do atestado técnico", e);
-            throw new RuntimeException("Erro ao gerar Atestado Técnico", e);
+            throw new RuntimeException(ERROR_GENERATING_TECHNICAL_CERTIFICATE, e);
         }
     }
 

@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
@@ -26,6 +27,11 @@ import static com.kts.kronos.constants.Messages.*;
 @Service
 @RequiredArgsConstructor
 public class AuthService implements AuthUseCase {
+    public static final String FACE_NOT_RECOGNIZE = "Face não reconhecida ou não cadastrada.";
+    public static final String NO_USER_LINKED_TO_THIS_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
+    public static final String INACTIVE_USER = "Usuário inativo.";
+    public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
+    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial: ";
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -58,15 +64,15 @@ public class AuthService implements AuthUseCase {
             var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
 
             if (employeeId == null) {
-                throw new ResourceNotFoundException("Face não reconhecida ou não cadastrada.");
+                throw new ForbiddenException(FACE_NOT_RECOGNIZE);
             }
 
             // 3. Busca o Usuário vinculado ao EmployeeId encontrado
             var user = userProvider.findByEmployeeId(employeeId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Nenhum usuário vinculado a este colaborador."));
+                    .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
 
             if (!user.active()) {
-                throw new BadRequestException("Usuário inativo.");
+                throw new BadRequestException(INACTIVE_USER);
             }
 
             // 4. Gera o Token JWT (mesma lógica do login tradicional)
@@ -78,9 +84,9 @@ public class AuthService implements AuthUseCase {
             );
 
         } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Imagem inválida (Base64 malformado).");
+            throw new BadRequestException(INVALID_IMAGE);
         } catch (Exception e) {
-            throw new BadRequestException("Erro na autenticação facial: " + e.getMessage());
+            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION + e.getMessage());
         }
     }
     @Override
@@ -103,9 +109,9 @@ public class AuthService implements AuthUseCase {
             log.warn("Tentativa de recuperação de senha: Colaborador sem usuário. EmployeeId: {}", employee.employeeId());
             return;
         }
-        String frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
+        var frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
         // 3. Gera e salva o token no Redis
-        String resetToken = tokenProvider.generateAndSaveToken(user.userId());
+        var resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
         emailSenderProvider.sendResetEmail(
                 employee.email(),
@@ -132,7 +138,7 @@ public class AuthService implements AuthUseCase {
         var user = userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND)); // Usuário deveria existir
 
-        String hashed = passwordEncoder.encode(request.newPassword());
+        var hashed = passwordEncoder.encode(request.newPassword());
 
         // Cria um novo objeto User com a senha atualizada
         var updatedUser = new User(

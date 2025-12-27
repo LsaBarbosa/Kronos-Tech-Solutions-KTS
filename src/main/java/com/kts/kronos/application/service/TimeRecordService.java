@@ -45,19 +45,7 @@ import static com.kts.kronos.domain.model.enuns.StatusRecord.UPDATE_REJECTED;
 @RequiredArgsConstructor
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
-    public static final String UNAUTHORIZED_ROLE = "Role não autorizada para esta operação.";
-    public static final String REQUEST_NOT_FOUND = "Solicitação de aprovação não encontrada ou expirada para o registro: ";
-    public static final String AWAITING_APPROVAL = "O status do registro não pode ser alterado, pois está aguardando aprovação.";
-    public static final String ALREADY_UPDATED = "O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitção.";
-    public static final String ROLE_IS_NOT_MANAGER = "O usuário informado não é um manager.";
-    public static final String START_DATE_BIGGER_THAN_END_DATE = "A data de início das férias não pode ser posterior à data de fim.";
-    public static final String ALREADY_REQUESTED = "Já existe um registro de ponto ou solicitação para o dia: ";
-    public static final String ONLY_MANAGERS_CAN_GRANT_VACATION = "Apenas Managers ou CTO podem aprovar solicitações de férias.";
-    public static final String ONLY_MANAGERS_CAN_REJECT_VACATION = "Apenas Managers ou CTO podem rejeitar solicitações de férias.";
-    public static final String MANAGER_NOT_FOUND = "Manager não encontrado.";
-    public static final String USER_NOT_IS_MANAGER = "O usuário informado não é um manager.";
-    public static final String DOC_NOT_FOUND = "Documento não encontrado após upload para o 1º registro.";
-    public static final String FAILED_TO_CREATE_FIRST_RECORD = "Falha ao criar o primeiro registro de abono.";
+
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
@@ -90,7 +78,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
-        LocalDate todayDate = currentTime.toLocalDate();
+        var todayDate = currentTime.toLocalDate();
 
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
@@ -100,16 +88,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         // ---------------------------------------------------------------------
         if (openRecordOpt.isPresent()) {
             var open = openRecordOpt.get();
-            LocalDate openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
+            var openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
 
             // Só permite checkout se o registro aberto for do MESMO DIA
             if (openRecordDate.isEqual(todayDate)) {
-                if (open.statusRecord() != StatusRecord.PENDING) {
+                if (open.statusRecord() != PENDING) {
                     throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
                 }
 
                 // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Saída)
-                Long nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
+                var nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
 
                 // B. Cria o registro atualizado (Fechamento)
                 var updated = new TimeRecord(
@@ -136,10 +124,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                 adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
 
                 // D. Comprovante (PDF) - Gera e salva no S3
-                generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, "SAIDA");
+                generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, EXIT);
 
                 log.info("Checkout realizado com sucesso. NSR: {}", nsrCheckout);
-                return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", "CHECKOUT");
+                return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", CHECKOUT);
 
             } else {
                 log.info("Registro anterior (ID: {}) ignorado pois pertence a data passada.", open.timeRecordId());
@@ -152,14 +140,14 @@ public class TimeRecordService implements TimeRecordUseCase {
         // ---------------------------------------------------------------------
 
         // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Entrada)
-        Long nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
-        String actionType = "CHECKIN"; // Default
+        var nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
+        var actionType = CHECKIN; // Default
 
         // >>> NOVA LÓGICA: Verifica se já existe um registro de FOLGA ou FALTA para hoje <<<
         // Isso permite que o funcionário trabalhe no dia que o sistema achava que era folga.
         // Necessário buscar qualquer registro do dia, independente de estar "open"
-        LocalDateTime startOfDay = todayDate.atStartOfDay();
-        LocalDateTime endOfDay = todayDate.atTime(23, 59, 59);
+        var startOfDay = todayDate.atStartOfDay();
+        var endOfDay = todayDate.atTime(23, 59, 59);
 
         // Estamos usando o método findByEmployeeIdAndStartWorkBetween que retorna uma lista.
         // Pegamos o primeiro se existir.
@@ -183,7 +171,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     existing.timeRecordId(), // Mantém o ID
                     currentTime,             // Novo StartWork (agora)
                     null,                    // EndWork nulo (está trabalhando)
-                    StatusRecord.PENDING,    // Novo Status
+                    PENDING,    // Novo Status
                     false,                   // Não é editado (é um registro original de ponto)
                     true,
                     employee.employeeId(),
@@ -196,7 +184,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     null
             );
 
-            actionType = "CHECKIN_ON_DAY_OFF";
+            actionType = CHECKIN_ON_DAY_OFF;
 
         } else {
             // CENÁRIO PADRÃO: Criar novo registro
@@ -225,7 +213,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             latestEndWork, currentTime
                     );
                     recordRepository.save(breakRecord);
-                    actionType = "CHECKIN_AFTER_BREAK";
+                    actionType = CHECKIN_AFTER_BREAK;
                     log.info("Pausa implícita registrada entre {} e {}", latestEndWork, currentTime);
                 }
             }
@@ -235,7 +223,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     null,
                     currentTime,
                     null,
-                    StatusRecord.PENDING,
+                    PENDING,
                     false,
                     true,
                     employee.employeeId(),
@@ -260,14 +248,16 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.info("Checkin realizado com sucesso. NSR: {}", nsrCheckin);
 
-        String message = switch (actionType) {
-            case "CHECKIN_AFTER_BREAK" -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-            case "CHECKIN_ON_DAY_OFF" -> "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+        var message = switch (actionType) {
+            case CHECKIN_AFTER_BREAK -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+            case CHECKIN_ON_DAY_OFF ->
+                    "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
             default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
         };
 
         return new ActionResponse(message, actionType);
     }
+
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
         var userRole = jwtAuthenticatedUser.getRoleFromToken();
@@ -295,18 +285,18 @@ public class TimeRecordService implements TimeRecordUseCase {
             validateNonBreakOverlap(employeeId, record.timeRecordId(), newStart, newEnd);
 
             if (req.managerId() == null) {
-                throw new BadRequestException("O ID do manager é obrigatório para parceiros.");
+                throw new BadRequestException(MANAGER_ID_REQUIRED);
             }
-            var managerUser = userProvider.findById(req.managerId()).orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+            var managerUser = userProvider.findById(req.managerId()).orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
 
             if (managerUser.role() != Role.MANAGER) {
-                throw new BadRequestException("O usuário informado não é um manager.");
+                throw new BadRequestException(USER_IS_NOT_MANAGER);
             }
 
             var managerEmployee = employeeProvider.findById(managerUser.employeeId()).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
             if (!managerEmployee.companyId().equals(employee.companyId())) {
-                throw new BadRequestException("O manager não pertence à mesma empresa.");
+                throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
             }
 
             // 1. Cria o payload simplificado
@@ -473,7 +463,6 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                 // Se houver um segmento PENDING (ainda trabalhando)
                 if (dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == PENDING)) {
-                    dailyStatus = PENDING;
                     dailyBalance = Duration.ZERO;
                 }
             }
@@ -522,7 +511,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         var allPossibleReportStatuses = EnumSet.of(
                 CREATED, PENDING, UPDATED, UPDATE_REJECTED, DAY_OFF, ABSENCE,
                 PENDING_APPROVAL, TIME_OFF, TIME_OFF_REQUEST, TIME_OFF_REJECTED,
-                IMPLICIT_BREAK, REQUEST_VACATION, VACATION, VACATION_REJECTED
+                IMPLICIT_BREAK, REQUEST_VACATION, VACATION, VACATION_REJECTED,
+                WORK_TIME_REQUEST,
+                WORK_TIME_REJECTED
         );
 
         Set<StatusRecord> finalFilterStatuses;
@@ -553,11 +544,11 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         recordsByDay.forEach((date, dailyRecords) -> {
             // Verifica status especiais que anulam o cálculo (Faltas, Folgas, Férias)
-            boolean isAbsence = dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.ABSENCE);
-            boolean isDayOffOrVacation = dailyRecords.stream().anyMatch(tr ->
-                    tr.statusRecord() == StatusRecord.DAY_OFF ||
-                            tr.statusRecord() == StatusRecord.VACATION ||
-                            tr.statusRecord() == StatusRecord.TIME_OFF
+            var isAbsence = dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == ABSENCE);
+            var isDayOffOrVacation = dailyRecords.stream().anyMatch(tr ->
+                    tr.statusRecord() == DAY_OFF ||
+                            tr.statusRecord() == VACATION ||
+                            tr.statusRecord() == TIME_OFF
             );
 
             String balanceStr;
@@ -577,8 +568,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                     balanceStr = "+00:00"; // Ou lógica para dia sem registros fechados
                 } else {
                     // 1. Primeira Hora e Última Hora
-                    var firstStart = closedRecords.get(0).startWork();
-                    var lastEnd = closedRecords.get(closedRecords.size() - 1).endWork();
+                    var firstStart = closedRecords.getFirst().startWork();
+                    var lastEnd = closedRecords.getLast().endWork();
 
                     // 2. Duração Total Bruta (Primeira -> Última)
                     var grossDuration = Duration.between(firstStart, lastEnd);
@@ -629,11 +620,11 @@ public class TimeRecordService implements TimeRecordUseCase {
                         documentPath = docs.stream()
                                 .max(Comparator.comparing(Document::uploadeAt)) // Pega o mais recente
                                 .map(doc -> doc.documentId().toString())
-                                .orElse(docs.get(0).documentId().toString());
+                                .orElse(docs.getFirst().documentId().toString());
                     }
 
-                    LocalDate date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
-                    String dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
+                    var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
+                    var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
 
                     return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
                 })
@@ -698,7 +689,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Manager não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
 
         if (managerUser.role() != Role.MANAGER) {
             throw new ForbiddenException(ROLE_IS_NOT_MANAGER);
@@ -768,8 +759,8 @@ public class TimeRecordService implements TimeRecordUseCase {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
-            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
-                var approvedRecord = record.withStatus(StatusRecord.VACATION); // 4. Manager aprova -> VACATION
+            if (record.statusRecord() == REQUEST_VACATION) {
+                var approvedRecord = record.withStatus(VACATION); // 4. Manager aprova -> VACATION
                 recordRepository.save(approvedRecord);
                 log.info("Solicitação de férias (ID: {}) APROVADA. Status mudou para VACATION.", recordId);
             } else {
@@ -792,8 +783,8 @@ public class TimeRecordService implements TimeRecordUseCase {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
-            if (record.statusRecord() == StatusRecord.REQUEST_VACATION) {
-                var rejectedRecord = record.withStatus(StatusRecord.VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
+            if (record.statusRecord() == REQUEST_VACATION) {
+                var rejectedRecord = record.withStatus(VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
                 recordRepository.save(rejectedRecord);
                 log.info("Solicitação de férias (ID: {}) REJEITADA. Status mudou para VACATION_REJECTED.", recordId);
             } else {
@@ -809,10 +800,10 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // 2. Definir os Status a serem buscados
         Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
-            case "PENDING" -> Set.of(StatusRecord.REQUEST_VACATION);
-            case "APPROVED" -> Set.of(StatusRecord.VACATION);
-            case "REJECTED" -> Set.of(StatusRecord.VACATION_REJECTED);
-            default -> EnumSet.of(StatusRecord.REQUEST_VACATION, StatusRecord.VACATION, StatusRecord.VACATION_REJECTED);
+            case PENDING_STATUS -> Set.of(REQUEST_VACATION);
+            case APPROVED_STATUS -> Set.of(VACATION);
+            case REJECTED_STATUS -> Set.of(VACATION_REJECTED);
+            default -> EnumSet.of(REQUEST_VACATION, VACATION, VACATION_REJECTED);
         };
 
 
@@ -876,9 +867,9 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         StatusRecord initialStatus;
         if (type == RequestType.FORGOTTEN_REGISTRATION) {
-            initialStatus = StatusRecord.WORK_TIME_REQUEST; // Esquecimento -> Solicitação de Trabalho
+            initialStatus = WORK_TIME_REQUEST; // Esquecimento -> Solicitação de Trabalho
         } else {
-            initialStatus = StatusRecord.TIME_OFF_REQUEST;  // Abono -> Solicitação de Abono
+            initialStatus = TIME_OFF_REQUEST;  // Abono -> Solicitação de Abono
         }
 
         var start = request.startDate();
@@ -981,14 +972,12 @@ public class TimeRecordService implements TimeRecordUseCase {
             var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
             recordRepository.save(approvedRecord);
             log.info("Abono aprovado para registro {}", timeRecordId);
-        }
-        else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
+        } else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
             var approvedRecord = record.withStatus(StatusRecord.UPDATED);
             recordRepository.save(approvedRecord);
             log.info("Esquecimento aprovado (convertido em trabalho) para registro {}", timeRecordId);
-        }
-        else {
-            throw new BadRequestException("O registro não é uma solicitação pendente válida (Status: " + record.statusRecord() + ").");
+        } else {
+            throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
     }
 
@@ -1006,7 +995,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             recordRepository.save(rejectedRecord);
             log.info("Alteração para esquecimento negado para registro {}", timeRecordId);
         } else {
-            throw new BadRequestException("O registro não é uma solicitação pendente válida (Status: " + record.statusRecord() + ").");
+            throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
 
     }
@@ -1018,9 +1007,9 @@ public class TimeRecordService implements TimeRecordUseCase {
         var companyId = getEmployee(managerEmployeeId).companyId();
 
         Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
-            case "PENDING" -> Set.of(StatusRecord.TIME_OFF_REQUEST,StatusRecord.WORK_TIME_REQUEST);
-            case "APPROVED" -> Set.of(StatusRecord.TIME_OFF,StatusRecord.UPDATED);
-            case "REJECTED" -> Set.of(StatusRecord.TIME_OFF_REJECTED,StatusRecord.WORK_TIME_REJECTED);
+            case PENDING_STATUS -> Set.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.WORK_TIME_REQUEST);
+            case APPROVED_STATUS -> Set.of(StatusRecord.TIME_OFF, StatusRecord.UPDATED);
+            case REJECTED_STATUS -> Set.of(StatusRecord.TIME_OFF_REJECTED, StatusRecord.WORK_TIME_REJECTED);
             default -> EnumSet.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.TIME_OFF, StatusRecord.TIME_OFF_REJECTED);
         };
 
@@ -1135,7 +1124,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
         if (record.statusRecord() != PENDING_APPROVAL) {
-            throw new BadRequestException("O registro não está aguardando aprovação.");
+            throw new BadRequestException(RECORD_IS_NOT_AWAITING_APPROVAL);
         }
         return record;
     }
@@ -1180,20 +1169,20 @@ public class TimeRecordService implements TimeRecordUseCase {
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
         var employee = getEmployee(employeeId);
 
-        var company = companyProvider.findById(employee.companyId()).orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada para o funcionário."));
+        var company = companyProvider.findById(employee.companyId()).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND_FOR_THE_EMPLOYEE));
 
         final double ALLOWED_DISTANCE_METERS = 80.0;
         var companyLocation = company.location();
 
         if (companyLocation == null) {
-            throw new BadRequestException("A localização da empresa não está cadastrada.");
+            throw new BadRequestException(ADDRESS_COMPANY_IS_NOT_REGISTERED);
         }
 
         // Você precisará de uma função para calcular a distância entre os pontos
         double distance = calculateDistanceInMeters(companyLocation.latitude(), companyLocation.longitude(), requestLatitude, requestLongitude);
 
         if (distance > ALLOWED_DISTANCE_METERS) {
-            throw new BadRequestException("Você está fora da área de trabalho permitida.");
+            throw new BadRequestException(GEOLOCATION_OUT_OF_RANGE);
         }
     }
 
@@ -1312,7 +1301,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         for (TimeRecord segment : workSegments) {
             // Verifica se o novo registro começa antes do fim de outro segmento
             if (newStart.isBefore(segment.endWork()) && newEnd.isAfter(segment.startWork())) {
-                throw new BadRequestException("O novo horário se sobrepõe a um registro de trabalho existente (" + segment.startWork().format(DATE_TIME_FORMATTER) + " - " + segment.endWork().format(DATE_TIME_FORMATTER) + ").");
+                throw new BadRequestException(NEW_REGISTER_OVERRIDES_AN_EXISTING_WORK_RECORD + segment.startWork().format(GENERATION_DATE_FMT) + " - " + segment.endWork().format(GENERATION_DATE_FMT) + ").");
             }
         }
     }
@@ -1351,24 +1340,24 @@ public class TimeRecordService implements TimeRecordUseCase {
             UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
 
             if (recognizedEmployeeId == null) {
-                throw new BadRequestException("Falha na validação facial: Nenhuma face correspondente encontrada.");
+                throw new BadRequestException(FACE_NOT_RECOGNIZED);
             }
 
             // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
             if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
                 log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
-                throw new BadRequestException("Falha na validação facial: A face não corresponde ao colaborador autenticado.");
+                throw new BadRequestException(FACE_MISMATCH);
             }
 
             log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
 
         } catch (IllegalArgumentException e) {
             // Ocorre se a string Base64 for malformada
-            throw new BadRequestException("Dados de imagem inválidos: Formato Base64 incorreto.");
+            throw new BadRequestException(INVALID_BASE64_IMAGE);
         } catch (RuntimeException e) {
             // Captura falhas de serviço do Rekognition (lançadas pelo provider)
             log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
-            throw new BadRequestException("Erro no serviço de reconhecimento facial: Falha de comunicação ou processamento.");
+            throw new BadRequestException(INVALID_BASE64_IMAGE);
         }
     }
 
@@ -1396,7 +1385,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             String fileName = String.format("comprovante_%d_%s_%s.pdf",
                     nsr,
                     typeSuffix,
-                    recordTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+                    recordTime.format(RECEIPT_DATE_FMT));
 
             // 4. Salva usando o método otimizado do DocumentService
             documentService.uploadGeneratedDocument(
