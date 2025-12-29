@@ -10,6 +10,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,13 +44,18 @@ public class AuthService implements AuthUseCase {
     private final EmailSenderProvider emailSenderProvider;
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final DocumentProvider documentProvider;
 
     @Override
     public String login(String username, String password) {
         authManager.authenticate(new UsernamePasswordAuthenticationToken(username.toLowerCase(), password));
         var user = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
-        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId());
+        var termsAccepted = documentProvider.existsByEmployeeIdAndType(
+                user.employeeId(),
+                DocumentType.BIOMETRIC_CONSENT_TERM
+        );
+        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId(), termsAccepted);
     }
 
     @Override
@@ -75,12 +81,18 @@ public class AuthService implements AuthUseCase {
                 throw new BadRequestException(INACTIVE_USER);
             }
 
+            var termsAccepted = documentProvider.existsByEmployeeIdAndType(
+                    user.employeeId(),
+                    DocumentType.BIOMETRIC_CONSENT_TERM
+            );
+
             // 4. Gera o Token JWT (mesma lógica do login tradicional)
             return jwtUtils.generateToken(
                     user.employeeId(),
                     user.username(),
                     user.role().name(),
-                    user.userId()
+                    user.userId(),
+                    termsAccepted
             );
 
         } catch (IllegalArgumentException e) {
