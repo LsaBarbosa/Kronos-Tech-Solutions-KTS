@@ -1,7 +1,9 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +24,8 @@ public class TermsController {
 
     private final AcceptTermsUseCase acceptanceUseCase;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final JwtUtils jwtUtils;
+    private final UserProvider userProvider;
 
     @PostMapping("/accept-biometric")
     @Operation(summary = "Registrar Aceite do Termo de Biometria",
@@ -29,6 +33,9 @@ public class TermsController {
     public ResponseEntity<Void> acceptBiometricTerms(HttpServletRequest request) {
 
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        UUID userId = jwtAuthenticatedUser.getuserId();
+        String username = jwtAuthenticatedUser.getUsername();
+        String role = jwtAuthenticatedUser.getRoleFromToken();
 
         String ipAddress = request.getHeader("X-Forwarded-For");
         if (ipAddress == null || ipAddress.isEmpty()) {
@@ -46,7 +53,7 @@ public class TermsController {
 
         // Passamos os dois dados para o serviço
         acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent);
-
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true);
         return ResponseEntity.ok().build();
     }
 
