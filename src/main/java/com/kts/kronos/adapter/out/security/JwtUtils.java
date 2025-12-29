@@ -27,13 +27,14 @@ public class JwtUtils {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId) {
+    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId,boolean termsAccepted) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
                 .claim("userId", userId != null ? userId.toString() : null)
                 .claim("role", roleName)
                 .claim("employeeId", employeeId != null ? employeeId.toString() : null)
+                .claim("terms_accepted", termsAccepted)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -47,6 +48,18 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public boolean getTermsAcceptedFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        // Se não houver a claim (tokens antigos), assume falso por segurança
+        Object accepted = claims.get("terms_accepted");
+        return accepted != null && (boolean) accepted;
     }
 
     public UUID getEmployeeIdFromToken(String token) {

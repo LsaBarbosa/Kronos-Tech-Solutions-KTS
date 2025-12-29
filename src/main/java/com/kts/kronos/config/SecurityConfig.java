@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoin
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.adapter.out.security.TermsValidationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,7 +48,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-
+        var termsFilter = new TermsValidationFilter(jwtUtils);
         var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
 
         http
@@ -61,7 +62,8 @@ public class SecurityConfig {
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 
