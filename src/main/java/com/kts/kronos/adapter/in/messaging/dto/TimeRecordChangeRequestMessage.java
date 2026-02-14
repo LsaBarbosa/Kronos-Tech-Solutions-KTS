@@ -21,3 +21,4 @@ public record TimeRecordChangeRequestMessage(Long timeRecordId, UUID partnerEmpl
         );
     }
 }
+
