@@ -80,7 +80,7 @@ public class EmployeeController {
 
     @Operation(summary = UPDATE_EMPLOYEE_SUMMARY, description = UPDATE_EMPLOYEE_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_COMPANY_SUCCESS),
+            @ApiResponse(responseCode = "200", description = UPDATE_EMPLOYEE_SUCCESS),
             @ApiResponse(responseCode = "400", description = UPDATE_EMPLOYEE_400),
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)

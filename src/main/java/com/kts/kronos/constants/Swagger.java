@@ -1,13 +1,5 @@
 package com.kts.kronos.constants;
 
-import com.kts.kronos.domain.model.enuns.StatusRecord;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.List;
-
 public class Swagger {
     private Swagger() {
     }

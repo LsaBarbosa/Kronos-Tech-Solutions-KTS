@@ -86,12 +86,12 @@ public class UserController {
     }
 
     @PatchMapping(UPDATE_USER)
-    @PreAuthorize(MANAGER)
-    @Operation(summary = LIST_USERS_SUMMARY, description = LIST_USERS_DESC)
+    @Operation(summary = UPDATE_USER_SUMMARY, description = UPDATE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = LIST_SUCCESS),
-            @ApiResponse(responseCode = "403", description = ACCESS_DENIED),
-            @ApiResponse(responseCode = "404", description = LIST_USERS_404)
+            @ApiResponse(responseCode = "200", description = UPDATE_USER_SUCCESS),
+            @ApiResponse(responseCode = "400", description = UPDATE_USER_400),
+            @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
     public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
