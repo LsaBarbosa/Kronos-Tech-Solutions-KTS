@@ -141,12 +141,7 @@ public class Swagger {
     public static final String CHECK_CPF_200 = "CPF Indisponível (Já existe)";
     public static final String CHECK_CPF_404 = "CPF Disponível (Não encontrado)";
 
-    // Legal (Fiscal)
-    public static final String LEGAL = "/legal";
-    public static final String TECHNICAL_CERTIFICATE = "/technical-certificate";
-    public static final String AFD = "/afd";
-    public static final String AEJ = "/aej";
-    public static final String MIRROR_POINT = "/espelho-ponto";
+
 
     // --- SWAGGER: LEGAL (FISCAL) ---
     public static final String SWAGGER_LEGAL_TAG = "Fiscal - Arquivos Legais";

@@ -40,7 +40,6 @@ public class Messages {
     public static final String USER_NOT_FOUND = "Usuário não encontrado";
     public static final String USERNAME_ALREADY_EXIST = "Username já existe";
     public static final String USER_INACTIVE = "Usuário inativo.";
-    public static final String NO_USER_LINKED_TO_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
     public static final String INVALID_PASSWORD = "Senha atual incorreta.";
     public static final String INVALID_CONFIRM_PASSWORD = "Confirmação de senha não confere.";
     public static final String INVALID_PASSWORD_POLICY = "Política de senha inválida: mínimo de 8 caracteres, deve conter maiúscula, minúscula e dígito.";
@@ -55,7 +54,6 @@ public class Messages {
     public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
-    public static final String LOCATION_REQUIRED_ON_ADDRESS_CHANGE = "Location (latitude e longitude) é obrigatório se o endereço for alterado.";
 
     // Time Record / Validation
     public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
@@ -63,14 +61,6 @@ public class Messages {
     public static final String MANAGER_ID_REQUIRED = "O ID do manager é obrigatório para parceiros.";
     public static final String USER_IS_NOT_MANAGER = "O usuário informado não é um manager.";
     public static final String MANAGER_DIFFERENT_COMPANY = "O manager não pertence à mesma empresa.";
-    public static final String UNAUTHORIZED_ROLE_OPERATION = "Role não autorizada para esta operação.";
-    public static final String APPROVAL_REQUEST_NOT_FOUND = "Solicitação de aprovação não encontrada ou expirada para o registro: ";
-    public static final String STATUS_CHANGE_PENDING_APPROVAL = "O status do registro não pode ser alterado, pois está aguardando aprovação.";
-    public static final String STATUS_CHANGE_UPDATED = "O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitação.";
-    public static final String VACATION_START_AFTER_END = "A data de início das férias não pode ser posterior à data de fim.";
-    public static final String RECORD_ALREADY_EXISTS_FOR_DATE = "Já existe um registro de ponto ou solicitação para o dia: ";
-    public static final String ONLY_MANAGER_APPROVE_VACATION = "Apenas Managers ou CTO podem aprovar solicitações de férias.";
-    public static final String ONLY_MANAGER_REJECT_VACATION = "Apenas Managers ou CTO podem rejeitar solicitações de férias.";
     public static final String ONLY_OWNER_DELETE_TIME_OFF_DOCS = "Apenas proprietário do documento pode deletá-lo";
     public static final String GEOLOCATION_OUT_OF_RANGE = "Você está fora da área de trabalho permitida.";
     public static final String HOURS_EXCEPTIONS = "Hora de início deve ser menor ou igual a hora de saída";

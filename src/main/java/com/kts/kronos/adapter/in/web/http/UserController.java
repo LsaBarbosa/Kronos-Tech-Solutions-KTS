@@ -101,7 +101,7 @@ public class UserController {
     @PreAuthorize(MANAGER)
     @Operation(summary = ACTIVATE_USER_SUMMARY, description = ACTIVATE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = TOGGLE_COMPANY_SUCCESS),
+            @ApiResponse(responseCode = "200", description = USER_INACTIVE),
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
