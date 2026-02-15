@@ -657,7 +657,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             String documentPath = null;
             if (!docs.isEmpty()) {
                 // Pega o ID do primeiro documento encontrado
-                documentPath = "/documents/" + docs.get(0).documentId();
+                documentPath = "/documents/" + docs.getFirst().documentId();
             }
 
             if (partnerEmployee != null && managerUser != null && timeRecord != null) {
@@ -1042,7 +1042,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     var docs = documentProvider.findByTimeRecordId(tr.timeRecordId());
 
                     // Se a lista não estiver vazia, pega o ID do primeiro documento. Senão, null.
-                    String documentPath = docs.isEmpty() ? null : docs.get(0).documentId().toString();
+                    String documentPath = docs.isEmpty() ? null : docs.getFirst().documentId().toString();
                     // --------------------------------------------------
 
                     return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath, null);
