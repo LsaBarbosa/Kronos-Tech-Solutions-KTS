@@ -74,7 +74,7 @@ public class DocumentEntity {
                 .fileName(document.fileName())
                 .contentType(document.contentType())
                 .storagePath(document.storagePath())
-                .uploadedAt(document.uploadeAt())
+                .uploadedAt(document.uploadedAt())
                 .type(document.type())
                 .timeRecordId(document.timeRecordId())
                 .deletedByEmployee(document.deletedByEmployee())

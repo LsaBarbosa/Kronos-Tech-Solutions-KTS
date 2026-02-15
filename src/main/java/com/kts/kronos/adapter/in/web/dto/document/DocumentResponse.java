@@ -23,7 +23,7 @@ public record DocumentResponse(
                         doc.documentId(),
                         doc.fileName(),
                         doc.contentType(),
-                        doc.uploadeAt()
+                        doc.uploadedAt()
                 );
         }
 }

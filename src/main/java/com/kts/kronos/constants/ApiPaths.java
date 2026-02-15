@@ -71,7 +71,19 @@ public class ApiPaths {
     public static final String RECOVER_PASSWORD = "/recover-password"; // Novo
     public static final String RESET_PASSWORD = "/reset-password";
 
+
     //Cep
     public static final String API_VIA_CEP = "https://viacep.com.br/ws";
 
+    // Legal (Fiscal)
+    public static final String LEGAL = "/legal";
+    public static final String TECHNICAL_CERTIFICATE = "/technical-certificate";
+    public static final String AFD = "/afd";
+    public static final String AEJ = "/aej";
+    public static final String MIRROR_POINT = "/espelho-ponto";
+
+    // LGPD
+    public static final String TERMS = "terms";
+    public static final String ACCEPT_BIOMETRIC = "/accept-biometric";
+    public static final String STATUS = "/status";
 }

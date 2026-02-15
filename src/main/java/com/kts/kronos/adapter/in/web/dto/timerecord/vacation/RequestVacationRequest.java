@@ -21,6 +21,6 @@ public record RequestVacationRequest(
         LocalDate endDate,
 
         @NotNull(message = "O ID do manager é obrigatório para aprovação")
-        UUID managerId // Para identificar o responsável pela aprovação
+        UUID managerId
 ) {
 }

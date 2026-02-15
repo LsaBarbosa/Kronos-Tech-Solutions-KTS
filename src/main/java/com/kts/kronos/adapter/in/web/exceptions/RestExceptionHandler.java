@@ -54,22 +54,18 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, problemDetail, new HttpHeaders(), status, request);
     }
 
-
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Object> handleForbiddenException(ForbiddenException ex, WebRequest request) {
         return buildResponseEntity(ex, HttpStatus.FORBIDDEN, request, null);
     }
 
-    // NOVO HANDLER PARA USUÁRIO DESABILITADO
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<Object> handleDisabledException(DisabledException ex, WebRequest request) {
         return buildResponseEntity(ex, HttpStatus.FORBIDDEN, request, null);
     }
 
-    // NOVO HANDLER PARA CREDENCIAIS INVÁLIDAS
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Object> handleBadCredentialsException(BadCredentialsException ex, WebRequest request) {
-        // Usamos uma mensagem customizada para não expor detalhes
         var customException = new BadCredentialsException("Usuário ou senha inválidos");
         return buildResponseEntity(customException, HttpStatus.UNAUTHORIZED, request, null);
     }

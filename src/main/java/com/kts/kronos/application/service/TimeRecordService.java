@@ -618,7 +618,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         // ou simplesmente o primeiro da lista.
                         // Aqui ordenamos para pegar o mais recente se houver mais de um.
                         documentPath = docs.stream()
-                                .max(Comparator.comparing(Document::uploadeAt)) // Pega o mais recente
+                                .max(Comparator.comparing(Document::uploadedAt)) // Pega o mais recente
                                 .map(doc -> doc.documentId().toString())
                                 .orElse(docs.getFirst().documentId().toString());
                     }

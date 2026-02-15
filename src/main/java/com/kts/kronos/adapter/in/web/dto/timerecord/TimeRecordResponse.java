@@ -20,7 +20,7 @@ public record TimeRecordResponse(
         LocalDateTime endWork,
         String endHour,
         String hoursWork,
-        String balance, // Agora representará o saldo do DIA, se calculado agrupado
+        String balance,
         StatusRecord statusRecord,
         boolean edited,
         boolean active,
@@ -32,12 +32,11 @@ public record TimeRecordResponse(
         Double endLatitude,
         Double endLongitude
 ) {
-    // Adicionado parâmetro 'dailyBalance'
-    public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
+     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
                                                 Duration reference,
                                                 EmployeeData employeeData,
                                                 String documentDownloadPath,
-                                                String dailyBalance) { // <--- NOVO PARÂMETRO
+                                                String dailyBalance) {
 
         var startDateTime = timeRecord.startWork()
                 .atZone(SAO_PAULO).toLocalDateTime();
@@ -63,12 +62,10 @@ public record TimeRecordResponse(
                     worked.toMinutesPart()
             );
 
-            // SE um saldo diário foi passado, usamos ele (Lógica Agrupada)
-            if (dailyBalance != null) {
+             if (dailyBalance != null) {
                 balanceString = dailyBalance;
             } else {
-                // Caso contrário, usa a lógica individual (Fallback)
-                if (timeRecord.statusRecord() == StatusRecord.ABSENCE) {
+                 if (timeRecord.statusRecord() == StatusRecord.ABSENCE) {
                     balanceString = String.format("-%02d:%02d",
                             reference.toHours(),
                             reference.toMinutesPart()

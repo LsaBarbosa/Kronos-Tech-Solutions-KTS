@@ -5,6 +5,10 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -17,18 +21,26 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.UUID;
-
-import static com.kts.kronos.constants.ApiPaths.DOCUMENTS;
-import static com.kts.kronos.constants.ApiPaths.DOCUMENT_ID;
-import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
+import static com.kts.kronos.constants.Swagger.*;
+import static com.kts.kronos.constants.ApiPaths.*;
+import static com.kts.kronos.constants.Messages.*;
 
 
 @RestController
 @RequestMapping(DOCUMENTS)
 @RequiredArgsConstructor
+@Tag(name = SWAGGER_DOC_TAG, description = SWAGGER_DOC_DESC)
 public class DocumentController {
 
     private final DocumentUseCase useCase;
+
+    @Operation(summary = UPLOAD_DOC_SUMMARY, description = UPLOAD_DOC_DESC)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = UPLOAD_DOC_SUCCESS),
+            @ApiResponse(responseCode = "400", description = UPLOAD_DOC_400),
+            @ApiResponse(responseCode = "404", description = UPLOAD_DOC_404),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
+    })
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public void upload(
@@ -39,6 +51,11 @@ public class DocumentController {
         useCase.uploadDocument(type,employeeId, file);
     }
 
+    @Operation(summary = LIST_DOC_SUMMARY, description = LIST_DOC_DESC)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = LIST_SUCCESS),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
+    })
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping
     public ResponseEntity<DocumentResponseList> list(
@@ -53,7 +70,13 @@ public class DocumentController {
                 DocumentResponse::fromDomain).toList()));
     }
 
-
+    @Operation(summary = DOWN_DOC_SUMMARY, description = DOWN_DOC_DESC)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = DOWN_DOC_SUCCESS),
+            @ApiResponse(responseCode = "400", description = DOWN_DOC_400),
+            @ApiResponse(responseCode = "404", description = DOWN_DOC_404),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
+    })
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(DOCUMENT_ID)
     public ResponseEntity<byte[]> download(
@@ -69,6 +92,12 @@ public class DocumentController {
                 .body(doc.data());
     }
 
+    @Operation(summary = DEL_DOC_SUMMARY, description = DEL_DOC_DESC)
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = DEL_DOC_SUCCESS),
+            @ApiResponse(responseCode = "403", description = DEL_DOC_403),
+            @ApiResponse(responseCode = "404", description = DEL_DOC_404)
+    })
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {

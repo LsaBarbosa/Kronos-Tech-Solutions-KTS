@@ -8,7 +8,6 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
-import com.kts.kronos.application.port.out.provider.S3StorageProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.Employee;
@@ -20,7 +19,6 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -82,7 +80,7 @@ public class DocumentService implements DocumentUseCase {
                     doc.fileName(),
                     doc.contentType(),
                     fileData,
-                    doc.uploadeAt()
+                    doc.uploadedAt()
             );
 
         } catch (ResourceNotFoundException e) {

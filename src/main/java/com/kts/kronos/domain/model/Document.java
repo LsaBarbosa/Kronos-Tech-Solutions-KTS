@@ -12,7 +12,7 @@ public record Document(
         String fileName,
         String contentType,
         String storagePath,
-        LocalDateTime uploadeAt,
+        LocalDateTime uploadedAt,
         Long timeRecordId,
         boolean deletedByEmployee,
         boolean deletedByManager
@@ -32,11 +32,11 @@ public record Document(
     }
 
     public Document markDeletedByEmployee() {
-        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadeAt, timeRecordId, true, deletedByManager);
+        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadedAt, timeRecordId, true, deletedByManager);
     }
 
     // Método auxiliar para "marcar" como deletado pelo manager
     public Document markDeletedByManager() {
-        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadeAt, timeRecordId, deletedByEmployee, true);
+        return new Document(documentId, employeeId, type, fileName, contentType, storagePath, uploadedAt, timeRecordId, deletedByEmployee, true);
     }
 }

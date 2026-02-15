@@ -11,5 +11,5 @@ public record DocumentWithData(UUID documentId,
                                String fileName,
                                String contentType,
                                byte[] data,
-                               LocalDateTime uploadeAt
+                               LocalDateTime uploadedAt
 ) {}

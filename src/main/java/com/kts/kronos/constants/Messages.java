@@ -1,5 +1,7 @@
 package com.kts.kronos.constants;
+
 import com.kts.kronos.domain.model.enuns.StatusRecord;
+
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -7,7 +9,8 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Messages {
-    private Messages() {}
+    private Messages() {
+    }
 
     // --- FORMATAÇÃO DE DATA/HORA (Padronizada) ---
     public static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
@@ -180,4 +183,5 @@ public class Messages {
     public static final StatusRecord TIME_OFF_REJECTED = StatusRecord.TIME_OFF_REJECTED;
     public static final StatusRecord WORK_TIME_REQUEST = StatusRecord.WORK_TIME_REQUEST;
     public static final StatusRecord WORK_TIME_REJECTED = StatusRecord.WORK_TIME_REJECTED;
+
 }
