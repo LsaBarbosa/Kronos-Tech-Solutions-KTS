@@ -31,7 +31,7 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = CREDENTIALS_INVALID)
     })
     @PostMapping(LOGIN)
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
         var token = authUseCase.login(req.username(), req.password());
         return ResponseEntity.ok(new LoginResponse(token));
     }
