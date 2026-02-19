@@ -42,14 +42,22 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             "WHERE tr.employeeId IN (SELECT e.employeeId FROM EmployeeEntity e WHERE e.companyId = :companyId)")
     Long findMaxNsrByCompanyId(@Param("companyId") UUID companyId);
 
-
-    // --- NOVO MÉTODO ESSENCIAL ---
-    // Busca registros por intervalo. Usado para contar folgas no mês.
     List<TimeRecordEntity> findByEmployeeIdAndStartWorkBetween(
             UUID employeeId,
             LocalDateTime startWorkStart,
             LocalDateTime startWorkEnd
     );
 
-
+    @Query("""
+        SELECT tr FROM TimeRecordEntity tr 
+        WHERE tr.employeeId = :employeeId 
+          AND tr.active = true 
+          AND CAST(tr.startWork AS date) IN :dates 
+          AND tr.statusRecord IN :statuses
+    """)
+    List<TimeRecordEntity> findByEmployeeAndDatesAndStatuses(
+            @Param("employeeId") UUID employeeId,
+            @Param("dates") java.util.Set<java.time.LocalDate> dates,
+            @Param("statuses") java.util.Set<StatusRecord> statuses
+    );
 }

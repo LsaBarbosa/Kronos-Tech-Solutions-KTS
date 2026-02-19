@@ -30,5 +30,10 @@ public interface TimeRecordProvider {
 
     Long findMaxNsrByCompanyId(UUID companyId);
 
+    List<TimeRecord> findByEmployeeAndDatesAndStatuses(
+            UUID employeeId,
+            java.util.Set<java.time.LocalDate> dates,
+            java.util.Set<com.kts.kronos.domain.model.enuns.StatusRecord> statuses
+    );
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
 }

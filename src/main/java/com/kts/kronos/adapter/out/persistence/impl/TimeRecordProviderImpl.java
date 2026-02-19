@@ -112,5 +112,17 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .map(TimeRecordEntity::toDomain) // Converte para o modelo de domínio
                 .toList();
     }
+
+    @Override
+    public List<TimeRecord> findByEmployeeAndDatesAndStatuses(
+            UUID employeeId,
+            java.util.Set<LocalDate> dates,
+            java.util.Set<StatusRecord> statuses) {
+
+        return jpa.findByEmployeeAndDatesAndStatuses(employeeId, dates, statuses)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 }
 
