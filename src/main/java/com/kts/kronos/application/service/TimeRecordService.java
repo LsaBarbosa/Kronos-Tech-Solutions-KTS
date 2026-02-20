@@ -140,7 +140,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public static final String LOG_LIST_REPORT_FETCH_DOCS = "Buscando documentos em lote para {} registros.";
     public static final String LOG_LIST_REPORT_SUCCESS = "Relatório detalhado gerado com sucesso para TargetEmployeeID: {}. Registros processados: {}";
 
-    private final TimeRecordProvider recordRepository;
+    private final TimeRecordProvider timeRecordProvider;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
@@ -177,7 +177,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.debug(LOG_VALIDATION_OK, employeeId);
 
-        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
+        var openRecordOpt = timeRecordProvider.findOpenByEmployeeId(employee.employeeId());
         var currentTime = LocalDateTime.now(SAO_PAULO);
         var currentTimeParsed = currentTime.format(TIME_FORMATTER);
         var todayDate = currentTime.toLocalDate();
@@ -221,7 +221,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         currentTime
                 );
 
-                recordRepository.save(updated);
+                timeRecordProvider.save(updated);
 
                 // C. Auditoria Fiscal (AFD) - Grava linha tipo 7
                 adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
@@ -253,7 +253,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var startOfDay = todayDate.atStartOfDay();
         var endOfDay = todayDate.atTime(23, 59, 59);
 
-        List<TimeRecord> recordsToday = recordRepository.findByRange(
+        List<TimeRecord> recordsToday = timeRecordProvider.findByRange(
                 employee.employeeId(), startOfDay, endOfDay); //
 
         Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
@@ -290,7 +290,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             // CENÁRIO PADRÃO: Criar novo registro
             // Lógica de Pausa Implícita (Gap)
-            var latestRecordOpt = recordRepository.
+            var latestRecordOpt = timeRecordProvider.
                     findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
 
             if (latestRecordOpt.isPresent()) {
@@ -313,7 +313,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             null, null,
                             latestEndWork, currentTime
                     );
-                    recordRepository.save(breakRecord);
+                    timeRecordProvider.save(breakRecord);
                     actionType = CHECKIN_AFTER_BREAK;
 
                     log.info(LOG_BREAK_DETECTED, latestEndWork, currentTime);
@@ -338,7 +338,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             );
         }
 
-        var savedRecord = recordRepository.save(recordToSave);
+        var savedRecord = timeRecordProvider.save(recordToSave);
 
         adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
 
@@ -410,7 +410,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withCheckout(approvalData.newEndWork())
                 .withStatus(StatusRecord.UPDATED);
 
-        recordRepository.save(approvedRecord);
+        timeRecordProvider.save(approvedRecord);
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.debug(LOG_APPROVAL_CLEANUP, timeRecordId);
@@ -436,7 +436,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withStatus(UPDATE_REJECTED)
                 .withEdited(false);
 
-        recordRepository.save(rejectedRecord);
+        timeRecordProvider.save(rejectedRecord);
         approvalProvider.deleteByTimeRecordId(timeRecordId);
         log.info(LOG_REJECT_SUCCESS, timeRecordId);
     }
@@ -465,7 +465,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         var originalDate = record.originalStartWork();
-        recordRepository.deleteTimeRecord(record);
+        timeRecordProvider.deleteTimeRecord(record);
 
         log.info(LOG_DELETE_SUCCESS, recordId, originalDate);
     }
@@ -484,7 +484,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         boolean newActiveState = !currentActiveState;
         var toggle = record.withActive(newActiveState);
 
-        recordRepository.save(toggle);
+        timeRecordProvider.save(toggle);
         log.info(LOG_TOGGLE_SUCCESS, timeRecordId, currentActiveState, newActiveState);
     }
 
@@ -498,7 +498,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (validationStatus(timeRecordId, currentStatus, newStatus)) return;
 
         var updateStatus = record.withStatus(newStatus);
-        recordRepository.save(updateStatus);
+        timeRecordProvider.save(updateStatus);
         log.info(LOG_UPDATE_STATUS_SUCCESS, timeRecordId, currentStatus, newStatus);
     }
 
@@ -518,7 +518,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         Set<LocalDate> requestedDates = Arrays.stream(req.dates()).collect(Collectors.toSet());
 
-        List<TimeRecord> filteredRecords = recordRepository
+        List<TimeRecord> filteredRecords = timeRecordProvider
                 .findByEmployeeAndDatesAndStatuses(targetEmployeeId, requestedDates, validStatusesForReport);
 
         if (filteredRecords.isEmpty()) {
@@ -581,18 +581,10 @@ public class TimeRecordService implements TimeRecordUseCase {
            return Collections.emptyList();
        }
 
-        // 1. Definição de datas
-        final Set<LocalDate> finalDatesSet;
-        if (req.dates() != null && req.dates().length > 0) {
-            finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
-        } else {
-            return Collections.emptyList();
-        }
+        //  Definição de datas
+       final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+       log.info(LOG_LIST_REPORT_INIT, targetEmployeeId, finalDatesSet.size());
 
-        // 2. Busca registros
-        List<TimeRecord> allRecordsForEmployee = getRecords(targetEmployeeId, req.active());
-
-        // 3. Definição de status válidos
         var allPossibleReportStatuses = EnumSet.of(
                 CREATED, PENDING, UPDATED, UPDATE_REJECTED, DAY_OFF, ABSENCE,
                 PENDING_APPROVAL, TIME_OFF, TIME_OFF_REQUEST, TIME_OFF_REJECTED,
@@ -601,119 +593,39 @@ public class TimeRecordService implements TimeRecordUseCase {
                 WORK_TIME_REJECTED
         );
 
-        Set<StatusRecord> finalFilterStatuses;
-        if (req.statuses() == null || req.statuses().isEmpty()) {
-            finalFilterStatuses = allPossibleReportStatuses;
-        } else {
-            finalFilterStatuses = req.statuses().stream()
-                    .filter(allPossibleReportStatuses::contains)
-                    .collect(Collectors.toSet());
-        }
+       Set<StatusRecord> finalFilterStatuses = (req.statuses() == null || req.statuses().isEmpty())
+               ? allPossibleReportStatuses
+               : req.statuses().stream()
+               .filter(allPossibleReportStatuses::contains)
+               .collect(Collectors.toSet());
 
-        // 4. Filtra registros relevantes para as datas solicitadas
-        List<TimeRecord> recordsInRange = allRecordsForEmployee.stream()
-                .filter(tr -> tr.startWork() != null && finalDatesSet.contains(tr.startWork().atZone(SAO_PAULO).toLocalDate()))
-                .filter(tr -> finalFilterStatuses.contains(tr.statusRecord()))
-                .collect(Collectors.toCollection(ArrayList::new));
+       List<TimeRecord> recordsInRange = timeRecordProvider.findByEmployeeAndDatesAndStatuses(
+               targetEmployeeId, finalDatesSet, finalFilterStatuses
+       );
+
+       if (recordsInRange.isEmpty()) {
+           return Collections.emptyList();
+       }
 
         // =================================================================================
         // LÓGICA DE CÁLCULO DE SALDO ÚNICO POR DIA
         // =================================================================================
 
-        // Agrupa por dia
-        Map<LocalDate, List<TimeRecord>> recordsByDay = recordsInRange.stream()
-                .collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()));
+       Map<LocalDate, String> dailyBalanceMap = calculateDailyBalances(recordsInRange, reference);
+       Map<Long, String> latestDocumentsMap = fetchLatestDocumentsInBulk(recordsInRange);
 
-        // Mapa para armazenar o saldo calculado de cada dia
-        Map<LocalDate, String> dailyBalanceMap = new HashMap<>();
+       var response = recordsInRange.stream()
+               .sorted(Comparator.comparing(TimeRecord::startWork))
+               .map(tr -> {
+                   var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
+                   var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
+                   var documentPath = latestDocumentsMap.get(tr.timeRecordId());
 
-        recordsByDay.forEach((date, dailyRecords) -> {
-            // Verifica status especiais que anulam o cálculo (Faltas, Folgas, Férias)
-            var isAbsence = dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == ABSENCE);
-            var isDayOffOrVacation = dailyRecords.stream().anyMatch(tr ->
-                    tr.statusRecord() == DAY_OFF ||
-                            tr.statusRecord() == VACATION ||
-                            tr.statusRecord() == TIME_OFF
-            );
-
-            String balanceStr;
-
-            if (isAbsence) {
-                balanceStr = String.format("-%02d:%02d", reference.toHours(), reference.toMinutesPart());
-            } else if (isDayOffOrVacation) {
-                balanceStr = "+00:00";
-            } else {
-                // Filtra apenas registros com horário de fim definido
-                List<TimeRecord> closedRecords = dailyRecords.stream()
-                        .filter(tr -> tr.endWork() != null)
-                        .sorted(Comparator.comparing(TimeRecord::startWork))
-                        .toList();
-
-                if (closedRecords.isEmpty()) {
-                    balanceStr = "+00:00"; // Ou lógica para dia sem registros fechados
-                } else {
-                    // 1. Primeira Hora e Última Hora
-                    var firstStart = closedRecords.getFirst().startWork();
-                    var lastEnd = closedRecords.getLast().endWork();
-
-                    // 2. Duração Total Bruta (Primeira -> Última)
-                    var grossDuration = Duration.between(firstStart, lastEnd);
-
-                    // 3. Soma das Pausas (Registros de IMPLICIT_BREAK)
-                    // Nota: Isso assume que a pausa está registrada como IMPLICIT_BREAK, conforme seu payload.
-                    var totalBreakDuration = closedRecords.stream()
-                            .filter(tr -> tr.statusRecord() == StatusRecord.IMPLICIT_BREAK)
-                            .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
-                            .reduce(Duration.ZERO, Duration::plus);
-
-                    // Alternativa: Se quiser somar APENAS o tempo trabalhado (CREATED/UPDATED),
-                    // o resultado matemático é o mesmo que (Bruto - Pausas) se os intervalos forem contíguos.
-                    // Duration netWorkDuration = grossDuration.minus(totalBreakDuration);
-
-                    // Cálculo Robusto: Soma dos segmentos de TRABALHO efetivo (exclui pausas)
-                    // Isso evita problemas se houver "buracos" não registrados como pausa.
-                    var netWorkDuration = closedRecords.stream()
-                            .filter(tr -> tr.statusRecord() != StatusRecord.IMPLICIT_BREAK)
-                            .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
-                            .reduce(Duration.ZERO, Duration::plus);
-
-                    // 4. Saldo = Líquido - Referência
-                    var balance = netWorkDuration.minus(reference);
-
-                    var sign = balance.isNegative() ? "-" : "+";
-                    balanceStr = sign + String.format("%02d:%02d", Math.abs(balance.toHours()), Math.abs(balance.toMinutesPart()));
-                }
-            }
-            dailyBalanceMap.put(date, balanceStr);
-        });
-
-        // =================================================================================
-
-        // Monta a resposta final
-        return recordsInRange.stream()
-                .sorted(Comparator.comparing(TimeRecord::startWork))
-                .map(tr -> {
-
-                    // ALTERADO: Agora recebemos uma lista e pegamos o primeiro (ou o mais recente)
-                    var docs = documentProvider.findByTimeRecordId(tr.timeRecordId());
-                    String documentPath = null;
-
-                    if (!docs.isEmpty()) {
-                        // Pega o último documento enviado (ex: comprovante de saída é mais completo)
-                        // ou simplesmente o primeiro da lista.
-                        // Aqui ordenamos para pegar o mais recente se houver mais de um.
-                        documentPath = docs.stream()
-                                .max(Comparator.comparing(Document::uploadedAt)) // Pega o mais recente
-                                .map(doc -> doc.documentId().toString())
-                                .orElse(docs.getFirst().documentId().toString());
-                    }
-
-                    var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
-                    var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
-
-                    return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
-                })
-                .collect(Collectors.toCollection(ArrayList::new));
+                   return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
+               })
+               .toList();
+       log.info(LOG_LIST_REPORT_SUCCESS, targetEmployeeId, response.size());
+       return response;
     }
 
     @Override
@@ -734,7 +646,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         for (TimeRecordApprovalRequest approvalData : approvalsPage.getContent()) {
             // ... (O resto da lógica de montagem do DTO permanece igual) ...
-            var timeRecord = recordRepository.findById(approvalData.timeRecordId()).orElse(null);
+            var timeRecord = timeRecordProvider.findById(approvalData.timeRecordId()).orElse(null);
             var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
             var managerUser = userProvider.findById(approvalData.managerId()).orElse(null);
 
@@ -819,11 +731,11 @@ public class TimeRecordService implements TimeRecordUseCase {
             );
 
             // Validação: evita duplicidade no dia
-            if (recordRepository.existsByEmployeeIdAndDate(employeeId, currentDay)) {
+            if (timeRecordProvider.existsByEmployeeIdAndDate(employeeId, currentDay)) {
                 throw new BadRequestException(ALREADY_REQUESTED + currentDay.format(DATE_FORMATTER));
             }
 
-            recordRepository.save(vacationRequestRecord);
+            timeRecordProvider.save(vacationRequestRecord);
             createdRecordIds.add(vacationRequestRecord.timeRecordId());
             log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
         }
@@ -841,12 +753,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Aprova (muda o status) todos os registros na lista
         for (var recordId : request.timeRecordIds()) {
-            var record = recordRepository.findById(recordId)
+            var record = timeRecordProvider.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
             if (record.statusRecord() == REQUEST_VACATION) {
                 var approvedRecord = record.withStatus(VACATION); // 4. Manager aprova -> VACATION
-                recordRepository.save(approvedRecord);
+                timeRecordProvider.save(approvedRecord);
                 log.info("Solicitação de férias (ID: {}) APROVADA. Status mudou para VACATION.", recordId);
             } else {
                 // Ignore ou lance exceção se tentar aprovar algo que não está em REQUEST_VACATION
@@ -865,12 +777,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Rejeita (muda o status) todos os registros na lista
         for (var recordId : request.timeRecordIds()) {
-            var record = recordRepository.findById(recordId)
+            var record = timeRecordProvider.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
 
             if (record.statusRecord() == REQUEST_VACATION) {
                 var rejectedRecord = record.withStatus(VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
-                recordRepository.save(rejectedRecord);
+                timeRecordProvider.save(rejectedRecord);
                 log.info("Solicitação de férias (ID: {}) REJEITADA. Status mudou para VACATION_REJECTED.", recordId);
             } else {
                 log.warn("Tentativa de rejeitar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
@@ -906,7 +818,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
 
         List<TimeRecord> allRecordsInScope = filteredEmployeeIds.stream()
-                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
+                .flatMap(empId -> timeRecordProvider.findByEmployeeId(empId).stream())
                 .filter(tr -> tr.startWork() != null)
                 .filter(tr -> targetStatuses.contains(tr.statusRecord()))
                 .toList();
@@ -991,7 +903,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     null
             );
 
-            var savedRecord = recordRepository.save(dailyTimeOffRecord);
+            var savedRecord = timeRecordProvider.save(dailyTimeOffRecord);
             if (i == 0) {
                 firstRecordId = savedRecord.timeRecordId();
             }
@@ -1055,11 +967,11 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
             var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
-            recordRepository.save(approvedRecord);
+            timeRecordProvider.save(approvedRecord);
             log.info("Abono aprovado para registro {}", timeRecordId);
         } else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
             var approvedRecord = record.withStatus(StatusRecord.UPDATED);
-            recordRepository.save(approvedRecord);
+            timeRecordProvider.save(approvedRecord);
             log.info("Esquecimento aprovado (convertido em trabalho) para registro {}", timeRecordId);
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
@@ -1073,11 +985,11 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
             var rejectedRecord = record.withStatus(StatusRecord.TIME_OFF_REJECTED);
-            recordRepository.save(rejectedRecord);
+            timeRecordProvider.save(rejectedRecord);
             log.info("Abono negada para registro {}", timeRecordId);
         } else if (record.statusRecord() == StatusRecord.WORK_TIME_REQUEST) {
             var rejectedRecord = record.withStatus(StatusRecord.WORK_TIME_REJECTED);
-            recordRepository.save(rejectedRecord);
+            timeRecordProvider.save(rejectedRecord);
             log.info("Alteração para esquecimento negado para registro {}", timeRecordId);
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
@@ -1110,7 +1022,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 : employeeCache.keySet();
 
         List<TimeRecord> timeOffRecords = filteredEmployeeIds.stream()
-                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
+                .flatMap(empId -> timeRecordProvider.findByEmployeeId(empId).stream())
                 .filter(tr -> tr.startWork() != null)
                 .filter(tr -> targetStatuses.contains(tr.statusRecord()))
                 .toList();
@@ -1224,7 +1136,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         return false;
     }
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
-        var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
+        var record = timeRecordProvider.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
         if (record.statusRecord() != PENDING_APPROVAL) {
             throw new BadRequestException(RECORD_IS_NOT_AWAITING_APPROVAL);
@@ -1251,7 +1163,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         return new EmployeeData(employeeName, companyName);
     }
     private TimeRecord getTimeRecord(Long timeRecordId) {
-        return recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
+        return timeRecordProvider.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
     }
     private void validateManagerEligibility(UUID managerId, UUID employeeCompanyId) {
         var managerUser = userProvider.findById(managerId)
@@ -1298,7 +1210,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
     private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
         // Encontra todos os registros (segmentos)
-        List<TimeRecord> immutableRecords = active == null ? recordRepository.findByEmployeeId(employeeId) : recordRepository.findByEmployeeIdAndActive(employeeId, active);
+        List<TimeRecord> immutableRecords = active == null ? timeRecordProvider.findByEmployeeId(employeeId) : timeRecordProvider.findByEmployeeIdAndActive(employeeId, active);
 
         // CORREÇÃO: Cria uma lista mutável a partir da imutável para permitir a ordenação.
         List<TimeRecord> records = new ArrayList<>(immutableRecords);
@@ -1419,7 +1331,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // Atualiza status do registro original para bloqueado/pendente
         var updatedRecord = record.withStatus(PENDING_APPROVAL).withEdited(true);
-        recordRepository.save(updatedRecord);
+        timeRecordProvider.save(updatedRecord);
 
         log.info(LOG_PARTNER_APPROVAL, employee.employeeId(), req.managerId());
     }
@@ -1436,7 +1348,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .withEdited(true)
                 .withStatus(statusUpdate);
 
-        recordRepository.save(updated);
+        timeRecordProvider.save(updated);
 
         log.info(LOG_MANAGER_UPDATE, record.timeRecordId());
     }
@@ -1448,7 +1360,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private void adjustAdjacentRecordsOnUpdate(UUID employeeId, TimeRecord recordToUpdate, LocalDateTime newStart, LocalDateTime newEnd) {
         // 1. Obter todos os registros (incluindo breaks) do dia, ordenados.
         LocalDate day = newStart.toLocalDate();
-        List<TimeRecord> allDayRecords = recordRepository.findByEmployeeId(employeeId).stream().filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).sorted(Comparator.comparing(TimeRecord::startWork)).collect(Collectors.toCollection(ArrayList::new));
+        List<TimeRecord> allDayRecords = timeRecordProvider.findByEmployeeId(employeeId).stream().filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).sorted(Comparator.comparing(TimeRecord::startWork)).collect(Collectors.toCollection(ArrayList::new));
 
         if (allDayRecords.isEmpty()) return;
 
@@ -1474,12 +1386,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                 // Se a pausa original for consumida (startBreak >= newEndBreak), delete
                 if (preceding.startWork().isAfter(newEndBreak) || preceding.startWork().isEqual(newEndBreak)) {
-                    recordRepository.deleteTimeRecord(preceding);
+                    timeRecordProvider.deleteTimeRecord(preceding);
                     log.info("Pausa {} consumida pela edição e deletada.", preceding.timeRecordId());
                 } else {
                     // Caso contrário, ajusta o fim da pausa
                     TimeRecord updatedBreak = preceding.withCheckout(newEndBreak).withStatus(StatusRecord.IMPLICIT_BREAK);
-                    recordRepository.save(updatedBreak);
+                    timeRecordProvider.save(updatedBreak);
                     log.info("Pausa {} ajustada para terminar em {}.", preceding.timeRecordId(), newEndBreak.format(TIME_FORMATTER));
                 }
             }
@@ -1496,14 +1408,14 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                 // Se a pausa original for consumida (endBreak <= newStartBreak), delete
                 if (succeeding.endWork() != null && (succeeding.endWork().isBefore(newStartBreak) || succeeding.endWork().isEqual(newStartBreak))) {
-                    recordRepository.deleteTimeRecord(succeeding);
+                    timeRecordProvider.deleteTimeRecord(succeeding);
                     log.info("Pausa {} consumida pela edição e deletada.", succeeding.timeRecordId());
                 } else {
                     // Caso contrário, ajusta o início da pausa
                     TimeRecord updatedBreak = new TimeRecord(succeeding.timeRecordId(), newStartBreak, // Novo start
                             succeeding.endWork(), // Fim original
                             StatusRecord.IMPLICIT_BREAK, succeeding.edited(), succeeding.active(), succeeding.employeeId(), null, null, null, null, null, null, null, null);
-                    recordRepository.save(updatedBreak);
+                    timeRecordProvider.save(updatedBreak);
                     log.info("Pausa {} ajustada para começar em {}.", succeeding.timeRecordId(), newStartBreak.format(TIME_FORMATTER));
                 }
             }
@@ -1547,7 +1459,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         Set<StatusRecord> nonBreakStatuses = EnumSet.complementOf(EnumSet.of(StatusRecord.IMPLICIT_BREAK, StatusRecord.DAY_OFF, StatusRecord.TIME_OFF, StatusRecord.ABSENCE));
 
         // 1. Buscar todos os registros de trabalho (non-breaks) do dia, exceto o que está sendo editado
-        List<TimeRecord> workSegments = recordRepository.findByEmployeeId(employeeId).stream().filter(tr -> !tr.timeRecordId().equals(currentRecordId)).filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).filter(tr -> nonBreakStatuses.contains(tr.statusRecord())).filter(tr -> tr.endWork() != null) // Só checa segmentos fechados
+        List<TimeRecord> workSegments = timeRecordProvider.findByEmployeeId(employeeId).stream().filter(tr -> !tr.timeRecordId().equals(currentRecordId)).filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).filter(tr -> nonBreakStatuses.contains(tr.statusRecord())).filter(tr -> tr.endWork() != null) // Só checa segmentos fechados
                 .sorted(Comparator.comparing(TimeRecord::startWork)).toList();
 
         for (TimeRecord segment : workSegments) {
@@ -1630,4 +1542,56 @@ public class TimeRecordService implements TimeRecordUseCase {
         return new DailyCalculationResult(reportDay, dailyWorkedLiquid, dailyBreakDuration, dailyBalance);
     }
 
+    private Map<LocalDate, String> calculateDailyBalances(List<TimeRecord> recordsInRange, Duration reference) {
+        Map<LocalDate, List<TimeRecord>> recordsByDay = recordsInRange.stream()
+                .collect(Collectors.groupingBy(tr -> tr.startWork().atZone(SAO_PAULO).toLocalDate()));
+
+        Map<LocalDate, String> dailyBalanceMap = new HashMap<>();
+
+        recordsByDay.forEach((date, dailyRecords) -> {
+            var isAbsence = dailyRecords.stream().anyMatch(tr -> tr.statusRecord() == StatusRecord.ABSENCE);
+            var isDayOffOrVacation = dailyRecords.stream().anyMatch(tr ->
+                    tr.statusRecord() == StatusRecord.DAY_OFF ||
+                            tr.statusRecord() == StatusRecord.VACATION ||
+                            tr.statusRecord() == StatusRecord.TIME_OFF
+            );
+
+            if (isAbsence) {
+                dailyBalanceMap.put(date, String.format("-%02d:%02d", reference.toHours(), reference.toMinutesPart()));
+            } else if (isDayOffOrVacation) {
+                dailyBalanceMap.put(date, "+00:00");
+            } else {
+                var netWorkDuration = dailyRecords.stream()
+                        .filter(tr -> tr.endWork() != null && tr.statusRecord() != StatusRecord.IMPLICIT_BREAK)
+                        .map(tr -> Duration.between(tr.startWork(), tr.endWork()))
+                        .reduce(Duration.ZERO, Duration::plus);
+
+                var balance = netWorkDuration.minus(reference);
+                dailyBalanceMap.put(date, formatDuration(balance, true)); // Utilizando aquele método utilitário que criamos antes!
+            }
+        });
+
+        return dailyBalanceMap;
+    }
+
+    private Map<Long, String> fetchLatestDocumentsInBulk(List<TimeRecord> records) {
+        // 1. Coleta todos os IDs dos registros desta página/relatório
+        List<Long> recordIds = records.stream()
+                .map(TimeRecord::timeRecordId)
+                .toList();
+
+        log.debug(LOG_LIST_REPORT_FETCH_DOCS, recordIds.size());
+
+        List<Document> allDocs = documentProvider.findByTimeRecordIdIn(recordIds);
+
+        // 2. Agrupa por TimeRecordId e extrai apenas o ID do documento mais recente em formato String
+        return allDocs.stream()
+                .collect(Collectors.groupingBy(
+                        Document::timeRecordId,
+                        Collectors.collectingAndThen(
+                                Collectors.maxBy(Comparator.comparing(Document::uploadedAt)),
+                                optDoc -> optDoc.map(doc -> doc.documentId().toString()).orElse(null)
+                        )
+                ));
+    }
 }

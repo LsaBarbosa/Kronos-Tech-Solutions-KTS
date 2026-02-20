@@ -16,5 +16,6 @@ public interface DocumentProvider {
     void delete(UUID employeeId, UUID documentId);
     void deleteByEmployeeId(UUID employeeId);
     List<Document> findByTimeRecordId(Long timeRecordId);
+    List<Document> findByTimeRecordIdIn(List<Long> timeRecordIds);
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
 }

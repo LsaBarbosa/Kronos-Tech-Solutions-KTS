@@ -92,6 +92,17 @@ public class DocumentProviderImpl implements DocumentProvider {
     }
 
     @Override
+    public List<Document> findByTimeRecordIdIn(List<Long> timeRecordIds) {
+        if (timeRecordIds == null || timeRecordIds.isEmpty()) {
+            return List.of();
+        }
+
+        return documentRepository.findByTimeRecordIdIn(timeRecordIds).stream()
+                .map(DocumentEntity::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type) {
         return documentRepository.existsByEmployeeIdAndType(employeeId, type);
     }
