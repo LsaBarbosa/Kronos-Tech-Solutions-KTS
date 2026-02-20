@@ -16,5 +16,7 @@ public interface EmployeeProvider {
     List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active);
     boolean cpfExists(String cpf);
     long countByCompanyIdAndActive(UUID companyId, boolean active);
+    List<Employee> findByIdIn(List<UUID> ids);
+    
 }
 

@@ -102,11 +102,9 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .count();
     }
 
-    // ... outros métodos ...
 
     @Override
     public List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end) {
-        // Usa o método mágico do repositório que você já criou
         return jpa.findByEmployeeIdAndStartWorkBetween(employeeId, start, end)
                 .stream()
                 .map(TimeRecordEntity::toDomain) // Converte para o modelo de domínio
@@ -120,6 +118,17 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
             java.util.Set<StatusRecord> statuses) {
 
         return jpa.findByEmployeeAndDatesAndStatuses(employeeId, dates, statuses)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> findByIdIn(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return jpa.findByTimeRecordIdIn(ids)
                 .stream()
                 .map(TimeRecordEntity::toDomain)
                 .toList();

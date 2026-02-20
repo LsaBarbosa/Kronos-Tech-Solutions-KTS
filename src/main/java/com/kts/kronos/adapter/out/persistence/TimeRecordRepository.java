@@ -60,4 +60,5 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("dates") java.util.Set<java.time.LocalDate> dates,
             @Param("statuses") java.util.Set<StatusRecord> statuses
     );
+    List<TimeRecordEntity> findByTimeRecordIdIn(List<Long> timeRecordIds);
 }

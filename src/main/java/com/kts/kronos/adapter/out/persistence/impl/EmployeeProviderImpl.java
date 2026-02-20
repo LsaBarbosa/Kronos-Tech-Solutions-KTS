@@ -69,4 +69,24 @@ public class EmployeeProviderImpl implements EmployeeProvider {
     public long countByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.countByCompanyIdAndActive(companyId, active);
     }
+
+    @Override
+
+    public List<Employee> findByIdIn(List<UUID> ids) {
+
+        if (ids == null || ids.isEmpty()) {
+
+            return List.of();
+
+        }
+
+        return repository.findByEmployeeIdIn(ids)
+
+                .stream()
+
+                .map(EmployeeEntity::toDomain)
+
+                .toList();
+
+    }
 }

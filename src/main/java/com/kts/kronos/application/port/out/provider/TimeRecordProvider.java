@@ -36,4 +36,5 @@ public interface TimeRecordProvider {
             java.util.Set<com.kts.kronos.domain.model.enuns.StatusRecord> statuses
     );
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
+    List<TimeRecord> findByIdIn(List<Long> ids);
 }

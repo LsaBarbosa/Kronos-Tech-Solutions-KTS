@@ -13,10 +13,7 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.constants.Messages;
-import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.TimeRecord;
-import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
+import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -140,6 +137,13 @@ public class TimeRecordService implements TimeRecordUseCase {
     public static final String LOG_LIST_REPORT_FETCH_DOCS = "Buscando documentos em lote para {} registros.";
     public static final String LOG_LIST_REPORT_SUCCESS = "Relatório detalhado gerado com sucesso para TargetEmployeeID: {}. Registros processados: {}";
 
+    // Logs de Listagem de Aprovações
+    public static final String LOG_LIST_APPROVALS_INIT = "Iniciando listagem de aprovações pendentes. ManagerID: {}, CompanyID: {}, Página: {}";
+    public static final String LOG_LIST_APPROVALS_BULK = "Realizando Bulk Fetching para {} solicitações de aprovação na página {}.";
+    public static final String LOG_LIST_APPROVALS_WARN = "Inconsistência referencial: Dados omitidos para a aprovação do TimeRecordID: {} devido a vínculos ausentes (Employee, User ou Record).";
+    public static final String LOG_LIST_APPROVALS_SUCCESS = "Listagem de aprovações concluída. Retornando {} registros para o ManagerID: {}";
+
+
     private final TimeRecordProvider timeRecordProvider;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
@@ -159,7 +163,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public ActionResponse registerTime(GeolocationRequest request) {
 
         log.info(
-                LOG_START_REQ,jwtAuthenticatedUser.getEmployeeId(),
+                LOG_START_REQ, jwtAuthenticatedUser.getEmployeeId(),
                 request.latitude(),
                 request.longitude()
         );
@@ -317,7 +321,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     actionType = CHECKIN_AFTER_BREAK;
 
                     log.info(LOG_BREAK_DETECTED, latestEndWork, currentTime);
-                 }
+                }
             }
 
             recordToSave = new TimeRecord(
@@ -570,20 +574,20 @@ public class TimeRecordService implements TimeRecordUseCase {
         );
     }
 
-   @Override
+    @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
         var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
         var employeeData = getEmployeeData(targetEmployeeId);
         var reference = getDuration(req.reference());
 
-       if (req.dates() == null || req.dates().length == 0) {
-           log.warn(LOG_LIST_REPORT_EMPTY_DATES, targetEmployeeId);
-           return Collections.emptyList();
-       }
+        if (req.dates() == null || req.dates().length == 0) {
+            log.warn(LOG_LIST_REPORT_EMPTY_DATES, targetEmployeeId);
+            return Collections.emptyList();
+        }
 
         //  Definição de datas
-       final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
-       log.info(LOG_LIST_REPORT_INIT, targetEmployeeId, finalDatesSet.size());
+        final Set<LocalDate> finalDatesSet = Arrays.stream(req.dates()).collect(Collectors.toSet());
+        log.info(LOG_LIST_REPORT_INIT, targetEmployeeId, finalDatesSet.size());
 
         var allPossibleReportStatuses = EnumSet.of(
                 CREATED, PENDING, UPDATED, UPDATE_REJECTED, DAY_OFF, ABSENCE,
@@ -593,39 +597,39 @@ public class TimeRecordService implements TimeRecordUseCase {
                 WORK_TIME_REJECTED
         );
 
-       Set<StatusRecord> finalFilterStatuses = (req.statuses() == null || req.statuses().isEmpty())
-               ? allPossibleReportStatuses
-               : req.statuses().stream()
-               .filter(allPossibleReportStatuses::contains)
-               .collect(Collectors.toSet());
+        Set<StatusRecord> finalFilterStatuses = (req.statuses() == null || req.statuses().isEmpty())
+                ? allPossibleReportStatuses
+                : req.statuses().stream()
+                .filter(allPossibleReportStatuses::contains)
+                .collect(Collectors.toSet());
 
-       List<TimeRecord> recordsInRange = timeRecordProvider.findByEmployeeAndDatesAndStatuses(
-               targetEmployeeId, finalDatesSet, finalFilterStatuses
-       );
+        List<TimeRecord> recordsInRange = timeRecordProvider.findByEmployeeAndDatesAndStatuses(
+                targetEmployeeId, finalDatesSet, finalFilterStatuses
+        );
 
-       if (recordsInRange.isEmpty()) {
-           return Collections.emptyList();
-       }
+        if (recordsInRange.isEmpty()) {
+            return Collections.emptyList();
+        }
 
         // =================================================================================
         // LÓGICA DE CÁLCULO DE SALDO ÚNICO POR DIA
         // =================================================================================
 
-       Map<LocalDate, String> dailyBalanceMap = calculateDailyBalances(recordsInRange, reference);
-       Map<Long, String> latestDocumentsMap = fetchLatestDocumentsInBulk(recordsInRange);
+        Map<LocalDate, String> dailyBalanceMap = calculateDailyBalances(recordsInRange, reference);
+        Map<Long, String> latestDocumentsMap = fetchLatestDocumentsInBulk(recordsInRange);
 
-       var response = recordsInRange.stream()
-               .sorted(Comparator.comparing(TimeRecord::startWork))
-               .map(tr -> {
-                   var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
-                   var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
-                   var documentPath = latestDocumentsMap.get(tr.timeRecordId());
+        var response = recordsInRange.stream()
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .map(tr -> {
+                    var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
+                    var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
+                    var documentPath = latestDocumentsMap.get(tr.timeRecordId());
 
-                   return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
-               })
-               .toList();
-       log.info(LOG_LIST_REPORT_SUCCESS, targetEmployeeId, response.size());
-       return response;
+                    return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, dailyBalance);
+                })
+                .toList();
+        log.info(LOG_LIST_REPORT_SUCCESS, targetEmployeeId, response.size());
+        return response;
     }
 
     @Override
@@ -637,39 +641,39 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = manager.companyId();
 
+        // LOG DE ENTRADA: Rastreabilidade
+        log.info(LOG_LIST_APPROVALS_INIT, managerId, companyId, page);
+
         var pageable = PageRequest.of(page, size);
 
-        // 2. BUSCA SEGURA: Passa o companyId para filtrar no banco
+        // 2. BUSCA SEGURA: Paginação principal
         Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAllByCompanyId(pageable, employeeName, companyId);
 
-        List<TimeRecordApprovalResponse> responses = new ArrayList<>();
-
-        for (TimeRecordApprovalRequest approvalData : approvalsPage.getContent()) {
-            // ... (O resto da lógica de montagem do DTO permanece igual) ...
-            var timeRecord = timeRecordProvider.findById(approvalData.timeRecordId()).orElse(null);
-            var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
-            var managerUser = userProvider.findById(approvalData.managerId()).orElse(null);
-
-            var docs = documentProvider.findByTimeRecordId(approvalData.timeRecordId());
-            String documentPath = null;
-            if (!docs.isEmpty()) {
-                // Pega o ID do primeiro documento encontrado
-                documentPath = "/documents/" + docs.getFirst().documentId();
-            }
-
-            if (partnerEmployee != null && managerUser != null && timeRecord != null) {
-                responses.add(new TimeRecordApprovalResponse(
-                        approvalData.timeRecordId(),
-                        partnerEmployee.fullName(),
-                        managerUser.username(),
-                        approvalData.newStartWork(),
-                        approvalData.newEndWork(),
-                        timeRecord.startWork(),
-                        timeRecord.endWork(),
-                        documentPath
-                ));
-            }
+        // Fail-Fast: Se a página estiver vazia, retorna imediatamente poupando processamento
+        if (approvalsPage.isEmpty()) {
+            return createEmptyPageResponse(approvalsPage);
         }
+
+        log.debug(LOG_LIST_APPROVALS_BULK, approvalsPage.getNumberOfElements(), page);
+
+        // 3. OTIMIZAÇÃO (N+1 Resolvido): Bulk Fetching de todas as dependências
+        List<TimeRecordApprovalRequest> approvals = approvalsPage.getContent();
+
+        // Agrupa e busca em lote
+        Map<Long, TimeRecord> recordsMap = fetchTimeRecordsInBulk(approvals);
+        Map<UUID, Employee> employeesMap = fetchEmployeesInBulk(approvals);
+        Map<UUID, User> usersMap = fetchUsersInBulk(approvals);
+
+        // Reutilizando o método de lote que criamos no relatório anterior!
+        Map<Long, String> documentsMap = fetchLatestDocumentsInBulkForApprovals(approvals);
+
+        // 4. Montagem da Resposta (Cruzamento de dados O(1) em memória)
+        List<TimeRecordApprovalResponse> responses = approvals.stream()
+                .map(approvalData -> buildApprovalResponse(approvalData, recordsMap, employeesMap, usersMap, documentsMap))
+                .filter(Objects::nonNull)
+                .toList();
+
+        log.info(LOG_LIST_APPROVALS_SUCCESS, responses.size(), managerId);
 
         return new TimeRecordApprovalPageResponse(
                 responses,
@@ -1116,6 +1120,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return consolidated;
     }
+
     private static boolean validationStatus(Long timeRecordId, StatusRecord currentStatus, StatusRecord newStatus) {
         if (currentStatus == newStatus) {
             log.debug(LOG_UPDATE_STATUS_IDEMPOTENT, currentStatus, timeRecordId);
@@ -1135,6 +1140,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return false;
     }
+
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = timeRecordProvider.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
 
@@ -1143,18 +1149,22 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return record;
     }
+
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
             throw new BadRequestException(RECORD_NOT_BELONGS_EMPLOYEE);
         }
     }
+
     private static Duration getDuration(String reference) {
         String[] parts = reference.split(":");
         return Duration.ofHours(Long.parseLong(parts[0])).plusMinutes(Long.parseLong(parts[1]));
     }
+
     private Employee getEmployee(UUID uuid) {
         return employeeProvider.findById(uuid).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND + uuid));
     }
+
     private EmployeeData getEmployeeData(UUID employeeId) {
         var employee = getEmployee(employeeId);
         var company = companyProvider.findById(employee.companyId()).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
@@ -1162,9 +1172,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         var companyName = company.name();
         return new EmployeeData(employeeName, companyName);
     }
+
     private TimeRecord getTimeRecord(Long timeRecordId) {
         return timeRecordProvider.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
     }
+
     private void validateManagerEligibility(UUID managerId, UUID employeeCompanyId) {
         var managerUser = userProvider.findById(managerId)
                 .orElseThrow(() -> new ResourceNotFoundException(ERR_MANAGER_NOT_FOUND));
@@ -1182,6 +1194,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(ERR_MANAGER_DIFF_COMPANY);
         }
     }
+
     private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
         var employee = getEmployee(employeeId);
         var record = getTimeRecord(timeRecordId);
@@ -1189,6 +1202,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
     }
+
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
         var employee = getEmployee(employeeId);
 
@@ -1208,6 +1222,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(GEOLOCATION_OUT_OF_RANGE);
         }
     }
+
     private List<TimeRecord> getRecords(UUID employeeId, Boolean active) {
         // Encontra todos os registros (segmentos)
         List<TimeRecord> immutableRecords = active == null ? timeRecordProvider.findByEmployeeId(employeeId) : timeRecordProvider.findByEmployeeIdAndActive(employeeId, active);
@@ -1219,6 +1234,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         records.sort(Comparator.comparing(TimeRecord::startWork, Comparator.nullsLast(Comparator.naturalOrder())));
         return records;
     }
+
     private double calculateDistanceInMeters(double lat1, double lon1, double lat2, double lon2) {
         // Implementação da fórmula de Haversine ou outra mais precisa.
         final int R = 6371; // Raio da Terra em km
@@ -1228,6 +1244,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c * 1000; // Retorna a distância em metros
     }
+
     private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
         try {
             // 1. Decodifica a string Base64 para um array de bytes
@@ -1260,6 +1277,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(INVALID_BASE64_IMAGE);
         }
     }
+
     private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
         if (!employee.homeOffice()) {
             // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
@@ -1269,6 +1287,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
         }
     }
+
     private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
         try {
             // 1. Busca dados da empresa (Caching recomendado em produção)
@@ -1298,6 +1317,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
         }
     }
+
     private void validateTimeConsistency(LocalDate startDate, LocalDate endDate,
                                          LocalTime startTime, LocalTime endTime, Long recordId) {
         if (startDate.equals(endDate) && startTime.isAfter(endTime)) {
@@ -1305,6 +1325,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(ERR_TIME_INCONSISTENCY);
         }
     }
+
     private void handlePartnerUpdateFlow(UpdateTimeRecordRequest req, Employee employee,
                                          TimeRecord record, LocalDateTime newStart, LocalDateTime newEnd) {
         // Valida colisão (apenas para parceiro, pois Manager tem poder de override)
@@ -1335,6 +1356,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.info(LOG_PARTNER_APPROVAL, employee.employeeId(), req.managerId());
     }
+
     private void handleManagerUpdateFlow(Employee employee, TimeRecord record,
                                          LocalDateTime newStart, LocalDateTime newEnd) {
         // Ajuste inteligente de pausas adjacentes (Lógica complexa isolada)
@@ -1352,6 +1374,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.info(LOG_MANAGER_UPDATE, record.timeRecordId());
     }
+
     /**
      * Ajusta os registros de Pausa Implícita (IMPLICIT_BREAK) vizinhos ao registro de trabalho
      * sendo atualizado.
@@ -1421,6 +1444,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             }
         }
     }
+
     /**
      * Calcula a duração total das pausas (gaps) entre os segmentos de trabalho no mesmo dia.
      * Presume que a lista de TimeRecords está ordenada por startWork.
@@ -1450,6 +1474,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return totalBreak;
     }
+
     /**
      * Valida se o novo intervalo de tempo se sobrepõe a qualquer REGISTRO DE TRABALHO adjacente
      * (não-pausa) no mesmo dia.
@@ -1469,6 +1494,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             }
         }
     }
+
     private String formatDuration(Duration duration, boolean includeSign) {
         long hours = Math.abs(duration.toHours());
         long minutes = Math.abs(duration.toMinutesPart());
@@ -1479,6 +1505,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return formatted;
     }
+
     private Duration parseReferenceTime(String reference) {
         try {
             String[] parts = reference.split(":");
@@ -1488,6 +1515,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(ERR_INVALID_REFERENCE);
         }
     }
+
     private DailyCalculationResult processDailyRecords(LocalDate startDate, List<TimeRecord> dailyRecords,
                                                        Duration referenceDuration, Set<StatusRecord> workStatuses,
                                                        Set<StatusRecord> specialStatuses) {
@@ -1593,5 +1621,81 @@ public class TimeRecordService implements TimeRecordUseCase {
                                 optDoc -> optDoc.map(doc -> doc.documentId().toString()).orElse(null)
                         )
                 ));
+    }
+
+    private TimeRecordApprovalPageResponse createEmptyPageResponse(Page<?> emptyPage) {
+        return new TimeRecordApprovalPageResponse(
+                Collections.emptyList(),
+                emptyPage.getTotalPages(),
+                emptyPage.getTotalElements(),
+                emptyPage.getNumber(),
+                emptyPage.isFirst(),
+                emptyPage.isLast()
+        );
+    }
+
+    private Map<Long, TimeRecord> fetchTimeRecordsInBulk(List<TimeRecordApprovalRequest> approvals) {
+        List<Long> recordIds = approvals.stream().map(TimeRecordApprovalRequest::timeRecordId).distinct().toList();
+        // Requer: timeRecordProvider.findByIdIn(recordIds)
+        return timeRecordProvider.findByIdIn(recordIds).stream()
+                .collect(Collectors.toMap(TimeRecord::timeRecordId, tr -> tr));
+    }
+
+    private Map<UUID, Employee> fetchEmployeesInBulk(List<TimeRecordApprovalRequest> approvals) {
+        List<UUID> employeeIds = approvals.stream().map(TimeRecordApprovalRequest::requestingEmployeeId).distinct().toList();
+        return employeeProvider.findByIdIn(employeeIds).stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
+    }
+
+    private Map<UUID, User> fetchUsersInBulk(List<TimeRecordApprovalRequest> approvals) {
+        List<UUID> managerIds = approvals.stream().map(TimeRecordApprovalRequest::managerId).distinct().toList();
+        return userProvider.findByIdIn(managerIds).stream()
+                .collect(Collectors.toMap(User::userId, user -> user));
+    }
+
+    private Map<Long, String> fetchLatestDocumentsInBulkForApprovals(List<TimeRecordApprovalRequest> approvals) {
+        List<Long> recordIds = approvals.stream().map(TimeRecordApprovalRequest::timeRecordId).distinct().toList();
+        List<Document> allDocs = documentProvider.findByTimeRecordIdIn(recordIds);
+
+        return allDocs.stream()
+                .collect(Collectors.groupingBy(
+                        Document::timeRecordId,
+                        Collectors.collectingAndThen(
+                                // Pega o primeiro ou o mais recente, conforme  regra
+                                Collectors.minBy(Comparator.comparing(Document::uploadedAt)),
+                                optDoc -> optDoc.map(doc -> "/documents/" + doc.documentId()).orElse(null)
+                        )
+                ));
+    }
+
+    private TimeRecordApprovalResponse buildApprovalResponse(
+            TimeRecordApprovalRequest approvalData,
+            Map<Long, TimeRecord> recordsMap,
+            Map<UUID, Employee> employeesMap,
+            Map<UUID, User> usersMap,
+            Map<Long, String> documentsMap) {
+
+        // Lookups O(1) - Ultra rápido, sem tocar no banco de dados
+        var timeRecord = recordsMap.get(approvalData.timeRecordId());
+        var partnerEmployee = employeesMap.get(approvalData.requestingEmployeeId());
+        var managerUser = usersMap.get(approvalData.managerId());
+        var documentPath = documentsMap.get(approvalData.timeRecordId());
+
+        // Se houver inconsistência no banco de dados (ex: funcionário deletado fisicamente), ignora o registro
+        if (partnerEmployee == null || managerUser == null || timeRecord == null) {
+            log.warn(LOG_LIST_APPROVALS_WARN, approvalData.timeRecordId());
+            return null;
+        }
+
+        return new TimeRecordApprovalResponse(
+                approvalData.timeRecordId(),
+                partnerEmployee.fullName(),
+                managerUser.username(),
+                approvalData.newStartWork(),
+                approvalData.newEndWork(),
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                documentPath
+        );
     }
 }

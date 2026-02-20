@@ -12,4 +12,5 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByEmployeeId(UUID employeeId);
     List<UserEntity> findByActiveTrue();
     List<UserEntity> findByActiveFalse();
+    List<UserEntity> findByUserIdIn(List<UUID> userIds);
 }
