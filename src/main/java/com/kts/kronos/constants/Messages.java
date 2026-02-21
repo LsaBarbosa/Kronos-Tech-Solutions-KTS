@@ -160,4 +160,28 @@ public class Messages {
     public static final StatusRecord TIME_OFF_REJECTED = StatusRecord.TIME_OFF_REJECTED;
     public static final StatusRecord WORK_TIME_REQUEST = StatusRecord.WORK_TIME_REQUEST;
     public static final StatusRecord WORK_TIME_REJECTED = StatusRecord.WORK_TIME_REJECTED;
+
+    public static final DateTimeFormatter S3_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    // --- PDF CONTENT CONSTANTS (MAGIC STRINGS REMOVED) ---
+    public static final String TITLE_TEXT = "TERMO DE CONSENTIMENTO PARA\nTRATAMENTO DE DADOS BIOMÉTRICOS";
+    public static final String LABEL_EMPLOYER = "EMPREGADOR:";
+    public static final String LABEL_EMPLOYEE = "COLABORADOR:";
+    public static final String LEGAL_PARAGRAPH = "O TITULAR autoriza, de forma livre, informada e inequívoca, o tratamento de seus dados pessoais sensíveis, especificamente sua IMAGEM FACIAL (Biometria), para a finalidade exclusiva de REGISTRO E CONTROLE DE JORNADA DE TRABALHO, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e a Portaria 671/2021 do Ministério do Trabalho e Previdência.";
+    public static final String BULLET_PURPOSE = "FINALIDADE: Autenticação segura da identidade no momento do registro de ponto eletrônico, prevenindo fraudes.";
+    public static final String BULLET_STORAGE = "ARMAZENAMENTO: Os dados serão armazenados em ambiente seguro de computação em nuvem (SaaS) provido pela KRONOS TECH SOLUTIONS.";
+    public static final String BULLET_REVOCATION = "REVOGAÇÃO: Este consentimento poderá ser revogado a qualquer momento pelo Titular, mediante solicitação expressa ao departamento de Recursos Humanos.";
+    public static final String BOX_HEADER_TEXT = "REGISTRO DE ACEITE ELETRÔNICO (Assinatura Eletrônica Avançada)";
+    public static final String BOX_BODY_DISCLAIMER = "Este documento foi assinado digitalmente através da plataforma KRONOS, garantindo autenticidade e integridade conforme MP 2.200-2/2001.";
+    public static final String LABEL_DATE = "Data/Hora do Aceite: ";
+    public static final String LABEL_IP = "Endereço IP de Origem: ";
+    public static final String LABEL_DEVICE = "Dispositivo/Navegador: ";
+    public static final String LABEL_USER_ID = "ID Único do Usuário: ";
+    public static final String LABEL_HASH = "\nCÓDIGO DE VALIDAÇÃO (HASH SHA-256):";
+    public static final String FOOTER_TEXT = "Kronos Tech Solutions - Tecnologia em Gestão de Ponto";
+
+    public static final String UNKNOWN_IP = "IP Não Identificado";
+    public static final String UNKNOWN_DEVICE = "Dispositivo Desconhecido";
+    public static final String BULLET_SYMBOL = "\u2022";
+
 }

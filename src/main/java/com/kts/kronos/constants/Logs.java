@@ -1,5 +1,7 @@
 package com.kts.kronos.constants;
 
+import java.time.format.DateTimeFormatter;
+
 public class Logs {
     private Logs() {
     }
@@ -163,4 +165,28 @@ public class Logs {
     public static final String INVALID_FACE = "Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}";
     public static final String CROSS_COMPANY_DETECTED = "Tentativa de aprovação cross-company detectada. ManagerID: {}, CompanyID: {}";
     public static final String FACIAL_RECOGNITION_ERROR = "Erro no serviço de reconhecimento facial: {}";
+
+    // --- CONSTANTS FOR LOGS & MAGIC STRINGS ---
+    public static final String LOG_CHECK_EXISTING = "Verificando se o colaborador {} já aceitou o termo.";
+    public static final String LOG_ALREADY_ACCEPTED = "Usuário {} tentou aceitar o termo novamente, mas já possui registro.";
+    public static final String LOG_INIT_ACCEPTANCE = "Iniciando processo de aceite de termos para Employee ID: {}";
+    public static final String LOG_SUCCESS_ACCEPTANCE = "Fluxo de aceite e auditoria concluído com sucesso para: {}";
+
+    public static final String AUDIT_ACTION_BIOMETRIC_TERM = "ACEITE_TERMOS_BIOMETRIA";
+    public static final String AUDIT_DETAIL_TEMPLATE = "Documento gerado e armazenado em: %s";
+
+    public static final String FILE_NAME_TEMPLATE = "Termo_Aceite_Biometria_%s.pdf";
+    public static final String S3_KEY_TEMPLATE = "legal/%s/%s/%s_termo_biometria.pdf";
+    public static final String CONTENT_TYPE_PDF = "application/pdf";
+
+    public static final String LOG_INIT_GENERATION = "Iniciando geração do PDF de Termo Biométrico para o colaborador: {}";
+    public static final String LOG_HASH_GENERATED = "Hash de segurança SHA-256 gerado com sucesso.";
+    public static final String LOG_SUCCESS_GENERATION = "PDF do Termo Biométrico gerado com sucesso. Tamanho final: {} bytes.";
+    public static final String LOG_ERROR_GENERATION = "Erro crítico ao gerar Termo de Consentimento em PDF para o colaborador: {}";
+    public static final String LOG_ERROR_HASH = "Erro ao calcular Hash SHA-256 para os dados biométricos.";
+
+    // --- ntp ---
+    public static final String LOG_SYNC_SUCCESS = "Sincronismo NTP realizado com sucesso. Server: {}, Offset: {}ms";
+    public static final String LOG_SYNC_WARN = "Falha ao consultar servidor NTP ({}): {}. O sistema continuará operando com o relógio local.";
+    public static final String LOG_SYNC_CRITICAL = "ALERTA CRÍTICO: RELÓGIO DO SERVIDOR DESSINCRONIZADO! Diferença de {} ms detectada. O limite é {} ms.";
 }
