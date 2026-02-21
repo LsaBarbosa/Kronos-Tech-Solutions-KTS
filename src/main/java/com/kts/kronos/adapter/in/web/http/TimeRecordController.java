@@ -27,6 +27,7 @@ import static com.kts.kronos.constants.ApiPaths.CHECKIN;
 import static com.kts.kronos.constants.ApiPaths.TIME_OFF_REQUEST;
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.constants.Swagger.*;
+import static com.kts.kronos.constants.Swagger.TIME_OFF_REJECTED;
 
 
 @RestController
@@ -34,6 +35,7 @@ import static com.kts.kronos.constants.Swagger.*;
 @RequiredArgsConstructor
 @Tag(name = SWAGGER_TR_TAG, description = SWAGGER_TR_DESC)
 public class TimeRecordController {
+
     private final TimeRecordUseCase useCase;
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -202,19 +204,26 @@ public class TimeRecordController {
     @PreAuthorize(MANAGER)
     @PatchMapping(TIME_OFF_APPROVE)
     @Operation(summary = APPROVE_TIMEOFF_SUMMARY, description = APPROVE_TIMEOFF_DESC)
-    public ResponseEntity<Void> approveTimeOff(@PathVariable Long timeRecordId) {
-        useCase.approveTimeOff(timeRecordId);
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = TIME_OFF_APPROVED),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
+    })
+    public ResponseEntity<Void> approveTimeOff(@Valid @RequestBody TimeOffApprovalRequest request) {
+        useCase.approveTimeOff(request);
         return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PatchMapping(TIME_OFF_REJECT)
     @Operation(summary = REJECT_TIMEOFF_SUMMARY)
-    public ResponseEntity<Void> rejectTimeOff(@PathVariable Long timeRecordId) {
-        useCase.rejectTimeOff(timeRecordId);
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = TIME_OFF_REJECTED),
+            @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
+    })
+    public ResponseEntity<Void> rejectTimeOff(@Valid @RequestBody TimeOffApprovalRequest request) {
+        useCase.rejectTimeOff(request);
         return ResponseEntity.noContent().build();
     }
-
     @PreAuthorize(MANAGER)
     @GetMapping(TIME_OFF_REQUESTS)
     @Operation(summary = LIST_TIMEOFF_SUMMARY)

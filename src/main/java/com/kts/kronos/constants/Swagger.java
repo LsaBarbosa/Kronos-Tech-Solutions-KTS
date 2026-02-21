@@ -277,17 +277,14 @@ public class Swagger {
     public static final String REQ_TIMEOFF_DESC = "Cria solicitação de abono (ou correção de esquecimento) com upload obrigatório de documento (ex: Atestado Médico).";
     public static final String REQ_TIMEOFF_201 = "Solicitação criada";
     public static final String REQ_TIMEOFF_400 = "Erro no upload do arquivo ou dados inválidos";
-
+    public static final String TIME_OFF_APPROVED = "Abonos/Esquecimentos aprovados com sucesso.";
+    public static final String TIME_OFF_REJECTED = "Abonos/Esquecimentos rejeitados com sucesso.";
     public static final String APPROVE_TIMEOFF_SUMMARY = "Aprovar Abono";
     public static final String APPROVE_TIMEOFF_DESC = "Aprova a solicitação de abono ou correção de esquecimento.";
-
     public static final String REJECT_TIMEOFF_SUMMARY = "Rejeitar Abono";
-
     public static final String LIST_TIMEOFF_SUMMARY = "Listar Solicitações de Abono";
-
     public static final String SWAGGER_USER_TAG = "Usuários";
     public static final String SWAGGER_USER_DESC = "Gestão de credenciais de acesso, perfis e senhas";
-
     public static final String CREATE_USER_SUMMARY = "Criar Usuário";
     public static final String CREATE_USER_DESC = "Cria credenciais de acesso para um funcionário existente. A senha inicial é gerada automaticamente pelo sistema.";
     public static final String CREATE_USER_SUCCESS = "Usuário criado com sucesso";

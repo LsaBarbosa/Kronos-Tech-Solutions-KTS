@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @RequiredArgsConstructor
@@ -124,11 +125,40 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     }
 
     @Override
-    public List<TimeRecord> findByIdIn(List<Long> ids) {
+    public List<TimeRecord> findByIdIn(Set<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
         return jpa.findByTimeRecordIdIn(ids)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> saveAll(List<TimeRecord> timeRecords) {
+        if (timeRecords == null || timeRecords.isEmpty()) {
+            return List.of();
+        }
+
+        List<TimeRecordEntity> entitiesToSave = timeRecords.stream()
+                .map(TimeRecordEntity::fromDomain)
+                .toList();
+
+        List<TimeRecordEntity> savedEntities = jpa.saveAll(entitiesToSave);
+
+        return savedEntities.stream()
+                .map(entity -> entity.toDomain().withId(entity.getTimeRecordId()))
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> findByEmployeeIdInAndStatusesIn(Set<UUID> employeeIds, Set<StatusRecord> statuses) {
+
+        if (employeeIds == null || employeeIds.isEmpty() || statuses == null || statuses.isEmpty()) {
+            return List.of();
+        }
+        return jpa.findByEmployeeIdInAndStatusRecordIn(employeeIds, statuses)
                 .stream()
                 .map(TimeRecordEntity::toDomain)
                 .toList();

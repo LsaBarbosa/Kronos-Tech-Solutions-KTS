@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Long> {
@@ -49,10 +50,10 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     );
 
     @Query("""
-        SELECT tr FROM TimeRecordEntity tr 
-        WHERE tr.employeeId = :employeeId 
-          AND tr.active = true 
-          AND CAST(tr.startWork AS date) IN :dates 
+        SELECT tr FROM TimeRecordEntity tr
+        WHERE tr.employeeId = :employeeId
+          AND tr.active = true
+          AND CAST(tr.startWork AS date) IN :dates
           AND tr.statusRecord IN :statuses
     """)
     List<TimeRecordEntity> findByEmployeeAndDatesAndStatuses(
@@ -60,5 +61,17 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("dates") java.util.Set<java.time.LocalDate> dates,
             @Param("statuses") java.util.Set<StatusRecord> statuses
     );
-    List<TimeRecordEntity> findByTimeRecordIdIn(List<Long> timeRecordIds);
+
+    List<TimeRecordEntity> findByTimeRecordIdIn(Set<Long> timeRecordIds);
+
+    @Query("""
+    SELECT tr FROM TimeRecordEntity tr
+    WHERE tr.employeeId IN :employeeIds
+      AND tr.statusRecord IN :statuses
+      AND tr.startWork IS NOT NULL
+""")
+    List<TimeRecordEntity> findByEmployeeIdInAndStatusRecordIn(
+            @Param("employeeIds")Set<UUID> employeeIds,
+            @Param("statuses")Set<StatusRecord> statuses
+    );
 }

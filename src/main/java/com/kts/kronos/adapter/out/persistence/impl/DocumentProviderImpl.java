@@ -11,11 +11,10 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,10 +28,10 @@ public class DocumentProviderImpl implements DocumentProvider {
     private final EmployeeRepository employeeRepository;
 
     @Override
-    public void save(Document doc) {
+    public Document save(Document doc) {
         var entity = DocumentEntity.fromDomain(doc);
         var saved = documentRepository.save(entity);
-        saved.toDomain();
+        return saved.toDomain();
     }
 
     @Override
@@ -92,7 +91,7 @@ public class DocumentProviderImpl implements DocumentProvider {
     }
 
     @Override
-    public List<Document> findByTimeRecordIdIn(List<Long> timeRecordIds) {
+    public List<Document> findByTimeRecordIdIn(Set<Long> timeRecordIds) {
         if (timeRecordIds == null || timeRecordIds.isEmpty()) {
             return List.of();
         }
@@ -105,6 +104,23 @@ public class DocumentProviderImpl implements DocumentProvider {
     @Override
     public boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type) {
         return documentRepository.existsByEmployeeIdAndType(employeeId, type);
+    }
+
+    @Override
+    public List<Document> saveAll(List<Document> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return List.of();
+        }
+
+        List<DocumentEntity> entitiesToSave = documents.stream()
+                .map(DocumentEntity::fromDomain)
+                .collect(Collectors.toList());
+
+        List<DocumentEntity> savedEntities = documentRepository.saveAll(entitiesToSave);
+
+        return savedEntities.stream()
+                .map(DocumentEntity::toDomain)
+                .collect(Collectors.toList());
     }
 
 

@@ -19,7 +19,6 @@ public class Messages {
     public static final LocalDateTime TIME_ZONE_BRAZIL = LocalDateTime.now(SAO_PAULO);
 
     // Formatadores reutilizáveis
-    public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd-MM-yy");
     public static final DateTimeFormatter DATE_FMT_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     public static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter AFD_DATE_FMT = DateTimeFormatter.ofPattern("ddMMyyyyHHmm");
@@ -58,8 +57,6 @@ public class Messages {
     // Time Record / Validation
     public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
     public static final String RECORD_NOT_BELONGS_EMPLOYEE = "Desculpe!, Você não é o proprietário do registro. Somente o proprietário pode solicitar atualização de registro";
-    public static final String MANAGER_ID_REQUIRED = "O ID do manager é obrigatório para parceiros.";
-    public static final String USER_IS_NOT_MANAGER = "O usuário informado não é um manager.";
     public static final String MANAGER_DIFFERENT_COMPANY = "O manager não pertence à mesma empresa.";
     public static final String ONLY_OWNER_DELETE_TIME_OFF_DOCS = "Apenas proprietário do documento pode deletá-lo";
     public static final String GEOLOCATION_OUT_OF_RANGE = "Você está fora da área de trabalho permitida.";
@@ -73,15 +70,10 @@ public class Messages {
     public static final String INTERNAL_CLOCK_OUT_OF_SYNC = "Sistema temporariamente indisponível: Relógio interno dessincronizado.";
     public static final String ERROR_GENERATING_TECHNICAL_CERTIFICATE = "Falha na geração do Atestado Técnico";
     public static final String ADDRESS_NOT_REGISTERED = "Endereço não cadastrado";
-    public static final String UNAUTHORIZED_ROLE = "Role não autorizada para esta operação.";
-    public static final String REQUEST_NOT_FOUND = "Solicitação de aprovação não encontrada ou expirada para o registro: ";
     public static final String AWAITING_APPROVAL = "O status do registro não pode ser alterado, pois está aguardando aprovação.";
     public static final String ALREADY_UPDATED = "O status do registro não pode ser alterado, pois o registro foi atualizado após uma solicitção.";
     public static final String ROLE_IS_NOT_MANAGER = "O usuário informado não é um manager.";
     public static final String START_DATE_BIGGER_THAN_END_DATE = "A data de início das férias não pode ser posterior à data de fim.";
-    public static final String ALREADY_REQUESTED = "Já existe um registro de ponto ou solicitação para o dia: ";
-    public static final String ONLY_MANAGERS_CAN_GRANT_VACATION = "Apenas Managers ou CTO podem aprovar solicitações de férias.";
-    public static final String ONLY_MANAGERS_CAN_REJECT_VACATION = "Apenas Managers ou CTO podem rejeitar solicitações de férias.";
     public static final String MANAGER_NOT_FOUND = "Manager não encontrado.";
     public static final String USER_NOT_IS_MANAGER = "O usuário informado não é um manager.";
     public static final String DOC_NOT_FOUND = "Documento não encontrado após upload para o 1º registro.";
@@ -101,7 +93,6 @@ public class Messages {
     public static final String PENDING_STATUS = "PENDING";
     public static final String APPROVED_STATUS = "APPROVED";
     public static final String REJECTED_STATUS = "REJECTED";
-    public static final String INVALID_RECORD = "O registro não é uma solicitação pendente válida (Status: ";
     public static final String RECORD_IS_NOT_AWAITING_APPROVAL = "O registro não está aguardando aprovação.";
     public static final String COMPANY_NOT_FOUND_FOR_THE_EMPLOYEE = "Empresa não encontrada para o funcionário.";
     public static final String ADDRESS_COMPANY_IS_NOT_REGISTERED = "A localização da empresa não está cadastrada.";
@@ -112,7 +103,6 @@ public class Messages {
     public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos de texto ou imagem são aceitos no sistema (.pdf, .jpg, .jpeg, .png, .docx, .doc).";
     public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";
     public static final String DOCUMENT_NOT_BELONGS_EMPLOYEE = "Documento não pertence ao Colaborador";
-    public static final String IMAGE_DATA_NOT_BLANK = "A imagem da face é obrigatória para o registro de ponto";
     public static final String IMAGE_DATA_REGISTER_NOT_BLANK = "A imagem da face é obrigatória para o cadastro de referência.";
     public static final String NO_FACE_DETECTED = "Nenhuma face válida detectada na imagem fornecida. Tente novamente.";
 
@@ -141,15 +131,12 @@ public class Messages {
     public static final String JOB_POSITION_NOT_BLANK = "O cargo do colaborador é obrigatório";
     public static final String EMPLOYEE_NAME_NOT_BLANK = "O nome do colaborador é obrigatório";
     public static final String ADDRESS_NUMBER_NOT_BLANK = "O Número é obrigatório";
-    public static final String DATE_NOT_NULL = "Data do registro é obrigatória";
-    public static final String TIME_NOT_NULL = "Hora de início é obrigatória";
     public static final String MUST_HAVE_8_CHARACTERES = "Deve ter exatamente 8 dígitos";
     public static final String MUST_HAVE_11_CHARACTERES = "Deve ter exatamente 11 dígitos";
     public static final String MUST_HAVE_14_CHARACTERES = "Deve ter exatamente 14 dígitos";
     public static final String MUST_HAVE_50_CHARACTERES = "Deve ter até 50 dígitos";
     public static final String MUST_HAVE_200_CHARACTERES = "Deve ter até 200 dígitos";
     public static final String INVALID_ROLE = "Role inválida";
-    public static final String INVALID_FORMAT = "Formato inválido: use HH:mm";
     public static final String INVALID_EMAIL_FORMAT = "O deve ter o formato correto: 'email@dominio.com' ";
     public static final String INTERNAL_SERVER_ERROR = "Erro inesperado";
     public static final String FAILURE_TO_GENERATE_AFD = "Falha crítica na geração do arquivo AFD";
@@ -173,5 +160,4 @@ public class Messages {
     public static final StatusRecord TIME_OFF_REJECTED = StatusRecord.TIME_OFF_REJECTED;
     public static final StatusRecord WORK_TIME_REQUEST = StatusRecord.WORK_TIME_REQUEST;
     public static final StatusRecord WORK_TIME_REJECTED = StatusRecord.WORK_TIME_REJECTED;
-
 }

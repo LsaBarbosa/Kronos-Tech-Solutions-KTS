@@ -1,11 +1,13 @@
 package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface TimeRecordProvider {
@@ -36,5 +38,9 @@ public interface TimeRecordProvider {
             java.util.Set<com.kts.kronos.domain.model.enuns.StatusRecord> statuses
     );
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
-    List<TimeRecord> findByIdIn(List<Long> ids);
+    List<TimeRecord> findByIdIn(Set<Long> ids);
+    List<TimeRecord> saveAll(List<TimeRecord> timeRecords);
+    List<TimeRecord> findByEmployeeIdInAndStatusesIn(
+            Set<UUID> employeeIds,
+            Set<StatusRecord> statuses);
 }

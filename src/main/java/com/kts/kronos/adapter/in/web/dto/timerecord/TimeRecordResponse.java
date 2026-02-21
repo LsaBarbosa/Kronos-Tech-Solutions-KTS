@@ -5,31 +5,67 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import static com.kts.kronos.constants.Messages.DATE_PATTERN;
 import static com.kts.kronos.constants.Messages.SAO_PAULO;
 import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 
+@Schema(description = "Detalhes consolidados de um único registro de ponto, abono ou ausência")
 public record TimeRecordResponse(
+        @Schema(description = "ID do registro", example = "1050")
         Long timeRecordId,
+
+        @Schema(description = "Data e hora exata do início", example = "2024-05-10T08:00:00")
         @JsonFormat(pattern = DATE_PATTERN)
         LocalDateTime startWork,
+
+        @Schema(description = "Apenas a hora formatada do início", example = "08:00")
         String startHour,
+
+        @Schema(description = "Data e hora exata do fim", example = "2024-05-10T17:00:00")
         @JsonFormat(pattern = DATE_PATTERN)
         LocalDateTime endWork,
+
+        @Schema(description = "Apenas a hora formatada do fim", example = "17:00")
         String endHour,
+
+        @Schema(description = "Total de horas apuradas no registro", example = "09:00")
         String hoursWork,
+
+        @Schema(description = "Saldo positivo ou negativo gerado pelo registro", example = "+01:00")
         String balance,
+
+        @Schema(description = "Status atual deste registro no ciclo de vida", example = "UPDATED")
         StatusRecord statusRecord,
+
+        @Schema(description = "Indica se o registro sofreu edição manual", example = "true")
         boolean edited,
+
+        @Schema(description = "Indica se o registro está ativo para cálculos", example = "true")
         boolean active,
+
+        @Schema(description = "ID interno do funcionário", example = "123e4567...")
         UUID employeeId,
+
+        @Schema(description = "Dados consolidados do funcionário e empresa associada")
         EmployeeData employeeData,
+
+        @Schema(description = "Caminho do documento associado (ex: atestado médico, comprovativo)", example = "/docs/123.pdf")
         String documentDownloadPath,
+
+        @Schema(description = "Latitude na entrada", example = "-22.9068")
         Double latitude,
+
+        @Schema(description = "Longitude na entrada", example = "-43.1729")
         Double longitude,
+
+        @Schema(description = "Latitude na saída", example = "-22.9068")
         Double endLatitude,
+
+        @Schema(description = "Longitude na saída", example = "-43.1729")
         Double endLongitude
 ) {
      public static TimeRecordResponse fromDomain(TimeRecord timeRecord,

@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> {
@@ -31,7 +31,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     void deleteByEmployeeId(UUID employeeId);
 
     List<DocumentEntity> findByTimeRecordId(Long timeRecordId);
-    List<DocumentEntity> findByTimeRecordIdIn(List<Long> timeRecordIds);
+    List<DocumentEntity> findByTimeRecordIdIn(Set<Long> timeRecordIds);
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
 
     @Query("""
@@ -62,8 +62,6 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             @Param("end") LocalDateTime end,
             @Param("type") DocumentType type
     );
-
-    // (Opcional) Queries sem data, caso precise para a listagem geral sem filtro de período:
 
     @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByManager = false")
     List<DocumentEntity> findVisibleToManager(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);

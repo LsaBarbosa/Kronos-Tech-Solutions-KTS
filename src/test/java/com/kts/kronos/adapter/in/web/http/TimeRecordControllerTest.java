@@ -317,35 +317,49 @@ class TimeRecordControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
-
     @Test
-    @DisplayName("Deve aprovar abono/time-off (204 No Content)")
+    @DisplayName("Deve aprovar abonos/time-off em lote (204 No Content)")
     void shouldApproveTimeOffSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).approveTimeOff(RECORD_ID);
+        // 1. Cria o payload com a lista de IDs
+        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
 
-        mockMvc.perform(patch(BASE_URL + "/time-off/approve/{timeRecordId}", RECORD_ID))
+        // 2. Configura o mock para aceitar o novo DTO
+        doNothing().when(timeRecordUseCase).approveTimeOff(any(TimeOffApprovalRequest.class));
+
+        // 3. Executa a requisição passando o JSON no corpo (sem variável na URL)
+        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    @DisplayName("Deve rejeitar abono/time-off (204 No Content)")
+    @DisplayName("Deve rejeitar abonos/time-off em lote (204 No Content)")
     void shouldRejectTimeOffSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).rejectTimeOff(RECORD_ID);
+        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
 
-        mockMvc.perform(patch(BASE_URL + "/time-off/reject/{timeRecordId}", RECORD_ID))
+        doNothing().when(timeRecordUseCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    @DisplayName("Deve retornar 404 Not Found ao tentar rejeitar abono inexistente")
+    @DisplayName("Deve retornar 404 Not Found ao tentar rejeitar abonos com IDs inexistentes")
     void shouldReturn404WhenRejectingNonExistentTimeOff() throws Exception {
-        doThrow(new ResourceNotFoundException(RECORD_NOT_FOUND))
-                .when(timeRecordUseCase).rejectTimeOff(RECORD_ID);
+        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
 
-        mockMvc.perform(patch(BASE_URL + "/time-off/reject/{timeRecordId}", RECORD_ID))
+        // Configura o mock para lançar a exceção quando receber qualquer request de rejeição
+        doThrow(new ResourceNotFoundException(RECORD_NOT_FOUND))
+                .when(timeRecordUseCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
     }
-
     @Test
     @DisplayName("Deve retornar 400 Bad Request se houver erro de validação no abono")
     void shouldReturn400WhenTimeOffRequestInvalid() throws Exception {
