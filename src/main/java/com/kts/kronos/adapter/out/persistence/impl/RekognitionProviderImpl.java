@@ -40,7 +40,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
         } catch (ResourceAlreadyExistsException e) {
             // Se já existe, é o comportamento esperado no startup.
         } catch (Exception e) {
-            log.error("❌ Erro fatal ao tentar criar ou verificar coleção '{}': {}", collectionId, e.getMessage(), e);
+            log.error(" Erro fatal ao tentar criar ou verificar coleção '{}': {}", collectionId, e.getMessage(), e);
             throw new RuntimeException("Falha na inicialização do serviço Rekognition.", e);
         }
     }

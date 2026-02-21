@@ -154,4 +154,13 @@ public class Logs {
     public static final String LOG_TIME_OFF_LIST_FETCH = "Buscando registros em lote para {} funcionários filtrados.";
     public static final String LOG_TIME_OFF_LIST_PAGINATION = "Paginação calculada: Total de {} registros. Buscando documentos apenas para os {} itens da página atual.";
     public static final String LOG_TIME_OFF_LIST_SUCCESS = "Listagem de abonos concluída com sucesso. Página {}/{} retornada.";
+
+    public static final String GENERATE_PROOF_NSR_ERROR = "FALHA AO GERAR COMPROVANTE (NSR {}): {}";
+    public static final String BREAK_EDITED = "Pausa {} consumida pela edição e deletada.";
+    public static final String BREAK_UPDATED_TO_START = "Pausa {} ajustada para começar em {}.";
+    public static final String SKIP_GEOLOCATION_VALIDATION = "Funcionário {} está em Home Office. Validação de geolocalização ignorada.";
+    public static final String FACIAL_VALIDATION_SUCCESS = " Validação facial concluída com sucesso para o colaborador: {}";
+    public static final String INVALID_FACE = "Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}";
+    public static final String CROSS_COMPANY_DETECTED = "Tentativa de aprovação cross-company detectada. ManagerID: {}, CompanyID: {}";
+    public static final String FACIAL_RECOGNITION_ERROR = "Erro no serviço de reconhecimento facial: {}";
 }

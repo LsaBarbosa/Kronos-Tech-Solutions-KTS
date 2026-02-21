@@ -44,8 +44,6 @@ import static com.kts.kronos.domain.model.enuns.StatusRecord.UPDATE_REJECTED;
 @Transactional
 public class TimeRecordService implements TimeRecordUseCase {
 
-    public static final String BREAK_EDITED = "Pausa {} consumida pela edição e deletada.";
-    public static final String BREAK_UPDATED_TO_START = "Pausa {} ajustada para começar em {}.";
     private final TimeRecordProvider timeRecordProvider;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
@@ -153,9 +151,10 @@ public class TimeRecordService implements TimeRecordUseCase {
         var nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
         var actionType = CHECKIN; // Default
 
-        // Verifica se já existe um registro de FOLGA ou FALTA para hoje <<<
-        // Isso permite que o funcionário trabalhe no dia que o sistema achava que era folga.
-        // Necessário buscar qualquer registro do dia, independente de estar "open"
+        /* Verifica se já existe um registro de FOLGA ou FALTA para hoje <<<
+        Isso permite que o funcionário trabalhe no dia que o sistema achava que era folga.
+        Necessário buscar qualquer registro do dia, independente de estar "open"
+        */
         var startOfDay = todayDate.atStartOfDay();
         var endOfDay = todayDate.atTime(23, 59, 59);
 
@@ -1014,7 +1013,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         if (!managerEmployee.companyId().equals(employeeCompanyId)) {
-            log.error("Tentativa de aprovação cross-company detectada. ManagerID: {}, CompanyID: {}",
+            log.error(CROSS_COMPANY_DETECTED,
                     managerId, employeeCompanyId);
             throw new BadRequestException(ERR_MANAGER_DIFF_COMPANY);
         }
@@ -1075,29 +1074,27 @@ public class TimeRecordService implements TimeRecordUseCase {
 
             // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
             if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
-                log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
+                log.warn(INVALID_FACE, expectedEmployeeId, recognizedEmployeeId);
                 throw new BadRequestException(FACE_MISMATCH);
             }
 
-            log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
+            log.info(FACIAL_VALIDATION_SUCCESS, expectedEmployeeId);
 
-        } catch (IllegalArgumentException e) {
-            // Ocorre se a string Base64 for malformada
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (IllegalArgumentException ex) {
             throw new BadRequestException(INVALID_BASE64_IMAGE);
-        } catch (RuntimeException e) {
-            // Captura falhas de serviço do Rekognition (lançadas pelo provider)
-            log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
+        } catch (RuntimeException ex) {
+            log.error(FACIAL_RECOGNITION_ERROR, ex.getMessage(), ex);
             throw new BadRequestException(INVALID_BASE64_IMAGE);
         }
     }
 
     private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
         if (!employee.homeOffice()) {
-            // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
             checkGeolocation(employeeId, request.latitude(), request.longitude());
         } else {
-            // Log para indicar que a validação foi pulada
-            log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
+            log.info(SKIP_GEOLOCATION_VALIDATION, employeeId);
         }
     }
 
@@ -1111,7 +1108,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             byte[] pdfContent = receiptPdfService.generateReceipt(company, employee, recordTime, nsr);
 
             // 3. Define nomenclatura padrão do arquivo
-            String fileName = String.format("comprovante_%d_%s_%s.pdf",
+            String fileName = String.format(PROOF_PDF,
                     nsr,
                     typeSuffix,
                     recordTime.format(RECEIPT_DATE_FMT));
@@ -1126,8 +1123,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             );
 
         } catch (Exception e) {
-            // Loga erro crítico mas não aborta a transação principal do ponto para não prejudicar o usuário
-            log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
+            log.error(GENERATE_PROOF_NSR_ERROR, nsr, e.getMessage());
         }
     }
 

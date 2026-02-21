@@ -84,7 +84,7 @@ public class Messages {
             "image/png",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
             "application/msword");
-
+    public static final String PROOF_PDF = "comprovante_%d_%s_%s.pdf";
     public static final String EXIT = "SAIDA";
     public static final String CHECKOUT = "CHECKOUT";
     public static final String CHECKIN = "CHECKIN";
