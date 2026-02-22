@@ -184,4 +184,10 @@ public class Messages {
     public static final String UNKNOWN_DEVICE = "Dispositivo Desconhecido";
     public static final String BULLET_SYMBOL = "\u2022";
 
+    public static final String DOCUMENT_ACCESS_DENIED = "Você não possui permissão para acessar este documento.";
+    public static final String ERROR_FETCHING_STORAGE = "Falha ao buscar o arquivo no storage: ";
+    public static final String ONLY_OWNER = "Apenas o proprietário exclui justificativas de abono.";
+
+    public static final String GEOLOCATION_REQUIRED = "Location (latitude e longitude) é obrigatória se o endereço for alterado.";
+
 }

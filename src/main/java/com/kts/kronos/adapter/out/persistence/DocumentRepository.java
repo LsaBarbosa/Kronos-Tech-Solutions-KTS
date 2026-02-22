@@ -16,31 +16,34 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     List<DocumentEntity> findByEmployeeIdAndType(UUID employeeId, DocumentType type);
 
     @Query(value = """
-    SELECT *
-      FROM tb_document d
-     WHERE d.employee_id = :emp
-       AND d.document_type = :type
-       AND d.uploaded_at BETWEEN :start AND :end
-    """, nativeQuery = true)
+            SELECT *
+              FROM tb_document d
+             WHERE d.employee_id = :emp
+               AND d.document_type = :type
+               AND d.uploaded_at BETWEEN :start AND :end
+            """, nativeQuery = true)
     List<DocumentEntity> findByEmployeeIdAndTypeAndUploadedAtBetween(
-            @Param("emp")   UUID employeeId,
+            @Param("emp") UUID employeeId,
             @Param("start") Instant start,
-            @Param("end")   Instant end,
-            @Param("type")  String documentType
+            @Param("end") Instant end,
+            @Param("type") String documentType
     );
+
     void deleteByEmployeeId(UUID employeeId);
 
     List<DocumentEntity> findByTimeRecordId(Long timeRecordId);
+
     List<DocumentEntity> findByTimeRecordIdIn(Set<Long> timeRecordIds);
+
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
 
     @Query("""
-        SELECT d FROM DocumentEntity d
-        WHERE d.employeeId = :employeeId
-          AND d.type = :type
-          AND d.uploadedAt BETWEEN :start AND :end
-          AND d.deletedByManager = false
-    """)
+                SELECT d FROM DocumentEntity d
+                WHERE d.employeeId = :employeeId
+                  AND d.type = :type
+                  AND d.uploadedAt BETWEEN :start AND :end
+                  AND d.deletedByManager = false
+            """)
     List<DocumentEntity> findVisibleToManagerByDate(
             @Param("employeeId") UUID employeeId,
             @Param("start") LocalDateTime start,
@@ -50,12 +53,12 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
 
     // 2. Busca para o EMPLOYEE (Filtra por data e ignora os deletados pelo Employee)
     @Query("""
-        SELECT d FROM DocumentEntity d
-        WHERE d.employeeId = :employeeId
-          AND d.type = :type
-          AND d.uploadedAt BETWEEN :start AND :end
-          AND d.deletedByEmployee = false
-    """)
+                SELECT d FROM DocumentEntity d
+                WHERE d.employeeId = :employeeId
+                  AND d.type = :type
+                  AND d.uploadedAt BETWEEN :start AND :end
+                  AND d.deletedByEmployee = false
+            """)
     List<DocumentEntity> findVisibleToEmployeeByDate(
             @Param("employeeId") UUID employeeId,
             @Param("start") LocalDateTime start,
@@ -68,4 +71,18 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
 
     @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false")
     List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByManager = false")
+    List<DocumentEntity> findActiveForManager(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false")
+    List<DocumentEntity> findActiveForEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type " +
+            "AND d.uploadedAt BETWEEN :start AND :end AND d.deletedByManager = false")
+    List<DocumentEntity> findActiveForManagerByDateRange(UUID employeeId, LocalDateTime start, LocalDateTime end, DocumentType type);
+
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type " +
+            "AND d.uploadedAt BETWEEN :start AND :end AND d.deletedByEmployee = false")
+    List<DocumentEntity> findActiveForEmployeeByDateRange(UUID employeeId, LocalDateTime start, LocalDateTime end, DocumentType type);
 }

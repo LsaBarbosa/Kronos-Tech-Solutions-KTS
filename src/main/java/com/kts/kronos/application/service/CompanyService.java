@@ -11,7 +11,9 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +21,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
-import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.Logs.*;
+import static com.kts.kronos.constants.Messages.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -36,33 +39,42 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
+        log.info(LOG_COMPANY_CREATE_INIT, request.name(), request.cnpj());
+
         if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
-        // 1. Create and save the Company
         var address = viaCep.lookup(request.address().postalCode())
                 .withNumber(request.address().number());
 
         var company = new Company(
                 request.name(), request.cnpj(), request.email(), address, request.location()
         );
+
         companyProvider.save(company);
+        log.info(LOG_COMPANY_CREATE_SUCCESS, company.companyId());
+
+        if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
+            throw new BadRequestException(COMPANY_ALREADY_EXIST);
+        }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Company getCompany(String cnpj) {
+        log.debug(LOG_COMPANY_GET, cnpj);
         var company = companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
-
         long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
         long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
-
         return company.withEmployeeCounts(activeEmployees, inactiveEmployees);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Company> listCompanies(Boolean active) {
+        log.debug(LOG_COMPANY_LIST, active);
         List<Company> companies = active == null
                 ? companyProvider.findAll()
                 : companyProvider.findByActive(active);
@@ -74,10 +86,10 @@ public class CompanyService implements CompanyUseCase {
                     return company.withEmployeeCounts(activeCount, inactiveCount);
                 })
                 .collect(Collectors.toList());
-
     }
 
     @Override
+    @Transactional(readOnly = true)
     public String getCompanyNameById(UUID companyId) {
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
@@ -86,6 +98,7 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void updateCompany(String cnpj, UpdateCompanyRequest request) {
+        log.info(LOG_COMPANY_UPDATE, cnpj);
         var company = companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
@@ -93,12 +106,9 @@ public class CompanyService implements CompanyUseCase {
         var updateLocation = company.location();
 
         if (request.address() != null) {
-            if (request.location() == null || request.location().latitude() == null || request.location().longitude() == null) {
-                throw new BadRequestException(GEOLOCATION_IS_REQUIRED);
-            }
+            validateLocationPresence(request);
             var lookup = viaCep.lookup(request.address().postalCode());
             updateAddress = lookup.withNumber(request.address().number());
-
             updateLocation = request.location();
         }
 
@@ -113,17 +123,19 @@ public class CompanyService implements CompanyUseCase {
                 company.activeEmployees(),
                 company.inactiveEmployees()
         );
+
         companyProvider.save(updatedCompany);
     }
 
     @Override
     public void toggleActivate(String cnpj) {
         var company = getCompany(cnpj);
-        var newStatus = !company.active();
-        var toggleActivate = company.withActive(newStatus);
-        companyProvider.save(toggleActivate);
+        boolean newStatus = !company.active();
 
-        var employees = employeeProvider.findByCompanyId(company.companyId());
+        log.info(LOG_COMPANY_TOGGLE, cnpj, newStatus);
+        companyProvider.save(company.withActive(newStatus));
+
+        List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
         for (var employee : employees) {
             userProvider.findByEmployeeId(employee.employeeId()).ifPresent(user -> {
                 if (user.active() != newStatus) {
@@ -135,11 +147,22 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void deleteByCnpj(String cnpj) {
-        getCompany(cnpj);
+        log.warn(LOG_COMPANY_DELETE, cnpj);
+        if (!companyProvider.findByCnpj(cnpj).isPresent()) {
+            throw new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj);
+        }
         companyProvider.deleteByCnpj(cnpj);
     }
 
+    @Transactional(readOnly = true)
+    @Override
     public boolean cnpjExists(String cnpj) {
         return companyProvider.findByCnpj(cnpj).isPresent();
+    }
+
+    private void validateLocationPresence(UpdateCompanyRequest request) {
+        if (request.location() == null || request.location().latitude() == null || request.location().longitude() == null) {
+            throw new BadRequestException(GEOLOCATION_REQUIRED);
+        }
     }
 }

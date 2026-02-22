@@ -189,4 +189,41 @@ public class Logs {
     public static final String LOG_SYNC_SUCCESS = "Sincronismo NTP realizado com sucesso. Server: {}, Offset: {}ms";
     public static final String LOG_SYNC_WARN = "Falha ao consultar servidor NTP ({}): {}. O sistema continuará operando com o relógio local.";
     public static final String LOG_SYNC_CRITICAL = "ALERTA CRÍTICO: RELÓGIO DO SERVIDOR DESSINCRONIZADO! Diferença de {} ms detectada. O limite é {} ms.";
+    // --- COMPANY LOGS & ERRORS ---
+    public static final String LOG_COMPANY_CREATE_INIT = "Iniciando cadastro da empresa: {} (CNPJ: {})";
+    public static final String LOG_COMPANY_CREATE_SUCCESS = "Empresa cadastrada com sucesso. ID: {}";
+    public static final String LOG_COMPANY_GET = "Buscando detalhes da empresa CNPJ: {}";
+    public static final String LOG_COMPANY_LIST = "Listando empresas. Filtro ativo: {}";
+    public static final String LOG_COMPANY_UPDATE = "Atualizando dados da empresa CNPJ: {}";
+    public static final String LOG_COMPANY_TOGGLE = "Alterando status da empresa {} e seus usuários para: {}";
+    public static final String LOG_COMPANY_DELETE = "Removendo empresa CNPJ: {}";
+
+    // Logs de Rastreabilidade (SLF4J)
+    public static final String LOG_INIT_UPLOAD = "Iniciando upload de documento tipo {} para colaborador {}";
+    public static final String LOG_UPLOAD_SUCCESS = "Documento salvo com sucesso. Path: {}";
+    public static final String LOG_UPLOAD_ERROR = "Erro no upload do arquivo: {}";
+    public static final String LOG_DOWNLOAD_REQUEST = "Solicitação de download: Doc {} para Colaborador {}";
+    public static final String LOG_DOWNLOAD_ERROR = "Erro ao recuperar arquivo do storage: {}";
+    public static final String LOG_LIST_DOCS = "Listando documentos tipo {} para {}. Visão gestor: {}";
+    public static final String LOG_DELETE_REQUEST = "Solicitação de exclusão do documento {}";
+    public static final String LOG_DELETE_PHYSICAL = "Exclusão física confirmada para o documento {}";
+    public static final String LOG_DELETE_SOFT = "Soft delete aplicado ao documento {}";
+    public static final String LOG_GEN_DOC_SUCCESS = "Documento automático gerado e salvo: {}";
+    public static final String LOG_GEN_DOC_ERROR = "Erro ao salvar documento gerado: {}";
+    public static final String LOG_INVALID_MIME = "Tentativa de upload de arquivo inválido: {}";
+    public static final String LOG_ACCESS_DENIED = "Acesso negado: Usuário {} tentou acessar documento de {}";
+
+    // --- EMPLOYEE LOGS ---
+    public static final String LOG_CREATE_INIT = "Iniciando criação de colaborador: {}";
+    public static final String LOG_CREATE_SUCCESS = "Colaborador criado com sucesso. ID: {}";
+    public static final String LOG_UPDATE_ORPHAN = "Colaborador órfão encontrado para o CPF {}, vinculando à nova empresa.";
+    public static final String LOG_LIST_EMPLOYEES = "Listando colaboradores. Filtro ativo: {}, Empresa: {}";
+    public static final String LOG_GET_EMPLOYEE = "Buscando detalhes do colaborador ID: {}";
+    public static final String LOG_UPDATE_INIT = "Iniciando atualização dos dados do colaborador: {}";
+    public static final String LOG_DELETE_EMPLOYEE = "Excluindo colaborador ID: {}";
+    public static final String LOG_MARK_SEEN = "Colaborador {} marcou avisos como lidos.";
+    public static final String LOG_TOGGLE_STATUS = "Alterando status (Ativo/Inativo) do colaborador {}. Novo estado: {}";
+    public static final String LOG_FACE_INIT = "Iniciando processamento de biometria facial para: {}";
+    public static final String LOG_FACE_SUCCESS = "Biometria facial registrada com sucesso. S3 Key: {}";
+    public static final String LOG_FACE_ERROR = "Erro ao processar biometria facial do colaborador {}: {}";
 }

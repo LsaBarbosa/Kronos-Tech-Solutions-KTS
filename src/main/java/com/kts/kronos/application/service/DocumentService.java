@@ -23,7 +23,12 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Logs.*;
 import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.constants.Messages.DOCUMENT_ACCESS_DENIED;
+import static com.kts.kronos.constants.Messages.ERROR_FETCHING_STORAGE;
+import static com.kts.kronos.constants.Messages.FAILURE_TO_SAVE_AUTO_GENERATED_DOC;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -39,78 +44,60 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
 
-        var fileMimeType = file.getContentType();
-        // 3. Verifique se o tipo está na lista permitida
-        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
-            // Se não estiver, lança a exceção
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
-        try {
-            var employee = getEmployee(employeeId);
+        log.info(LOG_INIT_UPLOAD, type, employeeId);
+        validateMimeType(file.getContentType());
 
-            var bytes = file.getBytes();
-            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
+        try {
+            var employee = getValidatedEmployee(employeeId);
+            var uniqueName = String.format("%s/%s-%s", employee.employeeId(), UUID.randomUUID(), file.getOriginalFilename());
+            var storagePath = bucketStorageProvider.uploadFile(uniqueName, file.getBytes(), file.getContentType());
+
             var doc = new Document(
-                    employee.employeeId(),
-                    type,
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL,null,false,false
+                    employee.employeeId(), type, file.getOriginalFilename(),
+                    file.getContentType(), storagePath, TIME_ZONE_BRAZIL, null, false, false
             );
             documentProvider.save(doc);
+            log.info(LOG_UPLOAD_SUCCESS, storagePath);
         } catch (Exception e) {
-            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
+            log.error(LOG_UPLOAD_ERROR, e.getMessage());
+            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
         }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
-        getEmployee(employeeId);
+        log.debug(LOG_DOWNLOAD_REQUEST, documentId, employeeId);
+        getValidatedEmployee(employeeId);
 
-        var doc = documentProvider.findById(documentId);
+        Document doc = documentProvider.findById(documentId);
+        validateDocumentOwnership(doc);
 
         try {
             byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
-
             return new DocumentWithData(
-                    doc.documentId(),
-                    doc.employeeId(),
-                    doc.type(),
-                    doc.fileName(),
-                    doc.contentType(),
-                    fileData,
-                    doc.uploadedAt()
+                    doc.documentId(), doc.employeeId(), doc.type(),
+                    doc.fileName(), doc.contentType(), fileData, doc.uploadedAt()
             );
-
-        } catch (ResourceNotFoundException e) {
-            throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
-        } catch (RuntimeException e) {
-            throw new BadRequestException(ERROR_GET_FILE + e.getMessage());
+        } catch (Exception e) {
+            log.error(LOG_DOWNLOAD_ERROR, e.getMessage());
+            throw new BadRequestException(ERROR_FETCHING_STORAGE + e.getMessage());
         }
     }
 
 
     @Override
+    @Transactional(readOnly = true)
     public List<Document> listDocuments(DocumentType type, UUID employeeId, LocalDate date) {
-        // 1. Identifica a Role de quem está logado
-        String currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
+        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var isManagerView = "MANAGER".equals(role) || "CTO".equals(role);
+        var targetId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
 
-        // 2. Define se é uma "Visão de Gestor"
-        boolean isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        log.debug(LOG_LIST_DOCS, type, targetId, isManagerView);
 
-        // 3. Define o alvo (de quem são os documentos?)
-        // O método 'isWithEmployeeId' já garante que um PARTNER só veja os seus próprios docs
-        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-
-        // 4. Chama o Provider passando a flag de visão
-        // O Provider decidirá qual query do Repository executar baseada no booleano
-        if (date == null) {
-            return documentProvider.findByEmployeeAndType(targetEmployeeId, type, isManagerView);
-        } else {
-            return documentProvider.findByEmployeeAndDateAndType(targetEmployeeId, date, type, isManagerView);
-        }
+        return (date == null)
+                ? documentProvider.findByEmployeeAndType(targetId, type, isManagerView)
+                : documentProvider.findByEmployeeAndDateAndType(targetId, date, type, isManagerView);
     }
 
     @Override
@@ -120,41 +107,80 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-        var currentUserId = jwtAuthenticatedUser.getEmployeeId(); // ou getUserId dependendo da sua lógica de auth
+        log.info(LOG_DELETE_REQUEST, documentId);
         var doc = documentProvider.findById(documentId);
+        validateDocumentDeletionRights(doc);
 
-        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var isManager = "MANAGER".equals(role);
+        var updatedDoc = isManager ? doc.markDeletedByManager() : doc.markDeletedByEmployee();
 
-        if (doc.type() == DocumentType.TIME_OFF) {
-            if (!doc.employeeId().equals(loggedInEmployeeId)) {
-                throw new ForbiddenException(ONLY_OWNER_DELETE_TIME_OFF_DOCS);
-            }
-        }
-        Document updatedDoc;
-        boolean isManager = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
-
-        if (isManager) {
-            updatedDoc = doc.markDeletedByManager();
-        } else {
-            // Se for funcionário, garante que é o dono
-            if (!doc.employeeId().equals(currentUserId)) {
-                throw new ForbiddenException("Você não pode apagar documentos de outro funcionário.");
-            }
-            updatedDoc = doc.markDeletedByEmployee();
-        }
         if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
-
-            // Remove arquivo do S3/Disco
+            log.info(LOG_DELETE_PHYSICAL, documentId);
             bucketStorageProvider.deleteFile(doc.storagePath());
-
-            // Remove registro do Banco
-            documentProvider.delete(doc.employeeId(), doc.documentId()); // Método delete físico existente
-
+            documentProvider.delete(doc.employeeId(), doc.documentId());
         } else {
-            // 6. Caso contrário, apenas salvamos o estado atualizado (Soft Delete)
+            log.info(LOG_DELETE_SOFT, documentId);
             documentProvider.save(updatedDoc);
         }
+    }
+
+    @Override
+    public void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
+        try {
+            var employee = getValidatedEmployee(employeeId);
+            var path = String.format("%s/receipts/%s-%s", employee.employeeId(), UUID.randomUUID(), fileName);
+            var storagePath = bucketStorageProvider.uploadFile(path, content, "application/pdf");
+
+            var doc = new Document(employee.employeeId(), type, fileName, "application/pdf",
+                    storagePath, TIME_ZONE_BRAZIL, timeRecordId, false, false);
+            documentProvider.save(doc);
+            log.info(LOG_GEN_DOC_SUCCESS, fileName);
+        } catch (Exception e) {
+            log.error(LOG_GEN_DOC_ERROR, e.getMessage());
+            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC + e.getMessage());
+        }
+    }
+
+    private void validateMimeType(String contentType) {
+        if (!ALLOWED_MIME_TYPES.contains(contentType)) {
+            log.warn(LOG_INVALID_MIME, contentType);
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+    }
+
+    private Employee getValidatedEmployee(UUID employeeId) {
+        var targetId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        return employeeProvider.findById(targetId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+    }
+
+    private void validateDocumentOwnership(Document doc) {
+        var loggedEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        var role = jwtAuthenticatedUser.getRoleFromToken();
+
+        if (!"MANAGER".equals(role) && !"CTO".equals(role) && !doc.employeeId().equals(loggedEmployeeId)) {
+            log.error(LOG_ACCESS_DENIED, loggedEmployeeId, doc.employeeId());
+            throw new ForbiddenException(DOCUMENT_ACCESS_DENIED);
+        }
+    }
+
+    private void validateDocumentDeletionRights(Document doc) {
+        var loggedId = jwtAuthenticatedUser.getEmployeeId();
+        if (doc.type() == DocumentType.TIME_OFF && !doc.employeeId().equals(loggedId)) {
+            throw new ForbiddenException(ONLY_OWNER);
+        }
+    }
+
+    private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
+        validateMimeType(file.getContentType());
+        var employee = getValidatedEmployee(employeeId);
+        var uniqueName = String.format("%s/%s-%s", employee.employeeId(), UUID.randomUUID(), file.getOriginalFilename());
+        var storagePath = bucketStorageProvider.uploadFile(uniqueName, file.getBytes(), file.getContentType());
+
+        var doc = new Document(employee.employeeId(), type, file.getOriginalFilename(), file.getContentType(),
+                storagePath, TIME_ZONE_BRAZIL, timeRecordId, false, false);
+        documentProvider.save(doc);
     }
 
     private Employee getEmployee(UUID employeeId) {
@@ -162,65 +188,4 @@ public class DocumentService implements DocumentUseCase {
         return employeeProvider.findById(employeeIdWith)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
-
-    private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
-        var fileMimeType = file.getContentType();
-        // 3. Verifique se o tipo está na lista permitida
-        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
-            // Se não estiver, lança a exceção
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
-        try {
-            var employee = getEmployee(employeeId);
-
-            var bytes = file.getBytes();
-            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
-            var doc = new Document(
-                    employee.employeeId(),
-                    type,
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL,
-                    timeRecordId,
-                    false,false
-            );
-            documentProvider.save(doc);
-        } catch (Exception e) {
-            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
-        }
-    }
-
-    @Override
-    public void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
-        try {
-            // Validação interna básica (opcional, já que geramos o PDF confiável)
-            var contentType = "application/pdf";
-
-            var employee = getEmployee(employeeId); // Garante que funcionário existe
-
-            // Define o caminho no Bucket
-            var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + fileName;
-
-            // Upload Físico
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, content,contentType);
-
-            // Salva Metadados no Banco
-            var doc = new Document(
-                    employee.employeeId(),
-                    type,
-                    fileName,
-                    contentType,
-                    storagePath,
-                    TIME_ZONE_BRAZIL,
-                    timeRecordId,false,false
-            );
-            documentProvider.save(doc);
-
-        } catch (Exception e) {
-            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC + e.getMessage());
-        }
-    }
-
 }
