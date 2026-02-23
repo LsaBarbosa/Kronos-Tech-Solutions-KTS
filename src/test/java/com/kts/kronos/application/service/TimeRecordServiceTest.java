@@ -108,7 +108,7 @@ class TimeRecordServiceTest {
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(mockCompany));
 
         when(timeRecordProvider.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
-        when(timeRecordProvider.findByRange(eq(employeeId), any(), any())).thenReturn(Collections.emptyList());
+        when(timeRecordProvider.findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(eq(employeeId), any(), any(), anySet())).thenReturn(Optional.empty());
         when(timeRecordProvider.findTopByEmployeeIdOrderByStartWorkDesc(employeeId)).thenReturn(Optional.empty());
 
         when(nsrProvider.generateNextNsr(companyId)).thenReturn(100L);

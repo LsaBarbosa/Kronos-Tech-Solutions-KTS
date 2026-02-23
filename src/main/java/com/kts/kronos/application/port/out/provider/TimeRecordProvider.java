@@ -30,6 +30,13 @@ public interface TimeRecordProvider {
     void deleteByEmployeeId(UUID employeeId);
     List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end);
 
+    Optional<TimeRecord> findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(
+            UUID employeeId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Set<StatusRecord> statuses
+    );
+
     Long findMaxNsrByCompanyId(UUID companyId);
 
     List<TimeRecord> findByEmployeeAndDatesAndStatuses(

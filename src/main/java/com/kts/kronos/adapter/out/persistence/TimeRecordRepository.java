@@ -49,6 +49,14 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             LocalDateTime startWorkEnd
     );
 
+
+    Optional<TimeRecordEntity> findFirstByEmployeeIdAndStartWorkBetweenAndStatusRecordIn(
+            UUID employeeId,
+            LocalDateTime startWorkStart,
+            LocalDateTime startWorkEnd,
+            Set<StatusRecord> statuses
+    );
+
     @Query("""
         SELECT tr FROM TimeRecordEntity tr
         WHERE tr.employeeId = :employeeId
