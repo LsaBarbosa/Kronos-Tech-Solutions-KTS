@@ -1192,7 +1192,13 @@ public class TimeRecordService implements TimeRecordUseCase {
     private void adjustAdjacentRecordsOnUpdate(UUID employeeId, TimeRecord recordToUpdate, LocalDateTime newStart, LocalDateTime newEnd) {
         // 1. Obter todos os registros (incluindo breaks) do dia, ordenados.
         LocalDate day = newStart.toLocalDate();
-        List<TimeRecord> allDayRecords = timeRecordProvider.findByEmployeeId(employeeId).stream().filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).sorted(Comparator.comparing(TimeRecord::startWork)).collect(Collectors.toCollection(ArrayList::new));
+        var startOfDay = day.atStartOfDay();
+        var endOfDay = day.plusDays(1).atStartOfDay().minusNanos(1);
+
+        List<TimeRecord> allDayRecords = timeRecordProvider.findByRange(employeeId, startOfDay, endOfDay).stream()
+                .filter(tr -> tr.startWork() != null)
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .collect(Collectors.toCollection(ArrayList::new));
 
         if (allDayRecords.isEmpty()) return;
 
@@ -1252,11 +1258,18 @@ public class TimeRecordService implements TimeRecordUseCase {
      */
     private void validateNonBreakOverlap(UUID employeeId, Long currentRecordId, LocalDateTime newStart, LocalDateTime newEnd) {
         LocalDate day = newStart.toLocalDate();
+        var startOfDay = day.atStartOfDay();
+        var endOfDay = day.plusDays(1).atStartOfDay().minusNanos(1);
         Set<StatusRecord> nonBreakStatuses = EnumSet.complementOf(EnumSet.of(StatusRecord.IMPLICIT_BREAK, StatusRecord.DAY_OFF, StatusRecord.TIME_OFF, StatusRecord.ABSENCE));
 
         // 1. Buscar todos os registros de trabalho (non-breaks) do dia, exceto o que está sendo editado
-        List<TimeRecord> workSegments = timeRecordProvider.findByEmployeeId(employeeId).stream().filter(tr -> !tr.timeRecordId().equals(currentRecordId)).filter(tr -> tr.startWork() != null && tr.startWork().toLocalDate().equals(day)).filter(tr -> nonBreakStatuses.contains(tr.statusRecord())).filter(tr -> tr.endWork() != null) // Só checa segmentos fechados
-                .sorted(Comparator.comparing(TimeRecord::startWork)).toList();
+        List<TimeRecord> workSegments = timeRecordProvider.findByRange(employeeId, startOfDay, endOfDay).stream()
+                .filter(tr -> !tr.timeRecordId().equals(currentRecordId))
+                .filter(tr -> tr.startWork() != null)
+                .filter(tr -> nonBreakStatuses.contains(tr.statusRecord()))
+                .filter(tr -> tr.endWork() != null) // Só checa segmentos fechados
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
 
         for (TimeRecord segment : workSegments) {
             // Verifica se o novo registro começa antes do fim de outro segmento
