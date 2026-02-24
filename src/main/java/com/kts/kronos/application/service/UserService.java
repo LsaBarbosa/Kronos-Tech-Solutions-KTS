@@ -14,17 +14,19 @@ import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+import static com.kts.kronos.constants.Logs.*;
 import static com.kts.kronos.constants.Messages.*;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -40,12 +42,14 @@ public class UserService implements UserUseCase {
 
     @Override
     public void createUser(CreateUserRequest req) {
+        log.info(LOG_USER_CREATE_INIT, req.username(), req.role());
+
+        employeeProvider.findById(req.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         if (userProvider.findByUsername(req.username().toLowerCase()).isPresent()) {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
-
-        findById(req.employeeId());
 
         var randomSystemPassword = UUID.randomUUID().toString();
         var hashed = passwordEncoder.encode(randomSystemPassword);
@@ -57,65 +61,50 @@ public class UserService implements UserUseCase {
                 req.employeeId()
         );
         userProvider.save(user);
+        log.info(LOG_USER_CREATE_SUCCESS, user.username(), user.employeeId());
     }
 
     @Override
     public User getUserByUsername(String username) {
-        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var companyId = authenticatedUserEmployee.companyId();
-
         var targetUser = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
-        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
-            return targetUser;
-        }
-
-        var targetEmployee = employeeProvider.findById(targetUser.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-        if (!targetEmployee.companyId().equals(companyId)) {
-            throw new ResourceNotFoundException(USER_NOT_FOUND);
-        }
-
+        validateUserCompanyAccess(targetUser.employeeId());
         return targetUser;
     }
 
     @Override
     public User getUserById(UUID userId) {
         var targetUserId = jwtAuthenticatedUser.isWithEmployeeId(userId);
-        return userProvider.findById(targetUserId)
+        var user = userProvider.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND + userId));
+
+        validateUserCompanyAccess(user.employeeId());
+        return user;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<User> listUsers(Boolean active) {
-        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
+        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+
+        var authenticatedEmployee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var companyId = authenticatedUserEmployee.companyId();
 
-        List<User> allUsers = active == null
-                ? userProvider.findAll()
-                : userProvider.findByActive(active);
+        log.debug(LOG_USER_LIST, active, authenticatedEmployee.companyId());
 
-        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
-            return allUsers;
+        if ("CTO".equals(role)) {
+            return active == null ? userProvider.findAll() : userProvider.findByActive(active);
         }
 
-        return allUsers.stream()
-                .filter(user -> {
-                    var employee = employeeProvider.findById(user.employeeId());
-                    return employee.isPresent() && employee.get().companyId().equals(companyId);
-                })
-                .collect(Collectors.toList());
+        return userProvider.findByCompanyIdAndActive(authenticatedEmployee.companyId(), active);
     }
 
     @Override
     public void updateUser(UUID userId, UpdateUserRequest req) {
-        var existing = getUserId(userId);
+        log.info(LOG_USER_UPDATE, userId);
+        var existing = getExistingUser(userId);
 
         var username = req.username() != null ? req.username().toLowerCase() : existing.username();
         var password = existing.password();
@@ -134,8 +123,10 @@ public class UserService implements UserUseCase {
 
     @Override
     public void deleteUser(UUID userId) {
-        var existing = getUserId(userId);
+        log.warn(LOG_USER_DELETE, userId);
+        var existing = getExistingUser(userId);
         var employeeId = existing.employeeId();
+
         documentProvider.deleteByEmployeeId(employeeId);
         timeRecordProvider.deleteByEmployeeId(employeeId);
         userProvider.deleteById(userId);
@@ -145,7 +136,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public void toggleActivate(UUID userId) {
-        var existing = getUserId(userId);
+        var existing = getExistingUser(userId);
         var active = existing.withActive(!existing.active());
         userProvider.save(active);
         employeeUseCase.toggleActivate(existing.employeeId());
@@ -154,7 +145,8 @@ public class UserService implements UserUseCase {
     @Override
     public void changeOwnPassword(ChangePasswordRequest req) {
         var userId = jwtAuthenticatedUser.getuserId();
-        var user = getUserId(userId);
+        log.info(LOG_USER_PASSWORD_CHANGE, userId);
+        var user = getExistingUser(userId);
 
         if (!passwordEncoder.matches(req.currentPassword(), user.password())) {
             throw new BadRequestException(INVALID_PASSWORD);
@@ -164,21 +156,14 @@ public class UserService implements UserUseCase {
         }
         validatePasswordPolicy(req.newPassword());
 
-        String hashed = passwordEncoder.encode(req.newPassword());
-        userProvider.save(new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        ));
+        var hashed = passwordEncoder.encode(req.newPassword());
+        userProvider.save(user.withPassword(hashed));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public User getOwnProfile() {
-        var userId = jwtAuthenticatedUser.getuserId();
-        return getUserId(userId);
+        return getExistingUser(jwtAuthenticatedUser.getuserId());
     }
 
     @Override
@@ -192,13 +177,23 @@ public class UserService implements UserUseCase {
         }
     }
 
-    private void findById(UUID userId) {
-        employeeProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-    }
-
-    private User getUserId(UUID userId) {
+    private User getExistingUser(UUID userId) {
         return userProvider.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+    }
+
+    private void validateUserCompanyAccess(UUID targetEmployeeId) {
+        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) return;
+
+        var authEmployee = employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        var targetEmployee = employeeProvider.findById(targetEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (!targetEmployee.companyId().equals(authEmployee.companyId())) {
+            log.error(LOG_USER_ACCESS_DENIED);
+            throw new ResourceNotFoundException(USER_NOT_FOUND);
+        }
     }
 }

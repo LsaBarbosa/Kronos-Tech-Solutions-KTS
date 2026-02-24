@@ -27,11 +27,13 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.constants.Messages.*;import org.springframework.transaction.annotation.Transactional;
+
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class AejService implements AejUseCase {
 
     private final CompanyProvider companyProvider;

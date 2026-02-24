@@ -21,12 +21,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.springframework.transaction.annotation.Transactional;
 
 import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class AfdService implements AdfUseCase {
 
 

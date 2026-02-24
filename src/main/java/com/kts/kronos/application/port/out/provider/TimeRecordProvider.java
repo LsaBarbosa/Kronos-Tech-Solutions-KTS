@@ -43,4 +43,10 @@ public interface TimeRecordProvider {
     List<TimeRecord> findByEmployeeIdInAndStatusesIn(
             Set<UUID> employeeIds,
             Set<StatusRecord> statuses);
+    Optional<TimeRecord> findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(
+            UUID employeeId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Set<StatusRecord> statuses
+    );
 }

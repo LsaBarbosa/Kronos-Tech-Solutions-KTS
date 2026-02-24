@@ -83,4 +83,12 @@ public class UserProviderImpl implements UserProvider {
                 .toList();
 
     }
+
+    @Override
+    public List<User> findByCompanyIdAndActive(UUID companyId, Boolean active) {
+        return jpa.findByCompanyIdAndActive(companyId, active)
+                .stream()
+                .map(UserEntity::toDomain)
+                .toList();
+    }
 }

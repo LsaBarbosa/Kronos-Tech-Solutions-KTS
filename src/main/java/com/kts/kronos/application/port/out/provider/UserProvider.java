@@ -15,5 +15,5 @@ public interface UserProvider {
     Optional<User> findByEmployeeId(UUID employeeId);
     void deleteById(UUID userId);
     List<User> findByIdIn(List<UUID> ids);
-
+    List<User> findByCompanyIdAndActive(UUID companyId, Boolean active);
 }

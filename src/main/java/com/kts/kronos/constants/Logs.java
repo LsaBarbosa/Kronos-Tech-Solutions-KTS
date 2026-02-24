@@ -226,4 +226,14 @@ public class Logs {
     public static final String LOG_FACE_INIT = "Iniciando processamento de biometria facial para: {}";
     public static final String LOG_FACE_SUCCESS = "Biometria facial registrada com sucesso. S3 Key: {}";
     public static final String LOG_FACE_ERROR = "Erro ao processar biometria facial do colaborador {}: {}";
+
+    // --- USER LOGS & MESSAGES ---
+    public static final String LOG_USER_CREATE_INIT = "Iniciando criação de usuário: {} com role {}";
+    public static final String LOG_USER_CREATE_SUCCESS = "Usuário {} criado com sucesso para o colaborador {}";
+    public static final String LOG_USER_UPDATE = "Atualizando dados do usuário ID: {}";
+    public static final String LOG_USER_DELETE = "Removendo permanentemente o usuário ID: {} e seus dados associados";
+    public static final String LOG_USER_TOGGLE_STATUS = "Alterando status de ativação do usuário {}. Novo estado: {}";
+    public static final String LOG_USER_PASSWORD_CHANGE = "Alteração de senha solicitada pelo próprio usuário ID: {}";
+    public static final String LOG_USER_LIST = "Listando usuários. Filtro ativo: {}, Empresa: {}";
+    public static final String LOG_USER_ACCESS_DENIED = "Acesso negado: Usuário tentou acessar perfil de outra empresa.";
 }

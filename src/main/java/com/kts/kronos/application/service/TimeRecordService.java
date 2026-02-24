@@ -158,12 +158,13 @@ public class TimeRecordService implements TimeRecordUseCase {
         var startOfDay = todayDate.atStartOfDay();
         var endOfDay = todayDate.atTime(23, 59, 59);
 
-        List<TimeRecord> recordsToday = timeRecordProvider.findByRange(
-                employee.employeeId(), startOfDay, endOfDay); //
-
-        Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
-                .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
-                .findFirst();
+        Optional<TimeRecord> dayOffOrAbsenceRecord =
+                timeRecordProvider.findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(
+                        employee.employeeId(),
+                        startOfDay,
+                        endOfDay,
+                        EnumSet.of(StatusRecord.DAY_OFF, StatusRecord.ABSENCE)
+                );
 
         TimeRecord recordToSave;
 
