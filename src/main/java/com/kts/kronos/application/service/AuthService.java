@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
+import java.util.Locale;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -48,14 +49,20 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public String login(String username, String password) {
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(username.toLowerCase(), password));
-        var user = userProvider.findByUsername(username.toLowerCase())
+
+        var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
+
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+
+        var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
         var termsAccepted = documentProvider.existsByEmployeeIdAndType(
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
-        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId(), termsAccepted);
+
+        return jwtUtils.generateToken(user.employeeId(), normalizedUsername, user.role().name(), user.userId(), termsAccepted);
     }
 
     @Override

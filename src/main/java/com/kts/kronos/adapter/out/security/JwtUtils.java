@@ -1,11 +1,11 @@
 package com.kts.kronos.adapter.out.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -27,7 +27,7 @@ public class JwtUtils {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId,boolean termsAccepted) {
+    public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
@@ -42,32 +42,19 @@ public class JwtUtils {
     }
 
     public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
+        return parseClaims(token).getSubject();
     }
 
     public boolean getTermsAcceptedFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        var claims = parseClaims(token);
 
         // Se não houver a claim (tokens antigos), assume falso por segurança
-        Object accepted = claims.get("terms_accepted");
+        var accepted = claims.get("terms_accepted");
         return accepted != null && (boolean) accepted;
     }
 
     public UUID getEmployeeIdFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        var claims = parseClaims(token);
 
         String employeeIdStr = claims.get("employeeId", String.class);
         if (employeeIdStr == null || employeeIdStr.isBlank()) {
@@ -75,12 +62,9 @@ public class JwtUtils {
         }
         return UUID.fromString(employeeIdStr);
     }
+
     public UUID getUserIdFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        var claims = parseClaims(token);
 
         String userIdStr = claims.get("userId", String.class);
         if (userIdStr == null || userIdStr.isBlank()) {
@@ -90,12 +74,7 @@ public class JwtUtils {
     }
 
     public String getRoleFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("role", String.class);
+        return parseClaims(token).get("role", String.class);
     }
 
     public boolean validateToken(String token) {
@@ -105,5 +84,13 @@ public class JwtUtils {
         } catch (JwtException e) {
             return false;
         }
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
     }
 }

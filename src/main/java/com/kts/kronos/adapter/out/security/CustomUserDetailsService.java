@@ -7,8 +7,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
+    public static final String INVALID_ACCESS = "Credenciais inválidas";
+    public static final String INACTIVED_ACCOUNT = "Conta foi desativada. Entre em contato com o seu Gestor para mais informações.";
     private final UserRepository repo;
 
     public CustomUserDetailsService(UserRepository repo) {
@@ -17,12 +21,13 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        var entity = repo.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuário ou senha inválidos"));
+        var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
+        var entity = repo.findByUsername(normalizedUsername)
+                .orElseThrow(() -> new UsernameNotFoundException(INVALID_ACCESS));
         var domain = entity.toDomain();
 
         if (!domain.active()) {
-            throw new DisabledException("A sua conta foi desativada. Entre em contato com o seu Gestor para mais informações.");
+            throw new DisabledException(INACTIVED_ACCOUNT);
         }
         return SecurityUserMapper.toSpringUser(domain);
     }
