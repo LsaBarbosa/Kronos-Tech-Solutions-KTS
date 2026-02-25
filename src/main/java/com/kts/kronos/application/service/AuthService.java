@@ -4,13 +4,14 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.JwtUtils;
-import com.kts.kronos.application.exceptions.BadRequestException;
-import com.kts.kronos.application.exceptions.ForbiddenException;
-import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.adapter.out.security.PasswordPolicyValidator;
+import com.kts.kronos.application.exceptions.*;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,9 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.rekognition.model.RekognitionException;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
@@ -33,7 +37,8 @@ public class AuthService implements AuthUseCase {
     public static final String NO_USER_LINKED_TO_THIS_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
     public static final String INACTIVE_USER = "Usuário inativo.";
     public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
-    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial: ";
+    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro inesperado na autenticação facial.";
+    public static final String ERROR_FACIAL_AUTHENTICATION_UNAVAILABLE = "Serviço de autenticação facial indisponível. Tente novamente.";
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -46,9 +51,13 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final DocumentProvider documentProvider;
+    private final MeterRegistry meterRegistry;
+    private final PasswordPolicyValidator passwordPolicyValidator;
 
     @Override
+    @Transactional(readOnly = true)
     public String login(String username, String password) {
+        var timerSample = Timer.start(meterRegistry);
 
         var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
 
@@ -62,11 +71,15 @@ public class AuthService implements AuthUseCase {
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
 
-        return jwtUtils.generateToken(user.employeeId(), normalizedUsername, user.role().name(), user.userId(), termsAccepted);
+        var token = jwtUtils.generateToken(user.employeeId(), normalizedUsername, user.role().name(), user.userId(), termsAccepted);
+        timerSample.stop(meterRegistry.timer("auth.login.password.duration"));
+        return token;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public String loginFace(String faceImageBase64) {
+        var timerSample = Timer.start(meterRegistry);
         try {
             // 1. Decodifica a imagem Base64
             byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
@@ -94,68 +107,69 @@ public class AuthService implements AuthUseCase {
             );
 
             // 4. Gera o Token JWT (mesma lógica do login tradicional)
-            return jwtUtils.generateToken(
+            var token = jwtUtils.generateToken(
                     user.employeeId(),
                     user.username(),
                     user.role().name(),
                     user.userId(),
                     termsAccepted
             );
+            timerSample.stop(meterRegistry.timer("auth.login.face.duration", "status", "success"));
+            return token;
 
         } catch (IllegalArgumentException e) {
+            log.warn("errorCode=FACIAL_AUTH_INVALID_PAYLOAD operation=loginFace causeType={}", e.getClass().getSimpleName());
+            timerSample.stop(meterRegistry.timer("auth.login.face.duration", "status", "invalid_payload"));
             throw new BadRequestException(INVALID_IMAGE);
+        } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
+            log.warn("errorCode=FACIAL_AUTH_BUSINESS_ERROR operation=loginFace causeType={}", e.getClass().getSimpleName());
+            timerSample.stop(meterRegistry.timer("auth.login.face.duration", "status", "business_error"));
+            throw e;
+        } catch (ServiceUnavailableException e) {
+            log.error("errorCode=FACIAL_AUTH_UNAVAILABLE operation=loginFace", e);
+            timerSample.stop(meterRegistry.timer("auth.login.face.duration", "status", "unavailable"));
+            throw e;
         } catch (Exception e) {
-            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION + e.getMessage());
+            log.error("errorCode=FACIAL_AUTH_UNEXPECTED operation=loginFace", e);
+            timerSample.stop(meterRegistry.timer("auth.login.face.duration", "status", "unexpected_error"));
+            throw new InternalServerException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
+
     @Override
+    @Transactional
     public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
-        // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
-        var employee = employeeProvider.findByCpf(request.cpf())
-                .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
+        var timerSample = Timer.start(meterRegistry);
+        var credentials = userProvider.findRecoverPasswordCredentialsByCpfAndEmail(request.cpf(), request.email())
                 .orElse(null);
 
-        // Retorna sucesso (No Content) para evitar ataques de enumeração.
-        if (employee == null) {
+        if (credentials == null) {
             log.warn("Tentativa de recuperação de senha falhou: CPF ou Email inválido.");
+            timerSample.stop(meterRegistry.timer("auth.password.recovery.duration", "status", "ignored"));
             return;
         }
 
-        // 2. Encontra o User associado
-        var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
-
-        if (user == null) {
-            log.warn("Tentativa de recuperação de senha: Colaborador sem usuário. EmployeeId: {}", employee.employeeId());
-            return;
-        }
         var frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
-        // 3. Gera e salva o token no Redis
-        var resetToken = tokenProvider.generateAndSaveToken(user.userId());
+        var resetToken = tokenProvider.generateAndSaveToken(credentials.userId());
 
-        emailSenderProvider.sendResetEmail(
-                employee.email(),
-                resetToken,
-                user.username(),
-                frontendUrl
-        );
-        log.info("Processo de recuperação de senha iniciado para o usuário: {}", user.username());
+        emailSenderProvider.sendResetEmail(credentials.employeeEmail(), resetToken, credentials.username(), frontendUrl);
+        log.info("Processo de recuperação de senha iniciado para o usuário: {}", credentials.username());
+        timerSample.stop(meterRegistry.timer("auth.password.recovery.duration", "status", "queued"));
     }
 
     @Override
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        // 1. Valida e obtém o userId do Redis
         var userId = tokenProvider.validateToken(request.token())
                 .orElseThrow(() -> new ResourceNotFoundException(INVALID_PASSWORD_RESET_TOKEN));
 
-        // 2. Valida a nova senha e a confirmação
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new BadRequestException(INVALID_CONFIRM_PASSWORD);
         }
-        validatePasswordPolicy(request.newPassword());
+        passwordPolicyValidator.validate(request.newPassword());
 
-        // 3. Atualiza a senha
         var user = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND)); // Usuário deveria existir
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
         var hashed = passwordEncoder.encode(request.newPassword());
 
@@ -173,12 +187,5 @@ public class AuthService implements AuthUseCase {
         // 4. Limpa o token do Redis
         tokenProvider.deleteToken(request.token());
         log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
-    }
-
-    // Método auxiliar (copiado de UserService) para validar a política de senha
-    private void validatePasswordPolicy(String raw) {
-        if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
-            throw new BadRequestException(INVALID_PASSWORD_POLICY);
-        }
     }
 }

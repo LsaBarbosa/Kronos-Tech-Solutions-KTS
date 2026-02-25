@@ -17,31 +17,17 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 @Component
 @RequiredArgsConstructor
 public class PasswordResetTokenProviderImpl implements PasswordResetTokenProvider {
-    // 30 minutos de expiração, como no Redis
-    private static final long EXPIRATION_MINUTES = 30;
 
-    // Troca o RedisTemplate pelo JPA Repository
-    private final PasswordResetTokenRepository repository;
+    private static final long EXPIRATION_MINUTES = 30;
+     private final PasswordResetTokenRepository repository;
 
     @Override
     public String generateAndSaveToken(UUID userId) {
-        // Gera o token (UUID para manter o formato original)
-        String token = UUID.randomUUID().toString();
+        var token = UUID.randomUUID().toString();
+        var now = LocalDateTime.now(SAO_PAULO);
+        var expiryDate = now.plusMinutes(EXPIRATION_MINUTES);
 
-        // Define a expiração baseada no fuso horário SAO_PAULO
-        LocalDateTime expiryDate = LocalDateTime.now(SAO_PAULO).plusMinutes(EXPIRATION_MINUTES);
-
-        // Antes de salvar, verifica se já existe um token para o usuário e o remove (opcional)
-        repository.findByUserId(userId).ifPresent(repository::delete);
-
-        // Cria e salva a entidade no banco de dados
-        var entity = PasswordResetTokenEntity.builder()
-                .token(token)
-                .userId(userId)
-                .expiryDate(expiryDate)
-                .build();
-
-        repository.save(entity);
+        repository.upsertTokenByUserId(token, userId, expiryDate, now);
 
         log.info("Token de recuperação JPA gerado para userId: {} com expiração de {} minutos.", userId, EXPIRATION_MINUTES);
         return token;

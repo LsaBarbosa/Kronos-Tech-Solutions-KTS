@@ -49,8 +49,10 @@ public class TermsValidationFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
 
             // 3. Verifica a claim de aceite
-            if (jwtUtils.validateToken(token)) {
-                boolean accepted = jwtUtils.getTermsAcceptedFromToken(token);
+            var claimsOpt = jwtUtils.getValidClaims(token);
+            if (claimsOpt.isPresent()) {
+                var acceptedObj = claimsOpt.get().get("terms_accepted");
+                boolean accepted = acceptedObj instanceof Boolean b && b;
 
                 if (!accepted) {
                     sendRedirectInstruction(response);

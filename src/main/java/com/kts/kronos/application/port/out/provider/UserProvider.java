@@ -1,5 +1,6 @@
 package com.kts.kronos.application.port.out.provider;
 
+import com.kts.kronos.adapter.in.web.dto.security.RecoverPasswordCredentials;
 import com.kts.kronos.domain.model.User;
 
 import java.util.List;
@@ -8,12 +9,22 @@ import java.util.UUID;
 
 public interface UserProvider {
     void save(User user);
+
     Optional<User> findByUsername(String username);
+
     Optional<User> findById(UUID userId);
+
     List<User> findAll();
+
     List<User> findByActive(boolean active);
+
     Optional<User> findByEmployeeId(UUID employeeId);
+
     void deleteById(UUID userId);
+
     List<User> findByIdIn(List<UUID> ids);
+
     List<User> findByCompanyIdAndActive(UUID companyId, Boolean active);
+
+    Optional<RecoverPasswordCredentials> findRecoverPasswordCredentialsByCpfAndEmail(String cpf, String email);
 }

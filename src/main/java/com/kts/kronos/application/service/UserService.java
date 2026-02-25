@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.adapter.out.security.PasswordPolicyValidator;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
@@ -39,6 +40,7 @@ public class UserService implements UserUseCase {
     private final PasswordEncoder passwordEncoder;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final EmployeeUseCase employeeUseCase;
+    private final PasswordPolicyValidator passwordPolicyValidator;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -110,7 +112,7 @@ public class UserService implements UserUseCase {
         var password = existing.password();
 
         if (req.password() != null && !req.password().isBlank()) {
-            validatePasswordPolicy(req.password());
+            passwordPolicyValidator.validate(req.password());
             password = passwordEncoder.encode(req.password());
         }
 
@@ -154,8 +156,7 @@ public class UserService implements UserUseCase {
         if (req.newPassword() == null || !req.newPassword().equals(req.confirmPassword())) {
             throw new BadRequestException(INVALID_CONFIRM_PASSWORD);
         }
-        validatePasswordPolicy(req.newPassword());
-
+        passwordPolicyValidator.validate(req.newPassword());
         var hashed = passwordEncoder.encode(req.newPassword());
         userProvider.save(user.withPassword(hashed));
     }
@@ -169,12 +170,6 @@ public class UserService implements UserUseCase {
     @Override
     public boolean usernameExists(String username) {
         return userProvider.findByUsername(username.toLowerCase()).isPresent();
-    }
-
-    private void validatePasswordPolicy(String raw) {
-        if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
-            throw new BadRequestException(INVALID_PASSWORD_POLICY);
-        }
     }
 
     private User getExistingUser(UUID userId) {

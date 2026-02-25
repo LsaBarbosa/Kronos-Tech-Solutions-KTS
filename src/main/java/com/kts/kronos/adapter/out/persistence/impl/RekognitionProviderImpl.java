@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.exceptions.ServiceUnavailableException;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import lombok.RequiredArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.*;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -105,6 +107,9 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
         } catch (IOException e) {
             log.error("Erro ao ler o stream da imagem para busca: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao ler a imagem para reconhecimento.", e);
+        } catch (RekognitionException | SdkClientException e) {
+            log.error("errorCode=FACIAL_PROVIDER_UNAVAILABLE message={}", e.getMessage(), e);
+            throw new ServiceUnavailableException("Serviço de autenticação facial indisponível. Tente novamente.");
         } catch (Exception e) {
             log.error("Erro ao buscar face na coleção Rekognition: {}", e.getMessage(), e);
             throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);

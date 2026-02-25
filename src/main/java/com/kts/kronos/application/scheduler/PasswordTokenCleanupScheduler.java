@@ -18,7 +18,7 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 public class PasswordTokenCleanupScheduler {
     private final PasswordResetTokenRepository repository;
 
-    @Scheduled(cron = "0 0 2 * * ?", zone = "America/Sao_Paulo")
+    @Scheduled(cron = "0 */15 * * * *", zone = "America/Sao_Paulo")
     @Transactional
     public void cleanupExpiredTokens() {
         log.info("Iniciando tarefa agendada de limpeza de tokens de redefinição de senha expirados.");
@@ -28,8 +28,8 @@ public class PasswordTokenCleanupScheduler {
 
         try {
             // O repositório executa a query DELETE FROM WHERE expiryDate <= :now
-            repository.deleteExpiredTokens(now);
-            log.info("Limpeza de tokens concluída com sucesso.");
+            var removed = repository.deleteExpiredTokens(now);
+            log.info("Limpeza de tokens concluída com sucesso. totalRemovido={}", removed);
         } catch (Exception e) {
             log.error("Erro durante a limpeza de tokens agendada: {}", e.getMessage(), e);
         }

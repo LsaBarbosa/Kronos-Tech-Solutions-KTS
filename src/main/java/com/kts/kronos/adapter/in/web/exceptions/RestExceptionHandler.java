@@ -1,7 +1,5 @@
 package com.kts.kronos.adapter.in.web.exceptions;
-import com.kts.kronos.application.exceptions.BadRequestException;
-import com.kts.kronos.application.exceptions.ForbiddenException;
-import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -19,6 +17,9 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class RestExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final String GENERIC_INTERNAL_ERROR_MESSAGE = "Erro interno inesperado. Tente novamente mais tarde.";
+    private static final String GENERIC_SERVICE_UNAVAILABLE_MESSAGE = "Serviço temporariamente indisponível. Tente novamente.";
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<Object> handleBadRequestException(BadRequestException ex, WebRequest request) {
@@ -69,4 +70,12 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         var customException = new BadCredentialsException("Usuário ou senha inválidos");
         return buildResponseEntity(customException, HttpStatus.UNAUTHORIZED, request, null);
     }
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Object> handleServiceUnavailableException(ServiceUnavailableException ex, WebRequest request) {
+        return buildResponseEntity(new RuntimeException(GENERIC_SERVICE_UNAVAILABLE_MESSAGE), HttpStatus.SERVICE_UNAVAILABLE, request, null);    }
+
+    @ExceptionHandler(InternalServerException.class)
+    public ResponseEntity<Object> handleInternalServerException(InternalServerException ex, WebRequest request) {
+        return buildResponseEntity(new RuntimeException(GENERIC_INTERNAL_ERROR_MESSAGE), HttpStatus.INTERNAL_SERVER_ERROR, request, null);    }
 }

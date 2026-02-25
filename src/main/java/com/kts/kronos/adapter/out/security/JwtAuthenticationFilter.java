@@ -33,14 +33,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = authHeader.substring(7);
+        var token = authHeader.substring(7);
 
-         if (!jwtUtils.validateToken(token)) {
-            chain.doFilter(request, response);
+        var claimsOpt = jwtUtils.getValidClaims(token);
+        if (claimsOpt.isEmpty()) {
             return;
         }
 
-        String username = jwtUtils.getUsernameFromToken(token);
+        String username = claimsOpt.get().getSubject();
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails user = userDetailsService.loadUserByUsername(username);

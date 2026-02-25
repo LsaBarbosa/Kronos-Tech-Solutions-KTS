@@ -20,5 +20,18 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
     @Modifying
     @Transactional
     @Query("DELETE FROM PasswordResetTokenEntity t WHERE t.expiryDate <= :now")
-    void deleteExpiredTokens(LocalDateTime now);
+    int deleteExpiredTokens(LocalDateTime now);
+
+    @Modifying
+    @Transactional
+    @Query(value = """
+        INSERT INTO tb_password_reset_token (token, user_id, expiry_date, created_at)
+        VALUES (:token, :userId, :expiryDate, :createdAt)
+        ON CONFLICT (user_id)
+        DO UPDATE SET token = EXCLUDED.token,
+                      expiry_date = EXCLUDED.expiry_date,
+                      created_at = EXCLUDED.created_at
+    """, nativeQuery = true)
+    void upsertTokenByUserId(String token, UUID userId, LocalDateTime expiryDate, LocalDateTime createdAt);
+
 }

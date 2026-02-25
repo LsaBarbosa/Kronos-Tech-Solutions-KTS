@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -80,9 +81,18 @@ public class JwtUtils {
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            parseClaims(token);
             return true;
         } catch (JwtException e) {
             return false;
+        }
+    }
+
+    public Optional<Claims> getValidClaims(String token) {
+        try {
+            return Optional.of(parseClaims(token));
+        } catch (JwtException e) {
+            return Optional.empty();
         }
     }
 

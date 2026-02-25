@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.adapter.in.web.dto.security.RecoverPasswordCredentials;
 import com.kts.kronos.adapter.out.persistence.UserRepository;
 import com.kts.kronos.adapter.out.persistence.entity.UserEntity;
 import com.kts.kronos.application.port.out.provider.UserProvider;
@@ -90,4 +91,15 @@ public class UserProviderImpl implements UserProvider {
                 .map(UserEntity::toDomain)
                 .toList();
     }
+
+    @Override
+    public Optional<RecoverPasswordCredentials> findRecoverPasswordCredentialsByCpfAndEmail(String cpf, String email) {
+        return jpa.findRecoverPasswordByCpfAndEmail(cpf, email)
+                .map(p -> new RecoverPasswordCredentials(
+                        p.userId(),
+                        p.username(),
+                        p.email()
+                ));
+    }
 }
+
