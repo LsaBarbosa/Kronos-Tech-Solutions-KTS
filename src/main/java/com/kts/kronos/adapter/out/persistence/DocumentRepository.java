@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -85,4 +86,6 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type " +
             "AND d.uploadedAt BETWEEN :start AND :end AND d.deletedByEmployee = false")
     List<DocumentEntity> findActiveForEmployeeByDateRange(UUID employeeId, LocalDateTime start, LocalDateTime end, DocumentType type);
+
+    Optional<DocumentEntity> findTopByEmployeeIdAndTypeOrderByUploadedAtDesc(UUID employeeId, DocumentType type);
 }

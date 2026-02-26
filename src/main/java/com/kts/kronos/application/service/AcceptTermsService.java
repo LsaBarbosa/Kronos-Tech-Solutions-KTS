@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -30,24 +31,34 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final AuditLogProvider auditLogProvider;
     @Override
     @Transactional
-    public void acceptBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
+    public void acceptBiometricTerms(UUID employeeId, String ipAddress, String userAgent) throws IOException {
 
         log.debug(LOG_CHECK_EXISTING, employeeId);
 
-        boolean exists = documentProvider.existsByEmployeeIdAndType(
+        var existingConsent = documentProvider.findLatestByEmployeeIdAndType(
                 employeeId,
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
 
-        if (exists) {
+        if (existingConsent != null) {
             log.warn(LOG_ALREADY_ACCEPTED, employeeId);
             return;
         }
 
         log.info(LOG_INIT_ACCEPTANCE, employeeId);
 
-        var employee = employeeProvider.findById(employeeId)
+        var employee = employeeProvider.findByIdForUpdate(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        existingConsent = documentProvider.findLatestByEmployeeIdAndType(
+                employeeId,
+                DocumentType.BIOMETRIC_CONSENT_TERM
+        );
+
+        if (existingConsent != null) {
+            log.warn(LOG_ALREADY_ACCEPTED, employeeId);
+            return;
+        }
 
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));

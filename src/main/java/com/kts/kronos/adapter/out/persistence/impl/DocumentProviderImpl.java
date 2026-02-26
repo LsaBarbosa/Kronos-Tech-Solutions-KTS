@@ -123,5 +123,11 @@ public class DocumentProviderImpl implements DocumentProvider {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Document findLatestByEmployeeIdAndType(UUID employeeId, DocumentType type) {
+        return documentRepository.findTopByEmployeeIdAndTypeOrderByUploadedAtDesc(employeeId, type)
+                .map(DocumentEntity::toDomain)
+                .orElse(null);
+    }
 
 }

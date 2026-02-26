@@ -101,4 +101,10 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         return counts;
     }
 
+    @Override
+    public Optional<Employee> findByIdForUpdate(UUID id) {
+        return repository.findByIdForUpdate(id).map(EmployeeEntity::toDomain);
+    }
+
+
 }

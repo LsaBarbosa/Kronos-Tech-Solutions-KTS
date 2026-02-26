@@ -1,7 +1,9 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,4 +27,7 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
             GROUP BY e.companyId
             """)
     List<Object[]> countByCompanyIdsAndActive(@Param("companyIds") List<UUID> companyIds, @Param("active") boolean active);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM EmployeeEntity e WHERE e.employeeId = :id")
+    Optional<EmployeeEntity> findByIdForUpdate(@Param("id") UUID id);
 }
