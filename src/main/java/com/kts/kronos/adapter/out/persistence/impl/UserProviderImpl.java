@@ -61,6 +61,18 @@ public class UserProviderImpl implements UserProvider {
     }
 
     @Override
+    public List<User> findByEmployeeIdIn(List<UUID> employeeIds) {
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdIn(employeeIds)
+                .stream()
+                .map(UserEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public void deleteById(UUID userId) {
         jpa.deleteById(userId);
     }

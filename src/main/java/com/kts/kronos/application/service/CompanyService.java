@@ -18,8 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Logs.*;
 import static com.kts.kronos.constants.Messages.*;
@@ -30,7 +30,6 @@ import static com.kts.kronos.constants.Messages.*;
 @Transactional
 public class CompanyService implements CompanyUseCase {
 
-    public static final String GEOLOCATION_IS_REQUIRED = "Location (latitude e longitude) é obrigatório se o endereço for alterado.";
     private final CompanyProvider companyProvider;
     private final AddressLookupProvider viaCep;
     private final EmployeeProvider employeeProvider;
@@ -41,7 +40,7 @@ public class CompanyService implements CompanyUseCase {
     public void createCompany(CreateCompanyRequest request) {
         log.info(LOG_COMPANY_CREATE_INIT, request.name(), request.cnpj());
 
-        if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
+        if (companyProvider.existsByCnpj(request.cnpj())) {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
@@ -54,10 +53,6 @@ public class CompanyService implements CompanyUseCase {
 
         companyProvider.save(company);
         log.info(LOG_COMPANY_CREATE_SUCCESS, company.companyId());
-
-        if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
-            throw new BadRequestException(COMPANY_ALREADY_EXIST);
-        }
     }
 
     @Override
@@ -79,13 +74,23 @@ public class CompanyService implements CompanyUseCase {
                 ? companyProvider.findAll()
                 : companyProvider.findByActive(active);
 
+        if (companies.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> companyIds = companies.stream()
+                .map(Company::companyId)
+                .toList();
+
+        Map<UUID, Long> activeCounts = employeeProvider.countByCompanyIdsAndActive(companyIds, true);
+        Map<UUID, Long> inactiveCounts = employeeProvider.countByCompanyIdsAndActive(companyIds, false);
+
         return companies.stream()
-                .map(company -> {
-                    long activeCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
-                    long inactiveCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
-                    return company.withEmployeeCounts(activeCount, inactiveCount);
-                })
-                .collect(Collectors.toList());
+                .map(company -> company.withEmployeeCounts(
+                        activeCounts.getOrDefault(company.companyId(), 0L),
+                        inactiveCounts.getOrDefault(company.companyId(), 0L)
+                ))
+                .toList();
     }
 
     @Override
@@ -135,20 +140,22 @@ public class CompanyService implements CompanyUseCase {
         log.info(LOG_COMPANY_TOGGLE, cnpj, newStatus);
         companyProvider.save(company.withActive(newStatus));
 
-        List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
-        for (var employee : employees) {
-            userProvider.findByEmployeeId(employee.employeeId()).ifPresent(user -> {
-                if (user.active() != newStatus) {
-                    userUseCase.toggleActivate(user.userId());
-                }
-            });
-        }
+        List<UUID> employeeIds = employeeProvider.findByCompanyId(company.companyId())
+                .stream()
+                .map(Employee::employeeId)
+                .toList();
+
+        userProvider.findByEmployeeIdIn(employeeIds).forEach(user -> {
+            if (user.active() != newStatus) {
+                userUseCase.toggleActivate(user.userId());
+            }
+        });
     }
 
     @Override
     public void deleteByCnpj(String cnpj) {
         log.warn(LOG_COMPANY_DELETE, cnpj);
-        if (!companyProvider.findByCnpj(cnpj).isPresent()) {
+        if (!companyProvider.existsByCnpj(cnpj)) {
             throw new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj);
         }
         companyProvider.deleteByCnpj(cnpj);
@@ -157,7 +164,7 @@ public class CompanyService implements CompanyUseCase {
     @Transactional(readOnly = true)
     @Override
     public boolean cnpjExists(String cnpj) {
-        return companyProvider.findByCnpj(cnpj).isPresent();
+        return companyProvider.existsByCnpj(cnpj);
     }
 
     private void validateLocationPresence(UpdateCompanyRequest request) {

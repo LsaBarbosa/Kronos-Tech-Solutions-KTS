@@ -20,6 +20,8 @@ public interface UserProvider {
 
     Optional<User> findByEmployeeId(UUID employeeId);
 
+    List<User> findByEmployeeIdIn(List<UUID> employeeIds);
+
     void deleteById(UUID userId);
 
     List<User> findByIdIn(List<UUID> ids);
