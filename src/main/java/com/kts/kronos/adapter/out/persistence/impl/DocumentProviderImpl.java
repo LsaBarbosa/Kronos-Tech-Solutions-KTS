@@ -70,13 +70,7 @@ public class DocumentProviderImpl implements DocumentProvider {
 
     @Override
     public void delete(UUID employeeId, UUID documentId) {
-        var employee = employeeRepository.findById(employeeId).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var doc = findById(documentId);
-
-        if (!doc.employeeId().equals(employee.getEmployeeId())) {
-            throw new BadRequestException(DOCUMENT_NOT_BELONGS_EMPLOYEE);
-        }
-
+        var doc = findByIdAndEmployeeId(documentId, employeeId);
         documentRepository.deleteById(doc.documentId());
     }
 
@@ -130,4 +124,10 @@ public class DocumentProviderImpl implements DocumentProvider {
                 .orElse(null);
     }
 
+    @Override
+    public Document findByIdAndEmployeeId(UUID documentId, UUID employeeId) {
+        return documentRepository.findByIdAndEmployeeId(documentId, employeeId)
+                .map(DocumentEntity::toDomain)
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+    }
 }
