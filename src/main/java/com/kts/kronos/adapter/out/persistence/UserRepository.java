@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     List<UserEntity> findByUserIdIn(List<UUID> userIds);
 
+    List<UserEntity> findByEmployeeIdIn(List<UUID> employeeIds);
+
     @Query("""
                 SELECT u FROM UserEntity u 
                 WHERE u.employeeId IN (

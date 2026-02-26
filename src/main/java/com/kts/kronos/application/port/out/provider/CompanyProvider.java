@@ -13,4 +13,5 @@ public interface CompanyProvider {
     Optional<Company> findById(UUID company);
     List<Company> findByActive(boolean active);
     void deleteByCnpj(String cnpj);
+    boolean existsByCnpj(String cnpj);
 }

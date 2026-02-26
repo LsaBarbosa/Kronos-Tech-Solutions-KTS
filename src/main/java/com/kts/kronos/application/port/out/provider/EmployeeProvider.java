@@ -3,6 +3,7 @@ package com.kts.kronos.application.port.out.provider;
 import com.kts.kronos.domain.model.Employee;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +18,6 @@ public interface EmployeeProvider {
     boolean cpfExists(String cpf);
     long countByCompanyIdAndActive(UUID companyId, boolean active);
     List<Employee> findByIdIn(List<UUID> ids);
-    
+    Map<UUID, Long> countByCompanyIdsAndActive(List<UUID> companyIds, boolean active);
 }
 

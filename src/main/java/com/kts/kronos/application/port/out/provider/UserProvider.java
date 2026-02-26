@@ -27,4 +27,6 @@ public interface UserProvider {
     List<User> findByCompanyIdAndActive(UUID companyId, Boolean active);
 
     Optional<RecoverPasswordCredentials> findRecoverPasswordCredentialsByCpfAndEmail(String cpf, String email);
+
+    List<User> findByEmployeeIdIn(List<UUID> employeeIds);
 }

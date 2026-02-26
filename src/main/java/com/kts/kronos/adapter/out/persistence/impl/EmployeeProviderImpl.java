@@ -7,19 +7,18 @@ import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RequiredArgsConstructor
 @Component
 public class EmployeeProviderImpl implements EmployeeProvider {
     private final EmployeeRepository repository;
+
     @Override
     public Employee save(Employee employee) {
         var entity = EmployeeEntity.fromDomain(employee);
-         var saved =repository.save(entity);
-       return   saved.toDomain();
+        var saved = repository.save(entity);
+        return saved.toDomain();
     }
 
     @Override
@@ -37,6 +36,8 @@ public class EmployeeProviderImpl implements EmployeeProvider {
     public boolean cpfExists(String cpf) {
         return repository.existsByCpf(cpf);
     }
+
+
     @Override
     public List<Employee> findAll() {
         return repository.findAll()
@@ -58,6 +59,7 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .map(EmployeeEntity::toDomain)
                 .toList();
     }
+
     @Override
     public List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.findByCompanyIdAndActive(companyId, active)
@@ -65,6 +67,7 @@ public class EmployeeProviderImpl implements EmployeeProvider {
                 .map(EmployeeEntity::toDomain)
                 .toList();
     }
+
     @Override
     public long countByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.countByCompanyIdAndActive(companyId, active);
@@ -81,12 +84,21 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         }
 
         return repository.findByEmployeeIdIn(ids)
-
                 .stream()
-
                 .map(EmployeeEntity::toDomain)
-
                 .toList();
 
     }
+
+    @Override
+    public Map<UUID, Long> countByCompanyIdsAndActive(List<UUID> companyIds, boolean active) {
+        if (companyIds == null || companyIds.isEmpty()) {
+            return Map.of();
+        }
+        var counts = new HashMap<UUID, Long>();
+        repository.countByCompanyIdsAndActive(companyIds, active)
+                .forEach(row -> counts.put((UUID) row[0], (Long) row[1]));
+        return counts;
+    }
+
 }
