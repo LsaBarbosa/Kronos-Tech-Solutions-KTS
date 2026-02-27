@@ -35,7 +35,7 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     List<UserEntity> findByCompanyIdAndActive(@Param("companyId") UUID companyId, @Param("active") Boolean active);
 
     @Query("""
-            SELECT new com.kts.kronos.adapter.out.persistence.projection.RecoverPasswordProjection(
+            SELECT new com.kts.kronos.adapter.in.web.dto.security.RecoverPasswordProjection(
             u.userId,
             u.username,
             e.email

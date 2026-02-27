@@ -40,7 +40,7 @@ public class DocumentEntity {
     @Column(name = "storage_path", length = 512, nullable = false)
     private String storagePath;
 
-    @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
+    @CreationTimestamp
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
 
@@ -49,9 +49,11 @@ public class DocumentEntity {
     private DocumentType type;
 
     @Column(name = "deleted_by_employee", nullable = false)
+    @Builder.Default
     private boolean deletedByEmployee = false;
 
     @Column(name = "deleted_by_manager", nullable = false)
+    @Builder.Default
     private boolean deletedByManager = false;
 
     public Document toDomain() {
