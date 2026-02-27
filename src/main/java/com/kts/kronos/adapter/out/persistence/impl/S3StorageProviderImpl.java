@@ -7,16 +7,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
-import software.amazon.awssdk.services.s3.model.ObjectLockMode;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.*;
 
 import jakarta.annotation.PostConstruct;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -26,27 +25,10 @@ public class S3StorageProviderImpl implements S3StorageProvider {
 
     @Value("${aws.s3.bucket-name-doc}")
     private String bucketName;
+    private final S3Client s3Client;
 
-    @Value("${aws.region}")
-    private String region;
-
-    @Value("${aws.access-key-id}")
-    private String accessKey;
-
-    @Value("${aws.secret-access-key}")
-    private String secretKey;
-
-    private S3Client s3Client;
-
-    @PostConstruct
-    public void init() {
-        this.s3Client = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)
-                ))
-                .build();
-        log.info("🚀 Storage Provider S3 ATIVO. Bucket: {}", bucketName);
+    public S3StorageProviderImpl(S3Client s3Client) {
+        this.s3Client = s3Client;
     }
 
     @Override
@@ -65,7 +47,7 @@ public class S3StorageProviderImpl implements S3StorageProvider {
 
             // Configuração de Object Lock (Imutabilidade)
             putObBuilder.objectLockMode(ObjectLockMode.GOVERNANCE)
-                    .objectLockRetainUntilDate(Instant.now().plus(1825, ChronoUnit.DAYS)); // 5 Anos
+                    .objectLockRetainUntilDate(Instant.now().plus(1825, ChronoUnit.DAYS));
 
             s3Client.putObject(putObBuilder.build(), RequestBody.fromBytes(content));
 
@@ -80,15 +62,18 @@ public class S3StorageProviderImpl implements S3StorageProvider {
 
     @Override
     public byte[] downloadFile(String fileKey) {
-        try {
-            GetObjectRequest getOb = GetObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(fileKey)
-                    .build();
 
-            return s3Client.getObject(getOb).readAllBytes();
+        GetObjectRequest getOb = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(fileKey)
+                .build();
+        try (ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(getOb)) {
+            return stream.readAllBytes();
+        } catch (IOException e) {
+            log.error("Erro de IO ao baixar arquivo do S3. key={}", fileKey, e);
+            throw new RuntimeException("Falha de leitura do arquivo no S3", e);
         } catch (Exception e) {
-            log.error("Erro ao baixar arquivo do S3", e);
+            log.error("Erro ao baixar arquivo do S3. key={}", fileKey, e);
             throw new RuntimeException("Arquivo não encontrado ou erro S3", e);
         }
     }

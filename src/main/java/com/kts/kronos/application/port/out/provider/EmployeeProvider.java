@@ -21,5 +21,6 @@ public interface EmployeeProvider {
     Map<UUID, Long> countByCompanyIdsAndActive(List<UUID> companyIds, boolean active);
     Optional<Employee> findByIdForUpdate(UUID id);
     Optional<UUID> findCompanyIdByEmployeeId(UUID employeeId);
+    int updateActiveByCompanyId(UUID companyId, boolean active);
 }
 

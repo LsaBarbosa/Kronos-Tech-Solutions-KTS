@@ -111,6 +111,9 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         return repository.findCompanyIdByEmployeeId(employeeId);
     }
 
-
+    @Override
+    public int updateActiveByCompanyId(UUID companyId, boolean active) {
+        return repository.updateActiveByCompanyId(companyId, active);
+    }
 
 }

@@ -35,7 +35,6 @@ public class CompanyService implements CompanyUseCase {
     private final AddressLookupProvider viaCep;
     private final EmployeeProvider employeeProvider;
     private final UserProvider userProvider;
-    private final UserUseCase userUseCase;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -45,12 +44,9 @@ public class CompanyService implements CompanyUseCase {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
-        var address = viaCep.lookup(request.address().postalCode())
-                .withNumber(request.address().number());
+        var address = viaCep.lookup(request.address().postalCode()).withNumber(request.address().number());
 
-        var company = new Company(
-                request.name(), request.cnpj(), request.email(), address, request.location()
-        );
+        var company = new Company(request.name(), request.cnpj(), request.email(), address, request.location());
 
         companyProvider.save(company);
         log.info(LOG_COMPANY_CREATE_SUCCESS, company.companyId());
@@ -60,8 +56,7 @@ public class CompanyService implements CompanyUseCase {
     @Transactional(readOnly = true)
     public Company getCompany(String cnpj) {
         log.debug(LOG_COMPANY_GET, cnpj);
-        var company = companyProvider.findByCnpj(cnpj)
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+        var company = companyProvider.findByCnpj(cnpj).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
 
         long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
         long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
@@ -72,43 +67,32 @@ public class CompanyService implements CompanyUseCase {
     @Transactional(readOnly = true)
     public List<Company> listCompanies(Boolean active) {
         log.debug(LOG_COMPANY_LIST, active);
-        List<Company> companies = active == null
-                ? companyProvider.findAll()
-                : companyProvider.findByActive(active);
+        List<Company> companies = active == null ? companyProvider.findAll() : companyProvider.findByActive(active);
 
         if (companies.isEmpty()) {
             return List.of();
         }
 
-        List<UUID> companyIds = companies.stream()
-                .map(Company::companyId)
-                .toList();
+        List<UUID> companyIds = companies.stream().map(Company::companyId).toList();
 
         Map<UUID, Long> activeCounts = employeeProvider.countByCompanyIdsAndActive(companyIds, true);
         Map<UUID, Long> inactiveCounts = employeeProvider.countByCompanyIdsAndActive(companyIds, false);
 
 
-        return companies.stream()
-                .map(company -> company.withEmployeeCounts(
-                        activeCounts.getOrDefault(company.companyId(), 0L),
-                        inactiveCounts.getOrDefault(company.companyId(), 0L)
-                ))
-                .toList();
+        return companies.stream().map(company -> company.withEmployeeCounts(activeCounts.getOrDefault(company.companyId(), 0L), inactiveCounts.getOrDefault(company.companyId(), 0L))).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public String getCompanyNameById(UUID companyId) {
-        var company = companyProvider.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        var company = companyProvider.findById(companyId).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         return company.name();
     }
 
     @Override
     public void updateCompany(String cnpj, UpdateCompanyRequest request) {
         log.info(LOG_COMPANY_UPDATE, cnpj);
-        var company = companyProvider.findByCnpj(cnpj)
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        var company = companyProvider.findByCnpj(cnpj).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         var updateAddress = company.address();
         var updateLocation = company.location();
@@ -120,17 +104,7 @@ public class CompanyService implements CompanyUseCase {
             updateLocation = request.location();
         }
 
-        var updatedCompany = new Company(
-                company.companyId(),
-                request.name() != null ? request.name() : company.name(),
-                company.cnpj(),
-                request.email() != null ? request.email() : company.email(),
-                request.active() != null ? request.active() : company.active(),
-                updateAddress,
-                updateLocation,
-                company.activeEmployees(),
-                company.inactiveEmployees()
-        );
+        var updatedCompany = new Company(company.companyId(), request.name() != null ? request.name() : company.name(), company.cnpj(), request.email() != null ? request.email() : company.email(), request.active() != null ? request.active() : company.active(), updateAddress, updateLocation, company.activeEmployees(), company.inactiveEmployees());
 
         companyProvider.save(updatedCompany);
     }
@@ -143,14 +117,14 @@ public class CompanyService implements CompanyUseCase {
         log.info(LOG_COMPANY_TOGGLE, cnpj, newStatus);
         companyProvider.save(company.withActive(newStatus));
 
-        List<UUID> employeeIds = employeeProvider.findByCompanyId(company.companyId())
-                .stream()
-                .map(Employee::employeeId)
-                .toList();
+        var affectedEmployees = employeeProvider.updateActiveByCompanyId(company.companyId(), newStatus);
+        log.info("Colaboradores atualizados em lote para empresa {}: {}", company.companyId(), affectedEmployees);
+
+        List<UUID> employeeIds = employeeProvider.findByCompanyId(company.companyId()).stream().map(Employee::employeeId).toList();
 
         userProvider.findByEmployeeIdIn(employeeIds).forEach(user -> {
             if (user.active() != newStatus) {
-                userUseCase.toggleActivate(user.userId());
+                userProvider.save(user.withActive(newStatus));
             }
         });
     }
