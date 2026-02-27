@@ -52,7 +52,7 @@ public class EmployeeService implements EmployeeUseCase {
 
         if (existingEmployeeOpt.isPresent()) {
             var existing = existingEmployeeOpt.get();
-            if (userProvider.findByEmployeeId(existing.employeeId()).isPresent()) {
+            if (userProvider.existsByEmployeeId(existing.employeeId())) {
                 throw new BadRequestException(CPF_ALREADY_EXIST);
             }
             log.info(LOG_UPDATE_ORPHAN, req.cpf());
@@ -223,9 +223,8 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     private UUID getCompanyIdFromLoggedUser() {
-        return employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND))
-                .companyId();
+        return employeeProvider.findCompanyIdByEmployeeId(jwtAuthenticatedUser.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
     }
 
     private void processFaceImageIfPresent(Employee emp, String base64) {
@@ -253,6 +252,12 @@ public class EmployeeService implements EmployeeUseCase {
 
             log.info(LOG_FACE_SUCCESS, newKey);
             return newKey;
+        } catch (IllegalArgumentException e) {
+            log.error(LOG_FACE_ERROR, employeeId, e.getMessage());
+            throw new BadRequestException("Imagem facial em Base64 inválida.");
+        } catch (RuntimeException e) {
+            log.error(LOG_FACE_ERROR, employeeId, e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error(LOG_FACE_ERROR, employeeId, e.getMessage());
             throw new RuntimeException("Falha no processamento biométrico.", e);

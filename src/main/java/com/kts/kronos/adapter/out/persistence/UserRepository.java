@@ -15,6 +15,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     Optional<UserEntity> findByEmployeeId(UUID employeeId);
 
+    boolean existsByEmployeeId(UUID employeeId);
+
     List<UserEntity> findByActiveTrue();
 
     List<UserEntity> findByActiveFalse();
@@ -24,7 +26,7 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     List<UserEntity> findByEmployeeIdIn(List<UUID> employeeIds);
 
     @Query("""
-                SELECT u FROM UserEntity u 
+                SELECT u FROM UserEntity u
                 WHERE u.employeeId IN (
                     SELECT e.employeeId FROM EmployeeEntity e WHERE e.companyId = :companyId
                 )

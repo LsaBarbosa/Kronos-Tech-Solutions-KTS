@@ -30,4 +30,6 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM EmployeeEntity e WHERE e.employeeId = :id")
     Optional<EmployeeEntity> findByIdForUpdate(@Param("id") UUID id);
+    @Query("SELECT e.companyId FROM EmployeeEntity e WHERE e.employeeId = :employeeId")
+    Optional<UUID> findCompanyIdByEmployeeId(@Param("employeeId") UUID employeeId);
 }

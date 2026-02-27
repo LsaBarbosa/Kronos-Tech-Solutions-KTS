@@ -20,8 +20,8 @@ public class UserProviderImpl implements UserProvider {
     @Override
     public void save(User user) {
         var entity = UserEntity.fromDomain(user);
-        var saved  = jpa.save(entity);
-         saved.toDomain();
+        var saved = jpa.save(entity);
+        saved.toDomain();
     }
 
     @Override
@@ -103,6 +103,11 @@ public class UserProviderImpl implements UserProvider {
     }
 
     @Override
+    public boolean existsByEmployeeId(UUID employeeId) {
+        return jpa.existsByEmployeeId(employeeId);
+    }
+
+    @Override
     public List<User> findByEmployeeIdIn(List<UUID> employeeIds) {
         if (employeeIds == null || employeeIds.isEmpty()) {
             return List.of();
@@ -113,6 +118,5 @@ public class UserProviderImpl implements UserProvider {
                 .map(UserEntity::toDomain)
                 .toList();
     }
-
 }
 

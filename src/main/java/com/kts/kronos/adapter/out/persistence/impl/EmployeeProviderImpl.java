@@ -106,5 +106,11 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         return repository.findByIdForUpdate(id).map(EmployeeEntity::toDomain);
     }
 
+    @Override
+    public Optional<UUID> findCompanyIdByEmployeeId(UUID employeeId) {
+        return repository.findCompanyIdByEmployeeId(employeeId);
+    }
+
+
 
 }
