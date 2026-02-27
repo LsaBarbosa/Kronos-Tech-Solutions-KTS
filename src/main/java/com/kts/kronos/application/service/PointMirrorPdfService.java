@@ -31,7 +31,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.DATE_FMT_BR;
 import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
@@ -45,6 +47,11 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider recordRepository;
 
+    private static final DateTimeFormatter DAY_LABEL_FORMATTER = DateTimeFormatter.ofPattern("dd/MM (EEE)");
+    private static final LocalTime DEFAULT_WORK_START = LocalTime.of(8, 0);
+    private static final LocalTime DEFAULT_WORK_END = LocalTime.of(17, 0);
+    private static final String TIME_OFF_LABEL = "TIME_OFF_REQUEST";
+    private static final String VACATION_LABEL = "FÉRIAS";
 
 
     @Override
@@ -84,25 +91,18 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
 
             var totalBalance = Duration.ZERO;
             var totalWorked = Duration.ZERO;
+            var recordsByDate = getRecordsByDate(employee.employeeId(), startDate, endDate);
 
             for (var date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-
-                // Busca registros do dia
-                var finalDate = date;
-                List<TimeRecord> dailyRecords = recordRepository.findByEmployeeId(employee.employeeId()).stream()
-                        .filter(r -> r.startWork() != null && r.startWork().toLocalDate().equals(finalDate))
-                        .sorted(Comparator.comparing(TimeRecord::startWork))
-                        .toList();
-
-                // --- CÁLCULO REAL ---
+                var dailyRecords = recordsByDate.getOrDefault(date, List.of());
                 var dayData = processDay(date, dailyRecords, employee);
 
                 totalWorked = totalWorked.plus(dayData.worked);
                 totalBalance = totalBalance.plus(dayData.balance);
 
                 // Montagem da Linha
-                addCell(table, date.format(DateTimeFormatter.ofPattern("dd/MM (EEE)")));
-                addCell(table, dayData.jornadaDisplay); // Exibe horário contratual ou "Folga"
+                addCell(table, date.format(DAY_LABEL_FORMATTER));
+                addCell(table, dayData.jornadaDisplay);
                 addCell(table, dayData.originalMarks);
                 addCell(table, dayData.treatedMarks);
                 addCell(table, formatDuration(dayData.worked));
@@ -212,8 +212,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         String jornadaDisplay;
         if (expectedMinutes > 0) {
             // Exibe horário contratual (Ex: 08:00 - 17:00)
-            var start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
-            var end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
+            var start = employee.workStartTime() != null ? employee.workStartTime() : DEFAULT_WORK_START;
+            var end = employee.workEndTime() != null ? employee.workEndTime() : DEFAULT_WORK_END;
             jornadaDisplay = start.format(TIME_FORMATTER) + " - " + end.format(TIME_FORMATTER);
         } else {
             jornadaDisplay = "FOLGA / DSR";
@@ -236,10 +236,10 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION);
 
         if (isAbono) {
-            treatedSb = new StringBuilder("TIME_OFF_REQUEST");
+            treatedSb = new StringBuilder(TIME_OFF_LABEL);
             balance = Duration.ZERO; // Abono zera o débito
         } else if (isFerias) {
-            treatedSb = new StringBuilder("FÉRIAS");
+            treatedSb = new StringBuilder(VACATION_LABEL);
             balance = Duration.ZERO;
         }
 
@@ -255,5 +255,21 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private String formatBalance(Duration d) {
         var sign = d.isNegative() ? "-" : "+";
         return sign + formatDuration(d.abs());
+    }
+
+    private Map<LocalDate, List<TimeRecord>> getRecordsByDate(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        return recordRepository.findActiveByEmployeeIdAndStartWorkBetween(
+                        employeeId,
+                        startDate.atStartOfDay(),
+                        endDate.plusDays(1).atStartOfDay())
+                .stream()
+                .filter(record -> record.startWork() != null)
+                .collect(Collectors.groupingBy(
+                        record -> record.startWork().toLocalDate(),
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                records -> records.stream()
+                                        .sorted(Comparator.comparing(TimeRecord::startWork))
+                                        .toList())));
     }
 }

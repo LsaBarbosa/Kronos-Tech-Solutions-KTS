@@ -82,4 +82,11 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             LocalDateTime startWorkEnd,
             Set<StatusRecord> statuses
     );
+
+    List<TimeRecordEntity> findByEmployeeIdAndActiveAndStartWorkBetweenOrderByStartWorkAsc(
+            UUID employeeId,
+            boolean active,
+            LocalDateTime startWorkStart,
+            LocalDateTime startWorkEnd
+    );
 }

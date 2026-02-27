@@ -27,7 +27,9 @@ public interface TimeRecordProvider {
 
 
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
+
     void deleteByEmployeeId(UUID employeeId);
+
     List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end);
 
     Long findMaxNsrByCompanyId(UUID companyId);
@@ -37,16 +39,23 @@ public interface TimeRecordProvider {
             java.util.Set<java.time.LocalDate> dates,
             java.util.Set<com.kts.kronos.domain.model.enuns.StatusRecord> statuses
     );
+
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
+
     List<TimeRecord> findByIdIn(Set<Long> ids);
+
     List<TimeRecord> saveAll(List<TimeRecord> timeRecords);
+
     List<TimeRecord> findByEmployeeIdInAndStatusesIn(
             Set<UUID> employeeIds,
             Set<StatusRecord> statuses);
+
     Optional<TimeRecord> findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(
             UUID employeeId,
             LocalDateTime start,
             LocalDateTime end,
             Set<StatusRecord> statuses
     );
+
+    List<TimeRecord> findActiveByEmployeeIdAndStartWorkBetween(UUID employeeId, LocalDateTime start, LocalDateTime end);
 }

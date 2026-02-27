@@ -178,5 +178,13 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
         return jpa.findFirstByEmployeeIdAndStartWorkBetweenAndStatusRecordIn(employeeId, start, end, statuses)
                 .map(TimeRecordEntity::toDomain);
     }
+
+    @Override
+    public List<TimeRecord> findActiveByEmployeeIdAndStartWorkBetween(UUID employeeId, LocalDateTime start, LocalDateTime end) {
+        return jpa.findByEmployeeIdAndActiveAndStartWorkBetweenOrderByStartWorkAsc(employeeId, true, start, end)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 }
 

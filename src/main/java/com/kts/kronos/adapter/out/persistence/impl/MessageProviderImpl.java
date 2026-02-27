@@ -19,8 +19,19 @@ public class MessageProviderImpl implements MessageProvider {
 
     @Override
     public void save(Message message) {
-        var entity = MessageEntity.fromDomain(message);
-        repository.save(entity);
+        repository.save(MessageEntity.fromDomain(message));
+    }
+
+    @Override
+    public void saveAll(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+
+        var entities = messages.stream()
+                .map(MessageEntity::fromDomain)
+                .toList();
+        repository.saveAll(entities);
     }
 
     @Override
@@ -28,20 +39,13 @@ public class MessageProviderImpl implements MessageProvider {
         return repository.findById(messageId).map(MessageEntity::toDomain);
     }
 
-//    @Override
-//    public List<Message> findByCompanyId(UUID companyId) {
-//        return repository.findByCompanyIdOrderByCreatedAtDesc(companyId)
-//                .stream()
-//                .map(MessageEntity::toDomain)
-//                .collect(Collectors.toList());
-//    }
 
     @Override
     public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId) {
         return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)
                 .stream()
                 .map(MessageEntity::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override

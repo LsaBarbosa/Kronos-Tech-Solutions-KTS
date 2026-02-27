@@ -12,10 +12,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HexFormat;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -24,21 +28,29 @@ public class ReceiptPdfService {
     // Substitua pelo número real de registro do software no INPI quando houver
     private static final String INPI_REGISTRATION_NUMBER = "999999999";
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+    private static final HexFormat HEX_FORMAT = HexFormat.of();
 
     /**
      * Gera o Comprovante de Registro de Ponto do Trabalhador (Portaria 671).
      * * @param company Dados da empresa
-     * @param employee Dados do funcionário
+     *
+     * @param employee   Dados do funcionário
      * @param recordDate Data/Hora da marcação
-     * @param nsr Número Sequencial de Registro
+     * @param nsr        Número Sequencial de Registro
      * @return byte[] contendo o arquivo PDF gerado
      */
     public byte[] generateReceipt(Company company, Employee employee, LocalDateTime recordDate, Long nsr) {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+        Objects.requireNonNull(company, "company não pode ser nulo");
+        Objects.requireNonNull(employee, "employee não pode ser nulo");
+        Objects.requireNonNull(recordDate, "recordDate não pode ser nulo");
+        Objects.requireNonNull(nsr, "nsr não pode ser nulo");
 
-            var writer = new PdfWriter(baos);
-            var pdf = new PdfDocument(writer);
-            var document = new Document(pdf);
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             PdfWriter writer = new PdfWriter(baos);
+             PdfDocument pdf = new PdfDocument(writer);
+             Document document = new Document(pdf)) {
+
+            var formattedDate = recordDate.format(DATETIME_FMT);
 
             // 1. Cabeçalho Obrigatório (Art. 79, I)
             addTitle(document, "Comprovante de Registro de Ponto do Trabalhador");
@@ -57,7 +69,7 @@ public class ReceiptPdfService {
 
             // 4. Dados da Marcação (Art. 79, IV)
             addSection(document, "MARCAÇÃO DE PONTO");
-            addInfo(document, "Data e Hora: ", recordDate.format(DATETIME_FMT));
+            addInfo(document, "Data e Hora: ", formattedDate);
             addInfo(document, "NSR (Número Sequencial): ", String.valueOf(nsr));
 
             // 5. Identificação do REP-P (Art. 79, V)
@@ -66,12 +78,13 @@ public class ReceiptPdfService {
 
             // 6. Código Hash (SHA-256) (Art. 79, VI)
             // O hash garante que esses dados não foram alterados.
-            var rawData = String.format("%s%s%s%s%s",
-                    nsr,
-                    company.cnpj(),
-                    employee.cpf(),
-                    recordDate.format(DATETIME_FMT),
-                    INPI_REGISTRATION_NUMBER);
+            var rawData = new StringBuilder(128)
+                    .append(nsr)
+                    .append(company.cnpj())
+                    .append(employee.cpf())
+                    .append(formattedDate)
+                    .append(INPI_REGISTRATION_NUMBER)
+                    .toString();
 
             var hash = calculateSha256(rawData);
 
@@ -84,13 +97,11 @@ public class ReceiptPdfService {
             addParagraph(document, "Documento assinado eletronicamente conforme Art. 87 da Portaria 671.");
             addParagraph(document, "Assinatura Digital do Fabricante/Desenvolvedor: [ASSINATURA_DIGITAL_AQUI]");
 
-            document.close();
-
             // TODO: Integrar com componente de assinatura digital (PKCS#7 / CMS) se possuir certificado A1.
 
             return baos.toByteArray();
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("Erro ao gerar comprovante de ponto PDF", e);
             throw new RuntimeException("Erro na geração do comprovante de ponto", e);
         }
@@ -127,14 +138,8 @@ public class ReceiptPdfService {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
-            var hexString = new StringBuilder();
-            for (byte b : hash) {
-                var hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (Exception e) {
+            return HEX_FORMAT.formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Erro ao calcular Hash SHA-256", e);
         }
     }

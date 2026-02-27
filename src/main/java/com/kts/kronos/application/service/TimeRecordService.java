@@ -130,7 +130,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 // C. Auditoria Fiscal (AFD) - Grava linha tipo 7
                 adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
 
-                generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, Messages.EXIT);
+                generateAndSaveReceipt(company,employee, updated.timeRecordId(), currentTime, nsrCheckout, Messages.EXIT);
 
                 log.info(LOG_CHECKOUT_SUCCESS, updated.timeRecordId(), nsrCheckout, currentTimeParsed);
 
@@ -248,7 +248,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
 
-        generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
+        generateAndSaveReceipt(company, employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
 
         log.info(LOG_CHECKIN_SUCCESS, savedRecord.timeRecordId(), nsrCheckin, actionType);
 
@@ -1099,22 +1099,18 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
-    private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
+    private void generateAndSaveReceipt(Company company,Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
         try {
-            // 1. Busca dados da empresa (Caching recomendado em produção)
-            var company = companyProvider.findById(employee.companyId())
-                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
-
-            // 2. Gera os bytes do PDF (Assinado e com Hash) via ReceiptPdfService
+            //  Gera os bytes do PDF (Assinado e com Hash) via ReceiptPdfService
             byte[] pdfContent = receiptPdfService.generateReceipt(company, employee, recordTime, nsr);
 
-            // 3. Define nomenclatura padrão do arquivo
+            //  Define nomenclatura padrão do arquivo
             String fileName = String.format(PROOF_PDF,
                     nsr,
                     typeSuffix,
                     recordTime.format(RECEIPT_DATE_FMT));
 
-            // 4. Salva usando o método otimizado do DocumentService
+            //  Salva usando o método otimizado do DocumentService
             documentService.uploadGeneratedDocument(
                     DocumentType.POINT_RECORD_RECEIPT,
                     employee.employeeId(),
@@ -1560,7 +1556,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         var lowerCaseName = employeeName.toLowerCase();
-        return employees.stream()
+        return employees
+                .stream()
                 .filter(emp -> emp.fullName().toLowerCase().contains(lowerCaseName))
                 .map(Employee::employeeId)
                 .collect(Collectors.toSet());
