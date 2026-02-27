@@ -1,3 +1,5 @@
+server:
+  port: ${PORT:8080}
 spring:
   datasource:
     # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
