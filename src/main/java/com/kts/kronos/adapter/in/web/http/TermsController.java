@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Swagger.*;
 
@@ -34,7 +36,7 @@ public class TermsController {
             @ApiResponse(responseCode = "404", description = ACCEPT_BIO_404),
             @ApiResponse(responseCode = "500", description = ACCEPT_BIO_500)
     })
-    public ResponseEntity<Void> acceptBiometricTerms(HttpServletRequest request) {
+    public ResponseEntity<Void> acceptBiometricTerms(HttpServletRequest request) throws IOException {
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
 
