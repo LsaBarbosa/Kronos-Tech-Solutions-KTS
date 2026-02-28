@@ -22,7 +22,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
-        var entity = repo.findByUsername(normalizedUsername)
+        var entity = repo.findByUsernameIgnoreCase(normalizedUsername)
                 .orElseThrow(() -> new UsernameNotFoundException(INVALID_ACCESS));
         var domain = entity.toDomain();
 
