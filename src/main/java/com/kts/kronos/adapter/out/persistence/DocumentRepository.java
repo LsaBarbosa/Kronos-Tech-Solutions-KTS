@@ -70,6 +70,8 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             ORDER BY d.uploadedAt DESC
             """)
     List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
+
     Optional<DocumentEntity> findTopByEmployeeIdAndTypeOrderByUploadedAtDesc(UUID employeeId, DocumentType type);
-    Optional<DocumentEntity> findByIdAndEmployeeId(UUID documentId, UUID employeeId);
+
+    Optional<DocumentEntity> findByDocumentIdAndEmployeeId(UUID documentId, UUID employeeId);
 }

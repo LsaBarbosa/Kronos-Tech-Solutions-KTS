@@ -3,7 +3,6 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
-import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.domain.model.Document;
@@ -126,7 +125,7 @@ public class DocumentProviderImpl implements DocumentProvider {
 
     @Override
     public Document findByIdAndEmployeeId(UUID documentId, UUID employeeId) {
-        return documentRepository.findByIdAndEmployeeId(documentId, employeeId)
+        return documentRepository.findByDocumentIdAndEmployeeId(documentId, employeeId)
                 .map(DocumentEntity::toDomain)
                 .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
     }
