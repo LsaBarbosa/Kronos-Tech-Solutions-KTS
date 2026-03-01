@@ -651,4 +651,126 @@ class TimeRecordServiceTest {
         assertEquals(1, response.size());
         assertEquals("+01:00", response.getFirst().balance()); // Valida o cálculo matemático mapeado
     }
+
+    @Test
+    @DisplayName("Deve aprovar ajuste de ponto com sucesso e limpar solicitação")
+    void shouldApproveTimeRecordChangeSuccessfully() {
+        Long recordId = 700L;
+        LocalDateTime oldStart = LocalDateTime.of(2025, 1, 10, 9, 0);
+        LocalDateTime oldEnd = LocalDateTime.of(2025, 1, 10, 18, 0);
+        LocalDateTime newStart = LocalDateTime.of(2025, 1, 10, 8, 30);
+        LocalDateTime newEnd = LocalDateTime.of(2025, 1, 10, 17, 30);
+
+        var pendingRecord = new TimeRecord(recordId, oldStart, oldEnd, StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, 1L, 2L, oldStart, oldEnd);
+        var approval = new TimeRecordApprovalRequest(recordId, employeeId, managerId, newStart, newEnd, LocalDateTime.now());
+
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(pendingRecord));
+        when(approvalProvider.findByTimeRecordId(recordId)).thenReturn(Optional.of(approval));
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(pendingRecord));
+
+        timeRecordService.approveTimeRecordChange(recordId);
+
+        verify(timeRecordProvider).save(argThat(r ->
+                r.timeRecordId().equals(recordId)
+                        && r.startWork().equals(newStart)
+                        && r.endWork().equals(newEnd)
+                        && r.statusRecord() == StatusRecord.UPDATED
+        ));
+        verify(approvalProvider).deleteByTimeRecordId(recordId);
+    }
+
+    @Test
+    @DisplayName("Deve falhar aprovação de ajuste quando solicitação de aprovação não existir")
+    void shouldThrowWhenApprovingWithoutApprovalRequest() {
+        Long recordId = 701L;
+        var pendingRecord = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(pendingRecord));
+        when(approvalProvider.findByTimeRecordId(recordId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.approveTimeRecordChange(recordId));
+
+        verify(timeRecordProvider, never()).save(any());
+        verify(approvalProvider, never()).deleteByTimeRecordId(recordId);
+    }
+
+    @Test
+    @DisplayName("Deve excluir ponto com sucesso removendo aprovação relacionada")
+    void shouldDeleteTimeRecordSuccessfullyAndDeleteApprovalWhenExists() {
+        Long recordId = 702L;
+        var record = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, LocalDateTime.now().minusHours(8), LocalDateTime.now());
+        var approval = new TimeRecordApprovalRequest(recordId, employeeId, managerId, LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+        when(approvalProvider.findByTimeRecordId(recordId)).thenReturn(Optional.of(approval));
+
+        timeRecordService.deleteTimeRecord(employeeId, recordId);
+
+        verify(approvalProvider).deleteByTimeRecordId(recordId);
+        verify(timeRecordProvider).deleteTimeRecord(record);
+    }
+
+    @Test
+    @DisplayName("Deve bloquear exclusão de ponto com status CLOSED")
+    void shouldThrowWhenDeletingClosedRecord() {
+        Long recordId = 703L;
+        var closedRecord = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CLOSED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(closedRecord));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.deleteTimeRecord(employeeId, recordId));
+
+        verify(timeRecordProvider, never()).deleteTimeRecord(any());
+    }
+
+    @Test
+    @DisplayName("Deve bloquear toggle de registro com status CLOSED")
+    void shouldThrowWhenToggleClosedRecord() {
+        Long recordId = 704L;
+        var closedRecord = new TimeRecord(recordId, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.CLOSED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(closedRecord));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.toggleActivate(employeeId, recordId));
+
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Não deve salvar quando updateStatus for idempotente")
+    void shouldNotSaveWhenUpdateStatusIsIdempotent() {
+        Long recordId = 705L;
+        var record = new TimeRecord(recordId, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.DAY_OFF, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest(StatusRecord.DAY_OFF);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+
+        timeRecordService.updateStatus(employeeId, recordId, request);
+
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve bloquear updateStatus quando registro estiver em PENDING_APPROVAL")
+    void shouldThrowWhenUpdateStatusForPendingApproval() {
+        Long recordId = 706L;
+        var record = new TimeRecord(recordId, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.PENDING_APPROVAL, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest(StatusRecord.DAY_OFF);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.updateStatus(employeeId, recordId, request));
+
+        verify(timeRecordProvider, never()).save(any());
+    }
+
 }
