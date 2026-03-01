@@ -12,6 +12,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.ExceptionMessages.LOCAL_FILE_DELETE_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.LOCAL_FILE_NOT_FOUND;
+import static com.kts.kronos.constants.ExceptionMessages.LOCAL_FILE_READ_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.LOCAL_FILE_SAVE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_LOCAL_DELETE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_LOCAL_DELETE_SUCCESS;
+import static com.kts.kronos.constants.Logs.LOG_LOCAL_DOWNLOAD_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_LOCAL_UPLOAD_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_LOCAL_UPLOAD_SUCCESS;
+
 @Slf4j
 @Component
 public class BucketStorageProviderImpl implements BucketStorageProvider {
@@ -31,11 +41,11 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
             // Escreve o arquivo no disco persistente
             Files.write(filePath, fileData);
 
-            log.info("Upload para disco local concluído: {}", filePath);
+            log.info(LOG_LOCAL_UPLOAD_SUCCESS, filePath);
             return uniqueObjectName; // Retorna apenas o nome do objeto (para ser salvo no DB)
         } catch (IOException e) {
-            log.error("Erro no upload do arquivo para o disco local: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao salvar o arquivo no disco.", e);
+            log.error(LOG_LOCAL_UPLOAD_ERROR, e.getMessage(), e);
+            throw new RuntimeException(LOCAL_FILE_SAVE_ERROR, e);
         }
     }
 
@@ -44,13 +54,13 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
         Path filePath = Paths.get(rootPath, objectName);
         try {
             if (!Files.exists(filePath)) {
-                throw new ResourceNotFoundException("Arquivo não encontrado no disco: " + objectName);
+                throw new ResourceNotFoundException(LOCAL_FILE_NOT_FOUND + objectName);
             }
             // Lê e retorna os bytes do arquivo
             return Files.readAllBytes(filePath);
         } catch (IOException e) {
-            log.error("Erro no download/leitura do arquivo {}: {}", objectName, e.getMessage());
-            throw new RuntimeException("Falha ao ler o arquivo do disco.", e);
+            log.error(LOG_LOCAL_DOWNLOAD_ERROR, objectName, e.getMessage());
+            throw new RuntimeException(LOCAL_FILE_READ_ERROR, e);
         }
     }
 
@@ -59,10 +69,10 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
         Path filePath = Paths.get(rootPath, objectName);
         try {
             Files.deleteIfExists(filePath);
-            log.info("Exclusão de arquivo local concluída: {}", objectName);
+            log.info(LOG_LOCAL_DELETE_SUCCESS, objectName);
         } catch (IOException e) {
-            log.error("Erro na exclusão do arquivo {}: {}", objectName, e.getMessage());
-            throw new RuntimeException("Falha ao excluir o arquivo do disco.", e);
+            log.error(LOG_LOCAL_DELETE_ERROR, objectName, e.getMessage());
+            throw new RuntimeException(LOCAL_FILE_DELETE_ERROR, e);
         }
     }
 }

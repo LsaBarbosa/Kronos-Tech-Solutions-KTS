@@ -11,11 +11,21 @@ import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.*;
-import software.amazon.awssdk.services.s3.S3Client;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
+
+import static com.kts.kronos.constants.ExceptionMessages.FACIAL_AUTH_UNAVAILABLE;
+import static com.kts.kronos.constants.ExceptionMessages.FACIAL_RECOGNITION_SERVICE_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.REKOGNITION_IMAGE_READ_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.REKOGNITION_INIT_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.REKOGNITION_REGISTER_FACE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_COLLECTION_FATAL;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_DELETE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_INDEX_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_NO_FACE_DETECTED;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_SEARCH_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_REKOGNITION_STREAM_READ_ERROR;
 
 @Slf4j
 @Component
@@ -42,8 +52,8 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
         } catch (ResourceAlreadyExistsException e) {
             // Se já existe, é o comportamento esperado no startup.
         } catch (Exception e) {
-            log.error(" Erro fatal ao tentar criar ou verificar coleção '{}': {}", collectionId, e.getMessage(), e);
-            throw new RuntimeException("Falha na inicialização do serviço Rekognition.", e);
+            log.error(LOG_REKOGNITION_COLLECTION_FATAL, collectionId, e.getMessage(), e);
+            throw new RuntimeException(REKOGNITION_INIT_ERROR, e);
         }
     }
 
@@ -67,15 +77,15 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
             IndexFacesResponse response = rekognitionClient.indexFaces(indexFacesRequest);
 
             if (response.faceRecords().isEmpty()) {
-                log.warn("Nenhuma face detectada na imagem S3 Key: {}", imageS3Key);
+                log.warn(LOG_REKOGNITION_NO_FACE_DETECTED, imageS3Key);
                 return null;
             }
 
             return response.faceRecords().get(0).face().faceId();
 
         } catch (Exception e) {
-            log.error("Erro ao indexar face do funcionário {}: {}", externalImageId, e.getMessage(), e);
-            throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
+            log.error(LOG_REKOGNITION_INDEX_ERROR, externalImageId, e.getMessage(), e);
+            throw new RuntimeException(REKOGNITION_REGISTER_FACE_ERROR, e);
         }
     }
 
@@ -105,14 +115,14 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
             return UUID.fromString(externalIdStr);
 
         } catch (IOException e) {
-            log.error("Erro ao ler o stream da imagem para busca: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao ler a imagem para reconhecimento.", e);
+            log.error(LOG_REKOGNITION_STREAM_READ_ERROR, e.getMessage(), e);
+            throw new RuntimeException(REKOGNITION_IMAGE_READ_ERROR, e);
         } catch (RekognitionException | SdkClientException e) {
             log.error("errorCode=FACIAL_PROVIDER_UNAVAILABLE message={}", e.getMessage(), e);
-            throw new ServiceUnavailableException("Serviço de autenticação facial indisponível. Tente novamente.");
+            throw new ServiceUnavailableException(FACIAL_AUTH_UNAVAILABLE);
         } catch (Exception e) {
-            log.error("Erro ao buscar face na coleção Rekognition: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
+            log.error(LOG_REKOGNITION_SEARCH_ERROR, e.getMessage(), e);
+            throw new RuntimeException(FACIAL_RECOGNITION_SERVICE_ERROR, e);
         }
     }
 
@@ -125,7 +135,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .build();
             rekognitionClient.deleteFaces(deleteFacesRequest);
         } catch (Exception e) {
-            log.error("Erro ao deletar face {}: {}", faceId, e.getMessage(), e);
+            log.error(LOG_REKOGNITION_DELETE_ERROR, faceId, e.getMessage(), e);
         }
     }
 }
