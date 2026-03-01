@@ -46,6 +46,5 @@ public class PasswordResetTokenProviderImpl implements PasswordResetTokenProvide
     public void deleteToken(String token) {
         // Remove o token do banco de dados
         repository.findById(token).ifPresent(repository::delete);
-        log.info("Token de recuperação deletado do JPA: {}", token);
-    }
+        log.info("Token de recuperação deletado do JPA com sucesso.");    }
 }

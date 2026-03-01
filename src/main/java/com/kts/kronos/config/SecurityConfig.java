@@ -23,6 +23,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.stream.Stream;
 
 @Configuration
 @EnableMethodSecurity
@@ -57,9 +58,14 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**","/auth/recover-password","/actuator/**")
-                        .permitAll()
-                        .anyRequest().permitAll()
+                        .requestMatchers
+                                ("/auth/**",
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui/**",
+                                        "/auth/recover-password",
+                                        "/actuator/health/**",
+                                        "/actuator/info").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
@@ -70,9 +76,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(recordUrl,plataformUrl,local,local_2));
+        configuration.setAllowedOrigins(Stream.of(recordUrl, plataformUrl, local, local_2)
+                .map(this::normalizeOrigin)
+                .filter(origin -> !origin.isBlank())
+                .distinct()
+                .toList());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -82,6 +92,18 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
+    }
+
+    private String normalizeOrigin(String origin) {
+        if (origin == null) {
+            return "";
+        }
+
+        var normalized = origin.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
 

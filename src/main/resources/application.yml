@@ -24,7 +24,7 @@ spring:
       mail:
         smtp:
           auth: true
-          debug: true
+          debug: false
           starttls:
             enable: true
     retry:
@@ -71,6 +71,8 @@ jwt:
   # Variável para o segredo JWT
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:3600000}
+  issuer: ${JWT_ISSUER:kronos-api}
+  audience: ${JWT_AUDIENCE:kronos-clients}
 
 frontend:
   # Variável para a URL base do Frontend
