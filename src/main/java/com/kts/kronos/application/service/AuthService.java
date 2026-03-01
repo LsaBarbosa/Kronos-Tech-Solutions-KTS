@@ -22,7 +22,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.rekognition.model.RekognitionException;
-
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.Locale;
@@ -39,6 +44,15 @@ public class AuthService implements AuthUseCase {
     public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
     public static final String ERROR_FACIAL_AUTHENTICATION = "Erro inesperado na autenticação facial.";
     public static final String ERROR_FACIAL_AUTHENTICATION_UNAVAILABLE = "Serviço de autenticação facial indisponível. Tente novamente.";
+    private static final int MAX_LOGIN_ATTEMPTS = 5;
+    private static final Duration LOGIN_BLOCK_DURATION = Duration.ofMinutes(15);
+    private static final int MAX_RECOVERY_ATTEMPTS = 3;
+    private static final Duration RECOVERY_BLOCK_DURATION = Duration.ofMinutes(15);
+
+    private final Map<String, AttemptWindow> loginAttempts = new ConcurrentHashMap<>();
+    private final Map<String, AttemptWindow> recoveryAttempts = new ConcurrentHashMap<>();
+
+
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -60,8 +74,15 @@ public class AuthService implements AuthUseCase {
         var timerSample = Timer.start(meterRegistry);
 
         var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
+        enforceNotBlocked(loginAttempts, normalizedUsername, "Muitas tentativas de login. Tente novamente mais tarde.");
 
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+        try {
+            authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+            resetAttempts(loginAttempts, normalizedUsername);
+        } catch (RuntimeException ex) {
+            registerFailedAttempt(loginAttempts, normalizedUsername, MAX_LOGIN_ATTEMPTS, LOGIN_BLOCK_DURATION);
+            throw ex;
+        }
 
         var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
@@ -140,11 +161,14 @@ public class AuthService implements AuthUseCase {
     @Transactional
     public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
         var timerSample = Timer.start(meterRegistry);
+        var recoveryKey = (request.cpf() + "|" + request.email()).trim().toLowerCase(Locale.ROOT);
+        enforceNotBlocked(recoveryAttempts, recoveryKey, "Muitas tentativas de recuperação de senha. Tente novamente mais tarde.");
         var credentials = userProvider.findRecoverPasswordCredentialsByCpfAndEmail(request.cpf(), request.email())
                 .orElse(null);
 
         if (credentials == null) {
             log.warn("Tentativa de recuperação de senha falhou: CPF ou Email inválido.");
+            registerFailedAttempt(recoveryAttempts, recoveryKey, MAX_RECOVERY_ATTEMPTS, RECOVERY_BLOCK_DURATION);
             timerSample.stop(meterRegistry.timer("auth.password.recovery.duration", "status", "ignored"));
             return;
         }
@@ -157,6 +181,7 @@ public class AuthService implements AuthUseCase {
         var resetToken = tokenProvider.generateAndSaveToken(credentials.userId());
 
         emailSenderProvider.sendResetEmail(credentials.employeeEmail(), resetToken, credentials.username(), frontendUrl);
+        resetAttempts(recoveryAttempts, recoveryKey);
         log.info("Processo de recuperação de senha iniciado para o usuário: {}", credentials.username());
         timerSample.stop(meterRegistry.timer("auth.password.recovery.duration", "status", "queued"));
     }
@@ -192,4 +217,38 @@ public class AuthService implements AuthUseCase {
         tokenProvider.deleteToken(request.token());
         log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
     }
+
+    private void enforceNotBlocked(Map<String, AttemptWindow> store, String key, String message) {
+        var now = Instant.now();
+        var window = store.get(key);
+
+        if (window != null && window.blockedUntil != null && now.isBefore(window.blockedUntil)) {
+            throw new TooManyRequestsException(message);
+        }
+
+        if (window != null && window.blockedUntil != null && !now.isBefore(window.blockedUntil)) {
+            store.remove(key);
+        }
+    }
+
+    private void registerFailedAttempt(Map<String, AttemptWindow> store, String key, int maxAttempts, Duration blockDuration) {
+        var now = Instant.now();
+        store.compute(key, (k, current) -> {
+            var attempts = current == null ? 1 : current.attempts + 1;
+            Instant blockedUntil = null;
+
+            if (attempts >= maxAttempts) {
+                blockedUntil = now.plus(blockDuration);
+            }
+
+            return new AttemptWindow(attempts, blockedUntil);
+        });
+    }
+
+    private void resetAttempts(Map<String, AttemptWindow> store, String key) {
+        store.remove(key);
+    }
+
+    private record AttemptWindow(int attempts, Instant blockedUntil) {}
+
 }

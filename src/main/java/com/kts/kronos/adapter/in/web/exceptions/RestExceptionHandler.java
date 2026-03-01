@@ -71,6 +71,11 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         return buildResponseEntity(customException, HttpStatus.UNAUTHORIZED, request, null);
     }
 
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Object> handleTooManyRequestsException(TooManyRequestsException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.TOO_MANY_REQUESTS, request, null);
+    }
+
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<Object> handleServiceUnavailableException(ServiceUnavailableException ex, WebRequest request) {
         return buildResponseEntity(new RuntimeException(GENERIC_SERVICE_UNAVAILABLE_MESSAGE), HttpStatus.SERVICE_UNAVAILABLE, request, null);    }
