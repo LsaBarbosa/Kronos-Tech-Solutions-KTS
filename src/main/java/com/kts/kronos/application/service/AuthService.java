@@ -149,7 +149,11 @@ public class AuthService implements AuthUseCase {
             return;
         }
 
-        var frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
+        if (originUrl != null && !originUrl.isBlank()) {
+            log.warn("Header Origin ignorado no recoverPassword por segurança: {}", originUrl);
+        }
+        var frontendUrl = defaultFrontendBaseUrl;
+
         var resetToken = tokenProvider.generateAndSaveToken(credentials.userId());
 
         emailSenderProvider.sendResetEmail(credentials.employeeEmail(), resetToken, credentials.username(), frontendUrl);
