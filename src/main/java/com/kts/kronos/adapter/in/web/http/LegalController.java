@@ -34,7 +34,15 @@ import static com.kts.kronos.constants.ApiPaths.AFD;
 import static com.kts.kronos.constants.ApiPaths.LEGAL;
 import static com.kts.kronos.constants.ApiPaths.MIRROR_POINT;
 import static com.kts.kronos.constants.ApiPaths.TECHNICAL_CERTIFICATE;
+import static com.kts.kronos.constants.ExceptionMessages.COMPANY_NOT_FOUND;
+import static com.kts.kronos.constants.ExceptionMessages.EMPLOYEE_NOT_FOUND;
 import static com.kts.kronos.constants.Messages.*;
+import static com.kts.kronos.constants.PathValues.FILE_NAME_AEJ_PATTERN;
+import static com.kts.kronos.constants.PathValues.FILE_NAME_AFD_PATTERN;
+import static com.kts.kronos.constants.PathValues.FILE_NAME_MIRROR_PATTERN;
+import static com.kts.kronos.constants.PathValues.FILE_NAME_TECHNICAL_CERTIFICATE_PATTERN;
+import static com.kts.kronos.constants.PathValues.MEDIA_TYPE_PKCS7;
+import static com.kts.kronos.constants.PathValues.ROLE_MANAGER;
 import static com.kts.kronos.constants.Swagger.*;
 
 
@@ -66,15 +74,15 @@ import static com.kts.kronos.constants.Swagger.*;
 
         var companyId = getCompanyIdFromLoggedUser();
         var company = companyProvider.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         // Gera PDF e Assina
         byte[] pdfBytes = certificateService.generateCertificate(company);
         byte[] signedBytes = signatureService.signData(pdfBytes);
 
         //Download .p7s
-        var filename = "Atestado_Tecnico_Kronos_" + LocalDate.now().getYear() + ".p7s";
-        response.setContentType("application/pkcs7-signature");
+        var filename = String.format(FILE_NAME_TECHNICAL_CERTIFICATE_PATTERN, LocalDate.now().getYear());
+        response.setContentType(MEDIA_TYPE_PKCS7);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
 
         response.getOutputStream().write(signedBytes);
@@ -94,7 +102,7 @@ import static com.kts.kronos.constants.Swagger.*;
     public void downloadAfd(HttpServletResponse response) throws IOException {
         var companyId = getCompanyIdFromLoggedUser();
 
-        var filename = String.format("AFD_%s.txt", companyId);
+        var filename = String.format(FILE_NAME_AFD_PATTERN, companyId);
         response.setContentType(MediaType.TEXT_PLAIN_VALUE);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
 
@@ -120,8 +128,8 @@ import static com.kts.kronos.constants.Swagger.*;
 
         var companyId = getCompanyIdFromLoggedUser();
 
-        var filename = String.format("AEJ_%s_%s.p7s", startDate, endDate);
-        response.setContentType("application/pkcs7-signature");
+        var filename = String.format(FILE_NAME_AEJ_PATTERN, startDate, endDate);
+        response.setContentType(MEDIA_TYPE_PKCS7);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
 
         aejUseCase.generateAej(companyId, startDate, endDate, response.getOutputStream());
@@ -148,7 +156,7 @@ import static com.kts.kronos.constants.Swagger.*;
         var loggedId = jwtAuthenticatedUser.getEmployeeId();
         UUID employeeIdToGenerate;
 
-        if (targetEmployeeId != null && jwtAuthenticatedUser.getRoleFromToken().equals("MANAGER")) {
+        if (targetEmployeeId != null && jwtAuthenticatedUser.getRoleFromToken().equals(ROLE_MANAGER)) {
             employeeIdToGenerate = targetEmployeeId;
         } else {
             employeeIdToGenerate = loggedId;
@@ -156,7 +164,7 @@ import static com.kts.kronos.constants.Swagger.*;
 
         byte[] pdfBytes = pointMirrorPdfUseCase.generateMirror(employeeIdToGenerate, startDate, endDate);
 
-        var filename = String.format("Espelho_%s_%s.pdf", startDate, endDate);
+        var filename = String.format(FILE_NAME_MIRROR_PATTERN, startDate, endDate);
         response.setContentType(MediaType.APPLICATION_PDF_VALUE);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
         response.getOutputStream().write(pdfBytes);
@@ -166,7 +174,7 @@ import static com.kts.kronos.constants.Swagger.*;
     private UUID getCompanyIdFromLoggedUser() {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = employeeProvider.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Colaborador não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         return employee.companyId();
     }
 }
