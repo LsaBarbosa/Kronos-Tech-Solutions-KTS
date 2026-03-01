@@ -24,7 +24,7 @@ spring:
       mail:
         smtp:
           auth: true
-          debug: true
+          debug: false
           starttls:
             enable: true
     retry:
