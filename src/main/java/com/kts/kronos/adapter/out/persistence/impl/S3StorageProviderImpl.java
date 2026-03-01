@@ -3,21 +3,24 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.application.port.out.provider.S3StorageProvider; // Sua interface
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
-
-import jakarta.annotation.PostConstruct;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+
+import static com.kts.kronos.constants.ExceptionMessages.S3_COMMUNICATION_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.S3_NOT_FOUND_OR_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.S3_READ_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_LEGAL_DOWNLOAD_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_LEGAL_DOWNLOAD_IO_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_LEGAL_UPLOAD_FATAL;
+import static com.kts.kronos.constants.Logs.LOG_S3_LEGAL_UPLOAD_START;
+import static com.kts.kronos.constants.Logs.LOG_S3_LEGAL_UPLOAD_SUCCESS;
 
 @Slf4j
 @Service
@@ -34,7 +37,7 @@ public class S3StorageProviderImpl implements S3StorageProvider {
     @Override
     public String uploadFile(String keyName, byte[] content) {
         try {
-            log.info("Enviando arquivo para S3 (Legal): {}", keyName);
+            log.info(LOG_S3_LEGAL_UPLOAD_START, keyName);
 
             PutObjectRequest.Builder putObBuilder = PutObjectRequest.builder()
                     .bucket(bucketName)
@@ -51,12 +54,12 @@ public class S3StorageProviderImpl implements S3StorageProvider {
 
             s3Client.putObject(putObBuilder.build(), RequestBody.fromBytes(content));
 
-            log.info("✅ Upload S3 com Object Lock concluído: {}", keyName);
+            log.info(LOG_S3_LEGAL_UPLOAD_SUCCESS, keyName);
             return keyName;
 
         } catch (Exception e) {
-            log.error("❌ Falha crítica ao enviar para o S3", e);
-            throw new RuntimeException("Erro de comunicação com Storage S3", e);
+            log.error(LOG_S3_LEGAL_UPLOAD_FATAL, e);
+            throw new RuntimeException(S3_COMMUNICATION_ERROR, e);
         }
     }
 
@@ -70,11 +73,11 @@ public class S3StorageProviderImpl implements S3StorageProvider {
         try (ResponseInputStream<GetObjectResponse> stream = s3Client.getObject(getOb)) {
             return stream.readAllBytes();
         } catch (IOException e) {
-            log.error("Erro de IO ao baixar arquivo do S3. key={}", fileKey, e);
-            throw new RuntimeException("Falha de leitura do arquivo no S3", e);
+            log.error(LOG_S3_LEGAL_DOWNLOAD_IO_ERROR, fileKey, e);
+            throw new RuntimeException(S3_READ_ERROR, e);
         } catch (Exception e) {
-            log.error("Erro ao baixar arquivo do S3. key={}", fileKey, e);
-            throw new RuntimeException("Arquivo não encontrado ou erro S3", e);
+            log.error(LOG_S3_LEGAL_DOWNLOAD_ERROR, fileKey, e);
+            throw new RuntimeException(S3_NOT_FOUND_OR_ERROR, e);
         }
     }
 }

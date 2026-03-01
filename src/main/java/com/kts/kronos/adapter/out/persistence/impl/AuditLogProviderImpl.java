@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import static com.kts.kronos.constants.Logs.LOG_AUDIT_SAVE_CRITICAL_ERROR;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -32,7 +34,7 @@ public class AuditLogProviderImpl implements AuditLogProvider {
             
         } catch (Exception e) {
             // Log de auditoria não deve quebrar a aplicação, mas deve ser reportado no console
-            log.error("FALHA CRÍTICA AO SALVAR LOG DE AUDITORIA: {}", e.getMessage(), e);
+            log.error(LOG_AUDIT_SAVE_CRITICAL_ERROR, e.getMessage(), e);
         }
     }
 }
