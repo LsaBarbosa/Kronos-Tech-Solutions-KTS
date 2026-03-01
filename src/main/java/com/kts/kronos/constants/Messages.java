@@ -182,6 +182,7 @@ public class Messages {
 
     public static final String UNKNOWN_IP = "IP Não Identificado";
     public static final String UNKNOWN_DEVICE = "Dispositivo Desconhecido";
+    public static final String UNKNOWN_USER_AGENT = "Desconhecido";
     public static final String BULLET_SYMBOL = "\u2022";
 
     public static final String DOCUMENT_ACCESS_DENIED = "Você não possui permissão para acessar este documento.";
@@ -189,6 +190,9 @@ public class Messages {
     public static final String ONLY_OWNER = "Apenas o proprietário exclui justificativas de abono.";
 
     public static final String GEOLOCATION_REQUIRED = "Location (latitude e longitude) é obrigatória se o endereço for alterado.";
+
+    public static final String RESET_PASSWORD_SUBJECT = "🔒 Kronos Suporte - Redefinição de Senha";
+    public static final String FACE_IMAGE_REQUIRED = "A imagem da face é obrigatória";
 
     public static final String RESET_PASSWORD_HTML_TEMPLATE = """
         <!DOCTYPE html>

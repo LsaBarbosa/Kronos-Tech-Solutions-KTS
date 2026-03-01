@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 
 import static com.kts.kronos.constants.ApiPaths.*;
+import static com.kts.kronos.constants.PathValues.COMMA_SEPARATOR;
+import static com.kts.kronos.constants.PathValues.HEADER_USER_AGENT;
+import static com.kts.kronos.constants.PathValues.HEADER_X_FORWARDED_FOR;
+import static com.kts.kronos.constants.Messages.UNKNOWN_USER_AGENT;
 import static com.kts.kronos.constants.Swagger.*;
 
 
@@ -40,18 +44,18 @@ public class TermsController {
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
 
-        var ipAddress = request.getHeader("X-Forwarded-For");
+        var ipAddress = request.getHeader(HEADER_X_FORWARDED_FOR);
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = request.getRemoteAddr();
         }
         // Em alguns casos o header vem como "ip1, ip2", pegamos o primeiro
-        if (ipAddress != null && ipAddress.contains(",")) {
-            ipAddress = ipAddress.split(",")[0].trim();
+        if (ipAddress != null && ipAddress.contains(COMMA_SEPARATOR)) {
+            ipAddress = ipAddress.split(COMMA_SEPARATOR)[0].trim();
         }
 
         // Identifica o dispositivo (Ex: Mozilla/5.0 (iPhone; CPU iPhone OS 16...))
-        var userAgent = request.getHeader("User-Agent");
-        if (userAgent == null) userAgent = "Desconhecido";
+        var userAgent = request.getHeader(HEADER_USER_AGENT);
+        if (userAgent == null) userAgent = UNKNOWN_USER_AGENT;
 
         // Passamos os dois dados para o serviço
         acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent
