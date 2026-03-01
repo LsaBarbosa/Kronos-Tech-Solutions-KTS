@@ -14,6 +14,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.ExceptionMessages.S3_FACE_PREPARE_UPLOAD_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.S3_FACE_SAVE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_FACE_DELETE_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_FACE_DELETE_SUCCESS;
+import static com.kts.kronos.constants.Logs.LOG_S3_FACE_STREAM_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_S3_FACE_UPLOAD_SUCCESS;
+import static com.kts.kronos.constants.Logs.LOG_S3_UPLOAD_ERROR;
+import static com.kts.kronos.constants.StoragePaths.PATH_FACES;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,7 +34,7 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
 
     @Override
     public String uploadFaceImage(UUID employeeId, InputStream imageStream, String contentType) {
-        String objectKey = "faces/" + employeeId + "/" + UUID.randomUUID() + ".jpg";
+        String objectKey = PATH_FACES + employeeId + "/" + UUID.randomUUID() + ".jpg";
 
         try {
             byte[] fileBytes = imageStream.readAllBytes();
@@ -39,15 +48,15 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
 
             s3Client.putObject(putObjectRequest, RequestBody.fromBytes(fileBytes));
 
-            log.info("Upload de imagem facial concluído para S3. Key: {}", objectKey);
+            log.info(LOG_S3_FACE_UPLOAD_SUCCESS, objectKey);
             return objectKey;
 
         } catch (IOException e) {
-            log.error("Erro ao ler o stream da imagem para upload no S3: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao preparar a imagem para upload no S3.", e);
+            log.error(LOG_S3_FACE_STREAM_ERROR, e.getMessage(), e);
+            throw new RuntimeException(S3_FACE_PREPARE_UPLOAD_ERROR, e);
         } catch (Exception e) {
-            log.error("Erro no upload do arquivo para o S3: {}", e.getMessage(), e);
-            throw new RuntimeException("Falha ao salvar a imagem no S3.", e);
+            log.error(LOG_S3_UPLOAD_ERROR, e.getMessage(), e);
+            throw new RuntimeException(S3_FACE_SAVE_ERROR, e);
         }
     }
 
@@ -60,9 +69,9 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
                     .build();
 
             s3Client.deleteObject(deleteObjectRequest);
-            log.info("Exclusão de imagem facial do S3 concluída: {}", objectKey);
+            log.info(LOG_S3_FACE_DELETE_SUCCESS, objectKey);
         } catch (Exception e) {
-            log.error("Erro na exclusão do arquivo {}: {}", objectKey, e.getMessage(), e);
+            log.error(LOG_S3_FACE_DELETE_ERROR, objectKey, e.getMessage(), e);
         }
     }
 }

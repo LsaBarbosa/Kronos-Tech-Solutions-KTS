@@ -13,13 +13,21 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Objects;
 
+import static com.kts.kronos.constants.ExceptionMessages.EMAIL_CONFIGURATION_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.EMAIL_REQUIRED_DATA_MISSING;
+import static com.kts.kronos.constants.ExceptionMessages.EMAIL_SEND_ERROR;
+import static com.kts.kronos.constants.ExceptionMessages.EMAIL_SENDER_CONFIG_MISSING;
+import static com.kts.kronos.constants.Logs.LOG_EMAIL_CONFIG_ERROR;
+import static com.kts.kronos.constants.Logs.LOG_EMAIL_RESET_START;
+import static com.kts.kronos.constants.Logs.LOG_EMAIL_RESET_SUCCESS;
+import static com.kts.kronos.constants.Logs.LOG_EMAIL_SEND_ERROR;
 import static com.kts.kronos.constants.Messages.RESET_PASSWORD_HTML_TEMPLATE;
+import static com.kts.kronos.constants.Messages.RESET_PASSWORD_SUBJECT;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
-    private static final String RESET_PASSWORD_SUBJECT = "🔒 Kronos Suporte - Redefinição de Senha";
     private final JavaMailSender mailSender;
     @Value("${mail.username}")
     private String emailRemetente;
@@ -28,7 +36,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
     public void sendResetEmail(String toEmail, String token, String username, String frontendUrl) {
 
         validateRequest(toEmail, token, username, frontendUrl);
-        log.info("Iniciando envio de e-mail de recuperação via SMTP para: {}", toEmail);
+        log.info(LOG_EMAIL_RESET_START, toEmail);
 
         var message = mailSender.createMimeMessage();
 
@@ -52,23 +60,23 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             helper.setText(htmlText, true);
 
             mailSender.send(message);
-            log.info("E-mail de redefinição enviado com sucesso para: {}", toEmail);
+            log.info(LOG_EMAIL_RESET_SUCCESS, toEmail);
         } catch (MessagingException e) {
-            log.error("Falha ao configurar MimeMessage para {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Falha na configuração do e-mail de recuperação.", e);
+            log.error(LOG_EMAIL_CONFIG_ERROR, toEmail, e.getMessage(), e);
+            throw new RuntimeException(EMAIL_CONFIGURATION_ERROR, e);
         } catch (MailException e) {
-            log.error("Falha ao enviar e-mail via SMTP para {}: {}", toEmail, e.getMessage(), e);
-            throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
+            log.error(LOG_EMAIL_SEND_ERROR, toEmail, e.getMessage(), e);
+            throw new RuntimeException(EMAIL_SEND_ERROR, e);
         }
     }
 
     private void validateRequest(String toEmail, String token, String username, String frontendUrl) {
         if (isBlank(toEmail) || isBlank(token) || isBlank(username) || isBlank(frontendUrl)) {
-            throw new IllegalArgumentException("Dados obrigatórios para envio de e-mail não informados.");
+            throw new IllegalArgumentException(EMAIL_REQUIRED_DATA_MISSING);
         }
 
         if (Objects.isNull(emailRemetente) || emailRemetente.isBlank()) {
-            throw new IllegalStateException("Configuração de remetente de e-mail (mail.username) está ausente.");
+            throw new IllegalStateException(EMAIL_SENDER_CONFIG_MISSING);
         }
     }
 
