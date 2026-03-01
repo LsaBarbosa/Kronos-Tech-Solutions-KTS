@@ -18,19 +18,28 @@ import java.util.UUID;
 public class JwtUtils {
     private final Key key;
     private final long expirationMs;
+    private final String issuer;
+    private final String audience;
 
     public JwtUtils(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration}") long expirationMs
+            @Value("${jwt.expiration}") long expirationMs,
+            @Value("${jwt.issuer:kronos-api}") String issuer,
+            @Value("${jwt.audience:kronos-clients}") String audience
     ) {
         byte[] secretBytes = Base64.getDecoder().decode(secret);
         this.key = Keys.hmacShaKeyFor(secretBytes);
         this.expirationMs = expirationMs;
+        this.issuer = issuer;
+        this.audience = audience;
     }
 
     public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
         var now = new Date();
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
+                .setIssuer(issuer)
+                .setAudience(audience)
                 .setSubject(username)
                 .claim("userId", userId != null ? userId.toString() : null)
                 .claim("role", roleName)
@@ -49,7 +58,6 @@ public class JwtUtils {
     public boolean getTermsAcceptedFromToken(String token) {
         var claims = parseClaims(token);
 
-        // Se não houver a claim (tokens antigos), assume falso por segurança
         var accepted = claims.get("terms_accepted");
         return accepted != null && (boolean) accepted;
     }
@@ -80,7 +88,6 @@ public class JwtUtils {
 
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
             parseClaims(token);
             return true;
         } catch (JwtException e) {
@@ -97,10 +104,20 @@ public class JwtUtils {
     }
 
     private Claims parseClaims(String token) {
-        return Jwts.parserBuilder()
+        var claims = Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
+        if (claims.getId() == null || claims.getId().isBlank()) {
+            throw new JwtException("JWT sem jti");
+        }
+
+        var tokenAudience = claims.getAudience();
+        if (tokenAudience == null || tokenAudience.isBlank() || !audience.equals(tokenAudience)) {
+            throw new JwtException("JWT com audience inválida");
+        }
+
+        return claims;
     }
 }

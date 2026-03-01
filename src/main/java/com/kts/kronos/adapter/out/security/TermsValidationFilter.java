@@ -1,7 +1,5 @@
 package com.kts.kronos.adapter.out.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kts.kronos.adapter.in.web.exceptions.ProblemDetail;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,8 +10,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 @RequiredArgsConstructor
@@ -21,15 +17,21 @@ public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
-    // Lista de endpoints permitidos mesmo sem aceite dos termos
-    private static final List<String> WHITELIST = Arrays.asList(
-            "/auth",             // Login
-            "/terms",            // Endpoints de Aceite e Status
-            "/v3/api-docs",      // Swagger
-            "/swagger-ui",       // Swagger
-            "/actuator"          // Health checks
+    private static final List<String> EXACT_PUBLIC_PATHS = List.of(
+            "/auth/login",
+            "/auth/login-face",
+            "/auth/recover-password",
+            "/auth/reset-password",
+            "/terms/accept-biometric",
+            "/terms/status",
+            "/actuator/health",
+            "/actuator/info"
     );
 
+    private static final List<String> PUBLIC_PREFIXES = List.of(
+            "/v3/api-docs",
+            "/swagger-ui"
+    );
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -37,13 +39,14 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         String path = request.getServletPath();
 
         // 1. Se for rota pública (Whitelist) ou OPTIONS, deixa passar
-        boolean isWhitelisted = WHITELIST.stream().anyMatch(path::startsWith);
-        if (isWhitelisted || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        boolean isPublicExact = EXACT_PUBLIC_PATHS.contains(path);
+        boolean isPublicPrefix = PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
+
+        if (isPublicExact || isPublicPrefix || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
             chain.doFilter(request, response);
             return;
         }
 
-        // 2. Extrai o token (assumindo que o JwtAuthenticationFilter já validou a assinatura antes)
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
@@ -66,26 +69,10 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private void blockRequest(HttpServletResponse response) throws IOException {
+    private void sendRedirectInstruction(HttpServletResponse response) throws IOException {
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-
-        ProblemDetail problem = ProblemDetail.builder()
-                .title("Termos de Uso Obrigatórios")
-                .status(HttpStatus.FORBIDDEN.value())
-                .detail("Você deve aceitar o Termo de Consentimento Biométrico para acessar este recurso.")
-                .build();
-
-        new ObjectMapper().writeValue(response.getWriter(), problem);
-    }
-
-    private void sendRedirectInstruction(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpStatus.FORBIDDEN.value()); // 403
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-
-        // Retornamos um JSON instruindo o redirecionamento
         String jsonResponse = String.format(
                 "{\"type\": \"TERMS_NOT_ACCEPTED\", \"redirect_url\": \"%s\", \"detail\": \"Aceite os termos para continuar.\"}",
                 TERMS_SYSTEM_URL
