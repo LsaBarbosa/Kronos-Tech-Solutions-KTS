@@ -868,4 +868,113 @@ class TimeRecordServiceTest {
         assertTrue(response.approvals().isEmpty());
     }
 
+    @Test
+    @DisplayName("Deve registrar Check-out com sucesso quando existir ponto aberto pendente no mesmo dia")
+    void shouldRegisterCheckoutSuccessfullyForOpenPendingRecord() throws Exception {
+        var base64Image = Base64.getEncoder().encodeToString("dummyImage".getBytes());
+        var request = new GeolocationRequest(-22.9, -43.2, base64Image);
+        var openRecord = new TimeRecord(
+                999L,
+                LocalDateTime.now().minusHours(2),
+                null,
+                StatusRecord.PENDING,
+                false,
+                true,
+                employeeId,
+                -22.9,
+                -43.2,
+                null,
+                null,
+                10L,
+                null,
+                LocalDateTime.now().minusHours(2),
+                null
+        );
+
+        doNothing().when(ntpTimeService).validateSystemTime(10);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(mockCompany));
+        when(timeRecordProvider.findOpenByEmployeeId(employeeId)).thenReturn(Optional.of(openRecord));
+        when(nsrProvider.generateNextNsr(companyId)).thenReturn(11L);
+        when(timeRecordProvider.save(any(TimeRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(receiptPdfService.generateReceipt(any(), any(), any(), any())).thenReturn("pdf".getBytes());
+
+        var response = timeRecordService.registerTime(request);
+
+        assertEquals("CHECKOUT", response.actionType());
+        verify(adfUseCase).logMarking(eq(mockCompany), eq(mockEmployee), any(LocalDateTime.class), eq(11L));
+        verify(timeRecordProvider).save(argThat(r ->
+                Objects.equals(r.timeRecordId(), 999L)
+                        && r.statusRecord() == StatusRecord.CREATED
+                        && Objects.equals(r.nsrCheckout(), 11L)
+                        && r.endWork() != null
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve converter registro de DAY_OFF para CHECKIN_ON_DAY_OFF quando funcionário trabalhar na folga")
+    void shouldConvertDayOffToPendingOnRegisterTime() throws Exception {
+        var base64Image = Base64.getEncoder().encodeToString("dummyImage".getBytes());
+        var request = new GeolocationRequest(-22.9, -43.2, base64Image);
+        var dayOffRecord = new TimeRecord(
+                1000L,
+                LocalDateTime.now().withHour(9).withMinute(0),
+                LocalDateTime.now().withHour(18).withMinute(0),
+                StatusRecord.DAY_OFF,
+                false,
+                true,
+                employeeId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                LocalDateTime.now().withHour(9).withMinute(0),
+                LocalDateTime.now().withHour(18).withMinute(0)
+        );
+
+        doNothing().when(ntpTimeService).validateSystemTime(10);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(mockCompany));
+        when(timeRecordProvider.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(timeRecordProvider.findFirstByEmployeeIdAndStartWorkBetweenAndStatusIn(eq(employeeId), any(), any(), any()))
+                .thenReturn(Optional.of(dayOffRecord));
+        when(nsrProvider.generateNextNsr(companyId)).thenReturn(123L);
+        when(timeRecordProvider.save(any(TimeRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(receiptPdfService.generateReceipt(any(), any(), any(), any())).thenReturn("pdf".getBytes());
+
+        var response = timeRecordService.registerTime(request);
+
+        assertEquals("CHECKIN_ON_DAY_OFF", response.actionType());
+        verify(timeRecordProvider).save(argThat(r ->
+                Objects.equals(r.timeRecordId(), 1000L)
+                        && r.statusRecord() == StatusRecord.PENDING
+                        && Objects.equals(r.nsrCheckin(), 123L)
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve lançar ForbiddenException quando updateTimeRecord for executado por perfil não autorizado")
+    void shouldThrowForbiddenWhenUpdateTimeRecordWithUnauthorizedRole() {
+        var recordId = 2000L;
+        var request = new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "09:00", "18:00", managerId);
+        var existingRecord = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("EMPLOYEE");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(existingRecord));
+
+        assertThrows(com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> timeRecordService.updateTimeRecord(recordId, request));
+
+        verify(timeRecordProvider, never()).save(any());
+        verify(approvalProvider, never()).save(any());
+    }
+
 }
