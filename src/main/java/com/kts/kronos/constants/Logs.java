@@ -7,6 +7,33 @@ public class Logs {
     }
     public static final String ERR_CHECKOUT_STATUS = "Não é possível realizar checkout. Status atual: ";
 
+    public static final String LOG_LOCAL_UPLOAD_SUCCESS = "Upload para disco local concluído: {}";
+    public static final String LOG_LOCAL_UPLOAD_ERROR = "Erro no upload do arquivo para o disco local: {}";
+    public static final String LOG_LOCAL_DOWNLOAD_ERROR = "Erro no download/leitura do arquivo {}: {}";
+    public static final String LOG_LOCAL_DELETE_SUCCESS = "Exclusão de arquivo local concluída: {}";
+    public static final String LOG_LOCAL_DELETE_ERROR = "Erro na exclusão do arquivo {}: {}";
+    public static final String LOG_REKOGNITION_COLLECTION_FATAL = " Erro fatal ao tentar criar ou verificar coleção '{}': {}";
+    public static final String LOG_REKOGNITION_NO_FACE_DETECTED = "Nenhuma face detectada na imagem S3 Key: {}";
+    public static final String LOG_REKOGNITION_INDEX_ERROR = "Erro ao indexar face do funcionário {}: {}";
+    public static final String LOG_REKOGNITION_STREAM_READ_ERROR = "Erro ao ler o stream da imagem para busca: {}";
+    public static final String LOG_REKOGNITION_SEARCH_ERROR = "Erro ao buscar face na coleção Rekognition: {}";
+    public static final String LOG_REKOGNITION_DELETE_ERROR = "Erro ao deletar face {}: {}";
+    public static final String LOG_EMAIL_RESET_START = "Iniciando envio de e-mail de recuperação via SMTP para: {}";
+    public static final String LOG_EMAIL_RESET_SUCCESS = "E-mail de redefinição enviado com sucesso para: {}";
+    public static final String LOG_EMAIL_CONFIG_ERROR = "Falha ao configurar MimeMessage para {}: {}";
+    public static final String LOG_EMAIL_SEND_ERROR = "Falha ao enviar e-mail via SMTP para {}: {}";
+    public static final String LOG_S3_FACE_UPLOAD_SUCCESS = "Upload de imagem facial concluído para S3. Key: {}";
+    public static final String LOG_S3_FACE_STREAM_ERROR = "Erro ao ler o stream da imagem para upload no S3: {}";
+    public static final String LOG_S3_UPLOAD_ERROR = "Erro no upload do arquivo para o S3: {}";
+    public static final String LOG_S3_FACE_DELETE_SUCCESS = "Exclusão de imagem facial do S3 concluída: {}";
+    public static final String LOG_S3_FACE_DELETE_ERROR = "Erro na exclusão do arquivo {}: {}";
+    public static final String LOG_S3_LEGAL_UPLOAD_START = "Enviando arquivo para S3 (Legal): {}";
+    public static final String LOG_S3_LEGAL_UPLOAD_SUCCESS = "✅ Upload S3 com Object Lock concluído: {}";
+    public static final String LOG_S3_LEGAL_UPLOAD_FATAL = "❌ Falha crítica ao enviar para o S3";
+    public static final String LOG_S3_LEGAL_DOWNLOAD_IO_ERROR = "Erro de IO ao baixar arquivo do S3. key={}";
+    public static final String LOG_S3_LEGAL_DOWNLOAD_ERROR = "Erro ao baixar arquivo do S3. key={}";
+    public static final String LOG_AUDIT_SAVE_CRITICAL_ERROR = "FALHA CRÍTICA AO SALVAR LOG DE AUDITORIA: {}";
+
     // Sucesso (Templates para String.format ou concatenação controlada)
     public static final String MSG_CHECKOUT = "Saída às %s! (NSR: %s)";
     public static final String MSG_CHECKIN = "Entrada às %s! (NSR: %s)";
