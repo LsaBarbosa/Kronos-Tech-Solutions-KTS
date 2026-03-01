@@ -773,4 +773,99 @@ class TimeRecordServiceTest {
         verify(timeRecordProvider, never()).save(any());
     }
 
+
+    @Test
+    @DisplayName("Deve retornar lista vazia de solicitações de férias quando filtro de nome não encontrar funcionários")
+    void shouldReturnEmptyVacationRequestsWhenNoEmployeeMatchesNameFilter() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(mockEmployee));
+
+        var response = timeRecordService.listVacationRequests("ALL", "nome-inexistente", 0, 10);
+
+        assertNotNull(response);
+        assertTrue(response.isEmpty());
+        verify(timeRecordProvider, never()).findByEmployeeIdInAndStatusesIn(anySet(), anySet());
+    }
+
+    @Test
+    @DisplayName("Deve listar solicitações de férias consolidadas por período")
+    void shouldListVacationRequestsGroupedByPeriod() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(mockEmployee));
+
+        var day1 = new TimeRecord(801L, LocalDate.now().plusDays(2).atStartOfDay(), null, StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var day2 = new TimeRecord(802L, LocalDate.now().plusDays(3).atStartOfDay(), null, StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        when(timeRecordProvider.findByEmployeeIdInAndStatusesIn(anySet(), anySet())).thenReturn(List.of(day1, day2));
+
+        var response = timeRecordService.listVacationRequests("REQUEST_VACATION", "João", 0, 10);
+
+        assertEquals(1, response.size());
+        assertEquals("REQUEST_VACATION", response.getFirst().status());
+        assertEquals(2, response.getFirst().timeRecordIdsForApproval().size());
+    }
+
+    @Test
+    @DisplayName("Deve retornar página vazia em listTimeOffRequests quando nenhum funcionário corresponde ao filtro")
+    void shouldReturnEmptyPageWhenListTimeOffHasNoMatchingEmployees() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(mockEmployee));
+
+        var response = timeRecordService.listTimeOffRequests("ALL", "nao-existe", 0, 10);
+
+        assertNotNull(response);
+        assertTrue(response.records().isEmpty());
+        assertEquals(0, response.totalElements());
+    }
+
+    @Test
+    @DisplayName("Deve listar aprovações pendentes quando existirem registros")
+    void shouldListPendingApprovalsSuccessfully() {
+        var managerEmployee = new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        );
+
+        var user = new User(managerId, "manager.user", "pwd", Role.MANAGER, true, managerId);
+        var record = new TimeRecord(900L, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, null, null, null, null);
+        var approval = new TimeRecordApprovalRequest(900L, employeeId, managerId, LocalDateTime.now().minusHours(9), LocalDateTime.now().minusHours(1), LocalDateTime.now());
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(any(), any(), eq(companyId)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(approval), org.springframework.data.domain.PageRequest.of(0, 10), 1));
+        when(timeRecordProvider.findByIdIn(anySet())).thenReturn(List.of(record));
+        when(employeeProvider.findByIdIn(anyList())).thenReturn(List.of(mockEmployee));
+        when(userProvider.findByIdIn(anyList())).thenReturn(List.of(user));
+        when(documentProvider.findByTimeRecordIdIn(anySet())).thenReturn(Collections.emptyList());
+
+        var response = timeRecordService.listPendingApprovals(0, 10, "João");
+
+        assertEquals(1, response.approvals().size());
+        assertEquals(1, response.totalElements());
+    }
+
+    @Test
+    @DisplayName("Deve retornar página vazia ao listar aprovações pendentes sem dados")
+    void shouldReturnEmptyPendingApprovalsPageWhenNoData() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        )));
+        when(approvalProvider.findAllByCompanyId(any(), any(), eq(companyId)))
+                .thenReturn(org.springframework.data.domain.Page.empty(org.springframework.data.domain.PageRequest.of(0, 10)));
+
+        var response = timeRecordService.listPendingApprovals(0, 10, null);
+
+        assertNotNull(response);
+        assertTrue(response.approvals().isEmpty());
+    }
+
 }
