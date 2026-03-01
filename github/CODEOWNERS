@@ -1,0 +1,7 @@
+* @LsaBarbosa
+.github/ @LsaBarbosa
+src/main/java/com/kts/kronos/config/ @LsaBarbosa
+src/main/java/com/kts/kronos/adapter/out/security/ @LsaBarbosa
+src/main/resources/application.yml @LsaBarbosa
+Dockerfile @LsaBarbosa
+docs/ @LsaBarbosa
