@@ -159,9 +159,9 @@ class TimeRecordServiceTest {
         var request = new RequestVacationRequest(startDate, endDate, managerId);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee)); // Simula que são da mesma empresa
         when(userProvider.findById(managerId)).thenReturn(Optional.of(mockManagerUser));
-        when(employeeProvider.findById(mockManagerUser.employeeId())).thenReturn(Optional.of(mockEmployee)); // Simula que são da mesma empresa
+        when(employeeProvider.findById(mockManagerUser.employeeId())).thenReturn(Optional.of(mockEmployee));
         when(timeRecordProvider.findByRange(eq(employeeId), any(), any())).thenReturn(Collections.emptyList()); // Sem conflitos
 
         // Simula o retorno do batch insert
@@ -866,6 +866,214 @@ class TimeRecordServiceTest {
 
         assertNotNull(response);
         assertTrue(response.approvals().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Deve falhar atualização de parceiro quando gestor não existe")
+    void shouldThrowWhenPartnerUpdateManagerNotFound() {
+        Long recordId = 910L;
+        UUID missingManagerId = UUID.randomUUID();
+        var request = new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "09:00", "18:00", missingManagerId);
+        var record = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+        when(userProvider.findById(missingManagerId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.updateTimeRecord(recordId, request));
+    }
+
+    @Test
+    @DisplayName("Deve falhar atualização de parceiro quando gestor é de outra empresa")
+    void shouldThrowWhenPartnerUpdateManagerFromAnotherCompany() {
+        Long recordId = 911L;
+        var request = new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "09:00", "18:00", managerId);
+        var record = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var managerUser = new User(managerId, "manager", "pwd", Role.MANAGER, true, managerId);
+        var managerEmployeeOtherCompany = new Employee(
+                managerId, "Gestor Externo", "12345678900", "1234567890", "Gerente",
+                "externo@email.com", 7000.0, "11999999998", true, null, UUID.randomUUID(),
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        );
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+        when(userProvider.findById(managerId)).thenReturn(Optional.of(managerUser));
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(managerEmployeeOtherCompany));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.updateTimeRecord(recordId, request));
+    }
+
+    @Test
+    @DisplayName("Deve falhar solicitação de abono quando gestor não existe")
+    void shouldThrowWhenRequestTimeOffManagerNotFound() {
+        UUID missingManagerId = UUID.randomUUID();
+        var request = new RequestTimeOffRequest(
+                LocalDate.now().plusDays(1), LocalDate.now().plusDays(1), "09:00", "18:00", missingManagerId, RequestType.TIME_OFF_REQUEST
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(userProvider.findById(missingManagerId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.requestTimeOff(request, null));
+    }
+
+    @Test
+    @DisplayName("Deve listar solicitações de abono com documento da página atual")
+    void shouldListTimeOffRequestsWithDocumentPath() {
+        var record = new TimeRecord(920L, LocalDateTime.now().minusDays(1), LocalDateTime.now().minusDays(1).plusHours(8), StatusRecord.TIME_OFF_REQUEST, true, true, employeeId, null, null, null, null, null, null, null, null);
+        var doc = new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "atestado.pdf", "application/pdf", "atestados/doc.pdf", LocalDateTime.now(), 920L, false, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(mockEmployee));
+        when(timeRecordProvider.findByEmployeeIdInAndStatusesIn(anySet(), anySet())).thenReturn(new ArrayList<>(List.of(record)));
+        when(documentProvider.findByTimeRecordIdIn(anySet())).thenReturn(List.of(doc));
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+
+        var response = timeRecordService.listTimeOffRequests("ALL", "João", 0, 10);
+
+        assertEquals(1, response.records().size());
+        assertNotNull(response.records().getFirst().documentDownloadPath());
+    }
+
+    @Test
+    @DisplayName("Deve remover pausa implícita consumida ao aprovar ajuste")
+    void shouldDeleteImplicitBreakWhenApprovalConsumesIt() {
+        Long recordId = 930L;
+        LocalDateTime day = LocalDate.of(2025, 2, 10).atStartOfDay();
+        var breakRecord = new TimeRecord(931L, day.plusHours(12), day.plusHours(13), StatusRecord.IMPLICIT_BREAK, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var targetRecord = new TimeRecord(recordId, day.plusHours(13), day.plusHours(18), StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, 10L, 11L, day.plusHours(13), day.plusHours(18));
+        var approval = new TimeRecordApprovalRequest(recordId, employeeId, managerId, day.plusHours(12), day.plusHours(17), LocalDateTime.now());
+
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(targetRecord));
+        when(approvalProvider.findByTimeRecordId(recordId)).thenReturn(Optional.of(approval));
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(breakRecord, targetRecord));
+
+        timeRecordService.approveTimeRecordChange(recordId);
+
+        verify(timeRecordProvider).deleteTimeRecord(breakRecord);
+    }
+
+    @Test
+    @DisplayName("Deve falhar batida de ponto quando empresa do funcionário não é encontrada")
+    void shouldThrowWhenRegisterTimeCompanyNotFound() throws Exception {
+        var base64Image = Base64.getEncoder().encodeToString("dummyImage".getBytes());
+        var request = new GeolocationRequest(-22.9, -43.2, base64Image);
+
+        doNothing().when(ntpTimeService).validateSystemTime(10);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+        when(timeRecordProvider.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.registerTime(request));
+    }
+
+
+
+    @Test
+    @DisplayName("Deve falhar solicitação de férias quando gestor não existe")
+    void shouldThrowWhenRequestVacationManagerNotFound() {
+        var request = new RequestVacationRequest(LocalDate.now().plusDays(3), LocalDate.now().plusDays(4), UUID.randomUUID());
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(userProvider.findById(request.managerId())).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.requestVacation(request));
+    }
+
+    @Test
+    @DisplayName("Deve falhar listagem de aprovações pendentes quando gestor não existe")
+    void shouldThrowWhenListPendingApprovalsManagerNotFound() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.listPendingApprovals(0, 10, null));
+    }
+
+    @Test
+    @DisplayName("Deve falhar aprovação de ajuste quando registro não existe")
+    void shouldThrowWhenApproveTimeRecordChangeRecordNotFound() {
+        when(timeRecordProvider.findById(9999L)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.approveTimeRecordChange(9999L));
+    }
+
+    @Test
+    @DisplayName("Deve bloquear atualização de parceiro quando novo período sobrepõe outro registro de trabalho")
+    void shouldThrowWhenPartnerUpdateOverlapsAnotherWorkSegment() {
+        Long recordId = 940L;
+        var targetRecord = new TimeRecord(recordId, LocalDate.now().atTime(9, 0), LocalDate.now().atTime(12, 0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var adjacentWork = new TimeRecord(941L, LocalDate.now().atTime(13, 0), LocalDate.now().atTime(18, 0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 3L, 4L, null, null);
+        var request = new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "11:00", "14:00", managerId);
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(targetRecord));
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(targetRecord, adjacentWork));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.updateTimeRecord(recordId, request));
+    }
+
+    @Test
+    @DisplayName("Deve falhar relatório simples quando empresa do funcionário não é encontrada")
+    void shouldThrowWhenSimpleReportCompanyNotFound() {
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest("08:00", new LocalDate[]{LocalDate.now().minusDays(1), LocalDate.now()});
+
+        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> timeRecordService.simpleReport(employeeId, request));
+    }
+
+    @Test
+    @DisplayName("Deve mapear documento em aprovações pendentes quando existir")
+    void shouldListPendingApprovalsWithDocumentPath() {
+        var managerEmployee = new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        );
+
+        var user = new User(managerId, "manager.user", "pwd", Role.MANAGER, true, managerId);
+        var record = new TimeRecord(950L, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, null, null, null, null);
+        var approval = new TimeRecordApprovalRequest(950L, employeeId, managerId, LocalDateTime.now().minusHours(9), LocalDateTime.now().minusHours(1), LocalDateTime.now());
+        var doc = new Document(UUID.randomUUID(), employeeId, DocumentType.DOCUMENTS, "ajuste.pdf", "application/pdf", "docs/ajuste.pdf", LocalDateTime.now(), 950L, false, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(any(), any(), eq(companyId)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(approval), org.springframework.data.domain.PageRequest.of(0, 10), 1));
+        when(timeRecordProvider.findByIdIn(anySet())).thenReturn(List.of(record));
+        when(employeeProvider.findByIdIn(anyList())).thenReturn(List.of(mockEmployee));
+        when(userProvider.findByIdIn(anyList())).thenReturn(List.of(user));
+        when(documentProvider.findByTimeRecordIdIn(anySet())).thenReturn(List.of(doc));
+
+        var response = timeRecordService.listPendingApprovals(0, 10, "João");
+
+        assertEquals(1, response.approvals().size());
+        assertNotNull(response.approvals().getFirst().documentDownloadPath());
     }
 
 }
