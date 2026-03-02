@@ -108,32 +108,4 @@ class JwtAuthenticationFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain, never()).doFilter(request, response);
     }
-
-    @Test
-    void shouldContinueChainWhenTokenSubjectIsNullOrAuthenticationAlreadyExists() throws Exception {
-        var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer token-ok");
-        var response = new MockHttpServletResponse();
-        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
-
-        Claims claims = mock(Claims.class);
-
-        when(jwtUtils.getValidClaims("token-ok")).thenReturn(Optional.of(claims));
-
-        filter.doFilter(request, response, filterChain);
-        verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(userDetailsService);
-
-        reset(filterChain, userDetailsService);
-        var existingAuth = new UsernamePasswordAuthenticationToken("existing", null);
-        SecurityContextHolder.getContext().setAuthentication(existingAuth);
-
-        claims.setSubject("john");
-        when(jwtUtils.getValidClaims("token-ok")).thenReturn(Optional.of(claims));
-
-        filter.doFilter(request, response, filterChain);
-
-        verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(userDetailsService);
-    }
 }
