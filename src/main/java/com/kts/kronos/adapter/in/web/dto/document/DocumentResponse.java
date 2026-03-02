@@ -7,7 +7,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.DATE_TIME_PATTERN;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record DocumentResponse(
         UUID id,
         String fileName,

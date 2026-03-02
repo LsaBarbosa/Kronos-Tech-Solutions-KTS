@@ -5,6 +5,12 @@ public class Swagger {
     }
 
     public static final String LIST_SUCCESS = "Lista retornada com sucesso";
+    public static final String DTO_SCHEMA_DESCRIPTION = "Estrutura de dados exposta pela API. Evita a exposição de informações sensíveis e detalhes internos de implementação.";
+    public static final String OPENAPI_TITLE = "Kronos API";
+    public static final String OPENAPI_DESCRIPTION = "API para gestão de autenticação, empresas, colaboradores, jornada e documentos, com foco em rastreabilidade e segurança da informação.";
+    public static final String OPENAPI_VERSION = "v1";
+    public static final String OPENAPI_SECURITY_SCHEME = "bearerAuth";
+    public static final String OPENAPI_SECURITY_DESCRIPTION = "Informe o token JWT no formato: Bearer {token}. Nunca compartilhe credenciais em ambientes não confiáveis.";
 
     // --- SWAGGER: Auth Controller ---
     public static final String SWAGGER_AUTH_TAG = "Autenticação";
@@ -17,6 +23,9 @@ public class Swagger {
 
     public static final String RECOVER_PASS_SUMMARY = "Solicitar Recuperação de Senha";
     public static final String RECOVER_PASS_DESC = "Envia um e-mail com instruções para redefinição de senha.";
+    public static final String RECOVER_PASS_204 = "Solicitação processada com sucesso";
+    public static final String RECOVER_PASS_400 = "Dados inválidos para recuperação de senha";
+    public static final String RECOVER_PASS_404 = "Usuário não encontrado para os dados informados";
 
     public static final String LOGIN_FACE_SUMMARY = "Login Facial";
     public static final String LOGIN_FACE_DESC = "Autentica o usuário através da imagem facial (Base64).";
@@ -26,6 +35,7 @@ public class Swagger {
 
     public static final String RESET_PASS_SUMMARY = "Redefinir Senha";
     public static final String RESET_PASS_DESC = "Conclui o processo de troca de senha utilizando o token recebido por e-mail.";
+    public static final String RESET_PASS_204 = "Senha redefinida com sucesso";
     public static final String RESET_PASS_400 = "Confirmação de senha não confere";
     public static final String RESET_PASS_404 = "Token de recuperação inválido ou expirado | Usuário não encontrado | Erro na autenticação facial";
 

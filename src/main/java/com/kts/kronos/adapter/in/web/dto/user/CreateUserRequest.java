@@ -11,7 +11,9 @@ import static com.kts.kronos.constants.Messages.USERNAME_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.PASSWORD_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.ROLE_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.INVALID_ROLE;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record CreateUserRequest(
         @NotBlank(message = USERNAME_NOT_BLANK)
         String username,
