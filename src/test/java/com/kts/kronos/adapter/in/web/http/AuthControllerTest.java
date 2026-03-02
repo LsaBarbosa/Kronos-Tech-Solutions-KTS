@@ -252,6 +252,47 @@ class AuthControllerTest {
         verify(authUseCase).recoverPassword(any(RecoverPasswordRequest.class), eq(null));
     }
 
+    @Test
+    @DisplayName("Deve retornar 404 no recover-password quando CPF/e-mail não forem encontrados")
+    void shouldReturn404WhenRecoverPasswordTargetNotFound() throws Exception {
+        RecoverPasswordRequest request = new RecoverPasswordRequest("12345678901", "email@teste.com");
+
+        doThrow(new ResourceNotFoundException(USER_NOT_FOUND))
+                .when(authUseCase).recoverPassword(any(RecoverPasswordRequest.class), any());
+
+        mockMvc.perform(post(BASE_URL + "/recover-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 400 quando payload de recover-password for inválido")
+    void shouldReturn400WhenRecoverPasswordPayloadIsInvalid() throws Exception {
+        RecoverPasswordRequest invalidRequest = new RecoverPasswordRequest("", "email-invalido");
+
+        mockMvc.perform(post(BASE_URL + "/recover-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+
+        verify(authUseCase, never()).recoverPassword(any(RecoverPasswordRequest.class), any());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 400 quando payload de reset-password for inválido")
+    void shouldReturn400WhenResetPasswordPayloadIsInvalid() throws Exception {
+        ResetPasswordRequest invalidRequest = new ResetPasswordRequest("", "", "");
+
+        mockMvc.perform(post(BASE_URL + "/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+
+        verify(authUseCase, never()).resetPassword(any(ResetPasswordRequest.class));
+    }
+
     // --- TESTES DE REGRAS DE NEGÓCIO ESPECÍFICAS (LOGIN FACIAL) ---
 
     @Test
