@@ -107,3 +107,30 @@ kronos:
 security:
   password:
     policy-regex: ${SECURITY_PASSWORD_POLICY_REGEX:^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$}
+
+  rate-limit:
+    capacity: ${RATE_LIMIT_CAPACITY:120}
+    refill-tokens: ${RATE_LIMIT_REFILL_TOKENS:120}
+    refill-duration-minutes: ${RATE_LIMIT_REFILL_DURATION_MINUTES:1}
+    auth-capacity: ${RATE_LIMIT_AUTH_CAPACITY:20}
+    auth-refill-tokens: ${RATE_LIMIT_AUTH_REFILL_TOKENS:20}
+    auth-refill-duration-minutes: ${RATE_LIMIT_AUTH_REFILL_DURATION_MINUTES:1}
+
+  resilience4j:
+    retry:
+      instances:
+        viaCep:
+          max-attempts: ${VIACEP_RETRY_MAX_ATTEMPTS:3}
+          wait-duration: ${VIACEP_RETRY_WAIT_DURATION:300ms}
+          retry-exceptions:
+            - org.springframework.web.reactive.function.client.WebClientRequestException
+            - java.util.concurrent.TimeoutException
+    circuitbreaker:
+      instances:
+        viaCep:
+          sliding-window-type: COUNT_BASED
+          sliding-window-size: 10
+          minimum-number-of-calls: 5
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: 30s
+          permitted-number-of-calls-in-half-open-state: 3
