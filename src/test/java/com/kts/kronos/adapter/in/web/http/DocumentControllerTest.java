@@ -72,6 +72,48 @@ class DocumentControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 404 Not Found no upload quando funcionário não existir")
+    void shouldReturn404WhenUploadEmployeeNotFound() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "contrato.pdf",
+                MediaType.APPLICATION_PDF_VALUE,
+                "conteudo-mock".getBytes()
+        );
+
+        doThrow(new ResourceNotFoundException("Funcionário não encontrado"))
+                .when(documentUseCase).uploadDocument(any(), any(), any());
+
+        mockMvc.perform(multipart(BASE_URL)
+                        .file(file)
+                        .param("type", "DOCUMENTS")
+                        .param("employeeId", EMP_ID.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Funcionário não encontrado"));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 403 Forbidden no upload quando usuário não possuir permissão")
+    void shouldReturn403WhenUploadWithoutPermission() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "contrato.pdf",
+                MediaType.APPLICATION_PDF_VALUE,
+                "conteudo-mock".getBytes()
+        );
+
+        doThrow(new ForbiddenException(DOCUMENT_NOT_BELONGS_EMPLOYEE))
+                .when(documentUseCase).uploadDocument(any(), any(), any());
+
+        mockMvc.perform(multipart(BASE_URL)
+                        .file(file)
+                        .param("type", "DOCUMENTS")
+                        .param("employeeId", EMP_ID.toString()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Sem permissão para utilizar esse recurso"));
+    }
+
+    @Test
     @DisplayName("Deve retornar 400 Bad Request se o arquivo for inválido (Ex: Tipo não permitido)")
     void shouldReturn400WhenUploadInvalidFileType() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -123,6 +165,29 @@ class DocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.documents").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 403 Forbidden ao listar documentos sem permissão")
+    void shouldReturn403WhenListDocumentsWithoutPermission() throws Exception {
+        when(documentUseCase.listDocuments(any(), any(), any()))
+                .thenThrow(new ForbiddenException("Sem permissão para visualizar documentos"));
+
+        mockMvc.perform(get(BASE_URL)
+                        .param("type", "DOCUMENTS"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Sem permissão para utilizar esse recurso"));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 400 Bad Request quando data for inválida na listagem")
+    void shouldReturn400WhenListDocumentsWithInvalidDate() throws Exception {
+        mockMvc.perform(get(BASE_URL)
+                        .param("type", "DOCUMENTS")
+                        .param("date", "2025-99-99"))
+                .andExpect(status().isBadRequest());
+
+        verify(documentUseCase, never()).listDocuments(any(), any(), any());
     }
 
     // --- CENÁRIOS DE DOWNLOAD (GET /{id}) ---

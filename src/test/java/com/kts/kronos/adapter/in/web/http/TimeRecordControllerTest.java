@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequ
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
@@ -20,19 +21,21 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import static com.kts.kronos.constants.Messages.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TimeRecordController.class)
-@AutoConfigureMockMvc(addFilters = false) // Desativa Spring Security para focar na lógica do Controller
+@AutoConfigureMockMvc(addFilters = false)
 class TimeRecordControllerTest {
 
     @Autowired
@@ -42,378 +45,472 @@ class TimeRecordControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private TimeRecordUseCase timeRecordUseCase;
+    private TimeRecordUseCase useCase;
 
     private static final String BASE_URL = "/records";
     private static final UUID EMPLOYEE_ID = UUID.randomUUID();
+    private static final UUID MANAGER_ID = UUID.randomUUID();
     private static final Long RECORD_ID = 1L;
 
-    // ==================================================================================
-    // 1. REGISTRO DE PONTO (CHECK-IN/CHECK-OUT)
-    // ==================================================================================
-
     @Test
-    @DisplayName("Deve registrar ponto com sucesso (200 OK)")
-    void shouldRegisterTimeSuccessfully() throws Exception {
-        GeolocationRequest request = new GeolocationRequest(-22.9, -43.2, "base64image");
-        ActionResponse response = new ActionResponse("Ponto registrado", "CHECKIN");
-
-        when(timeRecordUseCase.registerTime(any(GeolocationRequest.class))).thenReturn(response);
+    void registerTime_shouldReturn200_whenValid() throws Exception {
+        when(useCase.registerTime(any())).thenReturn(new ActionResponse("ok", "CHECKIN"));
 
         mockMvc.perform(post(BASE_URL + "/checkin")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new GeolocationRequest(-22.9, -43.2, "base64"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actionType").value("CHECKIN"));
     }
 
     @Test
-    @DisplayName("Deve retornar 400 Bad Request se a imagem facial não for enviada")
-    void shouldReturn400WhenFaceImageIsMissing() throws Exception {
-        GeolocationRequest invalidRequest = new GeolocationRequest(-22.9, -43.2, ""); // Imagem vazia
+    void registerTime_shouldReturn400_whenInvalidBody() throws Exception {
+        mockMvc.perform(post(BASE_URL + "/checkin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GeolocationRequest(-22.9, -43.2, ""))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].name").value("faceImageBase64"));
+    }
+
+    @Test
+    void registerTime_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Funcionário não encontrado"))
+                .when(useCase).registerTime(any());
 
         mockMvc.perform(post(BASE_URL + "/checkin")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                        .content(objectMapper.writeValueAsString(new GeolocationRequest(-22.9, -43.2, "base64"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Funcionário não encontrado"));
+    }
+
+    @Test
+    void updateTimeRecord_shouldReturn200_whenValid() throws Exception {
+        doNothing().when(useCase).updateTimeRecord(eq(RECORD_ID), any());
+
+        mockMvc.perform(put(BASE_URL + "/update/time-record/{timeRecordId}", RECORD_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validUpdateRequest())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void updateTimeRecord_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado"))
+                .when(useCase).updateTimeRecord(eq(RECORD_ID), any());
+
+        mockMvc.perform(put(BASE_URL + "/update/time-record/{timeRecordId}", RECORD_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validUpdateRequest())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Registro não encontrado"));
+    }
+
+    @Test
+    void updateStatus_shouldReturn200_whenValid() throws Exception {
+        doNothing().when(useCase).updateStatus(eq(EMPLOYEE_ID), eq(RECORD_ID), any());
+
+        mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateTimeRecordStatusRequest(StatusRecord.CREATED))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void updateStatus_shouldReturn400_whenValidationFails() throws Exception {
+        mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest());
     }
 
-    // ==================================================================================
-    // 2. ATUALIZAÇÃO DE REGISTRO (UPDATE)
-    // ==================================================================================
-
     @Test
-    @DisplayName("Deve atualizar registro de ponto com sucesso (200 OK)")
-    void shouldUpdateTimeRecordSuccessfully() throws Exception {
-        UpdateTimeRecordRequest request = new UpdateTimeRecordRequest(
-                LocalDate.now(), LocalDate.now(), "09:00", "18:00", UUID.randomUUID()
-        );
+    void updateStatus_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado"))
+                .when(useCase).updateStatus(eq(EMPLOYEE_ID), eq(RECORD_ID), any());
 
-        doNothing().when(timeRecordUseCase).updateTimeRecord(eq(RECORD_ID), any());
-
-        mockMvc.perform(put(BASE_URL + "/update/time-record/{timeRecordId}", RECORD_ID)
+        mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("Deve retornar 404 Not Found se o registro não existir ao atualizar")
-    void shouldReturn404WhenUpdatingNonExistentRecord() throws Exception {
-        UpdateTimeRecordRequest request = new UpdateTimeRecordRequest(
-                LocalDate.now(), LocalDate.now(), "09:00", "18:00", UUID.randomUUID()
-        );
-
-        doThrow(new ResourceNotFoundException(RECORD_NOT_FOUND))
-                .when(timeRecordUseCase).updateTimeRecord(eq(RECORD_ID), any());
-
-        mockMvc.perform(put(BASE_URL + "/update/time-record/{timeRecordId}", RECORD_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new UpdateTimeRecordStatusRequest(StatusRecord.CREATED))))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value(RECORD_NOT_FOUND));
+                .andExpect(jsonPath("$.detail").value("Registro não encontrado"));
     }
 
     @Test
-    @DisplayName("Deve rejeitar solicitação de ajuste com sucesso (200 OK)")
-    void shouldRejectUpdateSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).rejectTimeRecordChange(RECORD_ID);
-
-        mockMvc.perform(patch(BASE_URL + "/reject/{timeRecordId}", RECORD_ID))
+    void toggleActivate_shouldReturn200_whenValid() throws Exception {
+        mockMvc.perform(put(BASE_URL + "/toggle-activate/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
                 .andExpect(status().isOk());
 
-        verify(timeRecordUseCase).rejectTimeRecordChange(RECORD_ID);
+        verify(useCase).toggleActivate(EMPLOYEE_ID, RECORD_ID);
     }
 
-    // ==================================================================================
-    // 3. RELATÓRIOS (REPORT & SIMPLE REPORT)
-    // ==================================================================================
+    @Test
+    void toggleActivate_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Acesso negado")).when(useCase).toggleActivate(EMPLOYEE_ID, RECORD_ID);
+
+        mockMvc.perform(put(BASE_URL + "/toggle-activate/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
-    @DisplayName("Deve gerar relatório detalhado com sucesso (200 OK)")
-    void shouldGenerateReportSuccessfully() throws Exception {
-        ListReportRequest request = new ListReportRequest(
-                "08:00", true, null, new LocalDate[]{LocalDate.now()}
-        );
+    @DisplayName("Delete usa rota sem barra inicial por constante DELETE_RECORD")
+    void deleteTimeRecord_shouldReturn200_whenValid() throws Exception {
+        mockMvc.perform(delete(BASE_URL + "/records/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
+                .andExpect(status().isOk());
 
-        when(timeRecordUseCase.listReport(any(), any())).thenReturn(Collections.emptyList());
+        verify(useCase).deleteTimeRecord(EMPLOYEE_ID, RECORD_ID);
+    }
 
+    @Test
+    void deleteTimeRecord_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado"))
+                .when(useCase).deleteTimeRecord(EMPLOYEE_ID, RECORD_ID);
+
+        mockMvc.perform(delete(BASE_URL + "/records/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void report_shouldReturn200_whenValid() throws Exception {
+        when(useCase.listReport(any(), any())).thenReturn(List.of());
+
+        var request = new ListReportRequest("08:00", true, List.of(StatusRecord.CREATED), new LocalDate[]{LocalDate.now()});
         mockMvc.perform(post(BASE_URL + "/report")
                         .param("employeeId", EMPLOYEE_ID.toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
-    }
-
-    @Test
-    @DisplayName("Deve gerar relatório simplificado com sucesso (200 OK)")
-    void shouldGenerateSimpleReportSuccessfully() throws Exception {
-        SimpleReportRequest request = new SimpleReportRequest(
-                "08:00", new LocalDate[]{LocalDate.now()}
-        );
-        SimpleReportResponse response = new SimpleReportResponse(
-                "João", "KTS", List.of(), "08:00", "01:00", "+00:00"
-        );
-
-        when(timeRecordUseCase.simpleReport(eq(EMPLOYEE_ID), any())).thenReturn(response);
-
-        mockMvc.perform(post(BASE_URL + "/report/simple")
-                        .param("employeeId", EMPLOYEE_ID.toString())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.employeeName").value("João"));
-    }
-
-    // ==================================================================================
-    // 4. APROVAÇÕES (MANAGER)
-    // ==================================================================================
-
-    @Test
-    @DisplayName("Deve aprovar solicitação de ajuste com sucesso (200 OK)")
-    void shouldApproveUpdateSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).approveTimeRecordChange(RECORD_ID);
-
-        mockMvc.perform(patch(BASE_URL + "/approve/{timeRecordId}", RECORD_ID))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("Deve listar aprovações pendentes com paginação (200 OK)")
-    void shouldListPendingApprovalsSuccessfully() throws Exception {
-        TimeRecordApprovalPageResponse response = new TimeRecordApprovalPageResponse(
-                List.of(), 1, 0, 0, true, true
-        );
-
-        when(timeRecordUseCase.listPendingApprovals(0, 5, null)).thenReturn(response);
-
-        mockMvc.perform(get(BASE_URL + "/pending-approvals")
-                        .param("page", "0"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(0));
+    void report_shouldReturn400_whenBodyMalformed() throws Exception {
+        mockMvc.perform(post(BASE_URL + "/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("not-json"))
+                .andExpect(status().isBadRequest());
     }
 
-    // ==================================================================================
-    // 5. FÉRIAS (VACATION)
-    // ==================================================================================
+    @Test
+    void report_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Sem permissão para relatório"))
+                .when(useCase).listReport(any(), any());
+
+        var request = new ListReportRequest("08:00", true, List.of(StatusRecord.CREATED), new LocalDate[]{LocalDate.now()});
+        mockMvc.perform(post(BASE_URL + "/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
-    @DisplayName("Deve solicitar férias com sucesso (201 Created)")
-    void shouldRequestVacationSuccessfully() throws Exception {
-        RequestVacationRequest request = new RequestVacationRequest(
-                LocalDate.now().plusDays(10), LocalDate.now().plusDays(20), UUID.randomUUID()
-        );
+    void simpleReport_shouldReturn200_whenValid() throws Exception {
+        when(useCase.simpleReport(any(), any())).thenReturn(new SimpleReportResponse("Ana", "KTS", List.of(), "10:00", "01:00", "+01:00"));
 
-        when(timeRecordUseCase.requestVacation(any())).thenReturn(List.of(100L, 101L));
+        var req = new SimpleReportRequest("08:00", new LocalDate[]{LocalDate.now()});
+        mockMvc.perform(post(BASE_URL + "/report/simple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalHoursWorked").value("10:00"));
+    }
 
+    @Test
+    void simpleReport_shouldReturn400_whenValidationFails() throws Exception {
+        var req = new SimpleReportRequest("", new LocalDate[]{});
+        mockMvc.perform(post(BASE_URL + "/report/simple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void simpleReport_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Sem permissão para relatório simplificado"))
+                .when(useCase).simpleReport(any(), any());
+
+        var req = new SimpleReportRequest("08:00", new LocalDate[]{LocalDate.now()});
+        mockMvc.perform(post(BASE_URL + "/report/simple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void approveChange_shouldReturn200_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/approve/{timeRecordId}", RECORD_ID))
+                .andExpect(status().isOk());
+
+        verify(useCase).approveTimeRecordChange(RECORD_ID);
+    }
+
+    @Test
+    void approveChange_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado")).when(useCase).approveTimeRecordChange(RECORD_ID);
+
+        mockMvc.perform(patch(BASE_URL + "/approve/{timeRecordId}", RECORD_ID))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rejectChange_shouldReturn200_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/reject/{timeRecordId}", RECORD_ID))
+                .andExpect(status().isOk());
+
+        verify(useCase).rejectTimeRecordChange(RECORD_ID);
+    }
+
+    @Test
+    void rejectChange_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Não é possível rejeitar")).when(useCase).rejectTimeRecordChange(RECORD_ID);
+
+        mockMvc.perform(patch(BASE_URL + "/reject/{timeRecordId}", RECORD_ID))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Não é possível rejeitar"));
+    }
+
+    @Test
+    void listPendingApprovals_shouldReturn200_whenValid() throws Exception {
+        var response = new TimeRecordApprovalPageResponse(List.of(), 0, 0, 0, true, true);
+        when(useCase.listPendingApprovals(0, 5, null)).thenReturn(response);
+
+        mockMvc.perform(get(BASE_URL + "/pending-approvals").param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPages").value(0));
+    }
+
+    @Test
+    void listPendingApprovals_shouldReturn400_whenInvalidPageType() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/pending-approvals").param("page", "x"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void requestVacation_shouldReturn201_whenValid() throws Exception {
+        when(useCase.requestVacation(any())).thenReturn(List.of(10L, 11L));
+
+        var request = new RequestVacationRequest(LocalDate.now().plusDays(1), LocalDate.now().plusDays(2), MANAGER_ID);
         mockMvc.perform(post(BASE_URL + "/vacation-request")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$[0]").value(100L));
+                .andExpect(jsonPath("$[0]").value(10L));
     }
 
     @Test
-    @DisplayName("Deve listar solicitações de férias (200 OK)")
-    void shouldListVacationRequestsSuccessfully() throws Exception {
-        // Mock da resposta
-        VacationRequestResponse responseDto = new VacationRequestResponse(
-                EMPLOYEE_ID, "João", LocalDate.now(), LocalDate.now().plusDays(5), "PENDING", List.of(1L)
-        );
+    void requestVacation_shouldReturn400_whenInvalidBody() throws Exception {
+        var invalid = new RequestVacationRequest(LocalDate.now().minusDays(5), LocalDate.now().plusDays(1), MANAGER_ID);
 
-        when(timeRecordUseCase.listVacationRequests(anyString(), any(), anyInt(), anyInt()))
-                .thenReturn(List.of(responseDto));
-
-        mockMvc.perform(get(BASE_URL + "/vacation-request")
-                        .param("status", "PENDING")
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].employeeName").value("João"));
-    }
-
-    @Test
-    @DisplayName("Deve aprovar férias com sucesso (204 No Content)")
-    void shouldApproveVacationSuccessfully() throws Exception {
-        VacationApprovalRequest request = new VacationApprovalRequest(List.of(100L, 101L));
-
-        doNothing().when(timeRecordUseCase).approveVacation(any());
-
-        mockMvc.perform(patch(BASE_URL + "/vacation-request/approve")
+        mockMvc.perform(post(BASE_URL + "/vacation-request")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    @DisplayName("Deve rejeitar férias com sucesso (204 No Content)")
-    void shouldRejectVacationSuccessfully() throws Exception {
-        VacationApprovalRequest request = new VacationApprovalRequest(List.of(100L, 101L));
-
-        doNothing().when(timeRecordUseCase).rejectVacation(any());
-
-        mockMvc.perform(patch(BASE_URL + "/vacation-request/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    @DisplayName("Deve retornar 400 Bad Request se tentar rejeitar férias com lista vazia")
-    void shouldReturn400WhenRejectVacationWithEmptyList() throws Exception {
-        // Lista vazia viola a validação @NotEmpty no DTO VacationApprovalRequest
-        VacationApprovalRequest request = new VacationApprovalRequest(List.of());
-
-        mockMvc.perform(patch(BASE_URL + "/vacation-request/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest());
     }
 
-    // ==================================================================================
-    // 6. ABONOS E ATESTADOS (TIME OFF)
-    // ==================================================================================
+    @Test
+    void approveVacation_shouldReturn204_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isNoContent());
+
+        verify(useCase).approveVacation(any(VacationApprovalRequest.class));
+    }
 
     @Test
-    @DisplayName("Deve solicitar abono com upload de documento (201 Created)")
-    void shouldRequestTimeOffWithDocumentSuccessfully() throws Exception {
-        // Criar as partes do Multipart Request
-        MockMultipartFile document = new MockMultipartFile(
-                "document", "atestado.pdf", MediaType.APPLICATION_PDF_VALUE, "conteudo".getBytes()
-        );
+    void approveVacation_shouldReturn400_whenInvalidBody() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of()))))
+                .andExpect(status().isBadRequest());
+    }
 
-        // O objeto JSON deve ser enviado como uma "Part" chamada "request"
-        RequestTimeOffRequest requestDto = new RequestTimeOffRequest(
-                LocalDate.now(), LocalDate.now(), "09:00", "18:00", UUID.randomUUID(), null
-        );
+    @Test
+    void approveVacation_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Apenas gestor pode aprovar"))
+                .when(useCase).approveVacation(any(VacationApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectVacation_shouldReturn204_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isNoContent());
+
+        verify(useCase).rejectVacation(any(VacationApprovalRequest.class));
+    }
+
+    @Test
+    void rejectVacation_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Pedido inválido")).when(useCase).rejectVacation(any(VacationApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Pedido inválido"));
+    }
+
+    @Test
+    void listVacationRequests_shouldReturn200_whenValid() throws Exception {
+        var response = new VacationRequestResponse(EMPLOYEE_ID, "Ana", LocalDate.now(), LocalDate.now().plusDays(1), "PENDING", List.of(RECORD_ID));
+        when(useCase.listVacationRequests(anyString(), any(), anyInt(), anyInt())).thenReturn(List.of(response));
+
+        mockMvc.perform(get(BASE_URL + "/vacation-request")
+                        .param("status", "PENDING")
+                        .param("employeeName", "Ana")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].employeeName").value("Ana"));
+    }
+
+    @Test
+    void listVacationRequests_shouldReturn400_whenPageInvalid() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/vacation-request").param("page", "not-int"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listVacationRequests_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Status inválido"))
+                .when(useCase).listVacationRequests(anyString(), any(), anyInt(), anyInt());
+
+        mockMvc.perform(get(BASE_URL + "/vacation-request").param("status", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Status inválido"));
+    }
+
+    @Test
+    void requestTimeOff_shouldReturn201_whenWithOrWithoutDocument() throws Exception {
+        when(useCase.requestTimeOff(any(), any())).thenReturn(RECORD_ID);
+
         MockMultipartFile requestPart = new MockMultipartFile(
-                "request", "", MediaType.APPLICATION_JSON_VALUE, objectMapper.writeValueAsBytes(requestDto)
+                "request", "", MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(validTimeOffRequest())
+        );
+        MockMultipartFile document = new MockMultipartFile(
+                "document", "atestado.pdf", MediaType.APPLICATION_PDF_VALUE, "pdf".getBytes()
         );
 
-        when(timeRecordUseCase.requestTimeOff(any(), any())).thenReturn(RECORD_ID);
-
-        mockMvc.perform(multipart(BASE_URL + "/time-off/request")
-                        .file(document)
-                        .file(requestPart))
+        mockMvc.perform(multipart(BASE_URL + "/time-off/request").file(requestPart).file(document))
                 .andExpect(status().isCreated())
                 .andExpect(content().string(RECORD_ID.toString()));
     }
 
     @Test
-    @DisplayName("Deve listar solicitações de abono (200 OK)")
-    void shouldListTimeOffRequestsSuccessfully() throws Exception {
-        // Mock da resposta paginada
-        TimeRecordPageResponse pageResponse = new TimeRecordPageResponse(
-                List.of(), 1, 0, 0, true, true
+    void requestTimeOff_shouldReturn400_whenValidationFails() throws Exception {
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(new RequestTimeOffRequest(LocalDate.now(), LocalDate.now(), "9", "18:00", MANAGER_ID, null))
         );
 
-        when(timeRecordUseCase.listTimeOffRequests(anyString(), any(), anyInt(), anyInt()))
-                .thenReturn(pageResponse);
+        mockMvc.perform(multipart(BASE_URL + "/time-off/request").file(requestPart))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void requestTimeOff_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Gestor não encontrado")).when(useCase).requestTimeOff(any(), any());
+
+        MockMultipartFile requestPart = new MockMultipartFile(
+                "request", "", MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(validTimeOffRequest())
+        );
+
+        mockMvc.perform(multipart(BASE_URL + "/time-off/request").file(requestPart))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void approveTimeOff_shouldReturn204_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isNoContent());
+
+        verify(useCase).approveTimeOff(any(TimeOffApprovalRequest.class));
+    }
+
+    @Test
+    void approveTimeOff_shouldReturn400_whenInvalidBody() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void approveTimeOff_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Acesso negado para aprovar"))
+                .when(useCase).approveTimeOff(any(TimeOffApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectTimeOff_shouldReturn204_whenValid() throws Exception {
+        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isNoContent());
+
+        verify(useCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
+    }
+
+    @Test
+    void rejectTimeOff_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado")).when(useCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listTimeOffRequests_shouldReturn200_whenValid() throws Exception {
+        when(useCase.listTimeOffRequests(anyString(), any(), anyInt(), anyInt()))
+                .thenReturn(new TimeRecordPageResponse(List.of(), 1, 0, 0, true, true));
 
         mockMvc.perform(get(BASE_URL + "/time-off/requests")
                         .param("status", "PENDING")
-                        .param("page", "0"))
+                        .param("employeeName", "Ana")
+                        .param("page", "0")
+                        .param("size", "5"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(0));
-    }
-    @Test
-    @DisplayName("Deve aprovar abonos/time-off em lote (204 No Content)")
-    void shouldApproveTimeOffSuccessfully() throws Exception {
-        // 1. Cria o payload com a lista de IDs
-        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
-
-        // 2. Configura o mock para aceitar o novo DTO
-        doNothing().when(timeRecordUseCase).approveTimeOff(any(TimeOffApprovalRequest.class));
-
-        // 3. Executa a requisição passando o JSON no corpo (sem variável na URL)
-        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(jsonPath("$.totalPages").value(1));
     }
 
     @Test
-    @DisplayName("Deve rejeitar abonos/time-off em lote (204 No Content)")
-    void shouldRejectTimeOffSuccessfully() throws Exception {
-        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
-
-        doNothing().when(timeRecordUseCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
-
-        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+    void listTimeOffRequests_shouldReturn400_whenInvalidSizeType() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/time-off/requests").param("size", "x"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    @DisplayName("Deve retornar 404 Not Found ao tentar rejeitar abonos com IDs inexistentes")
-    void shouldReturn404WhenRejectingNonExistentTimeOff() throws Exception {
-        TimeOffApprovalRequest request = new TimeOffApprovalRequest(List.of(RECORD_ID));
+    void listTimeOffRequests_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Filtro de status inválido"))
+                .when(useCase).listTimeOffRequests(anyString(), any(), anyInt(), anyInt());
 
-        // Configura o mock para lançar a exceção quando receber qualquer request de rejeição
-        doThrow(new ResourceNotFoundException(RECORD_NOT_FOUND))
-                .when(timeRecordUseCase).rejectTimeOff(any(TimeOffApprovalRequest.class));
-
-        mockMvc.perform(patch(BASE_URL + "/time-off/reject")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound());
-    }
-    @Test
-    @DisplayName("Deve retornar 400 Bad Request se houver erro de validação no abono")
-    void shouldReturn400WhenTimeOffRequestInvalid() throws Exception {
-        // Datas invertidas (Inicio > Fim) - Validação de Negócio
-        RequestTimeOffRequest requestDto = new RequestTimeOffRequest(
-                LocalDate.now().plusDays(5), LocalDate.now(), "09:00", "18:00", UUID.randomUUID(), null
-        );
-        MockMultipartFile requestPart = new MockMultipartFile(
-                "request", "", MediaType.APPLICATION_JSON_VALUE, objectMapper.writeValueAsBytes(requestDto)
-        );
-
-        doThrow(new BadRequestException(START_DATE_BIGGER_THAN_END_DATE))
-                .when(timeRecordUseCase).requestTimeOff(any(), any());
-
-        mockMvc.perform(multipart(BASE_URL + "/time-off/request")
-                        .file(requestPart)) // Sem arquivo (opcional ou erro, dependendo do caso)
+        mockMvc.perform(get(BASE_URL + "/time-off/requests").param("status", "INVALID"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value(START_DATE_BIGGER_THAN_END_DATE));
+                .andExpect(jsonPath("$.detail").value("Filtro de status inválido"));
     }
 
-    // ==================================================================================
-    // 7. CENÁRIOS DE EXCLUSÃO E STATUS
-    // ==================================================================================
-
-    @Test
-    @DisplayName("Deve deletar registro de ponto com sucesso (200 OK)")
-    void shouldDeleteTimeRecordSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).deleteTimeRecord(EMPLOYEE_ID, RECORD_ID);
-
-        mockMvc.perform(delete(BASE_URL + "/records/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
-                .andExpect(status().isOk());
+    private UpdateTimeRecordRequest validUpdateRequest() {
+        return new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "09:00", "18:00", MANAGER_ID);
     }
 
-    @Test
-    @DisplayName("Deve atualizar status do ponto manualmente (200 OK)")
-    void shouldUpdateStatusSuccessfully() throws Exception {
-        UpdateTimeRecordStatusRequest request = new UpdateTimeRecordStatusRequest(StatusRecord.CREATED);
-
-        doNothing().when(timeRecordUseCase).updateStatus(eq(EMPLOYEE_ID), eq(RECORD_ID), any());
-
-        mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("Deve alternar ativação do registro (Toggle Activate) (200 OK)")
-    void shouldToggleActivateRecordSuccessfully() throws Exception {
-        doNothing().when(timeRecordUseCase).toggleActivate(EMPLOYEE_ID, RECORD_ID);
-
-        mockMvc.perform(put(BASE_URL + "/toggle-activate/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
-                .andExpect(status().isOk());
-
-        verify(timeRecordUseCase).toggleActivate(EMPLOYEE_ID, RECORD_ID);
+    private RequestTimeOffRequest validTimeOffRequest() {
+        return new RequestTimeOffRequest(LocalDate.now(), LocalDate.now(), "09:00", "18:00", MANAGER_ID, null);
     }
 }
