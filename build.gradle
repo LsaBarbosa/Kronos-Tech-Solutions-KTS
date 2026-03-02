@@ -31,7 +31,7 @@ dependencyManagement {
         mavenBom('com.google.cloud:libraries-bom:26.60.0')
         mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.2.0')
 
-        mavenBom("software.amazon.awssdk:bom:2.25.10")
+        mavenBom("software.amazon.awssdk:bom:2.42.4")
     }
 
 }
