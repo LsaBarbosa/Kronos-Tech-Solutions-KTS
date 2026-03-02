@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Optional;
@@ -104,17 +105,17 @@ public class JwtUtils {
     }
 
     private Claims parseClaims(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
+        var claims = Jwts.parser()
+                .verifyWith((SecretKey) key)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
         if (claims.getId() == null || claims.getId().isBlank()) {
             throw new JwtException("JWT sem jti");
         }
 
         var tokenAudience = claims.getAudience();
-        if (tokenAudience == null || tokenAudience.isBlank() || !audience.equals(tokenAudience)) {
+        if (tokenAudience == null || tokenAudience.isEmpty() || !tokenAudience.contains(audience)) {
             throw new JwtException("JWT com audience inválida");
         }
 
