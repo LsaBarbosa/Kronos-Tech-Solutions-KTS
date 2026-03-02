@@ -159,9 +159,9 @@ class TimeRecordServiceTest {
         var request = new RequestVacationRequest(startDate, endDate, managerId);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee)); // Simula que são da mesma empresa
         when(userProvider.findById(managerId)).thenReturn(Optional.of(mockManagerUser));
-        when(employeeProvider.findById(mockManagerUser.employeeId())).thenReturn(Optional.of(mockEmployee)); // Simula que são da mesma empresa
+        when(employeeProvider.findById(mockManagerUser.employeeId())).thenReturn(Optional.of(mockEmployee));
         when(timeRecordProvider.findByRange(eq(employeeId), any(), any())).thenReturn(Collections.emptyList()); // Sem conflitos
 
         // Simula o retorno do batch insert
