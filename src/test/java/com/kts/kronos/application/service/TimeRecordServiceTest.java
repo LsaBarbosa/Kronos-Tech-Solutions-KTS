@@ -977,4 +977,76 @@ class TimeRecordServiceTest {
         verify(approvalProvider, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Parceiro deve solicitar aprovação com sucesso ao atualizar ponto")
+    void shouldRequestApprovalWhenPartnerUpdatesTimeRecordSuccessfully() {
+        Long recordId = 3000L;
+        var request = new UpdateTimeRecordRequest(LocalDate.now(), LocalDate.now(), "08:00", "17:00", managerId);
+        var existingRecord = new TimeRecord(recordId, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var managerEmployee = new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        );
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(existingRecord));
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(existingRecord));
+        when(userProvider.findById(managerId)).thenReturn(Optional.of(new User(managerId, "manager", "pwd", Role.MANAGER, true, managerId)));
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(managerEmployee));
+
+        timeRecordService.updateTimeRecord(recordId, request);
+
+        verify(approvalProvider).save(any(TimeRecordApprovalRequest.class));
+        verify(timeRecordProvider).save(argThat(r ->
+                r.timeRecordId().equals(recordId)
+                        && r.statusRecord() == StatusRecord.PENDING_APPROVAL
+                        && r.edited()
+        ));
+    }
+
+    @Test
+    @DisplayName("Deve listar solicitações de abono/esquecimento com documento em paginação")
+    void shouldListTimeOffRequestsWithDocumentPath() {
+        Long recordId = 3100L;
+        var timeOffRecord = new TimeRecord(recordId, LocalDateTime.now().minusDays(1), LocalDateTime.now().minusDays(1).plusHours(8), StatusRecord.TIME_OFF_REQUEST, true, true, employeeId, null, null, null, null, null, null, null, null);
+        var document = new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "doc.pdf", "application/pdf", "s3://doc.pdf", LocalDateTime.now(), recordId, false, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(mockEmployee));
+        when(timeRecordProvider.findByEmployeeIdInAndStatusesIn(anySet(), anySet())).thenReturn(new ArrayList<>(List.of(timeOffRecord)));
+        when(documentProvider.findByTimeRecordIdIn(anySet())).thenReturn(List.of(document));
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+
+        var response = timeRecordService.listTimeOffRequests("PENDING", "João", 0, 10);
+
+        assertEquals(1, response.records().size());
+        assertEquals(1, response.totalElements());
+        assertEquals(document.documentId().toString(), response.records().getFirst().documentDownloadPath());
+    }
+
+    @Test
+    @DisplayName("Deve falhar solicitação de abono quando nenhum registro for criado")
+    void shouldThrowWhenRequestTimeOffCreatesNoRecords() {
+        var request = new RequestTimeOffRequest(LocalDate.now().plusDays(1), LocalDate.now().plusDays(1), "09:00", "18:00", managerId, RequestType.TIME_OFF_REQUEST);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(userProvider.findById(managerId)).thenReturn(Optional.of(new User(managerId, "manager", "pwd", Role.MANAGER, true, managerId)));
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        )));
+        when(timeRecordProvider.saveAll(anyList())).thenReturn(Collections.emptyList());
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.requestTimeOff(request, null));
+    }
+
 }
