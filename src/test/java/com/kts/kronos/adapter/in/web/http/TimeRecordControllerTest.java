@@ -73,6 +73,18 @@ class TimeRecordControllerTest {
     }
 
     @Test
+    void registerTime_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Funcionário não encontrado"))
+                .when(useCase).registerTime(any());
+
+        mockMvc.perform(post(BASE_URL + "/checkin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GeolocationRequest(-22.9, -43.2, "base64"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Funcionário não encontrado"));
+    }
+
+    @Test
     void updateTimeRecord_shouldReturn200_whenValid() throws Exception {
         doNothing().when(useCase).updateTimeRecord(eq(RECORD_ID), any());
 
@@ -110,6 +122,18 @@ class TimeRecordControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateStatus_shouldReturn404_whenUseCaseThrowsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Registro não encontrado"))
+                .when(useCase).updateStatus(eq(EMPLOYEE_ID), eq(RECORD_ID), any());
+
+        mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateTimeRecordStatusRequest(StatusRecord.CREATED))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Registro não encontrado"));
     }
 
     @Test
@@ -167,6 +191,18 @@ class TimeRecordControllerTest {
     }
 
     @Test
+    void report_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Sem permissão para relatório"))
+                .when(useCase).listReport(any(), any());
+
+        var request = new ListReportRequest("08:00", true, List.of(StatusRecord.CREATED), new LocalDate[]{LocalDate.now()});
+        mockMvc.perform(post(BASE_URL + "/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void simpleReport_shouldReturn200_whenValid() throws Exception {
         when(useCase.simpleReport(any(), any())).thenReturn(new SimpleReportResponse("Ana", "KTS", List.of(), "10:00", "01:00", "+01:00"));
 
@@ -185,6 +221,18 @@ class TimeRecordControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void simpleReport_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Sem permissão para relatório simplificado"))
+                .when(useCase).simpleReport(any(), any());
+
+        var req = new SimpleReportRequest("08:00", new LocalDate[]{LocalDate.now()});
+        mockMvc.perform(post(BASE_URL + "/report/simple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -277,6 +325,17 @@ class TimeRecordControllerTest {
     }
 
     @Test
+    void approveVacation_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Apenas gestor pode aprovar"))
+                .when(useCase).approveVacation(any(VacationApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/vacation-request/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new VacationApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void rejectVacation_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(patch(BASE_URL + "/vacation-request/reject")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -315,6 +374,16 @@ class TimeRecordControllerTest {
     void listVacationRequests_shouldReturn400_whenPageInvalid() throws Exception {
         mockMvc.perform(get(BASE_URL + "/vacation-request").param("page", "not-int"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listVacationRequests_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Status inválido"))
+                .when(useCase).listVacationRequests(anyString(), any(), anyInt(), anyInt());
+
+        mockMvc.perform(get(BASE_URL + "/vacation-request").param("status", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Status inválido"));
     }
 
     @Test
@@ -377,6 +446,17 @@ class TimeRecordControllerTest {
     }
 
     @Test
+    void approveTimeOff_shouldReturn403_whenUseCaseThrowsForbidden() throws Exception {
+        doThrow(new ForbiddenException("Acesso negado para aprovar"))
+                .when(useCase).approveTimeOff(any(TimeOffApprovalRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/time-off/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TimeOffApprovalRequest(List.of(RECORD_ID)))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void rejectTimeOff_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(patch(BASE_URL + "/time-off/reject")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -414,6 +494,16 @@ class TimeRecordControllerTest {
     void listTimeOffRequests_shouldReturn400_whenInvalidSizeType() throws Exception {
         mockMvc.perform(get(BASE_URL + "/time-off/requests").param("size", "x"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listTimeOffRequests_shouldReturn400_whenUseCaseThrowsBadRequest() throws Exception {
+        doThrow(new BadRequestException("Filtro de status inválido"))
+                .when(useCase).listTimeOffRequests(anyString(), any(), anyInt(), anyInt());
+
+        mockMvc.perform(get(BASE_URL + "/time-off/requests").param("status", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Filtro de status inválido"));
     }
 
     private UpdateTimeRecordRequest validUpdateRequest() {
