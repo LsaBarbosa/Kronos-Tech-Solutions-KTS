@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -12,25 +13,29 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
+import static com.kts.kronos.constants.Logs.*;
+import static com.kts.kronos.constants.Messages.*;
+
 @RequiredArgsConstructor
+@Slf4j
 public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
-    private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
+
     private static final List<String> EXACT_PUBLIC_PATHS = List.of(
-            "/auth/login",
-            "/auth/login-face",
-            "/auth/recover-password",
-            "/auth/reset-password",
-            "/terms/accept-biometric",
-            "/terms/status",
-            "/actuator/health",
-            "/actuator/info"
+            AUTH_LOGIN_PATH,
+            AUTH_LOGIN_FACE_PATH,
+            AUTH_RECOVER_PASSWORD_PATH,
+            AUTH_RESET_PASSWORD_PATH,
+            TERMS_ACCEPT_BIOMETRIC_PATH,
+            TERMS_STATUS_PATH,
+            ACTUATOR_HEALTH_PATH,
+            ACTUATOR_INFO_PATH
     );
 
     private static final List<String> PUBLIC_PREFIXES = List.of(
-            "/v3/api-docs",
-            "/swagger-ui"
+            API_DOCS_PREFIX,
+            SWAGGER_UI_PREFIX
     );
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -42,14 +47,15 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         boolean isPublicExact = EXACT_PUBLIC_PATHS.contains(path);
         boolean isPublicPrefix = PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
 
-        if (isPublicExact || isPublicPrefix || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        if (isPublicExact || isPublicPrefix || HTTP_METHOD_OPTIONS.equalsIgnoreCase(request.getMethod())) {
+            log.debug(LOG_TERMS_VALIDATION_SKIPPED, path, request.getMethod());
             chain.doFilter(request, response);
             return;
         }
 
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        String authHeader = request.getHeader(AUTHORIZATION_HEADER);
+        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+            String token = authHeader.substring(BEARER_PREFIX.length());
 
             // 3. Verifica a claim de aceite
             var claimsOpt = jwtUtils.getValidClaims(token);
@@ -58,13 +64,17 @@ public class TermsValidationFilter extends OncePerRequestFilter {
                 boolean accepted = acceptedObj instanceof Boolean b && b;
 
                 if (!accepted) {
+                    log.warn(LOG_TERMS_NOT_ACCEPTED_BLOCKED, path);
                     sendRedirectInstruction(response);
                     return;
                 }
+                log.debug(LOG_TERMS_ACCEPTED, path);
+            } else {
+                log.warn(LOG_TERMS_TOKEN_INVALID, path);
             }
+        } else {
+            log.debug(LOG_TERMS_NO_BEARER_TOKEN, path);
         }
-
-
 
         chain.doFilter(request, response);
     }
@@ -74,8 +84,10 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
         String jsonResponse = String.format(
-                "{\"type\": \"TERMS_NOT_ACCEPTED\", \"redirect_url\": \"%s\", \"detail\": \"Aceite os termos para continuar.\"}",
-                TERMS_SYSTEM_URL
+                TERMS_NOT_ACCEPTED_RESPONSE_TEMPLATE,
+                TERMS_NOT_ACCEPTED_TYPE,
+                TERMS_SYSTEM_URL,
+                TERMS_NOT_ACCEPTED_DETAIL
         );
 
         response.getWriter().write(jsonResponse);
