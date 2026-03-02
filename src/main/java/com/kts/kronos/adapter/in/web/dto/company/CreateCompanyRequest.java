@@ -12,7 +12,9 @@ import static com.kts.kronos.constants.Messages.COMPANY_NAME_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.CNPJ_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.EMAIL_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record CreateCompanyRequest(
         @NotBlank(message = COMPANY_NAME_NOT_BLANK)
         String name,

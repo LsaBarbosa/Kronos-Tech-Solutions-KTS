@@ -16,7 +16,9 @@ import java.time.LocalTime;
 import java.util.Set;
 
 import static com.kts.kronos.constants.Messages.*;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record UpdateEmployeeManagerRequest(
         String fullName,
 

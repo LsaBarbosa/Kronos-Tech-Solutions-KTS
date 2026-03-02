@@ -6,7 +6,9 @@ import jakarta.validation.constraints.Pattern;
 import static com.kts.kronos.constants.Messages.POSTAL_CODE_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.ADDRESS_NUMBER_NOT_BLANK;
 import static com.kts.kronos.constants.Messages.MUST_HAVE_8_CHARACTERES;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record UpdateAddressRequest(
         @NotBlank(message = POSTAL_CODE_NOT_BLANK)
         @Pattern(regexp = "\\d{8}", message = MUST_HAVE_8_CHARACTERES)

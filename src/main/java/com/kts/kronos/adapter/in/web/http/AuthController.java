@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ import static com.kts.kronos.constants.Swagger.*;
 public class AuthController {
     private final AuthUseCase authUseCase;
 
-    @Operation(summary = LOGIN_SUMMARY, description = LOGIN_DESC)
+    @Operation(summary = LOGIN_SUMMARY, description = LOGIN_DESC, security = @SecurityRequirement(name = ""))
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = LOGIN_SUCCESS),
             @ApiResponse(responseCode = "401", description = CREDENTIALS_INVALID)
@@ -36,7 +37,12 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
-    @Operation(summary = RECOVER_PASS_SUMMARY, description = RECOVER_PASS_DESC)
+    @Operation(summary = RECOVER_PASS_SUMMARY, description = RECOVER_PASS_DESC, security = @SecurityRequirement(name = ""))
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = RECOVER_PASS_204),
+            @ApiResponse(responseCode = "400", description = RECOVER_PASS_400),
+            @ApiResponse(responseCode = "404", description = RECOVER_PASS_404)
+    })
     @PostMapping(RECOVER_PASSWORD)
     public ResponseEntity<Void> recoverPassword(@Valid @RequestBody RecoverPasswordRequest req,
                                                 @RequestHeader(name = "Origin", required = false) String originUrl) {
@@ -44,7 +50,7 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = LOGIN_FACE_SUMMARY, description = LOGIN_FACE_DESC)
+    @Operation(summary = LOGIN_FACE_SUMMARY, description = LOGIN_FACE_DESC, security = @SecurityRequirement(name = ""))
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = LOGIN_SUCCESS),
             @ApiResponse(responseCode = "400", description = LOGIN_FACE_400),
@@ -57,9 +63,9 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
-    @Operation(summary = RESET_PASS_SUMMARY, description = RESET_PASS_DESC)
+    @Operation(summary = RESET_PASS_SUMMARY, description = RESET_PASS_DESC, security = @SecurityRequirement(name = ""))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = LOGIN_SUCCESS),
+            @ApiResponse(responseCode = "204", description = RESET_PASS_204),
             @ApiResponse(responseCode = "400", description = RESET_PASS_400),
             @ApiResponse(responseCode = "404", description = RESET_PASS_404),
     })

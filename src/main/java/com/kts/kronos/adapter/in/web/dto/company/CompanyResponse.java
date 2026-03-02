@@ -4,7 +4,9 @@ import com.kts.kronos.adapter.in.web.dto.address.AddressResponse;
 import com.kts.kronos.domain.model.Company;
 
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record CompanyResponse(
     UUID id,
     String name,

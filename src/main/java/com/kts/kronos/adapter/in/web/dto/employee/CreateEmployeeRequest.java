@@ -15,8 +15,10 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record CreateEmployeeRequest(
         @NotBlank(message = EMPLOYEE_NAME_NOT_BLANK)
         @Size(max = 200, message = MUST_HAVE_200_CHARACTERES)

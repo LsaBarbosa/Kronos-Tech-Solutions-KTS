@@ -7,7 +7,9 @@ import jakarta.validation.constraints.Size;
 
 import static com.kts.kronos.constants.Messages.MUST_HAVE_50_CHARACTERES;
 import static com.kts.kronos.constants.Messages.INVALID_EMAIL_FORMAT;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record UpdateCompanyRequest(
         @Size(max = 50, message = MUST_HAVE_50_CHARACTERES)
         String name,

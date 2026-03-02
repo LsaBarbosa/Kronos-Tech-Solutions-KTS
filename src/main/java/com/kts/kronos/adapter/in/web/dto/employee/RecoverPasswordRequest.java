@@ -6,7 +6,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import static com.kts.kronos.constants.Messages.*;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record RecoverPasswordRequest(
         @NotBlank(message = CPF_NOT_BLANK)
         @Pattern(regexp="\\d{11}", message=CPF_NOT_BLANK)

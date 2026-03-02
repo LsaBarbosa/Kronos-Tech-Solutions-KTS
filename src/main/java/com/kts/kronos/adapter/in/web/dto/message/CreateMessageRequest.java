@@ -6,7 +6,9 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = com.kts.kronos.constants.Swagger.DTO_SCHEMA_DESCRIPTION)
 public record CreateMessageRequest(@NotBlank String messageText,
                                    @NotBlank String title,
                                    @NotNull MessagePriority priority,
