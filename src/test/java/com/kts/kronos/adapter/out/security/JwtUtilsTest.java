@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtUtilsTest {
 
@@ -53,5 +54,23 @@ class JwtUtilsTest {
 
         assertThat(jwtUtils.validateToken(tokenWithWrongAudience)).isFalse();
         assertThat(jwtUtils.getValidClaims(tokenWithWrongAudience)).isEmpty();
+    }
+
+    @Test
+    void shouldRejectTokenWithoutJtiAndThrowOnDirectClaimsAccess() {
+        var jwtUtils = new JwtUtils(SECRET, 60_000L, "issuer", "aud");
+
+        String tokenWithoutJti = Jwts.builder()
+                .setIssuer("issuer")
+                .setAudience("aud")
+                .setSubject("john")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 10_000))
+                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)), SignatureAlgorithm.HS256)
+                .compact();
+
+        assertThat(jwtUtils.validateToken(tokenWithoutJti)).isFalse();
+        assertThat(jwtUtils.getValidClaims(tokenWithoutJti)).isEmpty();
+        assertThatThrownBy(() -> jwtUtils.getUsernameFromToken(tokenWithoutJti)).isInstanceOf(RuntimeException.class);
     }
 }
