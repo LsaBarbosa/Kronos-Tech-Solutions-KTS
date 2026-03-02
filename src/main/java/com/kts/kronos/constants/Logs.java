@@ -263,4 +263,16 @@ public class Logs {
     public static final String LOG_USER_PASSWORD_CHANGE = "Alteração de senha solicitada pelo próprio usuário ID: {}";
     public static final String LOG_USER_LIST = "Listando usuários. Filtro ativo: {}, Empresa: {}";
     public static final String LOG_USER_ACCESS_DENIED = "Acesso negado: Usuário tentou acessar perfil de outra empresa.";
+
+    // --- SECURITY FILTER LOGS ---
+    public static final String LOG_AUTH_HEADER_MISSING_OR_INVALID = "Cabeçalho de autorização ausente ou inválido. Requisição seguirá sem autenticação. Path: {}";
+    public static final String LOG_INVALID_JWT_BLOCKED = "Acesso negado por token JWT inválido ou expirado. Path: {}";
+    public static final String LOG_AUTHENTICATION_SUCCESS = "Autenticação via JWT concluída com sucesso para usuário {}. Path: {}";
+    public static final String LOG_TOKEN_USER_NOT_FOUND = "Token JWT recebido para usuário inexistente ({}). Path: {}";
+    public static final String LOG_TERMS_VALIDATION_SKIPPED = "Validação de aceite de termos ignorada para rota pública/OPTIONS. Path: {}, Método: {}";
+    public static final String LOG_TERMS_NOT_ACCEPTED_BLOCKED = "Acesso bloqueado por ausência de aceite dos termos. Path: {}";
+    public static final String LOG_TERMS_ACCEPTED = "Aceite de termos confirmado no token JWT. Path: {}";
+    public static final String LOG_TERMS_TOKEN_INVALID = "Token JWT inválido na validação de termos. Path: {}";
+    public static final String LOG_TERMS_NO_BEARER_TOKEN = "Cabeçalho Bearer ausente na validação de termos. Path: {}";
+    public static final String LOG_PASSWORD_RECOVERY_DLQ_ENQUEUED = "Falha no envio de recuperação de senha registrada em fila de retentativa. UserId: {}, Email mascarado: {}, Motivo: {}";
 }

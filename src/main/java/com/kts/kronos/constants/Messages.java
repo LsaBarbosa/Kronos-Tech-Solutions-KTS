@@ -194,6 +194,35 @@ public class Messages {
     public static final String RESET_PASSWORD_SUBJECT = "🔒 Kronos Suporte - Redefinição de Senha";
     public static final String FACE_IMAGE_REQUIRED = "A imagem da face é obrigatória";
 
+    // --- Security / Filters ---
+    public static final String AUTHORIZATION_HEADER = "Authorization";
+    public static final String BEARER_PREFIX = "Bearer ";
+    public static final String HTTP_METHOD_OPTIONS = "OPTIONS";
+    public static final String RESPONSE_UNAUTHORIZED_TEMPLATE = "{\"status\":401,\"title\":\"Não autorizado\",\"detail\":\"%s\"}";
+    public static final String JWT_INVALID_OR_EXPIRED = "Token JWT inválido ou expirado.";
+    public static final String JWT_USER_NOT_FOUND = "Usuário do token não encontrado.";
+
+    public static final String TERMS_NOT_ACCEPTED_TYPE = "TERMS_NOT_ACCEPTED";
+    public static final String TERMS_NOT_ACCEPTED_DETAIL = "Aceite os termos para continuar.";
+    public static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
+    public static final String TERMS_NOT_ACCEPTED_RESPONSE_TEMPLATE =
+            "{\"type\":\"%s\",\"redirect_url\":\"%s\",\"detail\":\"%s\"}";
+
+    public static final String AUTH_LOGIN_PATH = "/auth/login";
+    public static final String AUTH_LOGIN_FACE_PATH = "/auth/login-face";
+    public static final String AUTH_RECOVER_PASSWORD_PATH = "/auth/recover-password";
+    public static final String AUTH_RESET_PASSWORD_PATH = "/auth/reset-password";
+    public static final String TERMS_ACCEPT_BIOMETRIC_PATH = "/terms/accept-biometric";
+    public static final String TERMS_STATUS_PATH = "/terms/status";
+    public static final String ACTUATOR_HEALTH_PATH = "/actuator/health";
+    public static final String ACTUATOR_INFO_PATH = "/actuator/info";
+    public static final String API_DOCS_PREFIX = "/v3/api-docs";
+    public static final String SWAGGER_UI_PREFIX = "/swagger-ui";
+
+    public static final String MASKED_EMAIL_UNAVAILABLE = "indisponível";
+    public static final String MASKED_VALUE = "***";
+
+
     public static final String RESET_PASSWORD_HTML_TEMPLATE = """
         <!DOCTYPE html>
         <html lang='pt-BR'>
