@@ -100,7 +100,7 @@ tasks.named('bootBuildImage') {
 
 tasks.named('test') {
     useJUnitPlatform()
-    finalizedBy tasks.named('jacocoTestReport')
+    finalizedBy tasks.named('jacocoTestReport'), tasks.named('jacocoTestCoverageVerification')
 }
 
 tasks.named('jacocoTestReport') {
@@ -108,5 +108,23 @@ tasks.named('jacocoTestReport') {
     reports {
         xml.required = true
         html.required = true
+    }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('test')
+
+    def minimumCoverage = (findProperty('minimumCoverage') ?: '0.70') as BigDecimal
+
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = minimumCoverage
+            }
+        }
     }
 }
