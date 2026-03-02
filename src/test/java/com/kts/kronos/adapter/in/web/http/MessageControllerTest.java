@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.adapter.in.web.dto.message.CreateMessageRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.InternalServerException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
 import com.kts.kronos.domain.model.Message;
@@ -31,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MessageController.class)
 @AutoConfigureMockMvc(addFilters = false) // Desativa Spring Security para focar na lógica do Controller
 class MessageControllerTest {
+
+    private static final String GENERIC_INTERNAL_ERROR_MESSAGE = "Erro interno inesperado. Tente novamente mais tarde.";
 
     @Autowired
     private MockMvc mockMvc;
@@ -109,6 +112,23 @@ class MessageControllerTest {
                 .andExpect(jsonPath("$.detail").value(CHOOSE_EMPLOYEE));
     }
 
+    @Test
+    @DisplayName("Deve retornar 500 Internal Server Error ao publicar mensagem com falha inesperada")
+    void shouldReturn500WhenUnexpectedErrorOnPostMessage() throws Exception {
+        CreateMessageRequest request = new CreateMessageRequest(
+                "Texto", "Título", MessagePriority.NORMAL, List.of(RECIPIENT_ID)
+        );
+
+        doThrow(new InternalServerException("erro"))
+                .when(messageUseCase).postMessage(any(CreateMessageRequest.class));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.detail").value(GENERIC_INTERNAL_ERROR_MESSAGE));
+    }
+
     // ==================================================================================
     // 2. LISTAR MENSAGENS (GET)
     // ==================================================================================
@@ -156,6 +176,17 @@ class MessageControllerTest {
                 .andExpect(jsonPath("$.detail").value(EMPLOYEE_NOT_FOUND));
     }
 
+    @Test
+    @DisplayName("Deve retornar 500 Internal Server Error ao listar mensagens com falha inesperada")
+    void shouldReturn500WhenUnexpectedErrorOnListMessages() throws Exception {
+        when(messageUseCase.listMessagesForMyCompany())
+                .thenThrow(new InternalServerException("erro"));
+
+        mockMvc.perform(get(BASE_URL))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.detail").value(GENERIC_INTERNAL_ERROR_MESSAGE));
+    }
+
     // ==================================================================================
     // 3. DELETAR MENSAGEM (DELETE)
     // ==================================================================================
@@ -192,5 +223,16 @@ class MessageControllerTest {
         mockMvc.perform(delete(BASE_URL + "/{messageId}", MSG_ID))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(ONLY_MANAGER_CAN_DELETE_MESSAGE));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 500 Internal Server Error ao deletar mensagem com falha inesperada")
+    void shouldReturn500WhenUnexpectedErrorOnDeleteMessage() throws Exception {
+        doThrow(new InternalServerException("erro"))
+                .when(messageUseCase).deleteMessage(MSG_ID);
+
+        mockMvc.perform(delete(BASE_URL + "/{messageId}", MSG_ID))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.detail").value(GENERIC_INTERNAL_ERROR_MESSAGE));
     }
 }
