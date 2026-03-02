@@ -27,6 +27,7 @@ repositories {
 // Cloud
 dependencyManagement {
     imports {
+        mavenBom('com.fasterxml.jackson:jackson-bom:2.21.1')
         mavenBom('com.google.cloud:libraries-bom:26.60.0')
         mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.2.0')
 
