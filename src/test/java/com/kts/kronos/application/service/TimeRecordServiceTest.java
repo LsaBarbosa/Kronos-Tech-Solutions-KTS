@@ -25,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -1047,6 +1048,120 @@ class TimeRecordServiceTest {
 
         assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
                 () -> timeRecordService.requestTimeOff(request, null));
+    }
+
+    @Test
+    @DisplayName("Deve ignorar atualização de status quando já estiver no mesmo status")
+    void shouldSkipUpdateStatusWhenStatusIsSame() {
+        Long recordId = 7000L;
+        var record = new TimeRecord(recordId, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.DAY_OFF, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest(StatusRecord.DAY_OFF);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+
+        timeRecordService.updateStatus(employeeId, recordId, request);
+
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve bloquear atualização de status para registros já atualizados")
+    void shouldThrowWhenUpdateStatusOnUpdatedRecord() {
+        Long recordId = 7001L;
+        var record = new TimeRecord(recordId, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.UPDATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest(StatusRecord.DAY_OFF);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(record));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.updateStatus(employeeId, recordId, request));
+    }
+
+    @Test
+    @DisplayName("Deve falhar solicitação de abono com documento quando upload lançar IOException")
+    void shouldThrowWhenDocumentUploadFailsInRequestTimeOff() throws Exception {
+        var request = new RequestTimeOffRequest(LocalDate.now().plusDays(1), LocalDate.now().plusDays(1), "09:00", "18:00", managerId, RequestType.TIME_OFF_REQUEST);
+        MultipartFile document = new MockMultipartFile("file", "atestado.pdf", "application/pdf", "content".getBytes());
+        var savedRecord = new TimeRecord(8000L, request.startDate().atTime(9, 0), request.endDate().atTime(18, 0), StatusRecord.TIME_OFF_REQUEST, true, true, employeeId, null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(userProvider.findById(managerId)).thenReturn(Optional.of(new User(managerId, "manager", "pwd", Role.MANAGER, true, managerId)));
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(new Employee(
+                managerId, "Gestor", "12345678900", "1234567890", "Gerente",
+                "manager@email.com", 7000.0, "11999999998", true, null, companyId,
+                LocalDateTime.now(), true, null, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0), null, null, null, null, null
+        )));
+        when(timeRecordProvider.saveAll(anyList())).thenReturn(List.of(savedRecord));
+        doThrow(new IOException("falha")).when(documentService)
+                .uploadDocumentForTimeRecord(eq(DocumentType.TIME_OFF), eq(employeeId), eq(8000L), eq(document));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.requestTimeOff(request, document));
+    }
+
+    @Test
+    @DisplayName("Não deve salvar lote em rejeição de abono quando nenhum status for elegível")
+    void shouldNotSaveRejectTimeOffWhenNoEligibleStatuses() {
+        var request = new TimeOffApprovalRequest(List.of(8100L));
+        var invalid = new TimeRecord(8100L, LocalDateTime.now(), LocalDateTime.now(), StatusRecord.CREATED, true, true, employeeId, null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(timeRecordProvider.findByIdIn(anySet())).thenReturn(List.of(invalid));
+
+        timeRecordService.rejectTimeOff(request);
+
+        verify(timeRecordProvider, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("Não deve salvar lote em aprovação de férias quando nenhum status for elegível")
+    void shouldNotSaveApproveVacationWhenNoEligibleStatuses() {
+        var request = new VacationApprovalRequest(List.of(8200L));
+        var invalid = new TimeRecord(8200L, LocalDateTime.now(), null, StatusRecord.CREATED, false, true, employeeId, null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(timeRecordProvider.findByIdIn(anySet())).thenReturn(List.of(invalid));
+
+        timeRecordService.approveVacation(request);
+
+        verify(timeRecordProvider, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("Deve falhar relatório simples quando referência de horas for inválida")
+    void shouldThrowWhenSimpleReportReferenceIsInvalid() {
+        var request = new com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest("invalid", new LocalDate[]{LocalDate.now()});
+        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(mockEmployee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(mockCompany));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> timeRecordService.simpleReport(employeeId, request));
+    }
+
+    @Test
+    @DisplayName("Deve remover pausas implícitas adjacentes consumidas ao aprovar alteração")
+    void shouldDeleteAdjacentImplicitBreaksWhenApprovingChange() {
+        Long recordId = 8300L;
+        var day = LocalDate.now();
+        var recordToApprove = new TimeRecord(recordId, day.atTime(12, 0), day.atTime(15, 0), StatusRecord.PENDING_APPROVAL, true, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        var prevBreak = new TimeRecord(8301L, day.atTime(10, 30), day.atTime(11, 0), StatusRecord.IMPLICIT_BREAK, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var nextBreak = new TimeRecord(8302L, day.atTime(16, 0), day.atTime(16, 30), StatusRecord.IMPLICIT_BREAK, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var approvalData = new TimeRecordApprovalRequest(recordId, employeeId, managerId, day.atTime(10, 30), day.atTime(16, 30), LocalDateTime.now());
+
+        when(timeRecordProvider.findById(recordId)).thenReturn(Optional.of(recordToApprove));
+        when(approvalProvider.findByTimeRecordId(recordId)).thenReturn(Optional.of(approvalData));
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(prevBreak, recordToApprove, nextBreak));
+
+        timeRecordService.approveTimeRecordChange(recordId);
+
+        verify(timeRecordProvider).deleteTimeRecord(prevBreak);
+        verify(timeRecordProvider).deleteTimeRecord(nextBreak);
+        verify(approvalProvider).deleteByTimeRecordId(recordId);
     }
 
 }
