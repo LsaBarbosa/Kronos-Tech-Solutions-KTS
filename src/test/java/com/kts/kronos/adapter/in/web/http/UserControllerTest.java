@@ -116,6 +116,17 @@ class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 404 Not Found ao buscar por username inexistente")
+    void shouldReturn404WhenGetUserByUsernameDoesNotExist() throws Exception {
+        when(userUseCase.getUserByUsername("inexistente"))
+                .thenThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+        mockMvc.perform(get(BASE_URL + "/search/username/{userName}", "inexistente"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
+    }
+
+    @Test
     @DisplayName("Deve buscar usuário por ID com sucesso (200 OK)")
     void shouldGetUserByIdSuccessfully() throws Exception {
         when(userUseCase.getUserById(USER_ID)).thenReturn(userMock);
@@ -134,6 +145,26 @@ class UserControllerTest {
                         .param("active", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[0].username").value("usuario.teste"));
+    }
+
+    @Test
+    @DisplayName("Deve listar usuários sem filtro de ativo (200 OK)")
+    void shouldListAllUsersWithoutActiveFilterSuccessfully() throws Exception {
+        when(userUseCase.listUsers(null)).thenReturn(List.of(userMock));
+
+        mockMvc.perform(get(BASE_URL + "/search"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users[0].userId").value(USER_ID.toString()));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao listar usuários sem resultados")
+    void shouldReturn404WhenListUsersHasNoResult() throws Exception {
+        when(userUseCase.listUsers(true)).thenThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+        mockMvc.perform(get(BASE_URL + "/search").param("active", "true"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
     }
 
     @Test
@@ -164,6 +195,32 @@ class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 400 Bad Request ao atualizar usuário com payload inválido")
+    void shouldReturn400WhenUpdatePayloadIsInvalid() throws Exception {
+        UpdateUserRequest request = new UpdateUserRequest("", "", "INVALID_ROLE", true);
+
+        mockMvc.perform(patch(BASE_URL + "/search/{userId}", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors").isArray());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao atualizar usuário inexistente")
+    void shouldReturn404WhenUpdateUserDoesNotExist() throws Exception {
+        UpdateUserRequest request = new UpdateUserRequest("novo.nome", null, "PARTNER", true);
+        doThrow(new ResourceNotFoundException(USER_NOT_FOUND))
+                .when(userUseCase).updateUser(eq(USER_ID), any(UpdateUserRequest.class));
+
+        mockMvc.perform(patch(BASE_URL + "/search/{userId}", USER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
+    }
+
+    @Test
     @DisplayName("Deve ativar/desativar usuário com sucesso (200 OK)")
     void shouldToggleUserActivationSuccessfully() throws Exception {
         doNothing().when(userUseCase).toggleActivate(USER_ID);
@@ -173,12 +230,32 @@ class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 404 Not Found ao ativar/desativar usuário inexistente")
+    void shouldReturn404WhenToggleUserActivationForMissingUser() throws Exception {
+        doThrow(new ResourceNotFoundException(USER_NOT_FOUND)).when(userUseCase).toggleActivate(USER_ID);
+
+        mockMvc.perform(patch(BASE_URL + "/toggle-activate/{userId}", USER_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
+    }
+
+    @Test
     @DisplayName("Deve deletar usuário com sucesso (200 OK)")
     void shouldDeleteUserSuccessfully() throws Exception {
         doNothing().when(userUseCase).deleteUser(USER_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{userId}", USER_ID))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao deletar usuário inexistente")
+    void shouldReturn404WhenDeleteUserDoesNotExist() throws Exception {
+        doThrow(new ResourceNotFoundException(USER_NOT_FOUND)).when(userUseCase).deleteUser(USER_ID);
+
+        mockMvc.perform(delete(BASE_URL + "/{userId}", USER_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
     }
 
     // ==================================================================================
@@ -193,6 +270,16 @@ class UserControllerTest {
         mockMvc.perform(get(BASE_URL + "/own-profile"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("usuario.teste"));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao obter próprio perfil inexistente")
+    void shouldReturn404WhenGetOwnProfileDoesNotExist() throws Exception {
+        when(userUseCase.getOwnProfile()).thenThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+        mockMvc.perform(get(BASE_URL + "/own-profile"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
     }
 
     @Test
@@ -221,6 +308,21 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value(INVALID_PASSWORD));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao alterar senha de usuário não encontrado")
+    void shouldReturn404WhenChangingPasswordForMissingUser() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("SenhaVelha1!", "SenhaNova1!", "SenhaNova1!");
+
+        doThrow(new ResourceNotFoundException(USER_NOT_FOUND))
+                .when(userUseCase).changeOwnPassword(any(ChangePasswordRequest.class));
+
+        mockMvc.perform(put(BASE_URL + "/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(USER_NOT_FOUND));
     }
 
     // ==================================================================================
