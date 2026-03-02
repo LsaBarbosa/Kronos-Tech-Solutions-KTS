@@ -108,6 +108,8 @@ class EmployeeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employees[0].fullName").value("João Silva"))
                 .andExpect(jsonPath("$.employees[0].companyName").value("Kronos Inc."));
+
+        verify(employeeUseCase).listEmployees(eq(true));
     }
 
     @Test
@@ -184,6 +186,8 @@ class EmployeeControllerTest {
 
         mockMvc.perform(post(BASE_URL + "/mark-messages-seen"))
                 .andExpect(status().isOk());
+
+        verify(employeeUseCase).markMessagesAsSeen();
     }
 
     @Test
@@ -246,6 +250,17 @@ class EmployeeControllerTest {
     }
 
     @Test
+    @DisplayName("Deve retornar 404 Not Found ao listar funcionários quando empresa do funcionário não for encontrada")
+    void shouldReturn404WhenListingEmployeesAndCompanyIsMissing() throws Exception {
+        when(employeeUseCase.listEmployees(any())).thenReturn(List.of(employeeMock));
+        when(companyUseCase.getCompanyNameById(COMPANY_ID)).thenThrow(new ResourceNotFoundException("Empresa não encontrada"));
+
+        mockMvc.perform(get(BASE_URL).param("active", "true"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Empresa não encontrada"));
+    }
+
+    @Test
     @DisplayName("Deve retornar 404 Not Found ao tentar atualizar funcionário inexistente")
     void shouldReturn404WhenUpdatingNonExistentEmployee() throws Exception {
         UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
@@ -259,6 +274,57 @@ class EmployeeControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 400 Bad Request quando o payload de atualização do gestor for inválido")
+    void shouldReturn400WhenManagerUpdatePayloadIsInvalid() throws Exception {
+        UpdateEmployeeManagerRequest invalidRequest = new UpdateEmployeeManagerRequest(
+                "", null, null, null, "email-invalido", -1.0, null, null,
+                new UpdateAddressRequest("", ""), null, null, null, null, null, null, null, null, null, null
+        );
+
+        mockMvc.perform(patch(BASE_URL + "/manager/update-employee/{id}", EMP_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors").isArray());
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao tentar atualizar o próprio perfil quando funcionário não existe")
+    void shouldReturn404WhenUpdatingOwnProfileForMissingEmployee() throws Exception {
+        UpdateEmployeePartnerRequest request = new UpdateEmployeePartnerRequest(
+                "novo@email.com", "21988888888", new UpdateAddressRequest("25900000", "99")
+        );
+
+        doThrow(new ResourceNotFoundException(EMPLOYEE_NOT_FOUND)).when(employeeUseCase).updateOwnProfile(any());
+
+        mockMvc.perform(patch(BASE_URL + "/update-own-profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(EMPLOYEE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao tentar excluir funcionário inexistente")
+    void shouldReturn404WhenDeletingMissingEmployee() throws Exception {
+        doThrow(new ResourceNotFoundException(EMPLOYEE_NOT_FOUND)).when(employeeUseCase).deleteEmployee(EMP_ID);
+
+        mockMvc.perform(delete(BASE_URL + "/{id}", EMP_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(EMPLOYEE_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("Deve retornar 404 Not Found ao tentar marcar mensagens como lidas para funcionário inexistente")
+    void shouldReturn404WhenMarkMessagesAsSeenForMissingEmployee() throws Exception {
+        doThrow(new ResourceNotFoundException(EMPLOYEE_NOT_FOUND)).when(employeeUseCase).markMessagesAsSeen();
+
+        mockMvc.perform(post(BASE_URL + "/mark-messages-seen"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value(EMPLOYEE_NOT_FOUND));
     }
 
     @Test
