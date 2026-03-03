@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.out.security;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.HEADER_AUTHORIZATION_NOT_FOUND;
@@ -19,6 +20,7 @@ class JwtAuthenticatedUserTest {
     void shouldReturnDataExtractedFromToken() {
         JwtUtils jwtUtils = mock(JwtUtils.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
+        AuthCookieService authCookieService = mock(AuthCookieService.class);
         var employeeId = UUID.randomUUID();
         var userId = UUID.randomUUID();
 
@@ -28,7 +30,7 @@ class JwtAuthenticatedUserTest {
         when(jwtUtils.getUsernameFromToken("token")).thenReturn("john");
         when(jwtUtils.getRoleFromToken("token")).thenReturn("MANAGER");
 
-        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request);
+        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
 
         assertThat(authenticatedUser.getEmployeeId()).isEqualTo(employeeId);
         assertThat(authenticatedUser.getuserId()).isEqualTo(userId);
@@ -37,12 +39,29 @@ class JwtAuthenticatedUserTest {
     }
 
     @Test
-    void shouldThrowWhenAuthorizationHeaderIsMissing() {
+    void shouldReadTokenFromCookieWhenAuthorizationHeaderIsMissing() {
         JwtUtils jwtUtils = mock(JwtUtils.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getHeader("Authorization")).thenReturn(null);
+        AuthCookieService authCookieService = mock(AuthCookieService.class);
 
-        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request);
+        when(request.getHeader("Authorization")).thenReturn(null);
+        when(authCookieService.extractTokenFromCookie(request)).thenReturn(Optional.of("cookie-token"));
+        when(jwtUtils.getUsernameFromToken("cookie-token")).thenReturn("john");
+
+        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
+
+        assertThat(authenticatedUser.getUsername()).isEqualTo("john");
+    }
+
+    @Test
+    void shouldThrowWhenAuthorizationHeaderAndCookieAreMissing() {
+        JwtUtils jwtUtils = mock(JwtUtils.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        AuthCookieService authCookieService = mock(AuthCookieService.class);
+        when(request.getHeader("Authorization")).thenReturn(null);
+        when(authCookieService.extractTokenFromCookie(request)).thenReturn(Optional.empty());
+
+        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
 
         assertThatThrownBy(authenticatedUser::getUsername)
                 .isInstanceOf(IllegalArgumentException.class)
@@ -53,11 +72,12 @@ class JwtAuthenticatedUserTest {
     void shouldThrowWhenEmployeeIdOrUserIdAreNotPresentInToken() {
         JwtUtils jwtUtils = mock(JwtUtils.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
+        AuthCookieService authCookieService = mock(AuthCookieService.class);
         when(request.getHeader("Authorization")).thenReturn("Bearer token");
         when(jwtUtils.getEmployeeIdFromToken("token")).thenReturn(null);
         when(jwtUtils.getUserIdFromToken("token")).thenReturn(null);
 
-        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request);
+        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
 
         assertThatThrownBy(authenticatedUser::getEmployeeId)
                 .isInstanceOf(IllegalArgumentException.class)
@@ -72,13 +92,14 @@ class JwtAuthenticatedUserTest {
     void shouldResolveEmployeeIdByRoleRules() {
         JwtUtils jwtUtils = mock(JwtUtils.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
+        AuthCookieService authCookieService = mock(AuthCookieService.class);
         var loggedEmployeeId = UUID.randomUUID();
         var requestedEmployeeId = UUID.randomUUID();
 
         when(request.getHeader("Authorization")).thenReturn("Bearer token");
         when(jwtUtils.getEmployeeIdFromToken("token")).thenReturn(loggedEmployeeId);
 
-        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request);
+        var authenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
 
         when(jwtUtils.getRoleFromToken("token")).thenReturn("PARTNER");
         assertThat(authenticatedUser.isWithEmployeeId(requestedEmployeeId)).isEqualTo(loggedEmployeeId);
