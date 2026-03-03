@@ -14,6 +14,7 @@ public class JwtAuthenticatedUser {
 
     private final JwtUtils jwtUtils;
     private final HttpServletRequest request;
+    private final AuthCookieService authCookieService;
 
     public UUID getEmployeeId() {
         String token = extractToken();
@@ -59,6 +60,7 @@ public class JwtAuthenticatedUser {
         if (bearer != null && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
         }
-        throw new IllegalArgumentException(HEADER_AUTHORIZATION_NOT_FOUND);
+        return authCookieService.extractTokenFromCookie(request)
+                .orElseThrow(() -> new IllegalArgumentException(HEADER_AUTHORIZATION_NOT_FOUND));
     }
 }
