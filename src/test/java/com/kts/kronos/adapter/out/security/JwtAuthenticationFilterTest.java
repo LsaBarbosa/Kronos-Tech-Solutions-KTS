@@ -32,6 +32,9 @@ class JwtAuthenticationFilterTest {
     @Mock
     private FilterChain filterChain;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
     @AfterEach
     void cleanUp() {
         SecurityContextHolder.clearContext();
@@ -41,7 +44,7 @@ class JwtAuthenticationFilterTest {
     void shouldContinueChainWhenAuthorizationHeaderIsMissing() throws Exception {
         var request = new MockHttpServletRequest();
         var response = new MockHttpServletResponse();
-        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, authCookieService);
 
         filter.doFilter(request, response, filterChain);
 
@@ -54,7 +57,7 @@ class JwtAuthenticationFilterTest {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer invalid-token");
         var response = new MockHttpServletResponse();
-        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, authCookieService);
 
         when(jwtUtils.getValidClaims("invalid-token")).thenReturn(Optional.empty());
 
@@ -70,7 +73,7 @@ class JwtAuthenticationFilterTest {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token-ok");
         var response = new MockHttpServletResponse();
-        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, authCookieService);
 
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn("john");
@@ -93,7 +96,7 @@ class JwtAuthenticationFilterTest {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer token-ok");
         var response = new MockHttpServletResponse();
-        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        var filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, authCookieService);
 
         Claims claims = mock(Claims.class);
         when(claims.getSubject()).thenReturn("ghost");

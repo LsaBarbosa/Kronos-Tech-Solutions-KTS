@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +44,9 @@ class AuthControllerTest {
     // Mockamos o UseCase, pois o Controller delega a regra de negócio para ele
     @MockitoBean
     private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private AuthCookieService authCookieService;
 
     // Constantes para as rotas baseadas na classe AuthController e ApiPaths
     private static final String BASE_URL = "/auth";
