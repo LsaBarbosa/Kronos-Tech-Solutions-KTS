@@ -40,20 +40,23 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
     private final RateLimitProperties rateLimitProperties;
+    private final AuthCookieService authCookieService;
 
     public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds,
                           DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
-                          RateLimitProperties rateLimitProperties) {
+                          RateLimitProperties rateLimitProperties,
+                          AuthCookieService authCookieService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
         this.rateLimitProperties = rateLimitProperties;
+        this.authCookieService = authCookieService;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        var termsFilter = new TermsValidationFilter(jwtUtils);
-        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        var termsFilter = new TermsValidationFilter(jwtUtils, authCookieService);
+        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, authCookieService);
         var rateLimitFilter = new RateLimitFilter(rateLimitProperties);
         http
                 .csrf(csrf -> csrf.disable())
@@ -66,14 +69,16 @@ public class SecurityConfig {
                                         "/v3/api-docs/**",
                                         "/swagger-ui/**",
                                         "/auth/recover-password",
+                                        "/",
+                                        "/healthz",
                                         "/actuator/health/**",
                                         "/actuator/info").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
-                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
+                .addFilterAfter(termsFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
