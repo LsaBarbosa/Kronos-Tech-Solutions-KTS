@@ -1,5 +1,6 @@
 server:
   port: ${PORT:8080}
+  address: ${SERVER_ADDRESS:0.0.0.0}
 spring:
   profiles:
     default: ${SPRING_PROFILES_DEFAULT:dev}
@@ -75,6 +76,15 @@ jwt:
   expiration: ${JWT_EXPIRATION:3600000}
   issuer: ${JWT_ISSUER:kronos-api}
   audience: ${JWT_AUDIENCE:kronos-clients}
+
+auth:
+  cookie:
+    name: ${AUTH_COOKIE_NAME:KTS_SESSION}
+    secure: ${AUTH_COOKIE_SECURE:true}
+    http-only: ${AUTH_COOKIE_HTTP_ONLY:true}
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    path: ${AUTH_COOKIE_PATH:/}
+    domain: ${AUTH_COOKIE_DOMAIN:}
 
 frontend:
   # Variável para a URL base do Frontend
