@@ -69,6 +69,7 @@ public class ApiPaths {
     public static final String LOGIN = "/login";
     public static final String RECOVER_PASSWORD = "/recover-password"; // Novo
     public static final String RESET_PASSWORD = "/reset-password";
+    public static final String LOGOUT = "/logout";
 
 
     //Cep

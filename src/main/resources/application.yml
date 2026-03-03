@@ -1,8 +1,9 @@
 server:
   port: ${PORT:8080}
+  address: ${SERVER_ADDRESS:0.0.0.0}
 spring:
   profiles:
-    default: ${SPRING_PROFILES_DEFAULT:dev}
+    default: ${SPRING_PROFILES_DEFAULT:prod}
   datasource:
     # Variáveis para o Banco de Dados (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
@@ -75,6 +76,15 @@ jwt:
   expiration: ${JWT_EXPIRATION:3600000}
   issuer: ${JWT_ISSUER:kronos-api}
   audience: ${JWT_AUDIENCE:kronos-clients}
+
+auth:
+  cookie:
+    name: ${AUTH_COOKIE_NAME:KTS_SESSION}
+    secure: ${AUTH_COOKIE_SECURE:true}
+    http-only: ${AUTH_COOKIE_HTTP_ONLY:true}
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+    path: ${AUTH_COOKIE_PATH:/}
+    domain: ${AUTH_COOKIE_DOMAIN:}
 
 frontend:
   # Variável para a URL base do Frontend

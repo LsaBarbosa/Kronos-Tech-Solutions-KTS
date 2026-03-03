@@ -93,6 +93,80 @@ Após iniciar a aplicação, acesse:
 - `/legal` – arquivos fiscais e relatórios legais
 - `/terms` – aceite e status de termos
 
+
+## 🍪 Integração Frontend com sessão HttpOnly
+
+Com as mudanças recentes, o backend está preparado para autenticação por cookie HttpOnly (sem depender de JWT em storage do navegador). Para o frontend funcionar corretamente, siga este checklist.
+
+### 1) Chamar API sempre com credenciais
+
+Use `credentials: "include"` em **todas** as chamadas que dependem de sessão:
+
+```ts
+await fetch(`${API_URL}/auth/login`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ username, password })
+});
+```
+
+> Se usar Axios, configure `withCredentials: true` no client global.
+
+### 2) Não usar JWT no frontend
+
+- Não gravar token em `localStorage`/`sessionStorage`.
+- Não montar header `Authorization: Bearer ...` para o fluxo principal web.
+- O cookie de sessão é enviado automaticamente pelo navegador.
+
+### 3) Login e logout no novo contrato
+
+- `POST /auth/login` e `POST /auth/login-face`:
+  - backend seta cookie no `Set-Cookie`;
+  - body retorna `token: null` por segurança.
+- `POST /auth/logout`:
+  - backend invalida cookie;
+  - frontend apenas limpa estado visual local e redireciona se necessário.
+
+### 4) Inicialização de sessão no app
+
+Ao abrir/recarregar o app, valide sessão com endpoint autenticado (ex.: `GET /employee/own-profile`) e derive o estado da UI a partir do resultado:
+
+- `200`: sessão válida.
+- `401`: sem sessão/expirada → pedir autenticação novamente.
+
+### 5) CORS e ambiente
+
+Para cookies funcionarem entre front e API:
+
+- backend com `allowCredentials(true)` e origem explícita (não `*`);
+- frontend deve usar a mesma origem permitida na configuração;
+- em produção, habilitar HTTPS e `AUTH_COOKIE_SECURE=true`.
+
+### 6) SameSite e domínio do cookie
+
+Defina no backend conforme topologia:
+
+- `AUTH_COOKIE_SAME_SITE=Lax` (preferencial quando possível).
+- `AUTH_COOKIE_SAME_SITE=None` somente se cross-site real, sempre com `AUTH_COOKIE_SECURE=true`.
+- `AUTH_COOKIE_DOMAIN` e `AUTH_COOKIE_PATH` consistentes com domínio/rotas usadas pelo frontend.
+
+### 7) Fluxo recomendado de check-in (uma ação)
+
+Para o fluxo de “Registrar ponto” em uma única ação:
+
+1. Capturar imagem facial.
+2. Chamar `POST /auth/login-face` com a imagem (`credentials: "include"`).
+3. Na sequência imediata, chamar `POST /records/checkin` com a **mesma imagem** e geolocalização (`credentials: "include"`).
+4. Opcional: chamar `POST /auth/logout` ao final, se o modelo de negócio exigir sessão curtíssima para check-in.
+
+### 8) Segurança recomendada no frontend
+
+- CSP restritiva para reduzir superfície de XSS.
+- Nunca logar payloads com dados sensíveis (imagem base64/claims).
+- Tratar `401/403` de forma centralizada em interceptor.
+- Evitar fallback para token em JS.
+
 ## ⚙️ Pré-requisitos
 
 - Java 21
