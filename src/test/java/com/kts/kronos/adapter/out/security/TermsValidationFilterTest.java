@@ -23,9 +23,12 @@ class TermsValidationFilterTest {
     @Mock
     private FilterChain filterChain;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
     @Test
     void shouldSkipValidationForPublicAndOptionsRequests() throws Exception {
-        var filter = new TermsValidationFilter(jwtUtils);
+        var filter = new TermsValidationFilter(jwtUtils, authCookieService);
 
         var publicRequest = new MockHttpServletRequest("GET", "/auth/login");
         var publicResponse = new MockHttpServletResponse();
@@ -45,7 +48,7 @@ class TermsValidationFilterTest {
 
     @Test
     void shouldContinueWhenNoBearerTokenOrClaimsAreInvalid() throws Exception {
-        var filter = new TermsValidationFilter(jwtUtils);
+        var filter = new TermsValidationFilter(jwtUtils, authCookieService);
 
         var requestWithoutAuth = new MockHttpServletRequest("GET", "/private");
         var responseWithoutAuth = new MockHttpServletResponse();
@@ -63,7 +66,7 @@ class TermsValidationFilterTest {
 
     @Test
     void shouldBlockWhenTermsAreNotAccepted() throws Exception {
-        var filter = new TermsValidationFilter(jwtUtils);
+        var filter = new TermsValidationFilter(jwtUtils, authCookieService);
         var request = new MockHttpServletRequest("GET", "/private");
         request.addHeader("Authorization", "Bearer token");
         var response = new MockHttpServletResponse();
@@ -84,7 +87,7 @@ class TermsValidationFilterTest {
 
     @Test
     void shouldContinueWhenTermsAreAccepted() throws Exception {
-        var filter = new TermsValidationFilter(jwtUtils);
+        var filter = new TermsValidationFilter(jwtUtils, authCookieService);
         var request = new MockHttpServletRequest("GET", "/private");
         request.addHeader("Authorization", "Bearer token");
         var response = new MockHttpServletResponse();

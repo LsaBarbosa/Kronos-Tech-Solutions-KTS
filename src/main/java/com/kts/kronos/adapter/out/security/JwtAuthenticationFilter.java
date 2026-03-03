@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import static com.kts.kronos.constants.Logs.*;
 import static com.kts.kronos.constants.Messages.*;
@@ -23,10 +24,12 @@ import static com.kts.kronos.constants.Messages.*;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final AuthCookieService authCookieService;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService, AuthCookieService authCookieService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.authCookieService = authCookieService;
     }
 
     @Override
@@ -36,13 +39,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader(AUTHORIZATION_HEADER);
         String requestPath = request.getServletPath();
 
-        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
+        var tokenOpt = extractToken(authHeader, request);
+        if (tokenOpt.isEmpty()) {
             log.debug(LOG_AUTH_HEADER_MISSING_OR_INVALID, requestPath);
             chain.doFilter(request, response);
             return;
         }
 
-        var token = authHeader.substring(BEARER_PREFIX.length());
+        var token = tokenOpt.get();
 
         var claimsOpt = jwtUtils.getValidClaims(token);
         if (claimsOpt.isEmpty()) {
@@ -72,6 +76,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private Optional<String> extractToken(String authHeader, HttpServletRequest request) {
+        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+            return Optional.of(authHeader.substring(BEARER_PREFIX.length()));
+        }
+        return authCookieService.extractTokenFromCookie(request);
     }
 
     private void writeUnauthorized(HttpServletResponse response, String detail) throws IOException {

@@ -1,0 +1,7 @@
+spring:
+  jpa:
+    open-in-view: false
+
+management:
+  tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:false}
