@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,9 @@ class AuthControllerTest {
     @MockitoBean
     private AuthUseCase authUseCase;
 
+    @MockitoBean
+    private AuthCookieService authCookieService;
+
     // Constantes para as rotas baseadas na classe AuthController e ApiPaths
     private static final String BASE_URL = "/auth";
 
@@ -63,7 +67,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value(expectedToken));
+                .andExpect(jsonPath("$.token").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
@@ -101,7 +105,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value(expectedToken));
+                .andExpect(jsonPath("$.token").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
