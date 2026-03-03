@@ -1,11 +1,9 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
-import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
-import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
-import com.kts.kronos.adapter.out.security.JwtUtils;
-import com.kts.kronos.adapter.out.security.TermsValidationFilter;
+import com.kts.kronos.adapter.out.security.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +25,7 @@ import java.util.stream.Stream;
 
 @Configuration
 @EnableMethodSecurity
+@EnableConfigurationProperties(RateLimitProperties.class)
 public class SecurityConfig {
     @Value("${frontend.base-url-record}")
     private String recordUrl;
@@ -40,18 +39,22 @@ public class SecurityConfig {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
+    private final RateLimitProperties rateLimitProperties;
 
-    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds, DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint) {
+    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds,
+                          DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
+                          RateLimitProperties rateLimitProperties) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
+        this.rateLimitProperties = rateLimitProperties;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         var termsFilter = new TermsValidationFilter(jwtUtils);
         var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
-
+        var rateLimitFilter = new RateLimitFilter(rateLimitProperties);
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -68,6 +71,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
         return http.build();

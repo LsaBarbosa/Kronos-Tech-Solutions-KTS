@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.domain.model.Address;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.stereotype.Component;
@@ -25,6 +27,8 @@ public class ViaCepClientImpl implements AddressLookupProvider {
     }
 
     @Override
+    @Retry(name="viaCep")
+    @CircuitBreaker(name = "viaCep", fallbackMethod = "lookupFallback")
     public Address lookup(String postalCode) {
         try {
             ViaCepResponse resp = webClient.get()
@@ -50,6 +54,13 @@ public class ViaCepClientImpl implements AddressLookupProvider {
         }
     }
 
+    private Address lookupFallback(String postalCode, Throwable throwable) {
+        if (throwable instanceof ResourceNotFoundException resourceNotFoundException) {
+            throw resourceNotFoundException;
+        }
+        throw new InternalError(INTERNAL_SERVER_ERROR + throwable.getMessage());
+    }
+    
     @Getter @Setter
     private static class ViaCepResponse {
         @JsonProperty("cep")
