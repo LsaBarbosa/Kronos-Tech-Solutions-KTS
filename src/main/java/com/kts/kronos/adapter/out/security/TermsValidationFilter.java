@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static com.kts.kronos.constants.Logs.*;
 import static com.kts.kronos.constants.Messages.*;
@@ -21,6 +22,7 @@ import static com.kts.kronos.constants.Messages.*;
 public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
+    private final AuthCookieService authCookieService;
 
     private static final List<String> EXACT_PUBLIC_PATHS = List.of(
             AUTH_LOGIN_PATH,
@@ -53,9 +55,9 @@ public class TermsValidationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String authHeader = request.getHeader(AUTHORIZATION_HEADER);
-        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
-            String token = authHeader.substring(BEARER_PREFIX.length());
+        var tokenOpt = extractToken(request.getHeader(AUTHORIZATION_HEADER), request);
+        if (tokenOpt.isPresent()) {
+            String token = tokenOpt.get();
 
             // 3. Verifica a claim de aceite
             var claimsOpt = jwtUtils.getValidClaims(token);
@@ -77,6 +79,13 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private Optional<String> extractToken(String authHeader, HttpServletRequest request) {
+        if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
+            return Optional.of(authHeader.substring(BEARER_PREFIX.length()));
+        }
+        return authCookieService.extractTokenFromCookie(request);
     }
 
     private void sendRedirectInstruction(HttpServletResponse response) throws IOException {
