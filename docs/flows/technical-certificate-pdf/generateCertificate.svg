@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="590" viewBox="0 0 1080 590">
+<defs><style>.t{font:700 28px Arial;fill:#0f172a}.s{font:600 18px Arial;fill:#1e293b}.b{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:10;ry:10}.a{stroke:#0f172a;stroke-width:2;fill:none;marker-end:url(#m)}</style><marker id="m" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#0f172a"/></marker></defs>
+<text x="540" y="42" text-anchor="middle" class="t">TechnicalCertificatePdfService.generateCertificate()</text>
+<rect x="140" y="80" width="800" height="62" class="b"/>
+<text x="540" y="118" text-anchor="middle" class="s">1. Receber dados da empresa cliente</text>
+<path d="M540 142 L540 180" class="a"/>
+<rect x="140" y="185" width="800" height="62" class="b"/>
+<text x="540" y="223" text-anchor="middle" class="s">2. Montar conteúdo legal/técnico do certificado</text>
+<path d="M540 247 L540 285" class="a"/>
+<rect x="140" y="290" width="800" height="62" class="b"/>
+<text x="540" y="328" text-anchor="middle" class="s">3. Renderizar PDF</text>
+<path d="M540 352 L540 390" class="a"/>
+<rect x="140" y="395" width="800" height="62" class="b"/>
+<text x="540" y="433" text-anchor="middle" class="s">4. Retornar bytes do PDF</text>
+</svg>

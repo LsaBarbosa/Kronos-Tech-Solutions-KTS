@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="800" viewBox="0 0 1080 800">
+<defs><style>.t{font:700 28px Arial;fill:#0f172a}.s{font:600 18px Arial;fill:#1e293b}.b{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:10;ry:10}.a{stroke:#0f172a;stroke-width:2;fill:none;marker-end:url(#m)}</style><marker id="m" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#0f172a"/></marker></defs>
+<text x="540" y="42" text-anchor="middle" class="t">Time-recordService.requestTimeOff()</text>
+<rect x="140" y="80" width="800" height="62" class="b"/>
+<text x="540" y="118" text-anchor="middle" class="s">1. Validar colaborador, datas e horários</text>
+<path d="M540 142 L540 180" class="a"/>
+<rect x="140" y="185" width="800" height="62" class="b"/>
+<text x="540" y="223" text-anchor="middle" class="s">2. Validar manager da mesma empresa</text>
+<path d="M540 247 L540 285" class="a"/>
+<rect x="140" y="290" width="800" height="62" class="b"/>
+<text x="540" y="328" text-anchor="middle" class="s">3. Definir tipo/status inicial da solicitação</text>
+<path d="M540 352 L540 390" class="a"/>
+<rect x="140" y="395" width="800" height="62" class="b"/>
+<text x="540" y="433" text-anchor="middle" class="s">4. Criar registros de solicitação por período</text>
+<path d="M540 457 L540 495" class="a"/>
+<rect x="140" y="500" width="800" height="62" class="b"/>
+<text x="540" y="538" text-anchor="middle" class="s">5. Fazer upload do documento quando enviado</text>
+<path d="M540 562 L540 600" class="a"/>
+<rect x="140" y="605" width="800" height="62" class="b"/>
+<text x="540" y="643" text-anchor="middle" class="s">6. Salvar e retornar ID principal</text>
+</svg>
