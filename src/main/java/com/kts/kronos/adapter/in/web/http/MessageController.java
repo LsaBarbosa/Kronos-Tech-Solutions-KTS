@@ -34,11 +34,12 @@ import static com.kts.kronos.constants.Swagger.*;
     @PostMapping
     @Operation(summary = POST_MSG_SUMMARY, description = POST_MSG_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = POST_MSG_SUCCESS),
+            @ApiResponse(responseCode = "204", description = POST_MSG_SUCCESS),
             @ApiResponse(responseCode = "400", description = POST_MSG_400),
             @ApiResponse(responseCode = "404", description = POST_MSG_404),
             @ApiResponse(responseCode = "403", description = POST_MSG_403)
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void postMessage(@Valid @RequestBody CreateMessageRequest request) {
         useCase.postMessage(request);
     }
@@ -63,12 +64,13 @@ import static com.kts.kronos.constants.Swagger.*;
     @DeleteMapping(MESSAGE_ID)
     @Operation(summary = DEL_MSG_SUMMARY, description = DEL_MSG_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = DEL_MSG_SUCCESS),
+            @ApiResponse(responseCode = "204", description = DEL_MSG_SUCCESS),
             @ApiResponse(responseCode = "400", description = DEL_MSG_400),
             @ApiResponse(responseCode = "404", description = MESSAGE_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-     public void deleteMessage(@PathVariable UUID messageId) {
+     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void deleteMessage(@PathVariable UUID messageId) {
         useCase.deleteMessage(messageId);
     }
 }

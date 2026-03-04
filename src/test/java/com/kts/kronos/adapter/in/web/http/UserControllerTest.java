@@ -68,7 +68,7 @@ class UserControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(userUseCase).createUser(any(CreateUserRequest.class));
     }
@@ -191,7 +191,7 @@ class UserControllerTest {
         mockMvc.perform(patch(BASE_URL + "/search/{userId}", USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -226,7 +226,7 @@ class UserControllerTest {
         doNothing().when(userUseCase).toggleActivate(USER_ID);
 
         mockMvc.perform(patch(BASE_URL + "/toggle-activate/{userId}", USER_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -245,7 +245,7 @@ class UserControllerTest {
         doNothing().when(userUseCase).deleteUser(USER_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{userId}", USER_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test

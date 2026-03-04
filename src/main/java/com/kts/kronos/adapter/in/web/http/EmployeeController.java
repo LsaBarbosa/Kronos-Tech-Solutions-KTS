@@ -80,13 +80,14 @@ public class EmployeeController {
 
     @Operation(summary = UPDATE_EMPLOYEE_SUMMARY, description = UPDATE_EMPLOYEE_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_EMPLOYEE_SUCCESS),
+            @ApiResponse(responseCode = "204", description = UPDATE_EMPLOYEE_SUCCESS),
             @ApiResponse(responseCode = "400", description = UPDATE_EMPLOYEE_400),
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
     @PreAuthorize(MANAGER)
     @PatchMapping(UPDATE_EMPLOYEE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateEmployee(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeManagerRequest dto) {
         useCase.updateEmployee(employeeId, dto);
     }
@@ -108,34 +109,36 @@ public class EmployeeController {
 
     @Operation(summary = UPDATE_OWN_PROFILE_SUMMARY, description = UPDATE_OWN_PROFILE_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_OWN_PROFILE_SUCCESS),
+            @ApiResponse(responseCode = "204", description = UPDATE_OWN_PROFILE_SUCCESS),
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND)
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto) {
         useCase.updateOwnProfile(dto);
     }
 
     @Operation(summary = DEL_EMPLOYEE_SUMMARY, description = DEL_EMPLOYEE_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = DEL_EMPLOYEE_SUCCESS),
+            @ApiResponse(responseCode = "204", description = DEL_EMPLOYEE_SUCCESS),
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
     @PreAuthorize(MANAGER)
     @DeleteMapping(EMPLOYEE_ID)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteEmployee(@PathVariable UUID employeeId) {
         useCase.deleteEmployee(employeeId);
     }
 
     @Operation(summary = MARK_MSG_SEEN_SUMMARY, description = MARK_MSG_SEEN_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = MARK_MSG_SEEN_SUCCESS),
+            @ApiResponse(responseCode = "204", description = MARK_MSG_SEEN_SUCCESS),
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND)
     })
     @PostMapping(MESSAGES_SEEN)
-    @ResponseStatus(HttpStatus.OK)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize(ANY_EMPLOYEE)
     public void markMessagesAsSeen() {
         useCase.markMessagesAsSeen();

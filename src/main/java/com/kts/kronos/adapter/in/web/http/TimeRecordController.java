@@ -56,11 +56,12 @@ public class TimeRecordController {
     @PutMapping(UPDATE_TIME_RECORD)
     @Operation(summary = UPDATE_TR_SUMMARY, description = UPDATE_TR_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_TR_200),
+            @ApiResponse(responseCode = "204", description = UPDATE_TR_200),
             @ApiResponse(responseCode = "400", description = UPDATE_TR_400),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED),
             @ApiResponse(responseCode = "404", description = RECORD_NOT_FOUND)
     })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
     }
@@ -69,10 +70,11 @@ public class TimeRecordController {
     @PutMapping(UPDATE_STATUS)
     @Operation(summary = UPDATE_STATUS_SUMMARY, description = UPDATE_STATUS_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_STATUS_200),
+            @ApiResponse(responseCode = "204", description = UPDATE_STATUS_200),
             @ApiResponse(responseCode = "400", description = UPDATE_STATUS_400),
             @ApiResponse(responseCode = "404", description = RECORD_NOT_FOUND)
     })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
     }
@@ -80,6 +82,7 @@ public class TimeRecordController {
     @PreAuthorize(MANAGER)
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
     @Operation(summary = TOGGLE_TR_SUMMARY, description = TOGGLE_TR_DESC)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
     }
@@ -87,6 +90,7 @@ public class TimeRecordController {
     @PreAuthorize(MANAGER)
     @DeleteMapping(DELETE_RECORD)
     @Operation(summary = DEL_TR_SUMMARY, description = DEL_TR_DESC)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
     }
@@ -112,10 +116,11 @@ public class TimeRecordController {
     @PatchMapping(APPROVE_UPDATE)
     @Operation(summary = APPROVE_CHANGE_SUMMARY, description = APPROVE_CHANGE_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = APPROVE_CHANGE_200),
+            @ApiResponse(responseCode = "204", description = APPROVE_CHANGE_200),
             @ApiResponse(responseCode = "400", description = APPROVE_CHANGE_400),
             @ApiResponse(responseCode = "404", description = APPROVE_CHANGE_404)
     })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
     }
@@ -123,6 +128,7 @@ public class TimeRecordController {
     @PreAuthorize(MANAGER)
     @PatchMapping(REJECT_UPDATE)
     @Operation(summary = REJECT_CHANGE_SUMMARY, description = REJECT_CHANGE_DESC)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);
     }

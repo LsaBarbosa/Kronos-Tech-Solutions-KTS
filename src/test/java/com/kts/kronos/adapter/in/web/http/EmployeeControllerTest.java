@@ -136,7 +136,7 @@ class EmployeeControllerTest {
         mockMvc.perform(patch(BASE_URL + "/manager/update-employee/{id}", EMP_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(employeeUseCase).updateEmployee(eq(EMP_ID), any());
     }
@@ -167,7 +167,7 @@ class EmployeeControllerTest {
         mockMvc.perform(patch(BASE_URL + "/update-own-profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -176,7 +176,7 @@ class EmployeeControllerTest {
         doNothing().when(employeeUseCase).deleteEmployee(EMP_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{id}", EMP_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -185,7 +185,7 @@ class EmployeeControllerTest {
         doNothing().when(employeeUseCase).markMessagesAsSeen();
 
         mockMvc.perform(post(BASE_URL + "/mark-messages-seen"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(employeeUseCase).markMessagesAsSeen();
     }
