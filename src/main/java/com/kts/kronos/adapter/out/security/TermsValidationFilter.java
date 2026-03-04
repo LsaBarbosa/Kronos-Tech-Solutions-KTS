@@ -27,6 +27,7 @@ public class TermsValidationFilter extends OncePerRequestFilter {
     private static final List<String> EXACT_PUBLIC_PATHS = List.of(
             AUTH_LOGIN_PATH,
             AUTH_LOGIN_FACE_PATH,
+            AUTH_LOGOUT_PATH,
             AUTH_RECOVER_PASSWORD_PATH,
             AUTH_RESET_PASSWORD_PATH,
             TERMS_ACCEPT_BIOMETRIC_PATH,
