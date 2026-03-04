@@ -195,14 +195,14 @@ class EmployeeControllerTest {
     }
 
     @Test
-    @DisplayName("Deve verificar disponibilidade de CPF (200 OK se existir)")
-    void shouldReturn200IfCpfExists() throws Exception {
+    @DisplayName("Deve verificar disponibilidade de CPF (204 No Content se existir)")
+    void shouldReturn204IfCpfExists() throws Exception {
         String cpf = "12345678901";
         when(employeeUseCase.cpfExists(cpf)).thenReturn(true);
 
         mockMvc.perform(get(BASE_URL + "/check-cpf")
                         .param("cpf", cpf))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     // ==================================================================================

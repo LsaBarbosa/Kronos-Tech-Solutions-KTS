@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 import static com.kts.kronos.constants.Swagger.OPENAPI_DESCRIPTION;
 import static com.kts.kronos.constants.Swagger.OPENAPI_SECURITY_BEARER_DESCRIPTION;
+import static com.kts.kronos.constants.Swagger.OPENAPI_SECURITY_COOKIE_NAME;
 import static com.kts.kronos.constants.Swagger.OPENAPI_SECURITY_DESCRIPTION;
 import static com.kts.kronos.constants.Swagger.OPENAPI_SECURITY_SCHEME;
 import static com.kts.kronos.constants.Swagger.OPENAPI_SECURITY_SCHEME_BEARER;
@@ -30,7 +31,7 @@ import static com.kts.kronos.constants.Swagger.OPENAPI_VERSION;
                 name = OPENAPI_SECURITY_SCHEME,
                 type = SecuritySchemeType.APIKEY,
                 in = io.swagger.v3.oas.annotations.enums.SecuritySchemeIn.COOKIE,
-                paramName = "APIKEY",
+                paramName = OPENAPI_SECURITY_COOKIE_NAME,
                 description = OPENAPI_SECURITY_DESCRIPTION
         ),
         @SecurityScheme(

@@ -128,6 +128,15 @@ await fetch(`${API_URL}/auth/login`, {
   - backend invalida cookie;
   - frontend apenas limpa estado visual local e redireciona se necessário.
 
+### 3.1) Regra obrigatória de contrato no time (backend + frontend)
+
+- Endpoints de autenticação web **não** retornam JWT utilizável no body para o frontend.
+- `POST /auth/login` e `POST /auth/login-face` devem ser tratados como:
+  - sucesso por `200`;
+  - sessão entregue via `Set-Cookie` HttpOnly;
+  - campo `token` no body mantido como `null` por compatibilidade.
+- Endpoints sem DTO/payload de resposta devem, por padrão, responder `204 No Content` para evitar ambiguidade de consumo no frontend.
+
 ### 4) Inicialização de sessão no app
 
 Ao abrir/recarregar o app, valide sessão com endpoint autenticado (ex.: `GET /employee/own-profile`) e derive o estado da UI a partir do resultado:

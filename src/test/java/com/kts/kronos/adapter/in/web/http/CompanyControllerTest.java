@@ -193,15 +193,15 @@ class CompanyControllerTest {
     }
 
     @Test
-    @DisplayName("Deve verificar disponibilidade de CNPJ retornando 200 OK se existir")
-    void shouldReturn200IfCnpjExists() throws Exception {
+    @DisplayName("Deve verificar disponibilidade de CNPJ retornando 204 No Content se existir")
+    void shouldReturn204IfCnpjExists() throws Exception {
         // Arrange
         when(companyUseCase.cnpjExists(VALID_CNPJ)).thenReturn(true);
 
         // Act & Assert
         mockMvc.perform(get(BASE_URL + "/check-cnpj")
                         .param("cnpj", VALID_CNPJ))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
