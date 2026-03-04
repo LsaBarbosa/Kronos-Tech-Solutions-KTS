@@ -42,7 +42,13 @@ class TermsValidationFilterTest {
         var optionsResponse = new MockHttpServletResponse();
         filter.doFilter(optionsRequest, optionsResponse, filterChain);
 
-        verify(filterChain, times(3)).doFilter(any(), any());
+        var logoutRequest = new MockHttpServletRequest("POST", "/auth/logout");
+        logoutRequest.setServletPath("/auth/logout");
+        logoutRequest.addHeader("Authorization", "Bearer token");
+        var logoutResponse = new MockHttpServletResponse();
+        filter.doFilter(logoutRequest, logoutResponse, filterChain);
+
+        verify(filterChain, times(4)).doFilter(any(), any());
         verifyNoInteractions(jwtUtils);
     }
 

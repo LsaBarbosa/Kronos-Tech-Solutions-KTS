@@ -210,6 +210,7 @@ public class Messages {
 
     public static final String AUTH_LOGIN_PATH = "/auth/login";
     public static final String AUTH_LOGIN_FACE_PATH = "/auth/login-face";
+    public static final String AUTH_LOGOUT_PATH = "/auth/logout";
     public static final String AUTH_RECOVER_PASSWORD_PATH = "/auth/recover-password";
     public static final String AUTH_RESET_PASSWORD_PATH = "/auth/reset-password";
     public static final String TERMS_ACCEPT_BIOMETRIC_PATH = "/terms/accept-biometric";
