@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MessageController.class)
@@ -69,7 +70,8 @@ class MessageControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         verify(messageUseCase, times(1)).postMessage(any(CreateMessageRequest.class));
     }
@@ -197,7 +199,8 @@ class MessageControllerTest {
         doNothing().when(messageUseCase).deleteMessage(MSG_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{messageId}", MSG_ID))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         verify(messageUseCase).deleteMessage(MSG_ID);
     }

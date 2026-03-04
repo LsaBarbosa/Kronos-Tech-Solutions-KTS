@@ -39,9 +39,9 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = CREATE_USER_404),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
+    public ResponseEntity<Void> registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping(USER_BY_USERNAME)
@@ -94,9 +94,9 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
+    public ResponseEntity<Void> updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping(TOGGLE_ACTIVATE_USER)
@@ -107,9 +107,9 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void activateUser(@PathVariable UUID userId) {
+    public ResponseEntity<Void> activateUser(@PathVariable UUID userId) {
         useCase.toggleActivate(userId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping(DELETE_USER)
@@ -120,9 +120,9 @@ public class UserController {
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void deleteUser(@PathVariable UUID userId) {
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
         useCase.deleteUser(userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)

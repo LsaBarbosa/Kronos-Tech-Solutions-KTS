@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
@@ -68,7 +69,8 @@ class UserControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         verify(userUseCase).createUser(any(CreateUserRequest.class));
     }
@@ -191,7 +193,8 @@ class UserControllerTest {
         mockMvc.perform(patch(BASE_URL + "/search/{userId}", USER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test
@@ -226,7 +229,8 @@ class UserControllerTest {
         doNothing().when(userUseCase).toggleActivate(USER_ID);
 
         mockMvc.perform(patch(BASE_URL + "/toggle-activate/{userId}", USER_ID))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test
@@ -245,7 +249,8 @@ class UserControllerTest {
         doNothing().when(userUseCase).deleteUser(USER_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{userId}", USER_ID))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test
@@ -292,7 +297,8 @@ class UserControllerTest {
         mockMvc.perform(put(BASE_URL + "/password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test

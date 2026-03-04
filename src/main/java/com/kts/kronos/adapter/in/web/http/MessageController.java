@@ -26,7 +26,8 @@ import static com.kts.kronos.constants.Swagger.*;
 @RestController
 @RequestMapping(MESSAGES)
 @RequiredArgsConstructor
-@Tag(name = SWAGGER_MSG_TAG, description = SWAGGER_MSG_DESC)public class MessageController {
+@Tag(name = SWAGGER_MSG_TAG, description = SWAGGER_MSG_DESC)
+public class MessageController {
 
     private final MessageUseCase useCase;
 
@@ -39,9 +40,9 @@ import static com.kts.kronos.constants.Swagger.*;
             @ApiResponse(responseCode = "404", description = POST_MSG_404),
             @ApiResponse(responseCode = "403", description = POST_MSG_403)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void postMessage(@Valid @RequestBody CreateMessageRequest request) {
+    public ResponseEntity<Void> postMessage(@Valid @RequestBody CreateMessageRequest request) {
         useCase.postMessage(request);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -69,8 +70,8 @@ import static com.kts.kronos.constants.Swagger.*;
             @ApiResponse(responseCode = "404", description = MESSAGE_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
-     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void deleteMessage(@PathVariable UUID messageId) {
+    public ResponseEntity<Void> deleteMessage(@PathVariable UUID messageId) {
         useCase.deleteMessage(messageId);
+        return ResponseEntity.noContent().build();
     }
 }

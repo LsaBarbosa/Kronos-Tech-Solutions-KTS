@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -87,9 +86,9 @@ public class EmployeeController {
     })
     @PreAuthorize(MANAGER)
     @PatchMapping(UPDATE_EMPLOYEE)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateEmployee(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeManagerRequest dto) {
+    public ResponseEntity<Void> updateEmployee(@PathVariable UUID employeeId, @Valid @RequestBody UpdateEmployeeManagerRequest dto) {
         useCase.updateEmployee(employeeId, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = OWN_PROFILE_SUMMARY, description = OWN_PROFILE_DESC)
@@ -114,9 +113,9 @@ public class EmployeeController {
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto) {
+    public ResponseEntity<Void> updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto) {
         useCase.updateOwnProfile(dto);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = DEL_EMPLOYEE_SUMMARY, description = DEL_EMPLOYEE_DESC)
@@ -127,9 +126,9 @@ public class EmployeeController {
     })
     @PreAuthorize(MANAGER)
     @DeleteMapping(EMPLOYEE_ID)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteEmployee(@PathVariable UUID employeeId) {
+    public ResponseEntity<Void> deleteEmployee(@PathVariable UUID employeeId) {
         useCase.deleteEmployee(employeeId);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = MARK_MSG_SEEN_SUMMARY, description = MARK_MSG_SEEN_DESC)
@@ -138,10 +137,10 @@ public class EmployeeController {
             @ApiResponse(responseCode = "404", description = SWAGGER_EMP_NOT_FOUND)
     })
     @PostMapping(MESSAGES_SEEN)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize(ANY_EMPLOYEE)
-    public void markMessagesAsSeen() {
+    public ResponseEntity<Void> markMessagesAsSeen() {
         useCase.markMessagesAsSeen();
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = CHECK_CPF_SUMMARY, description = CHECK_CPF_DESC)
