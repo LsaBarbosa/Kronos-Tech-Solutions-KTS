@@ -61,9 +61,9 @@ public class TimeRecordController {
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED),
             @ApiResponse(responseCode = "404", description = RECORD_NOT_FOUND)
     })
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
+    public ResponseEntity<Void> updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
@@ -74,25 +74,25 @@ public class TimeRecordController {
             @ApiResponse(responseCode = "400", description = UPDATE_STATUS_400),
             @ApiResponse(responseCode = "404", description = RECORD_NOT_FOUND)
     })
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+    public ResponseEntity<Void> updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
     @Operation(summary = TOGGLE_TR_SUMMARY, description = TOGGLE_TR_DESC)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(DELETE_RECORD)
     @Operation(summary = DEL_TR_SUMMARY, description = DEL_TR_DESC)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -120,17 +120,17 @@ public class TimeRecordController {
             @ApiResponse(responseCode = "400", description = APPROVE_CHANGE_400),
             @ApiResponse(responseCode = "404", description = APPROVE_CHANGE_404)
     })
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void approveChange(@PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PatchMapping(REJECT_UPDATE)
     @Operation(summary = REJECT_CHANGE_SUMMARY, description = REJECT_CHANGE_DESC)
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void rejectChange(@PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)

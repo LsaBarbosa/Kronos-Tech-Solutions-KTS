@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
@@ -41,7 +40,6 @@ public class TermsController {
             @ApiResponse(responseCode = "404", description = ACCEPT_BIO_404),
             @ApiResponse(responseCode = "500", description = ACCEPT_BIO_500)
     })
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> acceptBiometricTerms(HttpServletRequest request) throws IOException {
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();

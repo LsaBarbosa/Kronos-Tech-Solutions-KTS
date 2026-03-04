@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 @WebMvcTest(CompanyController.class)
 @AutoConfigureMockMvc(addFilters = false) // Desabilita segurança para focar no teste do Controller
@@ -108,7 +109,8 @@ class CompanyControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         verify(companyUseCase, times(1)).createCompany(any(CreateCompanyRequest.class));
     }
@@ -160,7 +162,8 @@ class CompanyControllerTest {
         mockMvc.perform(patch(BASE_URL + "/{cnpj}", VALID_CNPJ)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test
@@ -171,7 +174,8 @@ class CompanyControllerTest {
 
         // Act & Assert
         mockMvc.perform(patch(BASE_URL + "/{cnpj}/toggle-activate", VALID_CNPJ))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
         verify(companyUseCase).toggleActivate(VALID_CNPJ);
     }
@@ -184,7 +188,8 @@ class CompanyControllerTest {
 
         // Act & Assert
         mockMvc.perform(delete(BASE_URL + "/{cnpj}", VALID_CNPJ))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
     }
 
     @Test

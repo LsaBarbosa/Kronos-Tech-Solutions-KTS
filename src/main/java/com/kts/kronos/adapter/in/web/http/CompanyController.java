@@ -32,9 +32,9 @@ public class CompanyController {
     @ApiResponses(value = {@ApiResponse(responseCode = "204", description = REG_COMPANY_SUCCESS), @ApiResponse(responseCode = "400", description = REG_COMPANY_400), @ApiResponse(responseCode = "403", description = REG_COMPANY_403)})
     @PostMapping
     @PreAuthorize(KRONOS)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
+    public ResponseEntity<Void> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = GET_COMPANY_SUMMARY, description = GET_COMPANY_DESC)
@@ -59,27 +59,27 @@ public class CompanyController {
     @ApiResponses(value = {@ApiResponse(responseCode = "204", description = UPDATE_COMPANY_SUCCESS), @ApiResponse(responseCode = "400", description = UPDATE_COMPANY_400), @ApiResponse(responseCode = "404", description = UPDATE_COMPANY_404), @ApiResponse(responseCode = "403", description = ACCESS_DENIED)})
     @PreAuthorize(KRONOS)
     @PatchMapping(BY_CNPJ)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void updateCompany(@PathVariable String cnpj, @Valid @RequestBody UpdateCompanyRequest dto) {
+    public ResponseEntity<Void> updateCompany(@PathVariable String cnpj, @Valid @RequestBody UpdateCompanyRequest dto) {
         useCase.updateCompany(cnpj, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = TOGGLE_COMPANY_SUMMARY, description = TOGGLE_COMPANY_DESC)
     @ApiResponses(value = {@ApiResponse(responseCode = "204", description = TOGGLE_COMPANY_SUCCESS), @ApiResponse(responseCode = "404", description = UPDATE_COMPANY_404), @ApiResponse(responseCode = "403", description = ACCESS_DENIED)})
     @PreAuthorize(KRONOS)
     @PatchMapping(TOGGLE_ACTIVATE)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void deactivateCompany(@PathVariable String cnpj) {
+    public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = DEL_COMPANY_SUMMARY, description = DEL_COMPANY_DESC)
     @ApiResponses(value = {@ApiResponse(responseCode = "204", description = DEL_COMPANY_SUCCESS), @ApiResponse(responseCode = "404", description = UPDATE_COMPANY_404), @ApiResponse(responseCode = "403", description = ACCESS_DENIED)})
     @PreAuthorize(KRONOS)
     @DeleteMapping(BY_CNPJ)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void deleteCompany(@PathVariable String cnpj) {
+    public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = CHECK_CNPJ_SUMMARY, description = CHECK_CNPJ_DESC)

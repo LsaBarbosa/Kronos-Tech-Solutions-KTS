@@ -43,13 +43,13 @@ public class DocumentController {
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void upload(
+    public ResponseEntity<Void> upload(
             @RequestParam(required = false) UUID employeeId,
             @RequestParam("type") DocumentType type,
             @RequestPart("file") MultipartFile file
     ) throws Exception {
-        useCase.uploadDocument(type,employeeId, file);
+        useCase.uploadDocument(type, employeeId, file);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = LIST_DOC_SUMMARY, description = LIST_DOC_DESC)
@@ -101,9 +101,9 @@ public class DocumentController {
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
-    public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
+    public ResponseEntity<Void> deleteDocument(@RequestParam(required = false) UUID employeeId, @PathVariable UUID documentId) {
         useCase.deleteDocument(employeeId, documentId);
+        return ResponseEntity.noContent().build();
     }
 
 }
