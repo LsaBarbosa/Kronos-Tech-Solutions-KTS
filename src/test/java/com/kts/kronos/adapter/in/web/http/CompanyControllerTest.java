@@ -108,7 +108,7 @@ class CompanyControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(companyUseCase, times(1)).createCompany(any(CreateCompanyRequest.class));
     }
@@ -160,7 +160,7 @@ class CompanyControllerTest {
         mockMvc.perform(patch(BASE_URL + "/{cnpj}", VALID_CNPJ)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -171,7 +171,7 @@ class CompanyControllerTest {
 
         // Act & Assert
         mockMvc.perform(patch(BASE_URL + "/{cnpj}/toggle-activate", VALID_CNPJ))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(companyUseCase).toggleActivate(VALID_CNPJ);
     }
@@ -184,7 +184,7 @@ class CompanyControllerTest {
 
         // Act & Assert
         mockMvc.perform(delete(BASE_URL + "/{cnpj}", VALID_CNPJ))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test

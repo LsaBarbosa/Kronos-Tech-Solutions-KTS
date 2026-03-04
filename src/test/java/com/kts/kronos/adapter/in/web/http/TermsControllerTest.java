@@ -61,7 +61,7 @@ class TermsControllerTest {
                         .header("User-Agent", userAgent)
                         // Sem header X-Forwarded-For, o controller deve usar o request.getRemoteAddr()
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // Verifica se o serviço foi chamado com o ID correto e o UserAgent passado
         verify(acceptanceUseCase).acceptBiometricTerms(eq(EMPLOYEE_ID), any(), eq(userAgent));
@@ -76,7 +76,7 @@ class TermsControllerTest {
         mockMvc.perform(post(BASE_URL + "/accept-biometric")
                         .header("X-Forwarded-For", proxyHeader)
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // Verifica se o controller limpou a string e passou apenas o primeiro IP
         verify(acceptanceUseCase).acceptBiometricTerms(eq(EMPLOYEE_ID), eq(expectedIp), anyString());
@@ -87,7 +87,7 @@ class TermsControllerTest {
     void shouldUseDefaultUserAgentWhenMissing() throws Exception {
         mockMvc.perform(post(BASE_URL + "/accept-biometric")
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(acceptanceUseCase).acceptBiometricTerms(eq(EMPLOYEE_ID), any(), eq("Desconhecido"));
     }

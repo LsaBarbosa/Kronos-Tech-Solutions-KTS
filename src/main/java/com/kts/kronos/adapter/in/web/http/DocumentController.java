@@ -36,13 +36,14 @@ public class DocumentController {
 
     @Operation(summary = UPLOAD_DOC_SUMMARY, description = UPLOAD_DOC_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPLOAD_DOC_SUCCESS),
+            @ApiResponse(responseCode = "204", description = UPLOAD_DOC_SUCCESS),
             @ApiResponse(responseCode = "400", description = UPLOAD_DOC_400),
             @ApiResponse(responseCode = "404", description = UPLOAD_DOC_404),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void upload(
             @RequestParam(required = false) UUID employeeId,
             @RequestParam("type") DocumentType type,
@@ -94,12 +95,13 @@ public class DocumentController {
 
     @Operation(summary = DEL_DOC_SUMMARY, description = DEL_DOC_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = DEL_DOC_SUCCESS),
+            @ApiResponse(responseCode = "204", description = DEL_DOC_SUCCESS),
             @ApiResponse(responseCode = "403", description = DEL_DOC_403),
             @ApiResponse(responseCode = "404", description = DEL_DOC_404)
     })
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
         useCase.deleteDocument(employeeId, documentId);
     }

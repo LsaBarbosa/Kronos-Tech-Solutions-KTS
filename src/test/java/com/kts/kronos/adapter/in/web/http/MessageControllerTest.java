@@ -69,7 +69,7 @@ class MessageControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(messageUseCase, times(1)).postMessage(any(CreateMessageRequest.class));
     }
@@ -197,7 +197,7 @@ class MessageControllerTest {
         doNothing().when(messageUseCase).deleteMessage(MSG_ID);
 
         mockMvc.perform(delete(BASE_URL + "/{messageId}", MSG_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(messageUseCase).deleteMessage(MSG_ID);
     }

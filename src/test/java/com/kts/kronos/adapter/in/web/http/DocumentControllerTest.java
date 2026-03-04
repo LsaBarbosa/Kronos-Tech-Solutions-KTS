@@ -66,7 +66,7 @@ class DocumentControllerTest {
                         .file(file)
                         .param("type", "DOCUMENTS")
                         .param("employeeId", EMP_ID.toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(documentUseCase).uploadDocument(eq(DocumentType.DOCUMENTS), eq(EMP_ID), any());
     }
@@ -241,7 +241,7 @@ class DocumentControllerTest {
         doNothing().when(documentUseCase).deleteDocument(any(), eq(DOC_ID));
 
         mockMvc.perform(delete(BASE_URL + "/{documentId}", DOC_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(documentUseCase).deleteDocument(any(), eq(DOC_ID));
     }

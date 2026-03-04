@@ -34,11 +34,12 @@ public class UserController {
     @PreAuthorize(ADMINISTRATOR)
     @Operation(summary = CREATE_USER_SUMMARY, description = CREATE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = CREATE_USER_SUCCESS),
+            @ApiResponse(responseCode = "204", description = CREATE_USER_SUCCESS),
             @ApiResponse(responseCode = "400", description = CREATE_USER_400),
             @ApiResponse(responseCode = "404", description = CREATE_USER_404),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
     }
@@ -88,11 +89,12 @@ public class UserController {
     @PatchMapping(UPDATE_USER)
     @Operation(summary = UPDATE_USER_SUMMARY, description = UPDATE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = UPDATE_USER_SUCCESS),
+            @ApiResponse(responseCode = "204", description = UPDATE_USER_SUCCESS),
             @ApiResponse(responseCode = "400", description = UPDATE_USER_400),
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
     }
@@ -101,10 +103,11 @@ public class UserController {
     @PreAuthorize(MANAGER)
     @Operation(summary = ACTIVATE_USER_SUMMARY, description = ACTIVATE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = USER_INACTIVE),
+            @ApiResponse(responseCode = "204", description = USER_INACTIVE),
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void activateUser(@PathVariable UUID userId) {
         useCase.toggleActivate(userId);
     }
@@ -113,10 +116,11 @@ public class UserController {
     @PreAuthorize(MANAGER)
     @Operation(summary = DELETE_USER_SUMMARY, description = DELETE_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = DELETE_USER_SUCCESS),
+            @ApiResponse(responseCode = "204", description = DELETE_USER_SUCCESS),
             @ApiResponse(responseCode = "404", description = USER_NOT_FOUND),
             @ApiResponse(responseCode = "403", description = ACCESS_DENIED)
     })
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable UUID userId) {
         useCase.deleteUser(userId);
     }

@@ -85,13 +85,13 @@ class TimeRecordControllerTest {
     }
 
     @Test
-    void updateTimeRecord_shouldReturn200_whenValid() throws Exception {
+    void updateTimeRecord_shouldReturn204_whenValid() throws Exception {
         doNothing().when(useCase).updateTimeRecord(eq(RECORD_ID), any());
 
         mockMvc.perform(put(BASE_URL + "/update/time-record/{timeRecordId}", RECORD_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validUpdateRequest())))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -107,13 +107,13 @@ class TimeRecordControllerTest {
     }
 
     @Test
-    void updateStatus_shouldReturn200_whenValid() throws Exception {
+    void updateStatus_shouldReturn204_whenValid() throws Exception {
         doNothing().when(useCase).updateStatus(eq(EMPLOYEE_ID), eq(RECORD_ID), any());
 
         mockMvc.perform(put(BASE_URL + "/update/status/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateTimeRecordStatusRequest(StatusRecord.CREATED))))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -137,9 +137,9 @@ class TimeRecordControllerTest {
     }
 
     @Test
-    void toggleActivate_shouldReturn200_whenValid() throws Exception {
+    void toggleActivate_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(put(BASE_URL + "/toggle-activate/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).toggleActivate(EMPLOYEE_ID, RECORD_ID);
     }
@@ -154,9 +154,9 @@ class TimeRecordControllerTest {
 
     @Test
     @DisplayName("Delete usa rota sem barra inicial por constante DELETE_RECORD")
-    void deleteTimeRecord_shouldReturn200_whenValid() throws Exception {
+    void deleteTimeRecord_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(delete(BASE_URL + "/records/{employeeId}/{timeRecordId}", EMPLOYEE_ID, RECORD_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteTimeRecord(EMPLOYEE_ID, RECORD_ID);
     }
@@ -236,9 +236,9 @@ class TimeRecordControllerTest {
     }
 
     @Test
-    void approveChange_shouldReturn200_whenValid() throws Exception {
+    void approveChange_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(patch(BASE_URL + "/approve/{timeRecordId}", RECORD_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).approveTimeRecordChange(RECORD_ID);
     }
@@ -252,9 +252,9 @@ class TimeRecordControllerTest {
     }
 
     @Test
-    void rejectChange_shouldReturn200_whenValid() throws Exception {
+    void rejectChange_shouldReturn204_whenValid() throws Exception {
         mockMvc.perform(patch(BASE_URL + "/reject/{timeRecordId}", RECORD_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).rejectTimeRecordChange(RECORD_ID);
     }
