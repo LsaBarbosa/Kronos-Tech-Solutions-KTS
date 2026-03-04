@@ -84,6 +84,17 @@ public class AuthController {
     }
 
 
+    @Operation(summary = LOGOUT_SUMMARY, description = LOGOUT_DESC, security = @SecurityRequirement(name = ""))
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "204",
+                    description = LOGOUT_204,
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Cookie de sessão expirado (HttpOnly), removendo autenticação no cliente."
+                    )
+            )
+    })
     @PostMapping(LOGOUT)
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         authCookieService.clearAuthCookie(response);

@@ -112,6 +112,16 @@ class AuthControllerTest {
         verify(authCookieService).writeAuthCookie(any(), eq(expectedToken));
     }
 
+
+    @Test
+    @DisplayName("Deve retornar 204 e limpar cookie HttpOnly ao realizar logout")
+    void shouldReturnNoContentAndClearAuthCookieWhenLogoutIsCalled() throws Exception {
+        mockMvc.perform(post(BASE_URL + "/logout"))
+                .andExpect(status().isNoContent());
+
+        verify(authCookieService).clearAuthCookie(any());
+    }
+
     @Test
     @DisplayName("Deve retornar 204 No Content ao redefinir a senha com sucesso")
     void shouldReturnNoContentWhenResetPasswordIsSuccessful() throws Exception {
