@@ -270,8 +270,8 @@ class AuthServiceTest {
 
     private Object attemptWindow(int attempts, Instant blockedUntil) throws Exception {
         Class<?> windowClass = Class.forName("com.kts.kronos.application.service.AuthService$AttemptWindow");
-        Constructor<?> ctor = windowClass.getDeclaredConstructor(int.class, Instant.class);
+        Constructor<?> ctor = windowClass.getDeclaredConstructor(int.class, Instant.class, Instant.class);
         ctor.setAccessible(true);
-        return ctor.newInstance(attempts, blockedUntil);
+        return ctor.newInstance(attempts, blockedUntil, Instant.now());
     }
 }

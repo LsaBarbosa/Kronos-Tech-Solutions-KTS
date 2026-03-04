@@ -22,15 +22,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.rekognition.model.RekognitionException;
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.io.ByteArrayInputStream;
-import java.util.Base64;
-import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -48,9 +47,13 @@ public class AuthService implements AuthUseCase {
     private static final Duration LOGIN_BLOCK_DURATION = Duration.ofMinutes(15);
     private static final int MAX_RECOVERY_ATTEMPTS = 3;
     private static final Duration RECOVERY_BLOCK_DURATION = Duration.ofMinutes(15);
+    private static final Duration ATTEMPT_ENTRY_TTL = Duration.ofHours(2);
+    private static final int CLEANUP_INTERVAL_REQUESTS = 300;
 
     private final Map<String, AttemptWindow> loginAttempts = new ConcurrentHashMap<>();
     private final Map<String, AttemptWindow> recoveryAttempts = new ConcurrentHashMap<>();
+    private final AtomicInteger loginRequestCounter = new AtomicInteger();
+    private final AtomicInteger recoveryRequestCounter = new AtomicInteger();
 
 
     @Value("${frontend.base-url-plataform}")
@@ -72,6 +75,10 @@ public class AuthService implements AuthUseCase {
     @Transactional(readOnly = true)
     public String login(String username, String password) {
         var timerSample = Timer.start(meterRegistry);
+
+        if (loginRequestCounter.incrementAndGet() % CLEANUP_INTERVAL_REQUESTS == 0) {
+            cleanupExpiredAttempts(loginAttempts);
+        }
 
         var normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
         enforceNotBlocked(loginAttempts, normalizedUsername, "Muitas tentativas de login. Tente novamente mais tarde.");
@@ -161,6 +168,10 @@ public class AuthService implements AuthUseCase {
     @Transactional
     public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
         var timerSample = Timer.start(meterRegistry);
+        if (recoveryRequestCounter.incrementAndGet() % CLEANUP_INTERVAL_REQUESTS == 0) {
+            cleanupExpiredAttempts(recoveryAttempts);
+        }
+
         var recoveryKey = (request.cpf() + "|" + request.email()).trim().toLowerCase(Locale.ROOT);
         enforceNotBlocked(recoveryAttempts, recoveryKey, "Muitas tentativas de recuperação de senha. Tente novamente mais tarde.");
         var credentials = userProvider.findRecoverPasswordCredentialsByCpfAndEmail(request.cpf(), request.email())
@@ -222,6 +233,11 @@ public class AuthService implements AuthUseCase {
         var now = Instant.now();
         var window = store.get(key);
 
+        if (window != null) {
+            store.put(key, window.touch(now));
+            window = store.get(key);
+        }
+
         if (window != null && window.blockedUntil != null && now.isBefore(window.blockedUntil)) {
             throw new TooManyRequestsException(message);
         }
@@ -241,7 +257,7 @@ public class AuthService implements AuthUseCase {
                 blockedUntil = now.plus(blockDuration);
             }
 
-            return new AttemptWindow(attempts, blockedUntil);
+            return new AttemptWindow(attempts, blockedUntil, now);
         });
     }
 
@@ -249,6 +265,15 @@ public class AuthService implements AuthUseCase {
         store.remove(key);
     }
 
-    private record AttemptWindow(int attempts, Instant blockedUntil) {}
+    private void cleanupExpiredAttempts(Map<String, AttemptWindow> store) {
+        var threshold = Instant.now().minus(ATTEMPT_ENTRY_TTL);
+        store.entrySet().removeIf(entry -> entry.getValue().lastAttemptAt().isBefore(threshold));
+    }
+
+    private record AttemptWindow(int attempts, Instant blockedUntil, Instant lastAttemptAt) {
+        private AttemptWindow touch(Instant now) {
+            return new AttemptWindow(attempts, blockedUntil, now);
+        }
+    }
 
 }

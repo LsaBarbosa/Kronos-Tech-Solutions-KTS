@@ -16,18 +16,26 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String TOO_MANY_REQUESTS = "Muitas requisições. Tente novamente em instantes.";
 
+    private static final Duration BUCKET_TTL = Duration.ofHours(2);
+    private static final int CLEANUP_INTERVAL_REQUESTS = 500;
+
     private final Map<String, Bucket> ipBucketCache = new ConcurrentHashMap<>();
     private final Map<String, Bucket> authBucketCache = new ConcurrentHashMap<>();
+    private final Map<String, Instant> ipBucketLastAccess = new ConcurrentHashMap<>();
+    private final Map<String, Instant> authBucketLastAccess = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Bandwidth defaultLimit;
     private final Bandwidth authLimit;
+    private final AtomicInteger requestCounter = new AtomicInteger();
 
     public RateLimitFilter(RateLimitProperties properties) {
         this.defaultLimit = Bandwidth.classic(
@@ -44,13 +52,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        if (requestCounter.incrementAndGet() % CLEANUP_INTERVAL_REQUESTS == 0) {
+            cleanupStaleBuckets();
+        }
+
         var ipKey = "ip:" + resolveClientIp(request);
-        if (!consume(ipBucketCache, ipKey, defaultLimit)) {
+        if (!consume(ipBucketCache, ipBucketLastAccess, ipKey, defaultLimit)) {
             writeTooManyRequests(response);
             return;
         }
 
-        if (request.getRequestURI().startsWith("/auth") && !consume(authBucketCache, ipKey, authLimit)) {
+        if (request.getRequestURI().startsWith("/auth") && !consume(authBucketCache, authBucketLastAccess, ipKey, authLimit)) {
             writeTooManyRequests(response);
             return;
         }
@@ -58,9 +70,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean consume(Map<String, Bucket> cache, String key, Bandwidth limit) {
+    private boolean consume(Map<String, Bucket> cache, Map<String, Instant> accessStore, String key, Bandwidth limit) {
+        accessStore.put(key, Instant.now());
         var bucket = cache.computeIfAbsent(key, k -> Bucket.builder().addLimit(limit).build());
         return bucket.tryConsume(1);
+    }
+
+    private void cleanupStaleBuckets() {
+        cleanup(ipBucketCache, ipBucketLastAccess);
+        cleanup(authBucketCache, authBucketLastAccess);
+    }
+
+    private void cleanup(Map<String, Bucket> cache, Map<String, Instant> accessStore) {
+        var threshold = Instant.now().minus(BUCKET_TTL);
+        accessStore.entrySet().removeIf(entry -> {
+            var stale = entry.getValue().isBefore(threshold);
+            if (stale) {
+                cache.remove(entry.getKey());
+            }
+            return stale;
+        });
     }
 
     private String resolveClientIp(HttpServletRequest request) {
