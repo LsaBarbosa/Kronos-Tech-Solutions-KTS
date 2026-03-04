@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -31,7 +32,14 @@ public class AuthController {
 
     @Operation(summary = LOGIN_SUMMARY, description = LOGIN_DESC, security = @SecurityRequirement(name = ""))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = LOGIN_SUCCESS),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = LOGIN_SUCCESS + ". Sessão entregue via header Set-Cookie (HttpOnly).",
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Cookie de sessão HttpOnly com o JWT. O corpo mantém token=null por compatibilidade."
+                    )
+            ),
             @ApiResponse(responseCode = "401", description = CREDENTIALS_INVALID)
     })
     @PostMapping(LOGIN)
@@ -56,7 +64,14 @@ public class AuthController {
 
     @Operation(summary = LOGIN_FACE_SUMMARY, description = LOGIN_FACE_DESC, security = @SecurityRequirement(name = ""))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = LOGIN_SUCCESS),
+            @ApiResponse(
+                    responseCode = "200",
+                    description = LOGIN_SUCCESS + ". Sessão entregue via header Set-Cookie (HttpOnly).",
+                    headers = @Header(
+                            name = "Set-Cookie",
+                            description = "Cookie de sessão HttpOnly com o JWT. O corpo mantém token=null por compatibilidade."
+                    )
+            ),
             @ApiResponse(responseCode = "400", description = LOGIN_FACE_400),
             @ApiResponse(responseCode = "403", description = LOGIN_FACE_403),
             @ApiResponse(responseCode = "404", description = LOGIN_FACE_404)

@@ -52,13 +52,13 @@ class AuthControllerTest {
     private static final String BASE_URL = "/auth";
 
     @Test
-    @DisplayName("Deve retornar 200 OK e Token JWT ao realizar login com sucesso")
-    void shouldReturnTokenWhenLoginIsSuccessful() throws Exception {
+    @DisplayName("Deve retornar 200 OK e sessão via cookie HttpOnly ao realizar login com sucesso")
+    void shouldReturnSessionCookieContractWhenLoginIsSuccessful() throws Exception {
         // Cenário (Arrange)
         LoginRequest request = new LoginRequest("usuario.teste", "Senha123!");
         String expectedToken = "eyJhbGciOiJIUzI1NiJ9.token-mock-sucesso";
 
-        // Simulamos que o serviço retorna o token corretamente
+        // Simulamos que o serviço retorna o token para escrita no cookie HttpOnly
         when(authUseCase.login(request.username(), request.password()))
                 .thenReturn(expectedToken);
 
@@ -68,6 +68,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value(org.hamcrest.Matchers.nullValue()));
+
+        verify(authCookieService).writeAuthCookie(any(), eq(expectedToken));
     }
 
     @Test
@@ -90,8 +92,8 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Deve retornar 200 OK e Token ao realizar login facial com sucesso")
-    void shouldReturnTokenWhenFaceLoginIsSuccessful() throws Exception {
+    @DisplayName("Deve retornar 200 OK e sessão via cookie HttpOnly ao realizar login facial com sucesso")
+    void shouldReturnSessionCookieContractWhenFaceLoginIsSuccessful() throws Exception {
         // Cenário (Arrange)
         String fakeBase64Image = "data:image/jpeg;base64,/9j/4AAQSkZJRg...";
         FaceLoginRequest request = new FaceLoginRequest(fakeBase64Image);
@@ -106,6 +108,8 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value(org.hamcrest.Matchers.nullValue()));
+
+        verify(authCookieService).writeAuthCookie(any(), eq(expectedToken));
     }
 
     @Test
