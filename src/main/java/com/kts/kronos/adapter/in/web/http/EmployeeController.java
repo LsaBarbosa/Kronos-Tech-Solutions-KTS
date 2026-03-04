@@ -145,13 +145,13 @@ public class EmployeeController {
 
     @Operation(summary = CHECK_CPF_SUMMARY, description = CHECK_CPF_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = CHECK_CPF_200),
+            @ApiResponse(responseCode = "204", description = CHECK_CPF_204),
             @ApiResponse(responseCode = "404", description = CHECK_CPF_404)
     })
     @GetMapping(CHECK_CPF)
     public ResponseEntity<Void> checkCpfAvailability(@RequestParam String cpf) {
         if (useCase.cpfExists(cpf)) {
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build();
         } else {
             return ResponseEntity.notFound().build();
         }

@@ -336,14 +336,14 @@ class UserControllerTest {
     // ==================================================================================
 
     @Test
-    @DisplayName("Deve retornar 200 OK se o username já existir (Indisponível)")
-    void shouldReturn200IfUsernameExists() throws Exception {
+    @DisplayName("Deve retornar 204 No Content se o username já existir (Indisponível)")
+    void shouldReturn204IfUsernameExists() throws Exception {
         String username = "usuario.existente";
         when(userUseCase.usernameExists(username)).thenReturn(true);
 
         mockMvc.perform(get(BASE_URL + "/check-username")
                         .param("username", username))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test

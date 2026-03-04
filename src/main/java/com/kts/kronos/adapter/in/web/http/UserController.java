@@ -153,12 +153,12 @@ public class UserController {
     @GetMapping(CHECK_USERNAME)
     @Operation(summary = CHECK_USER_SUMMARY, description = CHECK_USER_DESC)
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = CHECK_USER_200),
+            @ApiResponse(responseCode = "204", description = CHECK_USER_204),
             @ApiResponse(responseCode = "404", description = CHECK_USER_404)
     })
     public ResponseEntity<Void> checkUsernameAvailability(@RequestParam String username) {
         if (useCase.usernameExists(username)) {
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build();
         } else {
             return ResponseEntity.notFound().build();
         }

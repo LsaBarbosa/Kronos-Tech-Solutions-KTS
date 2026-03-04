@@ -82,7 +82,7 @@ public class Swagger {
 
     public static final String CHECK_CNPJ_SUMMARY = "Verificar Disponibilidade de CNPJ";
     public static final String CHECK_CNPJ_DESC = "Verifica se um CNPJ já está cadastrado.";
-    public static final String CHECK_CNPJ_200 = "CNPJ Indisponível (Já existe no banco)";
+    public static final String CHECK_CNPJ_204 = "CNPJ Indisponível (Já existe no banco)";
     public static final String CHECK_CNPJ_404 = "CNPJ Disponível (Não encontrado no banco)";
 
     // --- SWAGGER: DOCUMENTS ---
@@ -155,7 +155,7 @@ public class Swagger {
 
     public static final String CHECK_CPF_SUMMARY = "Verificar Disponibilidade de CPF";
     public static final String CHECK_CPF_DESC = "Verifica se um CPF já está cadastrado no sistema.";
-    public static final String CHECK_CPF_200 = "CPF Indisponível (Já existe)";
+    public static final String CHECK_CPF_204 = "CPF Indisponível (Já existe)";
     public static final String CHECK_CPF_404 = "CPF Disponível (Não encontrado)";
 
 
@@ -344,6 +344,6 @@ public class Swagger {
 
     public static final String CHECK_USER_SUMMARY = "Verificar Username";
     public static final String CHECK_USER_DESC = "Verifica disponibilidade de nome de usuário.";
-    public static final String CHECK_USER_200 = "Username Indisponível (Já existe)";
+    public static final String CHECK_USER_204 = "Username Indisponível (Já existe)";
     public static final String CHECK_USER_404 = "Username Disponível (Não encontrado)";
 }

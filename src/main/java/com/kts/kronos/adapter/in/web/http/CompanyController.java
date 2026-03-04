@@ -83,11 +83,11 @@ public class CompanyController {
     }
 
     @Operation(summary = CHECK_CNPJ_SUMMARY, description = CHECK_CNPJ_DESC)
-    @ApiResponses(value = {@ApiResponse(responseCode = "200", description = CHECK_CNPJ_200), @ApiResponse(responseCode = "404", description = CHECK_CNPJ_404)})
+    @ApiResponses(value = {@ApiResponse(responseCode = "204", description = CHECK_CNPJ_204), @ApiResponse(responseCode = "404", description = CHECK_CNPJ_404)})
     @GetMapping(CHECK_CNPJ)
     public ResponseEntity<Void> checkCnpjAvailability(@RequestParam String cnpj) {
         if (useCase.cnpjExists(cnpj)) {
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build();
         } else {
             return ResponseEntity.notFound().build();
         }
