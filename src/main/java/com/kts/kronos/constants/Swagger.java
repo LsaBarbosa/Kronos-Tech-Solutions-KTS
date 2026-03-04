@@ -33,6 +33,10 @@ public class Swagger {
     public static final String LOGIN_FACE_403 = "Facial inválida";
     public static final String LOGIN_FACE_404 = "Nenhum usuário vinculado ao colaborador";
 
+    public static final String LOGOUT_SUMMARY = "Logout";
+    public static final String LOGOUT_DESC = "Encerra a sessão web removendo o cookie HttpOnly de autenticação no header Set-Cookie.";
+    public static final String LOGOUT_204 = "Logout processado com sucesso (cookie de sessão removido)";
+
     public static final String RESET_PASS_SUMMARY = "Redefinir Senha";
     public static final String RESET_PASS_DESC = "Conclui o processo de troca de senha utilizando o token recebido por e-mail.";
     public static final String RESET_PASS_204 = "Senha redefinida com sucesso";
