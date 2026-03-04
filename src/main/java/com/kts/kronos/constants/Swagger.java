@@ -17,7 +17,7 @@ public class Swagger {
     public static final String SWAGGER_AUTH_DESC = "Endpoints para login, recuperação de senha e login facial";
 
     public static final String LOGIN_SUMMARY = "Login com Credenciais";
-    public static final String LOGIN_DESC = "Autentica um usuário via username e senha, retornando um JWT.";
+    public static final String LOGIN_DESC = "Autentica um usuário via username e senha e estabelece a sessão via cookie HttpOnly enviado no header Set-Cookie. O campo token no corpo é legado e permanece nulo.";
     public static final String LOGIN_SUCCESS = "Login realizado com sucesso";
     public static final String CREDENTIALS_INVALID = "Credenciais inválidas";
 
@@ -28,7 +28,7 @@ public class Swagger {
     public static final String RECOVER_PASS_404 = "Usuário não encontrado para os dados informados";
 
     public static final String LOGIN_FACE_SUMMARY = "Login Facial";
-    public static final String LOGIN_FACE_DESC = "Autentica o usuário através da imagem facial (Base64).";
+    public static final String LOGIN_FACE_DESC = "Autentica o usuário através da imagem facial (Base64) e estabelece a sessão via cookie HttpOnly enviado no header Set-Cookie. O campo token no corpo é legado e permanece nulo.";
     public static final String LOGIN_FACE_400 = "Usuário inativo | Imagem inválida | Erro na autenticação facial";
     public static final String LOGIN_FACE_403 = "Facial inválida";
     public static final String LOGIN_FACE_404 = "Nenhum usuário vinculado ao colaborador";
