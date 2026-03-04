@@ -241,6 +241,35 @@ O pipeline local já gera:
 > ./gradlew test -PminimumCoverage=0.80
 > ```
 
+## 🛠️ Checklist operacional de deploy (cookie + CORS)
+
+Use este checklist em **homolog/prod** antes de liberar frontend + API:
+
+1. **Validar combinação de cookies no ambiente**
+   - Confirmar variáveis `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`, `AUTH_COOKIE_DOMAIN`, `AUTH_COOKIE_PATH` no ambiente de deploy e respectivos defaults em `application.yml`.
+   - Garantir:
+     - `AUTH_COOKIE_SECURE=true` em homolog/prod;
+     - `AUTH_COOKIE_SAME_SITE` somente `Lax`, `Strict` ou `None`;
+     - se `AUTH_COOKIE_SAME_SITE=None`, então `AUTH_COOKIE_SECURE=true`;
+     - `AUTH_COOKIE_PATH` iniciando com `/`;
+     - `AUTH_COOKIE_DOMAIN` compatível com o(s) host(s) de frontend configurados.
+
+2. **Confirmar CORS com origins reais do frontend**
+   - Revisar `frontend.base-url-*` em variáveis de ambiente (`FRONTEND_BASE_URL_PLATAFORM`, `FRONTEND_BASE_URL_RECORD`, etc.).
+   - Validar que `SecurityConfig#corsConfigurationSource` está recebendo as origens reais (sem path, query ou fragment).
+   - Em homolog/prod, garantir origins HTTPS e sem hosts locais (`localhost`, `127.0.0.1`).
+
+3. **Executar smoke test manual de login no browser**
+   - Abrir DevTools (Network + Application/Storage).
+   - Fazer `POST /auth/login` com `credentials: "include"`.
+   - Validar no response header a presença de `Set-Cookie`.
+   - Validar que o cookie foi persistido no domínio esperado.
+   - Executar chamada autenticada (ex.: `GET /employee/own-profile`) e confirmar envio automático do cookie no request.
+
+4. **Registrar evidências do deploy**
+   - Salvar screenshot do DevTools (response de login e request autenticado) ou copiar os headers validados.
+   - Anotar no changelog/issue de release o resultado do checklist para auditoria e prevenção de regressão.
+
 ## 📦 Build e Containerização
 
 ### Build da aplicação

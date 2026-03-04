@@ -40,6 +40,8 @@ class SecurityConfigTest {
                 new RateLimitProperties(120, 120, 1, 20, 20, 1),
                 authCookieService
         );
+        ReflectionTestUtils.setField(securityConfig, "activeProfiles", "");
+        ReflectionTestUtils.setField(securityConfig, "defaultProfiles", "dev");
     }
 
     @Test
@@ -97,5 +99,31 @@ class SecurityConfigTest {
         assertThatThrownBy(() -> securityConfig.corsConfigurationSource())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must not contain path segments");
+    }
+
+    @Test
+    void shouldRejectLocalhostOriginInHomologProfile() {
+        ReflectionTestUtils.setField(securityConfig, "recordUrl", "https://registro.kronos.app");
+        ReflectionTestUtils.setField(securityConfig, "plataformUrl", "https://localhost:5173");
+        ReflectionTestUtils.setField(securityConfig, "local", "");
+        ReflectionTestUtils.setField(securityConfig, "local_2", "");
+        ReflectionTestUtils.setField(securityConfig, "activeProfiles", "homolog");
+
+        assertThatThrownBy(() -> securityConfig.corsConfigurationSource())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("não pode usar origin local");
+    }
+
+    @Test
+    void shouldRejectNonHttpsOriginInProductionProfile() {
+        ReflectionTestUtils.setField(securityConfig, "recordUrl", "http://registro.kronos.app");
+        ReflectionTestUtils.setField(securityConfig, "plataformUrl", "");
+        ReflectionTestUtils.setField(securityConfig, "local", "");
+        ReflectionTestUtils.setField(securityConfig, "local_2", "");
+        ReflectionTestUtils.setField(securityConfig, "activeProfiles", "prod");
+
+        assertThatThrownBy(() -> securityConfig.corsConfigurationSource())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exige frontend origin com HTTPS");
     }
 }

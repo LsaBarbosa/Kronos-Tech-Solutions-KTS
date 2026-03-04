@@ -38,6 +38,10 @@ public class SecurityConfig {
     private String local;
     @Value("${frontend.base-url-local-2}")
     private String local_2;
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
+    @Value("${spring.profiles.default:}")
+    private String defaultProfiles;
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
@@ -132,10 +136,34 @@ public class SecurityConfig {
             if (uri.getQuery() != null || uri.getFragment() != null) {
                 throw new IllegalStateException("Frontend origin must not contain query or fragment: " + origin);
             }
+
+            if (isHomologOrProductionProfileEnabled()) {
+                if (!"https".equalsIgnoreCase(uri.getScheme())) {
+                    throw new IllegalStateException("Homolog/produção exige frontend origin com HTTPS: " + origin);
+                }
+
+                var host = uri.getHost();
+                if ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)) {
+                    throw new IllegalStateException("Homolog/produção não pode usar origin local no CORS: " + origin);
+                }
+            }
             validatedOrigins.add(origin);
         }
 
         return validatedOrigins;
+    }
+
+    private boolean isHomologOrProductionProfileEnabled() {
+        var profiles = (activeProfiles == null || activeProfiles.isBlank()) ? defaultProfiles : activeProfiles;
+        if (profiles == null || profiles.isBlank()) {
+            return false;
+        }
+
+        return Arrays.stream(profiles.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .anyMatch(profile -> profile.equals("prod") || profile.equals("production")
+                        || profile.equals("hml") || profile.equals("homolog") || profile.equals("homologacao"));
     }
 
     @Bean

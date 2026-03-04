@@ -61,8 +61,10 @@ public class AuthCookieService {
 
     @PostConstruct
     void validateCookieSecurityConfiguration() {
-        if (isProductionProfileEnabled() && !secure) {
-            throw new IllegalStateException("AUTH_COOKIE_SECURE deve ser true em produção (HTTPS).");
+        validateSameSiteValue();
+
+        if (isHomologOrProductionProfileEnabled() && !secure) {
+            throw new IllegalStateException("AUTH_COOKIE_SECURE deve ser true em homologação/produção (HTTPS).");
         }
 
         if ("None".equalsIgnoreCase(sameSite) && !secure) {
@@ -127,7 +129,20 @@ public class AuthCookieService {
                 .findFirst();
     }
 
-    private boolean isProductionProfileEnabled() {
+    private void validateSameSiteValue() {
+        if (sameSite == null || sameSite.isBlank()) {
+            throw new IllegalStateException("AUTH_COOKIE_SAME_SITE deve ser definido como Lax, Strict ou None.");
+        }
+
+        var normalizedSameSite = sameSite.trim().toLowerCase();
+        if (!normalizedSameSite.equals("lax")
+                && !normalizedSameSite.equals("strict")
+                && !normalizedSameSite.equals("none")) {
+            throw new IllegalStateException("AUTH_COOKIE_SAME_SITE inválido. Valores permitidos: Lax, Strict ou None.");
+        }
+    }
+
+    private boolean isHomologOrProductionProfileEnabled() {
         var profiles = (activeProfiles == null || activeProfiles.isBlank()) ? defaultProfiles : activeProfiles;
         if (profiles == null || profiles.isBlank()) {
             return false;
@@ -135,7 +150,9 @@ public class AuthCookieService {
 
         return Arrays.stream(profiles.split(","))
                 .map(String::trim)
-                .anyMatch("prod"::equalsIgnoreCase);
+                .map(String::toLowerCase)
+                .anyMatch(profile -> profile.equals("prod") || profile.equals("production")
+                        || profile.equals("hml") || profile.equals("homolog") || profile.equals("homologacao"));
     }
 
     private void validateCookiePath() {
