@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="980" viewBox="0 0 1400 980">
+  <defs>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill:#0f172a; }
+      .subtitle { font: 600 16px Arial, sans-serif; fill:#334155; }
+      .box { fill:#f8fafc; stroke:#334155; stroke-width:2; rx:12; ry:12; }
+      .core { fill:#e0f2fe; }
+      .feature { fill:#ecfccb; }
+      .io { fill:#fee2e2; }
+      .text { font: 600 15px Arial, sans-serif; fill:#0f172a; }
+      .small { font: 500 13px Arial, sans-serif; fill:#1e293b; }
+      .arrow { stroke:#0f172a; stroke-width:2.2; fill:none; marker-end:url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0f172a"/>
+    </marker>
+  </defs>
+
+  <text x="700" y="50" text-anchor="middle" class="title">Kronos • Fluxograma Visual de Serviços e Features</text>
+  <text x="700" y="78" text-anchor="middle" class="subtitle">Visão funcional: Entrada HTTP → Camada de Serviço → Persistência e Integrações</text>
+
+  <rect x="530" y="120" width="340" height="64" class="box core"/>
+  <text x="700" y="160" text-anchor="middle" class="text">Cliente Web / Mobile</text>
+
+  <rect x="470" y="230" width="460" height="72" class="box core"/>
+  <text x="700" y="272" text-anchor="middle" class="text">Controllers HTTP (REST API)</text>
+
+  <rect x="40" y="360" width="250" height="92" class="box feature"/>
+  <text x="165" y="390" text-anchor="middle" class="text">Autenticação</text>
+  <text x="165" y="415" text-anchor="middle" class="small">/auth/login, /login-face</text>
+  <text x="165" y="435" text-anchor="middle" class="small">recover-password, reset</text>
+
+  <rect x="320" y="360" width="250" height="92" class="box feature"/>
+  <text x="445" y="390" text-anchor="middle" class="text">Empresa / Usuário / Colaborador</text>
+  <text x="445" y="415" text-anchor="middle" class="small">CompanyController</text>
+  <text x="445" y="435" text-anchor="middle" class="small">UserController • EmployeeController</text>
+
+  <rect x="600" y="360" width="250" height="92" class="box feature"/>
+  <text x="725" y="390" text-anchor="middle" class="text">Ponto e Aprovações</text>
+  <text x="725" y="415" text-anchor="middle" class="small">check-in, ajustes, férias</text>
+  <text x="725" y="435" text-anchor="middle" class="small">time-off, aprovar/rejeitar</text>
+
+  <rect x="880" y="360" width="250" height="92" class="box feature"/>
+  <text x="1005" y="390" text-anchor="middle" class="text">Docs / Mensagens / Termos</text>
+  <text x="1005" y="415" text-anchor="middle" class="small">upload e consulta docs</text>
+  <text x="1005" y="435" text-anchor="middle" class="small">mensagens e aceite biométrico</text>
+
+  <rect x="1160" y="360" width="200" height="92" class="box feature"/>
+  <text x="1260" y="390" text-anchor="middle" class="text">Relatórios Legais</text>
+  <text x="1260" y="415" text-anchor="middle" class="small">AFD • AEJ</text>
+  <text x="1260" y="435" text-anchor="middle" class="small">Espelho • Certificado</text>
+
+  <rect x="470" y="530" width="460" height="88" class="box core"/>
+  <text x="700" y="565" text-anchor="middle" class="text">Services (Regras de Negócio)</text>
+  <text x="700" y="590" text-anchor="middle" class="small">AuthService, TimeRecordService, EmployeeService, etc.</text>
+
+  <rect x="260" y="700" width="400" height="92" class="box io"/>
+  <text x="460" y="735" text-anchor="middle" class="text">Providers / Repositories</text>
+  <text x="460" y="758" text-anchor="middle" class="small">JPA, persistência e acesso a dados</text>
+
+  <rect x="740" y="700" width="400" height="92" class="box io"/>
+  <text x="940" y="735" text-anchor="middle" class="text">Integrações Externas</text>
+  <text x="940" y="758" text-anchor="middle" class="small">AWS S3 / Rekognition • E-mail • ViaCEP</text>
+
+  <rect x="530" y="860" width="340" height="72" class="box io"/>
+  <text x="700" y="900" text-anchor="middle" class="text">Banco de Dados</text>
+
+  <path d="M700 184 L700 230" class="arrow"/>
+  <path d="M700 302 L700 530" class="arrow"/>
+
+  <path d="M165 452 L165 500 L700 500 L700 530" class="arrow"/>
+  <path d="M445 452 L445 500 L700 500 L700 530" class="arrow"/>
+  <path d="M725 452 L725 530" class="arrow"/>
+  <path d="M1005 452 L1005 500 L700 500 L700 530" class="arrow"/>
+  <path d="M1260 452 L1260 500 L700 500 L700 530" class="arrow"/>
+
+  <path d="M620 618 L520 700" class="arrow"/>
+  <path d="M780 618 L880 700" class="arrow"/>
+
+  <path d="M460 792 L620 860" class="arrow"/>
+
+  <rect x="40" y="860" width="360" height="72" class="box"/>
+  <text x="220" y="892" text-anchor="middle" class="text">Schedulers (Background)</text>
+  <text x="220" y="914" text-anchor="middle" class="small">sync time, limpeza de tokens/mensagens, day-off</text>
+  <path d="M400 896 L530 896" class="arrow"/>
+</svg>
