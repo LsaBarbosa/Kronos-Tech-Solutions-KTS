@@ -9,8 +9,10 @@ public class Swagger {
     public static final String OPENAPI_TITLE = "Kronos API";
     public static final String OPENAPI_DESCRIPTION = "API para gestão de autenticação, empresas, colaboradores, jornada e documentos, com foco em rastreabilidade e segurança da informação.";
     public static final String OPENAPI_VERSION = "v1";
-    public static final String OPENAPI_SECURITY_SCHEME = "bearerAuth";
-    public static final String OPENAPI_SECURITY_DESCRIPTION = "Informe o token JWT no formato: Bearer {token}. Nunca compartilhe credenciais em ambientes não confiáveis.";
+    public static final String OPENAPI_SECURITY_SCHEME = "cookieAuth";
+    public static final String OPENAPI_SECURITY_SCHEME_BEARER = "bearerAuth";
+    public static final String OPENAPI_SECURITY_DESCRIPTION = "Fluxo principal web: autenticação via cookie HttpOnly 'APIKEY' (enviado automaticamente pelo navegador). Não dependa de Authorization: Bearer no frontend web.";
+    public static final String OPENAPI_SECURITY_BEARER_DESCRIPTION = "Fluxo opcional para clientes não-browser (integrações server-to-server): informe o JWT no header Authorization no formato Bearer {token}.";
 
     // --- SWAGGER: Auth Controller ---
     public static final String SWAGGER_AUTH_TAG = "Autenticação";
