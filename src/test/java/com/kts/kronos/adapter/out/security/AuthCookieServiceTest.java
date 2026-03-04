@@ -24,11 +24,21 @@ class AuthCookieServiceTest {
     void shouldRejectInsecureCookieInProduction() {
         var service = baseService();
         ReflectionTestUtils.setField(service, "secure", false);
-        ReflectionTestUtils.setField(service, "activeProfiles", "prod");
+        ReflectionTestUtils.setField(service, "activeProfiles", "homolog");
 
         assertThatThrownBy(service::validateCookieSecurityConfiguration)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("AUTH_COOKIE_SECURE");
+    }
+
+    @Test
+    void shouldRejectInvalidSameSiteValue() {
+        var service = baseService();
+        ReflectionTestUtils.setField(service, "sameSite", "Invalid");
+
+        assertThatThrownBy(service::validateCookieSecurityConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AUTH_COOKIE_SAME_SITE inválido");
     }
 
     @Test
