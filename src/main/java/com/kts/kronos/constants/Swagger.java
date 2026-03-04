@@ -11,7 +11,8 @@ public class Swagger {
     public static final String OPENAPI_VERSION = "v1";
     public static final String OPENAPI_SECURITY_SCHEME = "cookieAuth";
     public static final String OPENAPI_SECURITY_SCHEME_BEARER = "bearerAuth";
-    public static final String OPENAPI_SECURITY_DESCRIPTION = "Fluxo principal web: autenticação via cookie HttpOnly 'APIKEY' (enviado automaticamente pelo navegador). Não dependa de Authorization: Bearer no frontend web.";
+    public static final String OPENAPI_SECURITY_COOKIE_NAME = "KTS_SESSION";
+    public static final String OPENAPI_SECURITY_DESCRIPTION = "Fluxo principal web: autenticação via cookie HttpOnly 'KTS_SESSION' (enviado automaticamente pelo navegador). Não dependa de Authorization: Bearer no frontend web.";
     public static final String OPENAPI_SECURITY_BEARER_DESCRIPTION = "Fluxo opcional para clientes não-browser (integrações server-to-server): informe o JWT no header Authorization no formato Bearer {token}.";
 
     // --- SWAGGER: Auth Controller ---
