@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="590" viewBox="0 0 980 590">
+<defs><style>.t{font:700 28px Arial;fill:#0f172a}.s{font:600 18px Arial;fill:#1e293b}.b{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:10;ry:10}.a{stroke:#0f172a;stroke-width:2;fill:none;marker-end:url(#m)}</style><marker id="m" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#0f172a"/></marker></defs>
+<text x="490" y="42" text-anchor="middle" class="t">EmployeeService.getEmployee()</text>
+<rect x="180" y="80" width="620" height="62" class="b"/>
+<text x="490" y="118" text-anchor="middle" class="s">1. Obter companyId do usuário logado</text>
+<path d="M490 142 L490 180" class="a"/>
+<rect x="180" y="185" width="620" height="62" class="b"/>
+<text x="490" y="223" text-anchor="middle" class="s">2. Buscar colaborador por ID</text>
+<path d="M490 247 L490 285" class="a"/>
+<rect x="180" y="290" width="620" height="62" class="b"/>
+<text x="490" y="328" text-anchor="middle" class="s">3. Validar escopo da empresa</text>
+<path d="M490 352 L490 390" class="a"/>
+<rect x="180" y="395" width="620" height="62" class="b"/>
+<text x="490" y="433" text-anchor="middle" class="s">4. Retornar colaborador</text>
+</svg>
