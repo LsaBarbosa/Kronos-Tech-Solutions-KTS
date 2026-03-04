@@ -9,9 +9,12 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 @Component
 public class AuthCookieService {
@@ -34,14 +37,43 @@ public class AuthCookieService {
     @Value("${auth.cookie.domain:}")
     private String cookieDomain;
 
+    @Value("${frontend.base-url-record:}")
+    private String recordFrontendUrl;
+
+    @Value("${frontend.base-url-plataform:}")
+    private String platformFrontendUrl;
+
+    @Value("${frontend.base-url-local:}")
+    private String localFrontendUrl;
+
+    @Value("${frontend.base-url-local-2:}")
+    private String local2FrontendUrl;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfiles;
+
+    @Value("${spring.profiles.default:}")
+    private String defaultProfiles;
+
     @Value("${jwt.expiration:3600000}")
     private long jwtExpirationMs;
 
 
     @PostConstruct
     void validateCookieSecurityConfiguration() {
+        if (isProductionProfileEnabled() && !secure) {
+            throw new IllegalStateException("AUTH_COOKIE_SECURE deve ser true em produção (HTTPS).");
+        }
+
         if ("None".equalsIgnoreCase(sameSite) && !secure) {
             throw new IllegalStateException("AUTH_COOKIE_SAME_SITE=None exige AUTH_COOKIE_SECURE=true.");
+        }
+
+        validateCookiePath();
+        validateCookieDomain();
+
+        if ("None".equalsIgnoreCase(sameSite) && !isCrossSiteTopology()) {
+            throw new IllegalStateException("AUTH_COOKIE_SAME_SITE=None só deve ser usado em topologia cross-site real.");
         }
 
         if (cookieName != null && cookieName.startsWith("__Host-")) {
@@ -94,5 +126,81 @@ public class AuthCookieService {
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst();
     }
-}
 
+    private boolean isProductionProfileEnabled() {
+        var profiles = (activeProfiles == null || activeProfiles.isBlank()) ? defaultProfiles : activeProfiles;
+        if (profiles == null || profiles.isBlank()) {
+            return false;
+        }
+
+        return Arrays.stream(profiles.split(","))
+                .map(String::trim)
+                .anyMatch("prod"::equalsIgnoreCase);
+    }
+
+    private void validateCookiePath() {
+        if (cookiePath == null || cookiePath.isBlank() || !cookiePath.startsWith("/")) {
+            throw new IllegalStateException("AUTH_COOKIE_PATH deve iniciar com '/' e corresponder às rotas do frontend.");
+        }
+    }
+
+    private void validateCookieDomain() {
+        if (cookieDomain == null || cookieDomain.isBlank()) {
+            return;
+        }
+
+        var normalizedDomain = normalizeCookieDomain(cookieDomain);
+        var frontendHosts = getConfiguredFrontendHosts();
+        if (frontendHosts.isEmpty()) {
+            return;
+        }
+
+        var hasCompatibleHost = frontendHosts.stream().anyMatch(host -> domainMatches(host, normalizedDomain));
+        if (!hasCompatibleHost) {
+            throw new IllegalStateException("AUTH_COOKIE_DOMAIN não corresponde aos domínios configurados do frontend.");
+        }
+    }
+
+    private boolean isCrossSiteTopology() {
+        if (cookieDomain == null || cookieDomain.isBlank()) {
+            return false;
+        }
+
+        var normalizedDomain = normalizeCookieDomain(cookieDomain);
+        return getConfiguredFrontendHosts().stream()
+                .anyMatch(host -> !domainMatches(host, normalizedDomain));
+    }
+
+    private List<String> getConfiguredFrontendHosts() {
+        return Stream.of(recordFrontendUrl, platformFrontendUrl, localFrontendUrl, local2FrontendUrl)
+                .map(this::extractHost)
+                .filter(host -> host != null && !host.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String extractHost(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+
+        try {
+            return URI.create(url.trim()).getHost();
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private String normalizeCookieDomain(String domain) {
+        var normalized = domain.trim().toLowerCase();
+        while (normalized.startsWith(".")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
+    }
+
+    private boolean domainMatches(String host, String normalizedDomain) {
+        var normalizedHost = host.toLowerCase();
+        return normalizedHost.equals(normalizedDomain) || normalizedHost.endsWith("." + normalizedDomain);
+    }
+}
