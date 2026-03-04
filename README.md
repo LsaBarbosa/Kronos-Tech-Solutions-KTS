@@ -200,7 +200,7 @@ export JWT_SECRET="troque-por-um-segredo-forte"
 export FRONTEND_BASE_URL_PLATAFORM="http://localhost:3000"
 export FRONTEND_BASE_URL_RECORD="http://localhost:3001"
 export FRONTEND_BASE_URL_LOCAL="http://localhost:5173"
-export FRONTEND_BASE_URL_LOCAL_2="http://localhost:5174"
+export FRONTEND_BASE_URL_LOCAL_2="http://127.0.0.1:5173"
 
 export MAIL_HOST="smtp.exemplo.com"
 export MAIL_PORT=587

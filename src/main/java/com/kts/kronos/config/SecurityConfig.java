@@ -20,7 +20,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 @Configuration
@@ -85,17 +88,54 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Stream.of(recordUrl, plataformUrl, local, local_2)
-                .map(this::normalizeOrigin)
-                .filter(origin -> !origin.isBlank())
-                .distinct()
-                .toList());
+        configuration.setAllowedOrigins(buildAllowedOrigins());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "Origin",
+                "X-Requested-With",
+                "Cache-Control",
+                "Pragma"
+        ));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> buildAllowedOrigins() {
+        List<String> origins = Stream.of(recordUrl, plataformUrl, local, local_2)
+                .map(this::normalizeOrigin)
+                .filter(origin -> !origin.isBlank())
+                .distinct()
+                .toList();
+
+        if (origins.isEmpty()) {
+            throw new IllegalStateException("At least one frontend origin must be configured for CORS.");
+        }
+
+        List<String> validatedOrigins = new ArrayList<>(origins.size());
+        for (String origin : origins) {
+            if ("*".equals(origin)) {
+                throw new IllegalStateException("Wildcard '*' is not allowed when allowCredentials(true) is enabled.");
+            }
+
+            URI uri = URI.create(origin);
+            if (uri.getScheme() == null || uri.getHost() == null) {
+                throw new IllegalStateException("Invalid frontend origin configured: " + origin);
+            }
+            if (uri.getPath() != null && !uri.getPath().isBlank() && !"/".equals(uri.getPath())) {
+                throw new IllegalStateException("Frontend origin must not contain path segments: " + origin);
+            }
+            if (uri.getQuery() != null || uri.getFragment() != null) {
+                throw new IllegalStateException("Frontend origin must not contain query or fragment: " + origin);
+            }
+            validatedOrigins.add(origin);
+        }
+
+        return validatedOrigins;
     }
 
     @Bean
