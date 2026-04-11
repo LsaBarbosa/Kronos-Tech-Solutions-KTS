@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.service.TechnicalCertificatePdfService;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -108,8 +109,7 @@ public class LegalController {
         UUID loggedId = jwtAuthenticatedUser.getEmployeeId();
         UUID employeeIdToGenerate;
 
-        // Lógica simples de segurança: Se for Manager e passar ID, usa o ID. Senão, usa o próprio.
-        if (targetEmployeeId != null && jwtAuthenticatedUser.getRoleFromToken().equals("MANAGER")) {
+        if (targetEmployeeId != null && jwtAuthenticatedUser.getCurrentRole() == Role.MANAGER) {
             employeeIdToGenerate = targetEmployeeId;
         } else {
             employeeIdToGenerate = loggedId;

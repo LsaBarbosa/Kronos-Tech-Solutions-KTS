@@ -11,6 +11,7 @@ import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -72,7 +74,7 @@ class DocumentServiceSecurityTest {
         Document document = buildDocument(documentId, loggedEmployeeId, "docs/file.pdf");
         byte[] fileBytes = "payload".getBytes(StandardCharsets.UTF_8);
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
         when(documentProvider.findByIdAndEmployeeId(documentId, loggedEmployeeId)).thenReturn(Optional.of(document));
@@ -92,7 +94,7 @@ class DocumentServiceSecurityTest {
         Employee managerEmployee = buildEmployee(managerEmployeeId, companyAId);
         Employee targetEmployee = buildEmployee(otherTenantEmployeeId, companyBId);
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
         when(jwtAuthenticatedUser.isWithEmployeeId(otherTenantEmployeeId)).thenReturn(otherTenantEmployeeId);
         when(employeeProvider.findById(otherTenantEmployeeId)).thenReturn(Optional.of(targetEmployee));
@@ -109,7 +111,7 @@ class DocumentServiceSecurityTest {
         Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
@@ -131,7 +133,7 @@ class DocumentServiceSecurityTest {
         Employee managerEmployee = buildEmployee(managerEmployeeId, companyAId);
         Employee targetEmployee = buildEmployee(otherTenantEmployeeId, companyBId);
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
         when(jwtAuthenticatedUser.isWithEmployeeId(otherTenantEmployeeId)).thenReturn(otherTenantEmployeeId);
         when(employeeProvider.findById(otherTenantEmployeeId)).thenReturn(Optional.of(targetEmployee));
@@ -197,7 +199,7 @@ class DocumentServiceSecurityTest {
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
         Employee employee = buildEmployee(loggedEmployeeId, companyAId);
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
         when(documentProvider.findByIdAndEmployeeId(documentId, loggedEmployeeId)).thenReturn(Optional.of(document));
@@ -211,6 +213,23 @@ class DocumentServiceSecurityTest {
 
         assertEquals(ERROR_GET_FILE, exception.getMessage());
         assertFalse(exception.getMessage().contains("/mnt/data/documents"));
+    }
+
+    @Test
+    @DisplayName("list: usa role atual do contexto e não claim histórica")
+    void shouldUseCurrentRoleInListDocuments() {
+        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(documentProvider.findByEmployeeAndType(loggedEmployeeId, DocumentType.PAYSLIP, false))
+                .thenReturn(List.of());
+
+        service.listDocuments(DocumentType.PAYSLIP, null, null);
+
+        verify(jwtAuthenticatedUser, atLeastOnce()).getCurrentRole();
+        verify(jwtAuthenticatedUser, never()).getRoleFromToken();
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
