@@ -7,7 +7,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -37,7 +37,6 @@ import static com.kts.kronos.constants.Messages.*;
 public class DocumentService implements DocumentUseCase {
 
     private static final String FORBIDDEN_OTHER_EMPLOYEE_DELETE = "Você não pode apagar documentos de outro funcionário.";
-    private static final String FORBIDDEN_OTHER_TENANT_DOCUMENT = "Você não pode acessar documentos de outra empresa.";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx");
     private static final Map<String, Set<String>> ALLOWED_EXTENSIONS_BY_MIME = Map.of(
             "application/pdf", Set.of("pdf"),
@@ -48,9 +47,9 @@ public class DocumentService implements DocumentUseCase {
     );
 
     private final DocumentProvider documentProvider;
-    private final EmployeeProvider employeeProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
+    private final DomainAuthorizationService domainAuthorizationService;
 
      
     @Override
@@ -60,9 +59,7 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
-        var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
-        var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+        var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
 
         try {
             byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
@@ -90,7 +87,7 @@ public class DocumentService implements DocumentUseCase {
         var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
         boolean isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
-        var targetEmployee = getEmployee(employeeId);
+        var targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var targetEmployeeId = targetEmployee.employeeId();
 
         if (date == null) {

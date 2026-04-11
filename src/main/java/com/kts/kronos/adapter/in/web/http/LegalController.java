@@ -7,6 +7,7 @@ import com.kts.kronos.application.port.in.usecase.AejUseCase;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase; // Adicionado
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.TechnicalCertificatePdfService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -37,6 +38,7 @@ public class LegalController {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
+    private final DomainAuthorizationService domainAuthorizationService;
     private final TechnicalCertificatePdfService certificateService;
     private final DigitalSignatureService signatureService;
 
