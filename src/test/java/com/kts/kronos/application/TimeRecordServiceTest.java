@@ -1,11 +1,13 @@
 package com.kts.kronos.application;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.*;
@@ -256,6 +258,19 @@ class TimeRecordServiceTest {
         // Assert
         assertEquals("03:00", response.days().get(0).totalHours());
         assertEquals("-05:00", response.days().get(0).balance());
+    }
+
+    @Test
+    @DisplayName("listReport: bloqueia manager com employeeId de outro tenant")
+    void shouldBlockListReportForCrossTenantEmployee() {
+        UUID otherTenantEmployeeId = UUID.randomUUID();
+        var req = new ListReportRequest("08:00", true, null, new LocalDate[]{LocalDate.now(SAO_PAULO)});
+        when(domainAuthorizationService.authorizeEmployeeAccess(otherTenantEmployeeId))
+                .thenThrow(new ForbiddenException("forbidden"));
+
+        assertThrows(ForbiddenException.class, () -> service.listReport(otherTenantEmployeeId, req));
+        verify(recordRepository, never()).findByEmployeeId(any());
+        verify(recordRepository, never()).findByEmployeeIdAndActive(any(), anyBoolean());
     }
 
     @Test

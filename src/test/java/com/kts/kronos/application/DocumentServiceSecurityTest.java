@@ -67,7 +67,6 @@ class DocumentServiceSecurityTest {
     @DisplayName("download: permite acesso ao próprio colaborador autorizado")
     void shouldAllowDownloadForAuthorizedEmployee() throws Exception {
         UUID documentId = UUID.randomUUID();
-        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         Document document = buildDocument(documentId, loggedEmployeeId, "docs/file.pdf");
         byte[] fileBytes = "payload".getBytes(StandardCharsets.UTF_8);
 
