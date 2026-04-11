@@ -102,7 +102,7 @@ public class AuthService implements AuthUseCase {
         }
     }
     @Override
-    public void recoverPassword(RecoverPasswordRequest request, String originUrl) {
+    public void recoverPassword(RecoverPasswordRequest request) {
         // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
         var employee = employeeProvider.findByCpf(request.cpf())
                 .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
@@ -110,7 +110,7 @@ public class AuthService implements AuthUseCase {
 
         // Retorna sucesso (No Content) para evitar ataques de enumeração.
         if (employee == null) {
-            log.warn("Tentativa de recuperação de senha falhou: CPF ou Email inválido.");
+            log.info("Recuperação de senha processada sem envio de e-mail.");
             return;
         }
 
@@ -118,10 +118,10 @@ public class AuthService implements AuthUseCase {
         var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
 
         if (user == null) {
-            log.warn("Tentativa de recuperação de senha: Colaborador sem usuário. EmployeeId: {}", employee.employeeId());
+            log.info("Recuperação de senha processada sem envio de e-mail.");
             return;
         }
-        var frontendUrl = (originUrl != null && !originUrl.isBlank()) ? originUrl : defaultFrontendBaseUrl;
+
         // 3. Gera e salva o token no Redis
         var resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
@@ -129,9 +129,9 @@ public class AuthService implements AuthUseCase {
                 employee.email(),
                 resetToken,
                 user.username(),
-                frontendUrl
+                defaultFrontendBaseUrl
         );
-        log.info("Processo de recuperação de senha iniciado para o usuário: {}", user.username());
+        log.info("Recuperação de senha processada com envio de e-mail.");
     }
 
     @Override
