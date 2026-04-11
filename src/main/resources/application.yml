@@ -34,11 +34,24 @@ management:
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health
+  endpoint:
+    health:
+      show-details: never
   metrics:
     export:
       prometheus:
         enabled: true
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  security:
+    public-docs-enabled: false
+
 logging:
   pattern:
     console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
