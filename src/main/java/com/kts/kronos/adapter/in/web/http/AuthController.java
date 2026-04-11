@@ -25,9 +25,8 @@ public class AuthController {
         return ResponseEntity.ok(new LoginResponse(token));
     }
     @PostMapping(RECOVER_PASSWORD)
-    public ResponseEntity<Void> recoverPassword(@Valid @RequestBody RecoverPasswordRequest req,
-            @RequestHeader(name = "Origin", required = false) String originUrl) {
-        authUseCase.recoverPassword(req,originUrl);
+    public ResponseEntity<Void> recoverPassword(@Valid @RequestBody RecoverPasswordRequest req) {
+        authUseCase.recoverPassword(req);
         return ResponseEntity.noContent().build();
     }
 
