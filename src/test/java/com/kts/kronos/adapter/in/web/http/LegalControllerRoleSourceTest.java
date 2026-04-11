@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.AejUseCase;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class LegalControllerRoleSourceTest {
@@ -67,6 +69,24 @@ class LegalControllerRoleSourceTest {
         verify(domainAuthorizationService).authorizeEmployeeAccess(targetEmployeeId);
         verify(jwtAuthenticatedUser, never()).getRoleFromToken();
         verify(pointMirrorPdfUseCase).generateMirror(targetEmployeeId, startDate, endDate);
+    }
+    @Test
+    void shouldBlockMirrorForOtherTenantTarget() {
+        UUID targetEmployeeId = UUID.randomUUID();
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+        LocalDate endDate = LocalDate.of(2026, 1, 31);
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId))
+                .thenThrow(new ForbiddenException("Acesso negado"));
+
+        var response = new MockHttpServletResponse();
+
+        assertThrows(
+                ForbiddenException.class,
+                () -> controller.downloadMirror(targetEmployeeId, startDate, endDate, response)
+        );
+
+        verify(pointMirrorPdfUseCase, never()).generateMirror(any(), any(), any());
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {

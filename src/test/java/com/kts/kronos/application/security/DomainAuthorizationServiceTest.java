@@ -243,6 +243,24 @@ class DomainAuthorizationServiceTest {
                 null
         );
     }
+    @Test
+    void shouldBlockManagerAccessToEmployeeFromOtherTenant() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID companyAId = UUID.randomUUID();
+        UUID companyBId = UUID.randomUUID();
+
+        Employee managerEmployee = buildEmployee(managerEmployeeId, companyAId);
+        Employee targetEmployee = buildEmployee(targetEmployeeId, companyBId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+
+        assertThrows(ForbiddenException.class, () -> service.authorizeEmployeeAccess(targetEmployeeId));
+    }
+
 
     private User buildUser(UUID userId, UUID employeeId) {
         return new User(userId, "user", "password", Role.PARTNER, true, employeeId);
