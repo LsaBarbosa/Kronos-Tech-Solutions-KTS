@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.application.service.NtpTimeService;
 import com.kts.kronos.application.service.ReceiptPdfService;
@@ -60,6 +61,7 @@ class TimeRecordServiceTest {
     @Mock private AdfUseCase adfUseCase;
     @Mock private NsrProvider nsrProvider;
     @Mock private NtpTimeService ntpTimeService;
+    @Mock private DomainAuthorizationService domainAuthorizationService;
 
     private UUID employeeId;
     private UUID companyId;
@@ -220,7 +222,7 @@ class TimeRecordServiceTest {
         TimeRecord r1 = new TimeRecord(1L, today.atTime(8,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
         TimeRecord r2 = new TimeRecord(2L, today.atTime(13,0), today.atTime(17,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 3L, 4L, null, null);
 
-        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1, r2));
@@ -243,7 +245,7 @@ class TimeRecordServiceTest {
         // 3 horas trabalhadas apenas
         TimeRecord r1 = new TimeRecord(1L, today.atTime(9,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
 
-        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1));

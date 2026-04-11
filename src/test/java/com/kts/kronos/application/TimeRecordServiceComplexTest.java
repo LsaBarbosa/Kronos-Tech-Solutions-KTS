@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.application.service.NtpTimeService;
 import com.kts.kronos.application.service.ReceiptPdfService;
@@ -60,6 +61,7 @@ class TimeRecordServiceComplexTest {
     @Mock private NsrProvider nsrProvider;
     @Mock private NtpTimeService ntpTimeService;
     @Mock private ReceiptPdfService receiptPdfService;
+    @Mock private DomainAuthorizationService domainAuthorizationService;
 
     private UUID employeeId;
     private UUID managerId;
