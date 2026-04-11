@@ -4,7 +4,7 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.AejUseCase;
-import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase; // Adicionado
+import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
@@ -20,7 +20,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -108,14 +111,9 @@ public class LegalController {
             HttpServletResponse response
     ) throws IOException {
 
-        UUID loggedId = jwtAuthenticatedUser.getEmployeeId();
-        UUID employeeIdToGenerate;
-
-        if (targetEmployeeId != null && jwtAuthenticatedUser.getCurrentRole() == Role.MANAGER) {
-            employeeIdToGenerate = targetEmployeeId;
-        } else {
-            employeeIdToGenerate = loggedId;
-        }
+        UUID employeeIdToGenerate = domainAuthorizationService
+                .authorizeEmployeeAccess(targetEmployeeId)
+                .employeeId();
 
         byte[] pdfBytes = pointMirrorPdfUseCase.generateMirror(employeeIdToGenerate, startDate, endDate);
 
