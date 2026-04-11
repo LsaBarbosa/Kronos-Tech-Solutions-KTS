@@ -48,9 +48,11 @@ public class DocumentEntity {
     @Column(name = "document_type", nullable = false)
     private DocumentType type;
 
+    @Builder.Default
     @Column(name = "deleted_by_employee", nullable = false)
     private boolean deletedByEmployee = false;
 
+    @Builder.Default
     @Column(name = "deleted_by_manager", nullable = false)
     private boolean deletedByManager = false;
 
