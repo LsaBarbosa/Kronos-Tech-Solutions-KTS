@@ -89,7 +89,7 @@ class TimeRecordServiceComplexTest {
     @DisplayName("PARTNER: Deve criar solicitação de aprovação ao editar ponto")
     void shouldCreateApprovalRequestWhenPartnerUpdates() {
         // Arrange
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
 
@@ -125,7 +125,7 @@ class TimeRecordServiceComplexTest {
     @DisplayName("MANAGER: Deve editar ponto diretamente e ajustar pausas adjacentes (Atualizando registro do Próprio Manager)")
     void shouldUpdateDirectlyAndAdjustBreaksWhenManagerUpdates() {
         // Arrange
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         // CORREÇÃO CRÍTICA: O serviço usa jwtAuthenticatedUser.getEmployeeId() para buscar os registros.
         // Para o teste funcionar e a lógica de "isRecordBelongsEmployee" passar,
         // o registro deve pertencer ao mesmo ID que está no token.
