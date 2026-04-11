@@ -12,6 +12,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import jakarta.transaction.Transactional;
@@ -37,6 +38,7 @@ public class UserService implements UserUseCase {
     private final PasswordEncoder passwordEncoder;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final EmployeeUseCase employeeUseCase;
+    private final DomainAuthorizationService domainAuthorizationService;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -85,9 +87,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public User getUserById(UUID userId) {
-        var targetUserId = jwtAuthenticatedUser.isWithEmployeeId(userId);
-        return userProvider.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND + userId));
+        return getUserId(userId);
     }
 
     @Override
@@ -198,7 +198,6 @@ public class UserService implements UserUseCase {
     }
 
     private User getUserId(UUID userId) {
-        return userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        return domainAuthorizationService.authorizeUserAccess(userId);
     }
 }

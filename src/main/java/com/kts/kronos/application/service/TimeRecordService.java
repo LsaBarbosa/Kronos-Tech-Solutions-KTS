@@ -12,6 +12,7 @@ import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
@@ -60,6 +61,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final AdfUseCase adfUseCase;
     private final NsrProvider nsrProvider;     // Provider de Sequência Atômica
     private final NtpTimeService ntpTimeService; // Validação de Relógio
+    private final DomainAuthorizationService domainAuthorizationService;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -393,7 +395,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req) {
-        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var targetEmployeeId = domainAuthorizationService.authorizeEmployeeAccess(employeeId).employeeId();
         var employeeData = getEmployeeData(targetEmployeeId);
 
         String[] parts = req.reference().split(":");
@@ -492,7 +494,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req) {
-        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var targetEmployeeId = domainAuthorizationService.authorizeEmployeeAccess(employeeId).employeeId();
         var employeeData = getEmployeeData(targetEmployeeId);
         var reference = getDuration(req.reference());
 
