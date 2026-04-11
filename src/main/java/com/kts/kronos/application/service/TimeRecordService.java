@@ -262,7 +262,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        var userRole = jwtAuthenticatedUser.getCurrentRole();
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
         var record = getTimeRecord(timeRecordId);
@@ -282,7 +282,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         // --- VALIDAÇÃO DE PRÉ-APROVAÇÃO ---
 
-        if ("PARTNER".equals(userRole)) {
+        if (userRole == Role.PARTNER) {
             // Apenas valida sobreposição contra segmentos de trabalho adjacentes
             validateNonBreakOverlap(employeeId, record.timeRecordId(), newStart, newEnd);
 
@@ -310,7 +310,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             var updatedRecord = record.withStatus(PENDING_APPROVAL).withEdited(true);
             recordRepository.save(updatedRecord);
 
-        } else if ("MANAGER".equals(userRole) || "CTO".equals(userRole)) {
+        } else if (userRole == Role.MANAGER || userRole == Role.CTO) {
             // Lógica para o MANAGER/CTO (aprovação direta)
 
             // NOVO: Executa o ajuste dos registros de Pausa vizinhos
@@ -746,9 +746,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void approveVacation(VacationApprovalRequest request) {
-        // Validação da Role: Apenas MANAGER ou CTO podem aprovar
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
-        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+        if (!jwtAuthenticatedUser.hasAnyRole(Role.MANAGER, Role.CTO)) {
             throw new ForbiddenException(ONLY_MANAGERS_CAN_GRANT_VACATION);
         }
 
@@ -770,9 +768,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void rejectVacation(VacationApprovalRequest request) {
-        // Validação da Role: Apenas MANAGER ou CTO podem rejeitar
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
-        if (!("MANAGER".equals(userRole) || "CTO".equals(userRole))) {
+        if (!jwtAuthenticatedUser.hasAnyRole(Role.MANAGER, Role.CTO)) {
             throw new ForbiddenException(ONLY_MANAGERS_CAN_REJECT_VACATION);
         }
 

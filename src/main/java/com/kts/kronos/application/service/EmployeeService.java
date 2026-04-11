@@ -8,6 +8,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,15 +39,15 @@ public class EmployeeService implements EmployeeUseCase {
     // MANAGER
     @Override
     public Employee createEmployee(CreateEmployeeRequest req) {
-        var userRole = jwtAuthenticatedUser.getRoleFromToken();
+        var userRole = jwtAuthenticatedUser.getCurrentRole();
         UUID companyId;
 
-        if ("CTO".equals(userRole)) {
+        if (userRole == Role.CTO) {
             if (req.companyId() == null) {
                 throw new BadRequestException(COMPANY_ID_IS_REQUIRED_TO_CREATE_FIRST_MANAGER);
             }
             companyId = req.companyId();
-        } else if ("MANAGER".equals(userRole)) {
+        } else if (userRole == Role.MANAGER) {
             var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
             var managerEmployee = employeeProvider.findById(managerEmployeeId)
                     .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));

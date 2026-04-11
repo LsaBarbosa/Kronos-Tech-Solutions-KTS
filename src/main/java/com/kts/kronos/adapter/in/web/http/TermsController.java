@@ -35,7 +35,7 @@ public class TermsController {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         UUID userId = jwtAuthenticatedUser.getuserId();
         String username = jwtAuthenticatedUser.getUsername();
-        String role = jwtAuthenticatedUser.getRoleFromToken();
+        String role = jwtAuthenticatedUser.getCurrentRole().name();
 
         String ipAddress = request.getHeader("X-Forwarded-For");
         if (ipAddress == null || ipAddress.isEmpty()) {

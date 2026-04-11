@@ -11,6 +11,7 @@ import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,17 +84,12 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public List<Document> listDocuments(DocumentType type, UUID employeeId, LocalDate date) {
-        // 1. Identifica a Role de quem está logado
-        String currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-
-        // 2. Define se é uma "Visão de Gestor"
-        boolean isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        boolean isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
         var targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var targetEmployeeId = targetEmployee.employeeId();
 
-        // 4. Chama o Provider passando a flag de visão
-        // O Provider decidirá qual query do Repository executar baseada no booleano
         if (date == null) {
             return documentProvider.findByEmployeeAndType(targetEmployeeId, type, isManagerView);
         } else {
@@ -108,9 +104,11 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-        var currentUserId = jwtAuthenticatedUser.getEmployeeId(); // ou getUserId dependendo da sua lógica de auth
-        var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        var currentUserId = jwtAuthenticatedUser.getEmployeeId();
+        var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
+        var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
 
         var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
 
@@ -120,7 +118,7 @@ public class DocumentService implements DocumentUseCase {
             }
         }
         Document updatedDoc;
-        boolean isManager = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
         if (isManager) {
             updatedDoc = doc.markDeletedByManager();
@@ -146,7 +144,35 @@ public class DocumentService implements DocumentUseCase {
     }
 
     private Employee getEmployee(UUID employeeId) {
-        return domainAuthorizationService.authorizeEmployeeAccess(employeeId);
+        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var employee = employeeProvider.findById(employeeIdWith)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        validateManagerTenantScope(employee);
+        return employee;
+    }
+
+    private Employee getTargetEmployeeForDocumentOperation(UUID employeeId) {
+        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var targetEmployee = employeeProvider.findById(targetEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        validateManagerTenantScope(targetEmployee);
+        return targetEmployee;
+    }
+
+    private void validateManagerTenantScope(Employee targetEmployee) {
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        var isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
+        if (!isManagerView) {
+            return;
+        }
+
+        var loggedInEmployee = employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (!loggedInEmployee.companyId().equals(targetEmployee.companyId())) {
+            throw new ForbiddenException(FORBIDDEN_OTHER_TENANT_DOCUMENT);
+        }
     }
 
     private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {

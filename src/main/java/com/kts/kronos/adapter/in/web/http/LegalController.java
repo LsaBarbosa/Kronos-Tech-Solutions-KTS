@@ -10,6 +10,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.TechnicalCertificatePdfService;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -106,7 +107,15 @@ public class LegalController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             HttpServletResponse response
     ) throws IOException {
-        UUID employeeIdToGenerate = domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId).employeeId();
+
+        UUID loggedId = jwtAuthenticatedUser.getEmployeeId();
+        UUID employeeIdToGenerate;
+
+        if (targetEmployeeId != null && jwtAuthenticatedUser.getCurrentRole() == Role.MANAGER) {
+            employeeIdToGenerate = targetEmployeeId;
+        } else {
+            employeeIdToGenerate = loggedId;
+        }
 
         byte[] pdfBytes = pointMirrorPdfUseCase.generateMirror(employeeIdToGenerate, startDate, endDate);
 
