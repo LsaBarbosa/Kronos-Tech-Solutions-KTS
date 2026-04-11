@@ -1,14 +1,17 @@
 package com.kts.kronos.application;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.application.service.NtpTimeService;
 import com.kts.kronos.application.service.ReceiptPdfService;
@@ -60,6 +63,7 @@ class TimeRecordServiceTest {
     @Mock private AdfUseCase adfUseCase;
     @Mock private NsrProvider nsrProvider;
     @Mock private NtpTimeService ntpTimeService;
+    @Mock private DomainAuthorizationService domainAuthorizationService;
 
     private UUID employeeId;
     private UUID companyId;
@@ -220,7 +224,7 @@ class TimeRecordServiceTest {
         TimeRecord r1 = new TimeRecord(1L, today.atTime(8,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
         TimeRecord r2 = new TimeRecord(2L, today.atTime(13,0), today.atTime(17,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 3L, 4L, null, null);
 
-        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1, r2));
@@ -243,7 +247,7 @@ class TimeRecordServiceTest {
         // 3 horas trabalhadas apenas
         TimeRecord r1 = new TimeRecord(1L, today.atTime(9,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
 
-        when(jwtAuthenticatedUser.isWithEmployeeId(employeeId)).thenReturn(employeeId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1));
@@ -254,6 +258,19 @@ class TimeRecordServiceTest {
         // Assert
         assertEquals("03:00", response.days().get(0).totalHours());
         assertEquals("-05:00", response.days().get(0).balance());
+    }
+
+    @Test
+    @DisplayName("listReport: bloqueia manager com employeeId de outro tenant")
+    void shouldBlockListReportForCrossTenantEmployee() {
+        UUID otherTenantEmployeeId = UUID.randomUUID();
+        var req = new ListReportRequest("08:00", true, null, new LocalDate[]{LocalDate.now(SAO_PAULO)});
+        when(domainAuthorizationService.authorizeEmployeeAccess(otherTenantEmployeeId))
+                .thenThrow(new ForbiddenException("forbidden"));
+
+        assertThrows(ForbiddenException.class, () -> service.listReport(otherTenantEmployeeId, req));
+        verify(recordRepository, never()).findByEmployeeId(any());
+        verify(recordRepository, never()).findByEmployeeIdAndActive(any(), anyBoolean());
     }
 
     @Test
