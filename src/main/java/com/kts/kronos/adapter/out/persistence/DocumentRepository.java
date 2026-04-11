@@ -14,6 +14,7 @@ import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> {
     List<DocumentEntity> findByEmployeeIdAndType(UUID employeeId, DocumentType type);
+    Optional<DocumentEntity> findByDocumentIdAndEmployeeId(UUID documentId, UUID employeeId);
 
     @Query(value = """
     SELECT *
