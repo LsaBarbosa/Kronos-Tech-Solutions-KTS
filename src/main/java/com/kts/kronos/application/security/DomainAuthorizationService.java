@@ -56,6 +56,7 @@ public class DomainAuthorizationService {
         if (isCto(role)) {
             return targetUser;
         }
+
         if (isManager(role)) {
             var authenticatedEmployee = getAuthenticatedEmployee();
             var targetEmployee = employeeProvider.findById(targetUser.employeeId())
@@ -85,6 +86,7 @@ public class DomainAuthorizationService {
         if (isCto(role)) {
             return targetCompanyId;
         }
+
         if (!authenticatedEmployee.companyId().equals(targetCompanyId)) {
             throw new ForbiddenException(MANAGER_DIFFERENT_COMPANY);
         }
