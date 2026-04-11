@@ -11,6 +11,7 @@ import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.ERROR_GET_FILE;
@@ -70,7 +73,10 @@ class DocumentServiceSecurityTest {
         Document document = buildDocument(documentId, loggedEmployeeId, "docs/file.pdf");
         byte[] fileBytes = "payload".getBytes(StandardCharsets.UTF_8);
 
-        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, loggedEmployeeId)).thenReturn(Optional.of(document));
         when(bucketStorageProvider.downloadFile(document.storagePath())).thenReturn(fileBytes);
 
         DocumentWithData response = service.downloadDocument(null, documentId);
@@ -84,8 +90,14 @@ class DocumentServiceSecurityTest {
     @DisplayName("download: bloqueia manager em documento de outra empresa")
     void shouldBlockManagerDownloadFromOtherTenant() {
         UUID documentId = UUID.randomUUID();
-        when(domainAuthorizationService.authorizeDocumentAccess(documentId, otherTenantEmployeeId))
-                .thenThrow(new ForbiddenException("forbidden"));
+        Employee managerEmployee = buildEmployee(managerEmployeeId, companyAId);
+        Employee targetEmployee = buildEmployee(otherTenantEmployeeId, companyBId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(jwtAuthenticatedUser.isWithEmployeeId(otherTenantEmployeeId)).thenReturn(otherTenantEmployeeId);
+        when(employeeProvider.findById(otherTenantEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.downloadDocument(otherTenantEmployeeId, documentId));
         verify(bucketStorageProvider, never()).downloadFile(anyString());
@@ -97,7 +109,7 @@ class DocumentServiceSecurityTest {
         UUID documentId = UUID.randomUUID();
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
 
@@ -114,8 +126,14 @@ class DocumentServiceSecurityTest {
     @DisplayName("delete: bloqueia exclusão cross-tenant")
     void shouldBlockDeleteCrossTenant() {
         UUID documentId = UUID.randomUUID();
-        when(domainAuthorizationService.authorizeDocumentAccess(documentId, otherTenantEmployeeId))
-                .thenThrow(new ForbiddenException("forbidden"));
+        Employee managerEmployee = buildEmployee(managerEmployeeId, companyAId);
+        Employee targetEmployee = buildEmployee(otherTenantEmployeeId, companyBId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(jwtAuthenticatedUser.isWithEmployeeId(otherTenantEmployeeId)).thenReturn(otherTenantEmployeeId);
+        when(employeeProvider.findById(otherTenantEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.deleteDocument(otherTenantEmployeeId, documentId));
         verify(documentProvider, never()).save(any());
@@ -175,7 +193,10 @@ class DocumentServiceSecurityTest {
         UUID documentId = UUID.randomUUID();
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
-        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, loggedEmployeeId)).thenReturn(Optional.of(document));
         when(bucketStorageProvider.downloadFile(anyString()))
                 .thenThrow(new RuntimeException("falha em /mnt/data/documents/secret.pdf"));
 
@@ -189,18 +210,20 @@ class DocumentServiceSecurityTest {
     }
 
     @Test
-    @DisplayName("download: usa autorização central de domínio")
-    void shouldUseDomainAuthorizationServiceForDownload() throws Exception {
-        UUID documentId = UUID.randomUUID();
-        Document document = buildDocument(documentId, loggedEmployeeId, "docs/file.pdf");
+    @DisplayName("list: usa role atual do contexto e não claim histórica")
+    void shouldUseCurrentRoleInListDocuments() {
+        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
 
-        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
-        when(bucketStorageProvider.downloadFile(document.storagePath())).thenReturn("data".getBytes(StandardCharsets.UTF_8));
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(documentProvider.findByEmployeeAndType(loggedEmployeeId, DocumentType.PAYSLIP, false))
+                .thenReturn(List.of());
 
-        service.downloadDocument(null, documentId);
+        service.listDocuments(DocumentType.PAYSLIP, null, null);
 
-        verify(domainAuthorizationService).authorizeDocumentAccess(documentId, null);
-        verifyNoInteractions(documentProvider);
+        verify(jwtAuthenticatedUser, atLeastOnce()).getCurrentRole();
+        verify(jwtAuthenticatedUser, never()).getRoleFromToken();
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
