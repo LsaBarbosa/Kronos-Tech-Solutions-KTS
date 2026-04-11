@@ -35,6 +35,8 @@ public class SecurityConfig {
     private String local;
     @Value("${frontend.base-url-local-2}")
     private String local_2;
+    @Value("${app.security.public-docs-enabled:false}")
+    private boolean publicDocsEnabled;
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
@@ -55,15 +57,38 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**","/auth/recover-password","/actuator/**")
-                        .permitAll()
-                        .anyRequest().permitAll()
-                )
                 .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
+
+        http.authorizeHttpRequests(auth -> {
+            auth.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.POST,
+                    "/auth/login",
+                    "/auth/login-face",
+                    "/auth/recover-password",
+                    "/auth/reset-password"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/actuator/health",
+                    "/actuator/health/**"
+            ).permitAll();
+
+            if (publicDocsEnabled) {
+                auth.requestMatchers(
+                        org.springframework.http.HttpMethod.GET,
+                        "/v3/api-docs",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**"
+                ).permitAll();
+            }
+
+            auth.anyRequest().authenticated();
+        });
+
         return http.build();
     }
 
