@@ -42,17 +42,6 @@ public class JwtAuthenticatedUser {
         String token = extractToken();
         return jwtUtils.getRoleFromToken(token);
     }
-    public UUID isWithEmployeeId(UUID employeeId) {
-        var userRole = getRoleFromToken();
-        var loggedInEmployeeId = getEmployeeId();
-
-        return switch (userRole) {
-            case "PARTNER" -> loggedInEmployeeId;
-            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
-            default ->
-                    (employeeId != null) ? employeeId : loggedInEmployeeId;
-        };
-    }
 
     private String extractToken() {
         String bearer = request.getHeader("Authorization");

@@ -12,8 +12,8 @@ import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
@@ -42,16 +42,15 @@ import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
 public class PointMirrorPdfService implements PointMirrorPdfUseCase {
 
     private final CompanyProvider companyProvider;
-    private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider recordRepository;
+    private final DomainAuthorizationService domainAuthorizationService;
 
 
 
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
-        var employee = employeeProvider.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+        var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
