@@ -73,9 +73,15 @@ public class DomainAuthorizationService {
     }
 
     public Document authorizeDocumentAccess(UUID documentId, UUID requestedEmployeeId) {
-        var targetEmployee = authorizeEmployeeAccess(requestedEmployeeId);
-        return documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+        if (requestedEmployeeId != null) {
+            var targetEmployee = authorizeEmployeeAccess(requestedEmployeeId);
+            return documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+        }
+
+        var document = documentProvider.findById(documentId);
+        authorizeEmployeeAccess(document.employeeId());
+        return document;
     }
 
     public UUID authorizeCompanyAccess(UUID requestedCompanyId) {

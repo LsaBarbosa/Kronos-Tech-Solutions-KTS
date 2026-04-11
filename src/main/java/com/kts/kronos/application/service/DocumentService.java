@@ -106,9 +106,7 @@ public class DocumentService implements DocumentUseCase {
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
         var currentUserId = jwtAuthenticatedUser.getEmployeeId();
-        var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
-        var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+        var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
 
         var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
 
@@ -117,68 +115,35 @@ public class DocumentService implements DocumentUseCase {
                 throw new ForbiddenException(ONLY_OWNER_DELETE_TIME_OFF_DOCS);
             }
         }
+
         Document updatedDoc;
         boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
         if (isManager) {
             updatedDoc = doc.markDeletedByManager();
         } else {
-            // Se for funcionário, garante que é o dono
             if (!doc.employeeId().equals(currentUserId)) {
                 throw new ForbiddenException(FORBIDDEN_OTHER_EMPLOYEE_DELETE);
             }
             updatedDoc = doc.markDeletedByEmployee();
         }
+
         if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
-
-            // Remove arquivo do S3/Disco
             bucketStorageProvider.deleteFile(doc.storagePath());
-
-            // Remove registro do Banco
-            documentProvider.delete(doc.employeeId(), doc.documentId()); // Método delete físico existente
-
+            documentProvider.delete(doc.employeeId(), doc.documentId());
         } else {
-            // 6. Caso contrário, apenas salvamos o estado atualizado (Soft Delete)
             documentProvider.save(updatedDoc);
         }
     }
 
-    private Employee getEmployee(UUID employeeId) {
-        var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-        var employee = employeeProvider.findById(employeeIdWith)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        validateManagerTenantScope(employee);
-        return employee;
-    }
-
-    private Employee getTargetEmployeeForDocumentOperation(UUID employeeId) {
-        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-        var targetEmployee = employeeProvider.findById(targetEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-        validateManagerTenantScope(targetEmployee);
-        return targetEmployee;
-    }
-
-    private void validateManagerTenantScope(Employee targetEmployee) {
-        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
-        var isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
-        if (!isManagerView) {
-            return;
-        }
-
-        var loggedInEmployee = employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-        if (!loggedInEmployee.companyId().equals(targetEmployee.companyId())) {
-            throw new ForbiddenException(FORBIDDEN_OTHER_TENANT_DOCUMENT);
-        }
+    private Employee getAuthorizedEmployee(UUID employeeId) {
+        return domainAuthorizationService.authorizeEmployeeAccess(employeeId);
     }
 
     private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
         try {
             var uploadData = validateAndPrepareUpload(file);
-            var employee = getEmployee(employeeId);
+            var employee = getAuthorizedEmployee(employeeId);
             var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + uploadData.fileName();
             var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, uploadData.data(), uploadData.contentType());
             var doc = new Document(
@@ -206,8 +171,7 @@ public class DocumentService implements DocumentUseCase {
             var contentType = "application/pdf";
             var safeFileName = sanitizeFileName(fileName);
 
-            var employee = getEmployee(employeeId); // Garante que funcionário existe
-
+            var employee = getAuthorizedEmployee(employeeId);
             // Define o caminho no Bucket
             var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + safeFileName;
 
