@@ -6,7 +6,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
@@ -45,11 +45,11 @@ class DocumentServiceSecurityTest {
     @Mock
     private DocumentProvider documentProvider;
     @Mock
-    private EmployeeProvider employeeProvider;
-    @Mock
     private JwtAuthenticatedUser jwtAuthenticatedUser;
     @Mock
     private BucketStorageProvider bucketStorageProvider;
+    @Mock
+    private DomainAuthorizationService domainAuthorizationService;
 
     private UUID loggedEmployeeId;
     private UUID managerEmployeeId;
@@ -70,7 +70,6 @@ class DocumentServiceSecurityTest {
     @DisplayName("download: permite acesso ao próprio colaborador autorizado")
     void shouldAllowDownloadForAuthorizedEmployee() throws Exception {
         UUID documentId = UUID.randomUUID();
-        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         Document document = buildDocument(documentId, loggedEmployeeId, "docs/file.pdf");
         byte[] fileBytes = "payload".getBytes(StandardCharsets.UTF_8);
 
@@ -84,7 +83,7 @@ class DocumentServiceSecurityTest {
 
         assertEquals(documentId, response.documentId());
         assertArrayEquals(fileBytes, response.data());
-        verify(documentProvider).findByIdAndEmployeeId(documentId, loggedEmployeeId);
+        verify(domainAuthorizationService).authorizeDocumentAccess(documentId, null);
     }
 
     @Test
@@ -101,21 +100,18 @@ class DocumentServiceSecurityTest {
         when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.downloadDocument(otherTenantEmployeeId, documentId));
-        verify(documentProvider, never()).findByIdAndEmployeeId(any(), any());
+        verify(bucketStorageProvider, never()).downloadFile(anyString());
     }
 
     @Test
     @DisplayName("delete: permite dono apagar documento conforme regra atual")
     void shouldAllowOwnerDeleteDocument() {
         UUID documentId = UUID.randomUUID();
-        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
-        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
-        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
-        when(documentProvider.findByIdAndEmployeeId(documentId, loggedEmployeeId)).thenReturn(Optional.of(document));
+        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
 
         service.deleteDocument(null, documentId);
 
@@ -140,7 +136,7 @@ class DocumentServiceSecurityTest {
         when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.deleteDocument(otherTenantEmployeeId, documentId));
-        verify(documentProvider, never()).findByIdAndEmployeeId(any(), any());
+        verify(documentProvider, never()).save(any());
     }
 
     @Test
@@ -155,8 +151,7 @@ class DocumentServiceSecurityTest {
                 pdfBytes
         );
 
-        when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
-        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
         when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
 
         service.uploadDocument(DocumentType.PAYSLIP, null, file);
@@ -197,7 +192,6 @@ class DocumentServiceSecurityTest {
     void shouldNotLeakInternalStoragePathOnDownloadError() {
         UUID documentId = UUID.randomUUID();
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
-        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.isWithEmployeeId(null)).thenReturn(loggedEmployeeId);
