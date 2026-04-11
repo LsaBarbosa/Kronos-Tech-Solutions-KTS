@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -44,13 +45,13 @@ public class UserController {
     }
 
     @GetMapping(USERS)
-    @PreAuthorize(ANY_EMPLOYEE)
+    @PreAuthorize(ADMINISTRATOR)
     public ResponseEntity<UserListResponse> allUsers(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
         var users = useCase.listUsers(active);
         return ResponseEntity.ok(new UserListResponse(
-                users.stream().map(UserResponse::fromDomain).toList()));
+                users.stream().map(UserSearchItemResponse::fromDomain).toList()));
     }
 
     @PatchMapping(UPDATE_USER)
@@ -87,6 +88,7 @@ public class UserController {
     }
 
     @GetMapping(CHECK_USERNAME)
+    @PreAuthorize(ADMINISTRATOR)
     public ResponseEntity<Void> checkUsernameAvailability(@RequestParam String username) {
         if (useCase.usernameExists(username)) {
             return ResponseEntity.ok().build();
