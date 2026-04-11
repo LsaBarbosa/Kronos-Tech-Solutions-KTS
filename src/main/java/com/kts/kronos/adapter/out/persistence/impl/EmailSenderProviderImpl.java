@@ -6,7 +6,6 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -35,7 +34,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             <h1 style='color: #1a73e8; font-size: 26px; border-bottom: 2px solid #eee; padding-bottom: 10px;'>👋 Olá, %s! Sua Segurança é Nossa Prioridade!</h1>
 
             <p style='font-size: 18px; color: #333;'>Esperamos que esteja tudo bem.</p>
-        
+       \s
             <p style='font-size: 16px; color: #333;'> Recebemos uma solicitação para redefinir a senha da sua conta.</p>
             <p style='font-size: 16px; color: #333;'>Para prosseguir e criar uma nova senha, é só clicar no botão azul logo abaixo. Rápido e fácil!</p>
 
@@ -59,12 +58,12 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
                 &#x26A0;&#xFE0F; Atenção: Este link de redefinição é sensível ao tempo e expira em 30 minutos por motivos de segurança.
                 </p>
             </div>
-            
+           \s
             <p style='font-size: 14px; color: #666; text-align: center; margin-top: 20px;'>Se o botão não funcionar, copie e cole o link abaixo em seu navegador:<br>
             <a href='%s' style='color: #1a73e8; word-break: break-all;'>%s</a></p>
 
             <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px; text-align: center;'>
-            Não solicitou esta redefinição? Relaxe! 
+            Não solicitou esta redefinição? Relaxe!\s
             <p style='font-size: 14px; color: #1e8449; margin-top: 30px; border-top: 1px solid #eee;'>
             Se você não fez esta solicitação, pode simplesmente ignorar este e-mail. Sua senha antiga permanecerá segura e nenhuma alteração será feita na sua conta.
             </p>
@@ -74,12 +73,12 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         </div>
         </body>
         </html>
-        """;
+       \s""";
 
 
     @Override
     public void sendResetEmail(String toEmail, String token, String username, String frontendUrl) {
-        log.info("Iniciando envio de e-mail de recuperação via SMTP para: {}", toEmail);
+        log.info("Iniciando envio de e-mail de recuperação via SMTP.");
 
         MimeMessage message = mailSender.createMimeMessage();
 
@@ -105,13 +104,13 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             helper.setText(htmlText, true);
 
             mailSender.send(message);
-            log.info("E-mail de redefinição enviado com sucesso para: {}", toEmail);
+            log.info("E-mail de redefinição enviado com sucesso.");
         } catch (MessagingException e) {
-            log.error("Falha ao configurar MimeMessage para {}: {}", toEmail, e.getMessage(), e);
+            log.error("Falha ao configurar MimeMessage do fluxo de recuperação: {}", e.getMessage(), e);
             throw new RuntimeException("Falha na configuração do e-mail de recuperação.", e);
         } catch (Exception e) {
             // Este log captura o erro de envio (como o MissingFormatArgumentException original)
-            log.error("Falha ao enviar e-mail via SMTP para {}: {}", toEmail, e.getMessage(), e);
+            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação: {}", e.getMessage(), e);
             throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
         }
     }
