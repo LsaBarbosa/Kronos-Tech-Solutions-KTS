@@ -5,24 +5,28 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
+import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
-import com.kts.kronos.application.port.out.provider.S3StorageProvider;
 import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.kts.kronos.application.exceptions.BadRequestException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.text.Normalizer;
 import java.time.LocalDate;
-import java.util.Arrays;
+import java.util.Locale;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipInputStream;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -30,6 +34,17 @@ import static com.kts.kronos.constants.Messages.*;
 @RequiredArgsConstructor
 @Transactional
 public class DocumentService implements DocumentUseCase {
+
+    private static final String FORBIDDEN_OTHER_EMPLOYEE_DELETE = "Você não pode apagar documentos de outro funcionário.";
+    private static final String FORBIDDEN_OTHER_TENANT_DOCUMENT = "Você não pode acessar documentos de outra empresa.";
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx");
+    private static final Map<String, Set<String>> ALLOWED_EXTENSIONS_BY_MIME = Map.of(
+            "application/pdf", Set.of("pdf"),
+            "image/jpeg", Set.of("jpg", "jpeg"),
+            "image/png", Set.of("png"),
+            "application/msword", Set.of("doc"),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Set.of("docx")
+    );
 
     private final DocumentProvider documentProvider;
     private final EmployeeProvider employeeProvider;
@@ -39,38 +54,14 @@ public class DocumentService implements DocumentUseCase {
      
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
-
-        var fileMimeType = file.getContentType();
-        // 3. Verifique se o tipo está na lista permitida
-        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
-            // Se não estiver, lança a exceção
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
-        try {
-            var employee = getEmployee(employeeId);
-
-            var bytes = file.getBytes();
-            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
-            var doc = new Document(
-                    employee.employeeId(),
-                    type,
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL,null,false,false
-            );
-            documentProvider.save(doc);
-        } catch (Exception e) {
-            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
-        }
+        uploadDocumentInternal(type, employeeId, null, file);
     }
 
     @Override
     public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
-        getEmployee(employeeId);
-
-        var doc = documentProvider.findById(documentId);
+        var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
+        var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
 
         try {
             byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
@@ -88,7 +79,7 @@ public class DocumentService implements DocumentUseCase {
         } catch (ResourceNotFoundException e) {
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
-            throw new BadRequestException(ERROR_GET_FILE + e.getMessage());
+            throw new BadRequestException(ERROR_GET_FILE);
         }
     }
 
@@ -101,9 +92,8 @@ public class DocumentService implements DocumentUseCase {
         // 2. Define se é uma "Visão de Gestor"
         boolean isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
 
-        // 3. Define o alvo (de quem são os documentos?)
-        // O método 'isWithEmployeeId' já garante que um PARTNER só veja os seus próprios docs
-        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var targetEmployee = getEmployee(employeeId);
+        var targetEmployeeId = targetEmployee.employeeId();
 
         // 4. Chama o Provider passando a flag de visão
         // O Provider decidirá qual query do Repository executar baseada no booleano
@@ -123,7 +113,9 @@ public class DocumentService implements DocumentUseCase {
     public void deleteDocument(UUID employeeId, UUID documentId) {
         var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
         var currentUserId = jwtAuthenticatedUser.getEmployeeId(); // ou getUserId dependendo da sua lógica de auth
-        var doc = documentProvider.findById(documentId);
+        var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
+        var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
 
         var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
 
@@ -140,7 +132,7 @@ public class DocumentService implements DocumentUseCase {
         } else {
             // Se for funcionário, garante que é o dono
             if (!doc.employeeId().equals(currentUserId)) {
-                throw new ForbiddenException("Você não pode apagar documentos de outro funcionário.");
+                throw new ForbiddenException(FORBIDDEN_OTHER_EMPLOYEE_DELETE);
             }
             updatedDoc = doc.markDeletedByEmployee();
         }
@@ -160,36 +152,57 @@ public class DocumentService implements DocumentUseCase {
 
     private Employee getEmployee(UUID employeeId) {
         var employeeIdWith = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
-        return employeeProvider.findById(employeeIdWith)
+        var employee = employeeProvider.findById(employeeIdWith)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        validateManagerTenantScope(employee);
+        return employee;
+    }
+
+    private Employee getTargetEmployeeForDocumentOperation(UUID employeeId) {
+        var targetEmployeeId = jwtAuthenticatedUser.isWithEmployeeId(employeeId);
+        var targetEmployee = employeeProvider.findById(targetEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        validateManagerTenantScope(targetEmployee);
+        return targetEmployee;
+    }
+
+    private void validateManagerTenantScope(Employee targetEmployee) {
+        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
+        var isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        if (!isManagerView) {
+            return;
+        }
+
+        var loggedInEmployee = employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (!loggedInEmployee.companyId().equals(targetEmployee.companyId())) {
+            throw new ForbiddenException(FORBIDDEN_OTHER_TENANT_DOCUMENT);
+        }
     }
 
     private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
-        var fileMimeType = file.getContentType();
-        // 3. Verifique se o tipo está na lista permitida
-        if (!ALLOWED_MIME_TYPES.contains(fileMimeType)) {
-            // Se não estiver, lança a exceção
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
         try {
+            var uploadData = validateAndPrepareUpload(file);
             var employee = getEmployee(employeeId);
-
-            var bytes = file.getBytes();
-            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, bytes, file.getContentType());
+            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + uploadData.fileName();
+            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, uploadData.data(), uploadData.contentType());
             var doc = new Document(
                     employee.employeeId(),
                     type,
-                    file.getOriginalFilename(),
-                    file.getContentType(),
+                    uploadData.fileName(),
+                    uploadData.contentType(),
                     storagePath, // USANDO O CAMINHO DO GCS
                     TIME_ZONE_BRAZIL,
                     timeRecordId,
                     false,false
             );
             documentProvider.save(doc);
+        } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            throw e;
         } catch (Exception e) {
-            throw new BadRequestException(NOT_ABLE_TO_READ_FILE + ": " + e.getMessage());
+            throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
         }
     }
 
@@ -198,11 +211,12 @@ public class DocumentService implements DocumentUseCase {
         try {
             // Validação interna básica (opcional, já que geramos o PDF confiável)
             var contentType = "application/pdf";
+            var safeFileName = sanitizeFileName(fileName);
 
             var employee = getEmployee(employeeId); // Garante que funcionário existe
 
             // Define o caminho no Bucket
-            var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + fileName;
+            var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + safeFileName;
 
             // Upload Físico
             var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, content,contentType);
@@ -211,7 +225,7 @@ public class DocumentService implements DocumentUseCase {
             var doc = new Document(
                     employee.employeeId(),
                     type,
-                    fileName,
+                    safeFileName,
                     contentType,
                     storagePath,
                     TIME_ZONE_BRAZIL,
@@ -219,9 +233,132 @@ public class DocumentService implements DocumentUseCase {
             );
             documentProvider.save(doc);
 
+        } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            throw e;
         } catch (Exception e) {
-            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC + e.getMessage());
+            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC);
         }
     }
+
+    private UploadData validateAndPrepareUpload(MultipartFile file) throws IOException {
+        var contentType = normalizeContentType(file.getContentType());
+        if (!ALLOWED_MIME_TYPES.contains(contentType)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var safeFileName = sanitizeFileName(file.getOriginalFilename());
+        var extension = extractExtension(safeFileName);
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var allowedExtensionsForMime = ALLOWED_EXTENSIONS_BY_MIME.get(contentType);
+        if (allowedExtensionsForMime == null || !allowedExtensionsForMime.contains(extension)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var bytes = file.getBytes();
+        if (bytes.length == 0 || !matchesSignature(extension, bytes)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        return new UploadData(bytes, safeFileName, contentType);
+    }
+
+    private String normalizeContentType(String contentType) {
+        return contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String sanitizeFileName(String originalFileName) {
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var normalized = Normalizer.normalize(originalFileName, Normalizer.Form.NFKC).replace('\\', '/');
+        var baseName = normalized.substring(normalized.lastIndexOf('/') + 1);
+        baseName = baseName.replaceAll("[\\p{Cntrl}]", "");
+        baseName = baseName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        baseName = baseName.replaceAll("^\\.+", "");
+
+        if (baseName.isBlank()) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var extension = extractExtension(baseName);
+        var fileNameWithoutExtension = baseName.substring(0, baseName.lastIndexOf('.'));
+
+        if (fileNameWithoutExtension.isBlank()) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        if (fileNameWithoutExtension.length() > 100) {
+            fileNameWithoutExtension = fileNameWithoutExtension.substring(0, 100);
+        }
+
+        return fileNameWithoutExtension + "." + extension;
+    }
+
+    private String extractExtension(String fileName) {
+        var extensionIndex = fileName.lastIndexOf('.');
+        if (extensionIndex <= 0 || extensionIndex == fileName.length() - 1) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+        return fileName.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private boolean matchesSignature(String extension, byte[] bytes) {
+        return switch (extension) {
+            case "pdf" -> hasPrefix(bytes, 0x25, 0x50, 0x44, 0x46);
+            case "jpg", "jpeg" -> hasPrefix(bytes, 0xFF, 0xD8, 0xFF);
+            case "png" -> hasPrefix(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+            case "doc" -> hasPrefix(bytes, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1);
+            case "docx" -> isDocx(bytes);
+            default -> false;
+        };
+    }
+
+    private boolean isDocx(byte[] bytes) {
+        if (!hasPrefix(bytes, 0x50, 0x4B, 0x03, 0x04)) {
+            return false;
+        }
+
+        try (var zipInputStream = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+            boolean hasContentTypes = false;
+            boolean hasWordFolder = false;
+            int entriesRead = 0;
+
+            java.util.zip.ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null && entriesRead < 200) {
+                var entryName = entry.getName();
+                if ("[Content_Types].xml".equals(entryName)) {
+                    hasContentTypes = true;
+                }
+                if (entryName.startsWith("word/")) {
+                    hasWordFolder = true;
+                }
+                if (hasContentTypes && hasWordFolder) {
+                    return true;
+                }
+                entriesRead++;
+            }
+            return false;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private boolean hasPrefix(byte[] bytes, int... prefix) {
+        if (bytes.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if ((bytes[i] & 0xFF) != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private record UploadData(byte[] data, String fileName, String contentType) {}
 
 }

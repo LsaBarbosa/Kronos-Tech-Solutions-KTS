@@ -15,6 +15,8 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class BucketStorageProviderImpl implements BucketStorageProvider {
+    private static final String INVALID_STORAGE_PATH = "Caminho de storage inválido.";
+
     @Value("${file.storage.root-path:/mnt/data/documents}")
     private String rootPath;
 
@@ -23,7 +25,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
         try {
             // Cria um nome de objeto único
             String uniqueObjectName = UUID.randomUUID() + "-" + originalFileName;
-            Path filePath = Paths.get(rootPath, uniqueObjectName);
+            Path filePath = resolveWithinRoot(uniqueObjectName);
 
             // Garante que o diretório exista
             Files.createDirectories(filePath.getParent());
@@ -36,33 +38,63 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
         } catch (IOException e) {
             log.error("Erro no upload do arquivo para o disco local: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao salvar o arquivo no disco.", e);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException(INVALID_STORAGE_PATH);
         }
     }
 
     @Override
     public byte[] downloadFile(String objectName) {
-        Path filePath = Paths.get(rootPath, objectName);
         try {
+            Path filePath = resolveWithinRoot(objectName);
             if (!Files.exists(filePath)) {
-                throw new ResourceNotFoundException("Arquivo não encontrado no disco: " + objectName);
+                throw new ResourceNotFoundException("Arquivo não encontrado no disco.");
             }
             // Lê e retorna os bytes do arquivo
             return Files.readAllBytes(filePath);
         } catch (IOException e) {
             log.error("Erro no download/leitura do arquivo {}: {}", objectName, e.getMessage());
             throw new RuntimeException("Falha ao ler o arquivo do disco.", e);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException(INVALID_STORAGE_PATH);
         }
     }
 
     @Override
     public void deleteFile(String objectName) {
-        Path filePath = Paths.get(rootPath, objectName);
         try {
+            Path filePath = resolveWithinRoot(objectName);
             Files.deleteIfExists(filePath);
             log.info("Exclusão de arquivo local concluída: {}", objectName);
         } catch (IOException e) {
             log.error("Erro na exclusão do arquivo {}: {}", objectName, e.getMessage());
             throw new RuntimeException("Falha ao excluir o arquivo do disco.", e);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException(INVALID_STORAGE_PATH);
         }
+    }
+
+    private Path resolveWithinRoot(String objectName) {
+        if (objectName == null || objectName.isBlank()) {
+            throw new IllegalArgumentException(INVALID_STORAGE_PATH);
+        }
+
+        Path root = Paths.get(rootPath).toAbsolutePath().normalize();
+        String normalizedObjectName = objectName.trim().replace('\\', '/');
+        while (normalizedObjectName.startsWith("/")) {
+            normalizedObjectName = normalizedObjectName.substring(1);
+        }
+
+        Path relativePath = Paths.get(normalizedObjectName).normalize();
+        if (relativePath.isAbsolute() || relativePath.startsWith("..")) {
+            throw new IllegalArgumentException(INVALID_STORAGE_PATH);
+        }
+
+        Path finalPath = root.resolve(relativePath).normalize();
+        if (!finalPath.startsWith(root)) {
+            throw new IllegalArgumentException(INVALID_STORAGE_PATH);
+        }
+
+        return finalPath;
     }
 }

@@ -11,7 +11,6 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +38,11 @@ public class DocumentProviderImpl implements DocumentProvider {
     public Document findById(UUID documentId) {
         var entity = documentRepository.findById(documentId).orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
         return entity.toDomain();
+    }
+
+    @Override
+    public Optional<Document> findByIdAndEmployeeId(UUID documentId, UUID employeeId) {
+        return documentRepository.findByDocumentIdAndEmployeeId(documentId, employeeId).map(DocumentEntity::toDomain);
     }
 
     @Override
