@@ -7,6 +7,7 @@ import com.kts.kronos.application.port.in.usecase.AejUseCase;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase; // Adicionado
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.TechnicalCertificatePdfService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
@@ -36,6 +37,7 @@ public class LegalController {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
+    private final DomainAuthorizationService domainAuthorizationService;
     private final TechnicalCertificatePdfService certificateService;
     private final DigitalSignatureService signatureService;
 
@@ -104,16 +106,7 @@ public class LegalController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             HttpServletResponse response
     ) throws IOException {
-
-        UUID loggedId = jwtAuthenticatedUser.getEmployeeId();
-        UUID employeeIdToGenerate;
-
-        // Lógica simples de segurança: Se for Manager e passar ID, usa o ID. Senão, usa o próprio.
-        if (targetEmployeeId != null && jwtAuthenticatedUser.getRoleFromToken().equals("MANAGER")) {
-            employeeIdToGenerate = targetEmployeeId;
-        } else {
-            employeeIdToGenerate = loggedId;
-        }
+        UUID employeeIdToGenerate = domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId).employeeId();
 
         byte[] pdfBytes = pointMirrorPdfUseCase.generateMirror(employeeIdToGenerate, startDate, endDate);
 
