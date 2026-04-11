@@ -364,11 +364,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {
-        var employee = getEmployee(employeeId);
-        var record = getTimeRecord(recordId);
-
-        isRecordBelongsEmployee(employee.employeeId(), record);
-
+        var record = getRecord(employeeId, recordId);
         recordRepository.deleteTimeRecord(record);
     }
 
@@ -1161,7 +1157,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
 
     private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
-        var employee = getEmployee(employeeId);
+        var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var record = getTimeRecord(timeRecordId);
 
         isRecordBelongsEmployee(employee.employeeId(), record);
