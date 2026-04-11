@@ -68,6 +68,7 @@ public class CompanyController {
     }
 
     @GetMapping(CHECK_CNPJ)
+    @PreAuthorize(KRONOS)
     public ResponseEntity<Void> checkCnpjAvailability(@RequestParam String cnpj) {
         if (useCase.cnpjExists(cnpj)) {
             return ResponseEntity.ok().build();
