@@ -69,7 +69,7 @@ public class UserService implements UserUseCase {
         var targetUser = userProvider.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
-        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
+        if (jwtAuthenticatedUser.getCurrentRole() == Role.CTO) {
             return targetUser;
         }
 
@@ -101,7 +101,7 @@ public class UserService implements UserUseCase {
                 ? userProvider.findAll()
                 : userProvider.findByActive(active);
 
-        if (jwtAuthenticatedUser.getRoleFromToken().equals("CTO")) {
+        if (jwtAuthenticatedUser.getCurrentRole() == Role.CTO) {
             return allUsers;
         }
 

@@ -11,6 +11,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,17 +87,12 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public List<Document> listDocuments(DocumentType type, UUID employeeId, LocalDate date) {
-        // 1. Identifica a Role de quem está logado
-        String currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-
-        // 2. Define se é uma "Visão de Gestor"
-        boolean isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        boolean isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
         var targetEmployee = getEmployee(employeeId);
         var targetEmployeeId = targetEmployee.employeeId();
 
-        // 4. Chama o Provider passando a flag de visão
-        // O Provider decidirá qual query do Repository executar baseada no booleano
         if (date == null) {
             return documentProvider.findByEmployeeAndType(targetEmployeeId, type, isManagerView);
         } else {
@@ -111,8 +107,8 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-        var currentUserId = jwtAuthenticatedUser.getEmployeeId(); // ou getUserId dependendo da sua lógica de auth
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        var currentUserId = jwtAuthenticatedUser.getEmployeeId();
         var targetEmployee = getTargetEmployeeForDocumentOperation(employeeId);
         var doc = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
@@ -125,7 +121,7 @@ public class DocumentService implements DocumentUseCase {
             }
         }
         Document updatedDoc;
-        boolean isManager = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
         if (isManager) {
             updatedDoc = doc.markDeletedByManager();
@@ -168,8 +164,8 @@ public class DocumentService implements DocumentUseCase {
     }
 
     private void validateManagerTenantScope(Employee targetEmployee) {
-        var currentUserRole = jwtAuthenticatedUser.getRoleFromToken();
-        var isManagerView = "MANAGER".equals(currentUserRole) || "CTO".equals(currentUserRole);
+        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+        var isManagerView = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
         if (!isManagerView) {
             return;
         }
