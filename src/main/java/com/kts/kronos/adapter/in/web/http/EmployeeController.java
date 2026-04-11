@@ -98,6 +98,7 @@ public class EmployeeController {
     }
 
     @GetMapping(CHECK_CPF)
+    @PreAuthorize(ADMINISTRATOR)
     public ResponseEntity<Void> checkCpfAvailability(@RequestParam String cpf) {
         if (useCase.cpfExists(cpf)) {
             return ResponseEntity.ok().build();
