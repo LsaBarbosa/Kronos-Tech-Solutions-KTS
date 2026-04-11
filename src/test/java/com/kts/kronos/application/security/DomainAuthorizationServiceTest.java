@@ -64,8 +64,8 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("employeeId opcional: usa colaborador autenticado por padrão")
-    void shouldDefaultToAuthenticatedEmployeeWhenRequestedEmployeeIsNull() {
+    @DisplayName("employeeId: partner acessa próprio colaborador")
+    void shouldAllowPartnerOwnEmployeeAccess() {
         when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
@@ -100,6 +100,30 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("userId: partner acessa apenas próprio usuário")
+    void shouldAllowPartnerOwnUserAccess() {
+        var ownUser = buildUser(loggedUserId, loggedEmployeeId);
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(loggedUserId);
+        when(userProvider.findById(loggedUserId)).thenReturn(Optional.of(ownUser));
+
+        var result = service.authorizeUserAccess(loggedUserId);
+
+        assertEquals(loggedUserId, result.userId());
+    }
+
+    @Test
+    @DisplayName("userId: partner não acessa usuário de terceiro")
+    void shouldDenyPartnerAccessOtherUser() {
+        var targetUser = buildUser(UUID.randomUUID(), sameTenantEmployee.employeeId());
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(loggedUserId);
+        when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
+
+        assertThrows(ForbiddenException.class, () -> service.authorizeUserAccess(targetUser.userId()));
+    }
+
+    @Test
     @DisplayName("userId: manager acessa usuário do mesmo tenant")
     void shouldAllowManagerAccessSameTenantUser() {
         var targetUser = buildUser(UUID.randomUUID(), sameTenantEmployee.employeeId());
@@ -128,7 +152,7 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("documentId: manager acessa documento do mesmo tenant")
+    @DisplayName("documentId: manager acessa documento de colaborador do mesmo tenant")
     void shouldAllowManagerAccessSameTenantDocument() {
         var documentId = UUID.randomUUID();
         var document = buildDocument(documentId, sameTenantEmployee.employeeId());
@@ -145,7 +169,7 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("documentId: manager não acessa documento de outro tenant")
+    @DisplayName("documentId: manager não acessa documento cross-tenant")
     void shouldDenyManagerAccessCrossTenantDocument() {
         var documentId = UUID.randomUUID();
         when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
@@ -156,6 +180,40 @@ class DomainAuthorizationServiceTest {
         assertThrows(ForbiddenException.class,
                 () -> service.authorizeDocumentAccess(documentId, otherTenantEmployee.employeeId()));
         verify(documentProvider, never()).findByIdAndEmployeeId(documentId, otherTenantEmployee.employeeId());
+    }
+
+    @Test
+    @DisplayName("companyId: manager acessa apenas própria empresa")
+    void shouldAllowManagerOwnCompanyAccess() {
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+
+        var result = service.authorizeCompanyAccess(companyAId);
+
+        assertEquals(companyAId, result);
+    }
+
+    @Test
+    @DisplayName("companyId: manager não acessa empresa de outro tenant")
+    void shouldDenyManagerOtherCompanyAccess() {
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+
+        assertThrows(ForbiddenException.class, () -> service.authorizeCompanyAccess(companyBId));
+    }
+
+    @Test
+    @DisplayName("companyId: cto pode acessar qualquer empresa")
+    void shouldAllowCtoAccessAnyCompany() {
+        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("CTO");
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+
+        var result = service.authorizeCompanyAccess(companyBId);
+
+        assertEquals(companyBId, result);
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
