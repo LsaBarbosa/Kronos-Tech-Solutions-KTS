@@ -1,0 +1,55 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:kronos;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  mail:
+    host: localhost
+    port: 2525
+    username: test@kronos.local
+    password: test
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+file:
+  storage:
+    root-path: /tmp/kronos-tests
+
+app:
+  security:
+    public-docs-enabled: false
+
+jwt:
+  secret: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+  expiration: 3600000
+
+frontend:
+  base-url-plataform: http://localhost:4200
+  base-url-record: http://localhost:4201
+  base-url-local: http://localhost:3000
+  base-url-local-2: http://127.0.0.1:3000
+
+aws:
+  region: us-east-1
+  access-key-id: test-access-key
+  secret-access-key: test-secret-key
+  s3:
+    bucket-name: test-bucket
+    bucket-name-doc: test-bucket-docs
+  rekognition:
+    collection-id: test-collection
+
+kronos:
+  security:
+    certificate:
+      path: /tmp/test-cert.pfx
+      password: test-password
+    biometric-term-salt: test-salt
