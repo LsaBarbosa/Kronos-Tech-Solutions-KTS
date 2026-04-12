@@ -21,7 +21,7 @@ import java.util.UUID;
 @Builder
 public class PasswordResetTokenEntity {
     @Id
-    @Column(name = "token", length = 36, nullable = false)
+    @Column(name = "token", length = 64, nullable = false)
     private String token;
 
     @Column(name = "user_id", columnDefinition = "CHAR(36)", nullable = false, unique = true)
