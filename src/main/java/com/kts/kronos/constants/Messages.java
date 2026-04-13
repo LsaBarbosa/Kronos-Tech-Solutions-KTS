@@ -53,6 +53,8 @@ public class Messages {
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
     public static final String LOCATION_REQUIRED_ON_ADDRESS_CHANGE = "Location (latitude e longitude) é obrigatório se o endereço for alterado.";
+    public static final String USER_ALREADY_LINKED_TO_EMPLOYEE = "Já existe um usuário vinculado a este colaborador.";
+    public static final String EMPLOYEE_HAS_LINKED_USER = "Não é possível excluir o colaborador enquanto existir um usuário vinculado. Exclua o usuário primeiro.";
 
     // Time Record / Validation
     public static final String RECORD_NOT_FOUND = "TimeRecord não encontrado: ";
