@@ -37,7 +37,7 @@ public class UserEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    @Column(name = "employee_id", columnDefinition = "CHAR(36)")
+    @Column(name = "employee_id", columnDefinition = "CHAR(36)", unique = true)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
