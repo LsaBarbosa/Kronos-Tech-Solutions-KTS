@@ -2,6 +2,7 @@ package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.User;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,4 +15,6 @@ public interface UserProvider {
     List<User> findByActive(boolean active);
     Optional<User> findByEmployeeId(UUID employeeId);
     void deleteById(UUID userId);
+    List<User> findByEmployeeIds(Collection<UUID> employeeIds);
+    List<User> findByEmployeeIdsAndActive(Collection<UUID> employeeIds, boolean active);
 }

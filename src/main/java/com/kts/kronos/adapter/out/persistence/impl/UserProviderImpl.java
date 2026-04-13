@@ -7,6 +7,7 @@ import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +58,30 @@ public class UserProviderImpl implements UserProvider {
     public Optional<User> findByEmployeeId(UUID employeeId) {
         Optional<UserEntity> opt = jpa.findByEmployeeId(employeeId);
         return opt.map(UserEntity::toDomain);
+    }
+
+    @Override
+    public List<User> findByEmployeeIds(Collection<UUID> employeeIds) {
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdIn(employeeIds)
+                .stream()
+                .map(UserEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<User> findByEmployeeIdsAndActive(Collection<UUID> employeeIds, boolean active) {
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdInAndActive(employeeIds, active)
+                .stream()
+                .map(UserEntity::toDomain)
+                .toList();
     }
 
     @Override
