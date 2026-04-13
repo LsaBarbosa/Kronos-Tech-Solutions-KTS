@@ -11,7 +11,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
 public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Long> {
     @Query(
             value = "SELECT * FROM tb_time_records " +
@@ -55,5 +59,97 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             LocalDateTime startWorkEnd
     );
 
+    @Query(
+            value = """
+                SELECT tr
+                FROM TimeRecordEntity tr
+                JOIN EmployeeEntity e ON e.employeeId = tr.employeeId
+                WHERE e.companyId = :companyId
+                  AND tr.startWork IS NOT NULL
+                  AND tr.statusRecord IN :statuses
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
+                ORDER BY tr.startWork DESC, tr.timeRecordId DESC
+                """,
+            countQuery = """
+                SELECT COUNT(tr)
+                FROM TimeRecordEntity tr
+                JOIN EmployeeEntity e ON e.employeeId = tr.employeeId
+                WHERE e.companyId = :companyId
+                  AND tr.startWork IS NOT NULL
+                  AND tr.statusRecord IN :statuses
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
+                """
+    )
+    Page<TimeRecordEntity> findTimeOffRequestsByCompanyId(
+            Pageable pageable,
+            @Param("companyId") UUID companyId,
+            @Param("statuses") Collection<StatusRecord> statuses,
+            @Param("employeeName") String employeeName
+    );
+
+    @Query(
+            value = """
+                WITH vacation_days AS (
+                    SELECT
+                        tr.time_record_id,
+                        tr.employee_id,
+                        e.full_name AS employee_name,
+                        tr.status_record,
+                        CAST(tr.start_work AS date) AS work_day,
+                        CAST(tr.start_work AS date)
+                            - (ROW_NUMBER() OVER (
+                                PARTITION BY tr.employee_id, tr.status_record
+                                ORDER BY CAST(tr.start_work AS date), tr.time_record_id
+                            ))::int AS grp
+                    FROM tb_time_records tr
+                    JOIN tb_employee e ON e.employee_id = tr.employee_id
+                    WHERE e.company_id = :companyId
+                      AND tr.start_work IS NOT NULL
+                      AND tr.status_record IN (:statuses)
+                      AND (:employeeName IS NULL OR LOWER(e.full_name) LIKE :employeeName)
+                )
+                SELECT
+                    employee_id AS "employeeId",
+                    employee_name AS "employeeName",
+                    MIN(work_day) AS "startDate",
+                    MAX(work_day) AS "endDate",
+                    status_record AS "status",
+                    STRING_AGG(time_record_id::text, ',' ORDER BY work_day, time_record_id) AS "timeRecordIdsCsv"
+                FROM vacation_days
+                GROUP BY employee_id, employee_name, status_record, grp
+                ORDER BY MIN(work_day) ASC, employee_name ASC
+                """,
+            countQuery = """
+                WITH vacation_days AS (
+                    SELECT
+                        tr.employee_id,
+                        tr.status_record,
+                        CAST(tr.start_work AS date)
+                            - (ROW_NUMBER() OVER (
+                                PARTITION BY tr.employee_id, tr.status_record
+                                ORDER BY CAST(tr.start_work AS date), tr.time_record_id
+                            ))::int AS grp
+                    FROM tb_time_records tr
+                    JOIN tb_employee e ON e.employee_id = tr.employee_id
+                    WHERE e.company_id = :companyId
+                      AND tr.start_work IS NOT NULL
+                      AND tr.status_record IN (:statuses)
+                      AND (:employeeName IS NULL OR LOWER(e.full_name) LIKE :employeeName)
+                )
+                SELECT COUNT(*)
+                FROM (
+                    SELECT employee_id, status_record, grp
+                    FROM vacation_days
+                    GROUP BY employee_id, status_record, grp
+                ) grouped
+                """,
+            nativeQuery = true
+    )
+    Page<VacationRequestPeriodProjection> findVacationRequestPeriodsByCompanyId(
+            Pageable pageable,
+            @Param("companyId") UUID companyId,
+            @Param("statuses") Collection<String> statuses,
+            @Param("employeeName") String employeeName
+    );
 
 }
