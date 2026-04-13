@@ -49,6 +49,10 @@ public class UserService implements UserUseCase {
 
         findById(req.employeeId());
 
+        if (userProvider.findByEmployeeId(req.employeeId()).isPresent()) {
+            throw new BadRequestException(USER_ALREADY_LINKED_TO_EMPLOYEE);
+        }
+
         var randomSystemPassword = UUID.randomUUID().toString();
         var hashed = passwordEncoder.encode(randomSystemPassword);
 

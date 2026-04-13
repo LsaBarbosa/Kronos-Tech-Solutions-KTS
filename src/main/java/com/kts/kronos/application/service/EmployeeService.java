@@ -205,6 +205,11 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public void deleteEmployee(UUID id) {
         var employee = getEmployee(id);
+
+        if (userProvider.findByEmployeeId(employee.employeeId()).isPresent()) {
+            throw new BadRequestException(EMPLOYEE_HAS_LINKED_USER);
+        }
+
         employeeProvider.deleteById(employee.employeeId());
     }
     // PARTNER
