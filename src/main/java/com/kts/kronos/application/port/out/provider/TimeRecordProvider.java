@@ -1,9 +1,11 @@
 package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.TimeRecord;
+import com.kts.kronos.domain.model.enuns.StatusRecord;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +25,10 @@ public interface TimeRecordProvider {
 
     List<TimeRecord> findByEmployeeId(UUID employeeId);
 
+    List<TimeRecord> findAllByIds(Collection<Long> ids);
+
+    List<TimeRecord> findByEmployeeIdsAndStatuses(Collection<UUID> employeeIds,
+                                                  Collection<StatusRecord> statuses);
 
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
     void deleteByEmployeeId(UUID employeeId);
