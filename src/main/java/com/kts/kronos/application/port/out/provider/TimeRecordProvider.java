@@ -29,6 +29,10 @@ public interface TimeRecordProvider {
 
     List<TimeRecord> findByEmployeeId(UUID employeeId);
 
+    List<TimeRecord> findAllByIds(Collection<Long> ids);
+
+    List<TimeRecord> findByEmployeeIdsAndStatuses(Collection<UUID> employeeIds,
+                                                  Collection<StatusRecord> statuses);
 
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
     void deleteByEmployeeId(UUID employeeId);

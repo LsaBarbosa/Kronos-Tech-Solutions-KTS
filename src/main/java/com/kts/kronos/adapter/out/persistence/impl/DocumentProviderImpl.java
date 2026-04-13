@@ -108,5 +108,4 @@ public class DocumentProviderImpl implements DocumentProvider {
                 .map(DocumentEntity::toDomain)
                 .collect(Collectors.toList());
     }
-
 }
