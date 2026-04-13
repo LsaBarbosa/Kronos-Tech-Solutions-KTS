@@ -4,6 +4,7 @@ import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,5 @@ public interface DocumentProvider {
     void deleteByEmployeeId(UUID employeeId);
     List<Document> findByTimeRecordId(Long timeRecordId);
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
+    List<Document> findByTimeRecordIds(Collection<Long> timeRecordIds);
 }
