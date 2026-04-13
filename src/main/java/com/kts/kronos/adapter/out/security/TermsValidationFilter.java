@@ -75,7 +75,9 @@ public class TermsValidationFilter extends OncePerRequestFilter {
                 .detail("Você deve aceitar o Termo de Consentimento Biométrico para acessar este recurso.")
                 .build();
 
-        new ObjectMapper().writeValue(response.getWriter(), problem);
+        new ObjectMapper()
+                .findAndRegisterModules()
+                .writeValue(response.getWriter(), problem);
     }
 
     private void sendRedirectInstruction(HttpServletResponse response) throws IOException {

@@ -10,6 +10,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.lang.reflect.Method;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +40,7 @@ class TermsValidationFilterTest {
     @DisplayName("deve permitir endpoint de termos sem token")
     void shouldAllowTermsEndpointWithoutToken() throws Exception {
         var request = new MockHttpServletRequest("GET", "/terms/status");
+        request.setServletPath("/terms/status");
         var response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, filterChain);
@@ -50,6 +53,7 @@ class TermsValidationFilterTest {
     @DisplayName("deve bloquear endpoint privado quando termos não foram aceitos")
     void shouldBlockPrivateEndpointWhenTermsNotAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
         request.addHeader("Authorization", "Bearer legacy-token");
         var response = new MockHttpServletResponse();
 
@@ -68,6 +72,7 @@ class TermsValidationFilterTest {
     @DisplayName("deve permitir endpoint privado quando termos foram aceitos")
     void shouldAllowPrivateEndpointWhenTermsAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
         request.addHeader("Authorization", "Bearer fresh-token");
         var response = new MockHttpServletResponse();
 
@@ -83,6 +88,7 @@ class TermsValidationFilterTest {
     @DisplayName("deve seguir fluxo quando token é inválido")
     void shouldContinueWhenTokenIsInvalid() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
         request.addHeader("Authorization", "Bearer invalid-token");
         var response = new MockHttpServletResponse();
 
@@ -93,5 +99,59 @@ class TermsValidationFilterTest {
         verify(filterChain).doFilter(request, response);
         verify(jwtUtils, never()).getTermsAcceptedFromToken(any());
     }
-}
 
+    @Test
+    @DisplayName("deve permitir rota privada sem header Authorization")
+    void shouldAllowProtectedRouteWhenAuthorizationHeaderIsMissing() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(jwtUtils);
+    }
+
+    @Test
+    @DisplayName("deve permitir rota privada com header não Bearer")
+    void shouldAllowProtectedRouteWhenAuthorizationHeaderIsNotBearer() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Basic abc123");
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(jwtUtils);
+    }
+
+    @Test
+    @DisplayName("deve permitir requisição OPTIONS sem validação de termos")
+    void shouldAllowOptionsRequestWithoutTermsValidation() throws Exception {
+        var request = new MockHttpServletRequest("OPTIONS", "/documents");
+        request.setServletPath("/documents");
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(jwtUtils);
+    }
+
+    @Test
+    @DisplayName("blockRequest deve retornar 403 com payload ProblemDetail")
+    void shouldBuildProblemDetailPayloadWhenBlockRequestIsCalled() throws Exception {
+        var response = new MockHttpServletResponse();
+        Method blockRequest = TermsValidationFilter.class.getDeclaredMethod("blockRequest", jakarta.servlet.http.HttpServletResponse.class);
+        blockRequest.setAccessible(true);
+
+        blockRequest.invoke(filter, response);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentType().startsWith("application/json"));
+        assertTrue(response.getContentAsString().contains("Termos de Uso Obrigatórios"));
+        assertTrue(response.getContentAsString().contains("Você deve aceitar o Termo de Consentimento Biométrico"));
+    }
+}

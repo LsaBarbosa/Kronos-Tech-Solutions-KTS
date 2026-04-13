@@ -22,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,5 +82,25 @@ class EmailSenderProviderImplTest {
         assertEquals("Falha no envio do e-mail de recuperação.", exception.getMessage());
         assertNotNull(exception.getCause());
     }
-}
 
+    @Test
+    @DisplayName("sendResetEmail: encapsula erro de configuração da mensagem")
+    void shouldWrapMimeMessageConfigurationFailure() {
+        MimeMessage brokenMessage = new MimeMessage(Session.getDefaultInstance(new Properties())) {
+            @Override
+            public void setFrom(jakarta.mail.Address address) throws jakarta.mail.MessagingException {
+                throw new jakarta.mail.MessagingException("invalid sender");
+            }
+        };
+        when(mailSender.createMimeMessage()).thenReturn(brokenMessage);
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> provider.sendResetEmail("destinatario@kts.com", "token-123", "alice", "https://frontend")
+        );
+
+        assertEquals("Falha na configuração do e-mail de recuperação.", exception.getMessage());
+        assertNotNull(exception.getCause());
+        verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+}
