@@ -754,6 +754,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         for (var recordId : request.timeRecordIds()) {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+            domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
 
             if (record.statusRecord() == REQUEST_VACATION) {
                 var approvedRecord = record.withStatus(VACATION); // 4. Manager aprova -> VACATION
@@ -776,6 +777,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         for (var recordId : request.timeRecordIds()) {
             var record = recordRepository.findById(recordId)
                     .orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + recordId));
+            domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
 
             if (record.statusRecord() == REQUEST_VACATION) {
                 var rejectedRecord = record.withStatus(VACATION_REJECTED); // 4. Manager rejeita -> VACATION_REJECTED
@@ -961,6 +963,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public void approveTimeOff(Long timeRecordId) {
         var record = getTimeRecord(timeRecordId);
+        domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
 
         if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
             var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);
@@ -978,6 +981,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     @Override
     public void rejectTimeOff(Long timeRecordId) {
         var record = getTimeRecord(timeRecordId);
+        domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
 
 
         if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
@@ -1116,6 +1120,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
+        domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
 
         if (record.statusRecord() != PENDING_APPROVAL) {
             throw new BadRequestException(RECORD_IS_NOT_AWAITING_APPROVAL);

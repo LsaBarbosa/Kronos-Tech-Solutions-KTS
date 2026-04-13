@@ -5,10 +5,10 @@ import com.kts.kronos.application.port.out.provider.AuditLogProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.S3StorageProvider;
 import com.kts.kronos.application.service.AcceptTermsService;
 import com.kts.kronos.application.service.BiometricTermPdfService;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.DisplayName;
@@ -20,12 +20,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -50,8 +51,6 @@ class AcceptTermsServiceTest {
     @Mock
     private DocumentProvider documentProvider;
     @Mock
-    private S3StorageProvider s3StorageProvider;
-    @Mock
     private AuditLogProvider auditLogProvider;
 
     @Test
@@ -63,7 +62,7 @@ class AcceptTermsServiceTest {
 
         service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit");
 
-        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, s3StorageProvider, auditLogProvider);
+        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditLogProvider);
     }
 
     @Test
@@ -79,7 +78,21 @@ class AcceptTermsServiceTest {
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(pdfService.generateConsentTerm(employee, company, "10.0.0.1", "JUnit-Agent")).thenReturn(pdfBytes);
-        when(s3StorageProvider.uploadFile(anyString(), eq(pdfBytes))).thenReturn("legal/company/file.pdf");
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(List.of(
+                        new Document(
+                                UUID.randomUUID(),
+                                employeeId,
+                                DocumentType.BIOMETRIC_CONSENT_TERM,
+                                "Termo_Aceite_Biometria_12345678901.pdf",
+                                "application/pdf",
+                                "legal/company/file.pdf",
+                                LocalDateTime.now(),
+                                null,
+                                false,
+                                false
+                        )
+                ));
 
         service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent");
 
@@ -90,10 +103,6 @@ class AcceptTermsServiceTest {
                 eq(pdfBytes),
                 eq("Termo_Aceite_Biometria_12345678901.pdf")
         );
-
-        ArgumentCaptor<String> s3KeyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(s3StorageProvider).uploadFile(s3KeyCaptor.capture(), eq(pdfBytes));
-        assertTrue(s3KeyCaptor.getValue().contains("legal/" + companyId + "/" + employeeId));
 
         ArgumentCaptor<com.kts.kronos.domain.model.AuditLog> auditCaptor =
                 ArgumentCaptor.forClass(com.kts.kronos.domain.model.AuditLog.class);
@@ -142,4 +151,3 @@ class AcceptTermsServiceTest {
         );
     }
 }
-
