@@ -29,7 +29,6 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final BiometricTermPdfService pdfService;
     private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
-    private final S3StorageProvider s3StorageProvider;
     private final AuditLogProvider auditLogProvider;
     @Override
     @Transactional
@@ -56,36 +55,37 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         // 1. Gera o PDF assinado eletronicamente
         byte[] pdfBytes = pdfService.generateConsentTerm(employee, company, ipAddress, userAgent);
 
-        // 2. Define o nome do arquivo
+// 2. Define o nome do arquivo
         var filename = String.format("Termo_Aceite_Biometria_%s.pdf", employee.cpf());
 
-        var timestamp = LocalDateTime.now().format(DATE_TIME);
-        var s3Key = String.format("legal/%s/%s/%s_termo_biometria.pdf",
-                company.companyId(),
-                employee.employeeId(),
-                timestamp
-        );
-
-        var storagePath = s3StorageProvider.uploadFile(s3Key, pdfBytes);
-
+// 3. Fonte única de verdade: persiste o documento apenas pelo fluxo canônico
         documentUseCase.uploadGeneratedDocument(
                 DocumentType.BIOMETRIC_CONSENT_TERM,
                 employee.employeeId(),
-                null, // Não vinculado a um TimeRecord específico
+                null,
                 pdfBytes,
                 filename
         );
+
+// 4. Busca o metadado recém-persistido para usar o mesmo artefato na auditoria
+        var persistedDocument = documentProvider.findByEmployeeAndType(
+                        employee.employeeId(),
+                        DocumentType.BIOMETRIC_CONSENT_TERM,
+                        true
+                ).stream()
+                .filter(doc -> filename.equals(doc.fileName()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
 
         var audit = AuditLog.create(
                 employeeId,
                 "ACEITE_TERMOS_BIOMETRIA",
                 ipAddress,
                 userAgent,
-                "Documento gerado e armazenado em: " + storagePath
+                "Documento gerado e armazenado em: " + persistedDocument.storagePath()
         );
 
         auditLogProvider.registerLog(audit);
-        // ------------------------------------------
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
     }
