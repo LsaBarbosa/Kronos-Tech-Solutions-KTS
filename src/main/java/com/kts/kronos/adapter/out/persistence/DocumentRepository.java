@@ -73,5 +73,5 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false")
     List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
 
-
+    List<DocumentEntity> findByTimeRecordIdIn(Collection<Long> timeRecordIds);
 }

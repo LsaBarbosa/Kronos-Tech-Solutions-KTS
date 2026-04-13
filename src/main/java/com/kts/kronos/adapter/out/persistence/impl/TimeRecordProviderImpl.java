@@ -145,7 +145,25 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .count();
     }
 
-    // ... outros métodos ...
+    @Override
+    public List<TimeRecord> findAllByIds(Collection<Long> ids) {
+        List<TimeRecord> result = new ArrayList<>();
+        jpa.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
+        return result;
+    }
+
+    @Override
+    public List<TimeRecord> findByEmployeeIdsAndStatuses(Collection<UUID> employeeIds,
+                                                         Collection<StatusRecord> statuses) {
+        if (employeeIds == null || employeeIds.isEmpty() || statuses == null || statuses.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdInAndStatusRecordInAndStartWorkIsNotNull(employeeIds, statuses)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 
     @Override
     public List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end) {
