@@ -26,6 +26,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,5 +81,23 @@ class UserServiceTenantSecurityTest {
 
         assertThrows(ForbiddenException.class, () -> service.updateUser(userId, request));
         verify(userProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("deleteUser: remove recursos vinculados do usuário autorizado")
+    void shouldDeleteUserAndLinkedEmployeeData() {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        var existing = new User(userId, "john", "hashed", Role.PARTNER, true, employeeId);
+
+        when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
+
+        service.deleteUser(userId);
+
+        var inOrder = inOrder(documentProvider, timeRecordProvider, userProvider, employeeProvider);
+        inOrder.verify(documentProvider).deleteByEmployeeId(employeeId);
+        inOrder.verify(timeRecordProvider).deleteByEmployeeId(employeeId);
+        inOrder.verify(userProvider).deleteById(userId);
+        inOrder.verify(employeeProvider).deleteById(employeeId);
     }
 }
