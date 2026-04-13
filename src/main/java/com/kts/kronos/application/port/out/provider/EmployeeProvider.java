@@ -1,7 +1,9 @@
 package com.kts.kronos.application.port.out.provider;
 
+import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
 import com.kts.kronos.domain.model.Employee;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,5 +18,6 @@ public interface EmployeeProvider {
     List<Employee> findByCompanyIdAndActive(UUID companyId, boolean active);
     boolean cpfExists(String cpf);
     long countByCompanyIdAndActive(UUID companyId, boolean active);
+    List<CompanyEmployeeCountsProjection> countByCompanyIds(Collection<UUID> companyIds);
 }
 

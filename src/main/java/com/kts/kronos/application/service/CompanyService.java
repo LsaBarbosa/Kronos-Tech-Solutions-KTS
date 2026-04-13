@@ -15,8 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
@@ -55,10 +54,8 @@ public class CompanyService implements CompanyUseCase {
         var company = companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
 
-        long activeEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
-        long inactiveEmployees = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
-
-        return company.withEmployeeCounts(activeEmployees, inactiveEmployees);
+        var countsByCompanyId = loadEmployeeCountsByCompanyIds(Set.of(company.companyId()));
+        return applyEmployeeCounts(company, countsByCompanyId);
     }
 
     @Override
@@ -67,14 +64,15 @@ public class CompanyService implements CompanyUseCase {
                 ? companyProvider.findAll()
                 : companyProvider.findByActive(active);
 
-        return companies.stream()
-                .map(company -> {
-                    long activeCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), true);
-                    long inactiveCount = employeeProvider.countByCompanyIdAndActive(company.companyId(), false);
-                    return company.withEmployeeCounts(activeCount, inactiveCount);
-                })
-                .collect(Collectors.toList());
+        var companyIds = companies.stream()
+                .map(Company::companyId)
+                .collect(Collectors.toSet());
 
+        var countsByCompanyId = loadEmployeeCountsByCompanyIds(companyIds);
+
+        return companies.stream()
+                .map(company -> applyEmployeeCounts(company, countsByCompanyId))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -141,5 +139,30 @@ public class CompanyService implements CompanyUseCase {
 
     public boolean cnpjExists(String cnpj) {
         return companyProvider.findByCnpj(cnpj).isPresent();
+    }
+
+    private Map<UUID, long[]> loadEmployeeCountsByCompanyIds(Set<UUID> companyIds) {
+        if (companyIds == null || companyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<UUID, long[]> countsByCompanyId = new HashMap<>();
+
+        employeeProvider.countByCompanyIds(companyIds).forEach(projection -> {
+            long activeCount = projection.getActiveCount() == null ? 0L : projection.getActiveCount();
+            long inactiveCount = projection.getInactiveCount() == null ? 0L : projection.getInactiveCount();
+
+            countsByCompanyId.put(
+                    projection.getCompanyId(),
+                    new long[]{activeCount, inactiveCount}
+            );
+        });
+
+        return countsByCompanyId;
+    }
+
+    private Company applyEmployeeCounts(Company company, Map<UUID, long[]> countsByCompanyId) {
+        long[] counts = countsByCompanyId.getOrDefault(company.companyId(), new long[]{0L, 0L});
+        return company.withEmployeeCounts(counts[0], counts[1]);
     }
 }
