@@ -1,57 +1,88 @@
-package com.kts.kronos.adapter.out.persistence.entity;
+package com.kts.kronos.adapter.out.persistence.impl;
 
-import com.kts.kronos.domain.model.PasswordResetToken;
+import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
+import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-class PasswordResetTokenEntityTest {
+@ExtendWith(MockitoExtension.class)
+class PasswordResetTokenProviderImplTest {
+
+    @Mock
+    private PasswordResetTokenRepository repository;
+
+    @InjectMocks
+    private PasswordResetTokenProviderImpl provider;
 
     @Test
-    @DisplayName("toDomain deve mapear todos os campos da entidade")
-    void shouldMapEntityToDomain() {
+    @DisplayName("generateAndSaveToken: deve persistir hash do token e retornar token bruto")
+    void shouldPersistHashedTokenAndReturnRawToken() {
         UUID userId = UUID.randomUUID();
-        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(30);
-        LocalDateTime createdAt = LocalDateTime.now();
+        when(repository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        PasswordResetTokenEntity entity = PasswordResetTokenEntity.builder()
-                .token("token-abc")
-                .userId(userId)
-                .expiryDate(expiryDate)
-                .createdAt(createdAt)
-                .build();
+        String rawToken = provider.generateAndSaveToken(userId);
 
-        PasswordResetToken domain = entity.toDomain();
+        ArgumentCaptor<PasswordResetTokenEntity> entityCaptor = ArgumentCaptor.forClass(PasswordResetTokenEntity.class);
+        verify(repository).save(entityCaptor.capture());
+        PasswordResetTokenEntity saved = entityCaptor.getValue();
 
-        assertEquals("token-abc", domain.token());
-        assertEquals(userId, domain.userId());
-        assertEquals(expiryDate, domain.expiryDate());
-        assertEquals(createdAt, domain.createdAt());
+        assertEquals(userId, saved.getUserId());
+        assertFalse(rawToken.isBlank());
+        assertFalse(rawToken.equals(saved.getToken()));
+        assertTrue(saved.getToken().matches("^[a-f0-9]{64}$"));
     }
 
     @Test
-    @DisplayName("fromDomain deve mapear todos os campos do domínio")
-    void shouldMapDomainToEntity() {
+    @DisplayName("validateToken: deve validar usando hash e retornar userId")
+    void shouldValidateUsingHashAndReturnUserId() {
         UUID userId = UUID.randomUUID();
-        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(30);
-        LocalDateTime createdAt = LocalDateTime.now();
+        when(repository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        PasswordResetToken domain = new PasswordResetToken(
-                "token-xyz",
-                userId,
-                expiryDate,
-                createdAt
-        );
+        String rawToken = provider.generateAndSaveToken(userId);
+        ArgumentCaptor<PasswordResetTokenEntity> entityCaptor = ArgumentCaptor.forClass(PasswordResetTokenEntity.class);
+        verify(repository).save(entityCaptor.capture());
+        PasswordResetTokenEntity saved = entityCaptor.getValue();
 
-        PasswordResetTokenEntity entity = PasswordResetTokenEntity.fromDomain(domain);
+        when(repository.findByTokenAndExpiryDateAfter(any(), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(saved));
 
-        assertEquals("token-xyz", entity.getToken());
-        assertEquals(userId, entity.getUserId());
-        assertEquals(expiryDate, entity.getExpiryDate());
-        assertEquals(createdAt, entity.getCreatedAt());
+        Optional<UUID> validatedUserId = provider.validateToken(rawToken);
+
+        assertTrue(validatedUserId.isPresent());
+        assertEquals(userId, validatedUserId.get());
+    }
+
+    @Test
+    @DisplayName("deleteToken: deve deletar registro a partir do hash")
+    void shouldDeleteTokenByHashedValue() {
+        UUID userId = UUID.randomUUID();
+        when(repository.findByUserId(userId)).thenReturn(Optional.empty());
+
+        String rawToken = provider.generateAndSaveToken(userId);
+        ArgumentCaptor<PasswordResetTokenEntity> entityCaptor = ArgumentCaptor.forClass(PasswordResetTokenEntity.class);
+        verify(repository).save(entityCaptor.capture());
+        PasswordResetTokenEntity saved = entityCaptor.getValue();
+
+        when(repository.findById(saved.getToken())).thenReturn(Optional.of(saved));
+
+        provider.deleteToken(rawToken);
+
+        verify(repository).delete(saved);
     }
 }

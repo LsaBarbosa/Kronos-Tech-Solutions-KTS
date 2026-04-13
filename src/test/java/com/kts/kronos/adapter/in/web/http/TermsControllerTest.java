@@ -3,7 +3,6 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
-import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +16,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,14 +27,12 @@ class TermsControllerTest {
     private JwtAuthenticatedUser jwtAuthenticatedUser;
     @Mock
     private JwtUtils jwtUtils;
-    @Mock
-    private UserProvider userProvider;
 
     private TermsController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils, userProvider);
+        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils);
     }
 
     @Test
@@ -59,7 +55,6 @@ class TermsControllerTest {
         assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "203.0.113.10", "Desconhecido");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
-        verifyNoInteractions(userProvider);
     }
 
     @Test
