@@ -2,11 +2,13 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
+import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,5 +70,12 @@ public class EmployeeProviderImpl implements EmployeeProvider {
     @Override
     public long countByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.countByCompanyIdAndActive(companyId, active);
+    }
+    @Override
+    public List<CompanyEmployeeCountsProjection> countByCompanyIds(Collection<UUID> companyIds) {
+        if (companyIds == null || companyIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.countByCompanyIds(companyIds);
     }
 }
