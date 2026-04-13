@@ -25,14 +25,23 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
     """)
     Page<TimeRecordApprovalEntity> findAllPageable(Pageable pageable, @Param("employeeName") String employeeName);
 
-    @Query("""
-        SELECT t FROM TimeRecordApprovalEntity t
-        WHERE t.requestingEmployeeId IN (
-            SELECT e.employeeId FROM EmployeeEntity e
-            WHERE e.companyId = :companyId
-            AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
-        )
-    """)
+    @Query(
+            value = """
+                SELECT t
+                FROM TimeRecordApprovalEntity t
+                JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
+                WHERE e.companyId = :companyId
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
+                ORDER BY t.createdAt DESC
+                """,
+            countQuery = """
+                SELECT COUNT(t)
+                FROM TimeRecordApprovalEntity t
+                JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
+                WHERE e.companyId = :companyId
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
+                """
+    )
     Page<TimeRecordApprovalEntity> findAllByCompanyId(
             Pageable pageable,
             @Param("companyId") UUID companyId,
