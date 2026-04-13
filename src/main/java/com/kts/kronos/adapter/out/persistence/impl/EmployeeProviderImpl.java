@@ -7,9 +7,7 @@ import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RequiredArgsConstructor
 @Component
@@ -68,5 +66,12 @@ public class EmployeeProviderImpl implements EmployeeProvider {
     @Override
     public long countByCompanyIdAndActive(UUID companyId, boolean active) {
         return repository.countByCompanyIdAndActive(companyId, active);
+    }
+
+    @Override
+    public List<Employee> findAllByIds(Collection<UUID> ids) {
+        List<Employee> result = new ArrayList<>();
+        repository.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
+        return result;
     }
 }
