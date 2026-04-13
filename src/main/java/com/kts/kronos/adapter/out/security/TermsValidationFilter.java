@@ -23,12 +23,11 @@ public class TermsValidationFilter extends OncePerRequestFilter {
     private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
     // Lista de endpoints permitidos mesmo sem aceite dos termos
     private static final List<String> WHITELIST = Arrays.asList(
-            "/auth",
-            "/terms/accept-biometric",
-            "/terms/status",
-            "/v3/api-docs",
-            "/swagger-ui",
-            "/actuator/health"
+            "/auth",             // Login
+            "/terms",            // Endpoints de Aceite e Status
+            "/v3/api-docs",      // Swagger
+            "/swagger-ui",       // Swagger
+            "/actuator"          // Health checks
     );
 
     @Override
@@ -63,6 +62,22 @@ public class TermsValidationFilter extends OncePerRequestFilter {
 
 
         chain.doFilter(request, response);
+    }
+
+    private void blockRequest(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.FORBIDDEN.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+
+        ProblemDetail problem = ProblemDetail.builder()
+                .title("Termos de Uso Obrigatórios")
+                .status(HttpStatus.FORBIDDEN.value())
+                .detail("Você deve aceitar o Termo de Consentimento Biométrico para acessar este recurso.")
+                .build();
+
+        new ObjectMapper()
+                .findAndRegisterModules()
+                .writeValue(response.getWriter(), problem);
     }
 
     private void sendRedirectInstruction(HttpServletResponse response) throws IOException {
