@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
     private final JavaMailSender mailSender;
-    @Value("${mail.username}")
-    private String emailRemetente; // Renomeado para maior clareza
+    @Value("${spring.mail.username}")
+    private String emailRemetente;
 
     // Utilizando o Bloco de Texto (Text Block) do Java 15+ para código HTML limpo.
     // Ele contém 4 placeholders: %s (Nome), %s (Link Botão), %s (Link Fallback), %s (Texto Fallback)
