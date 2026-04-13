@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -100,5 +101,11 @@ public class DocumentProviderImpl implements DocumentProvider {
         return documentRepository.existsByEmployeeIdAndType(employeeId, type);
     }
 
-
+    @Override
+    public List<Document> findByTimeRecordIds(Collection<Long> timeRecordIds) {
+        return documentRepository.findByTimeRecordIdIn(timeRecordIds)
+                .stream()
+                .map(DocumentEntity::toDomain)
+                .collect(Collectors.toList());
+    }
 }

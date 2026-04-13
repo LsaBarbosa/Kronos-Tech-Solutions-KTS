@@ -13,10 +13,7 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.DomainAuthorizationService;
-import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.TimeRecord;
-import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
+import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -600,26 +597,19 @@ public class TimeRecordService implements TimeRecordUseCase {
             dailyBalanceMap.put(date, balanceStr);
         });
 
-        // =================================================================================
+
 
         // Monta a resposta final
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                recordsInRange.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .collect(Collectors.toSet())
+        );
+
         return recordsInRange.stream()
                 .sorted(Comparator.comparing(TimeRecord::startWork))
                 .map(tr -> {
-
-                    // ALTERADO: Agora recebemos uma lista e pegamos o primeiro (ou o mais recente)
-                    var docs = documentProvider.findByTimeRecordId(tr.timeRecordId());
-                    String documentPath = null;
-
-                    if (!docs.isEmpty()) {
-                        // Pega o último documento enviado (ex: comprovante de saída é mais completo)
-                        // ou simplesmente o primeiro da lista.
-                        // Aqui ordenamos para pegar o mais recente se houver mais de um.
-                        documentPath = docs.stream()
-                                .max(Comparator.comparing(Document::uploadeAt)) // Pega o mais recente
-                                .map(doc -> doc.documentId().toString())
-                                .orElse(docs.getFirst().documentId().toString());
-                    }
+                    String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
                     var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
                     var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
@@ -631,46 +621,75 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName) {
-
-        // 1. SEGURANÇA: Identifica a empresa do Manager logado
         var managerId = jwtAuthenticatedUser.getEmployeeId();
         var manager = employeeProvider.findById(managerId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = manager.companyId();
 
         var pageable = PageRequest.of(page, size);
+        Page<TimeRecordApprovalRequest> approvalsPage =
+                approvalProvider.findAllByCompanyId(pageable, employeeName, companyId);
 
-        // 2. BUSCA SEGURA: Passa o companyId para filtrar no banco
-        Page<TimeRecordApprovalRequest> approvalsPage = approvalProvider.findAllByCompanyId(pageable, employeeName, companyId);
-
-        List<TimeRecordApprovalResponse> responses = new ArrayList<>();
-
-        for (TimeRecordApprovalRequest approvalData : approvalsPage.getContent()) {
-            // ... (O resto da lógica de montagem do DTO permanece igual) ...
-            var timeRecord = recordRepository.findById(approvalData.timeRecordId()).orElse(null);
-            var partnerEmployee = employeeProvider.findById(approvalData.requestingEmployeeId()).orElse(null);
-            var managerUser = userProvider.findById(approvalData.managerId()).orElse(null);
-
-            var docs = documentProvider.findByTimeRecordId(approvalData.timeRecordId());
-            String documentPath = null;
-            if (!docs.isEmpty()) {
-                // Pega o ID do primeiro documento encontrado
-                documentPath = "/documents/" + docs.get(0).documentId();
-            }
-
-            if (partnerEmployee != null && managerUser != null && timeRecord != null) {
-                responses.add(new TimeRecordApprovalResponse(
-                        approvalData.timeRecordId(),
-                        partnerEmployee.fullName(),
-                        managerUser.username(),
-                        approvalData.newStartWork(),
-                        approvalData.newEndWork(),
-                        timeRecord.startWork(),
-                        timeRecord.endWork(),
-                        documentPath
-                ));
-            }
+        if (approvalsPage.isEmpty()) {
+            return new TimeRecordApprovalPageResponse(
+                    Collections.emptyList(),
+                    approvalsPage.getTotalPages(),
+                    approvalsPage.getTotalElements(),
+                    approvalsPage.getNumber(),
+                    approvalsPage.isFirst(),
+                    approvalsPage.isLast()
+            );
         }
+
+        Set<Long> timeRecordIds = approvalsPage.getContent().stream()
+                .map(TimeRecordApprovalRequest::timeRecordId)
+                .collect(Collectors.toSet());
+
+        Set<UUID> requestingEmployeeIds = approvalsPage.getContent().stream()
+                .map(TimeRecordApprovalRequest::requestingEmployeeId)
+                .collect(Collectors.toSet());
+
+        Set<UUID> managerUserIds = approvalsPage.getContent().stream()
+                .map(TimeRecordApprovalRequest::managerId)
+                .collect(Collectors.toSet());
+
+        Map<Long, TimeRecord> timeRecordsById = recordRepository.findAllByIds(timeRecordIds).stream()
+                .collect(Collectors.toMap(TimeRecord::timeRecordId, tr -> tr));
+
+        Map<UUID, Employee> employeesById = employeeProvider.findAllByIds(requestingEmployeeIds).stream()
+                .collect(Collectors.toMap(Employee::employeeId, employee -> employee));
+
+        Map<UUID, User> managerUsersById = userProvider.findAllByIds(managerUserIds).stream()
+                .collect(Collectors.toMap(User::userId, user -> user));
+
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(timeRecordIds);
+
+        List<TimeRecordApprovalResponse> responses = approvalsPage.getContent().stream()
+                .map(approvalData -> {
+                    var timeRecord = timeRecordsById.get(approvalData.timeRecordId());
+                    var partnerEmployee = employeesById.get(approvalData.requestingEmployeeId());
+                    var managerUser = managerUsersById.get(approvalData.managerId());
+
+                    if (partnerEmployee == null || managerUser == null || timeRecord == null) {
+                        return null;
+                    }
+
+                    var documentId = latestDocumentIdByTimeRecordId.get(approvalData.timeRecordId());
+                    var documentPath = documentId == null ? null : "/documents/" + documentId;
+
+                    return new TimeRecordApprovalResponse(
+                            approvalData.timeRecordId(),
+                            partnerEmployee.fullName(),
+                            managerUser.username(),
+                            approvalData.newStartWork(),
+                            approvalData.newEndWork(),
+                            timeRecord.startWork(),
+                            timeRecord.endWork(),
+                            documentPath
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
 
         return new TimeRecordApprovalPageResponse(
                 responses,
@@ -815,12 +834,9 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .collect(Collectors.toSet())
                 : employeeCache.keySet();
 
-
-        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.stream()
-                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
-                .filter(tr -> tr.startWork() != null)
-                .filter(tr -> targetStatuses.contains(tr.statusRecord()))
-                .toList();
+        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.isEmpty()
+                ? Collections.emptyList()
+                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
 
         // 6. Agrupar por funcionário e Status, depois consolidar períodos
         List<VacationRequestResponse> consolidatedRequests = consolidateVacationPeriods(allRecordsInScope, employeeCache);
@@ -1022,11 +1038,15 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .collect(Collectors.toSet())
                 : employeeCache.keySet();
 
-        List<TimeRecord> timeOffRecords = filteredEmployeeIds.stream()
-                .flatMap(empId -> recordRepository.findByEmployeeId(empId).stream())
-                .filter(tr -> tr.startWork() != null)
-                .filter(tr -> targetStatuses.contains(tr.statusRecord()))
-                .toList();
+        List<TimeRecord> timeOffRecords = filteredEmployeeIds.isEmpty()
+                ? Collections.emptyList()
+                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
+
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                timeOffRecords.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .collect(Collectors.toSet())
+        );
 
         var reference = Duration.ofHours(8);
         var companyName = companyUseCase.getCompanyNameById(companyId);
@@ -1036,12 +1056,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     var emp = employeeCache.get(tr.employeeId());
                     var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
 
-                    // --- CORREÇÃO AQUI: Trata o retorno como LISTA ---
-                    var docs = documentProvider.findByTimeRecordId(tr.timeRecordId());
-
-                    // Se a lista não estiver vazia, pega o ID do primeiro documento. Senão, null.
-                    String documentPath = docs.isEmpty() ? null : docs.get(0).documentId().toString();
-                    // --------------------------------------------------
+                    String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
                     return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath, null);
                 })
@@ -1118,6 +1133,34 @@ public class TimeRecordService implements TimeRecordUseCase {
         return consolidated;
     }
 
+    private Map<Long, String> buildLatestDocumentIdMap(Collection<Long> timeRecordIds) {
+        if (timeRecordIds == null || timeRecordIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Long, Document> latestDocumentsByTimeRecordId = documentProvider.findByTimeRecordIds(timeRecordIds).stream()
+                .filter(doc -> doc.timeRecordId() != null)
+                .collect(Collectors.toMap(
+                        Document::timeRecordId,
+                        doc -> doc,
+                        (current, candidate) -> {
+                            if (current.uploadeAt() == null) {
+                                return candidate;
+                            }
+                            if (candidate.uploadeAt() == null) {
+                                return current;
+                            }
+                            return current.uploadeAt().isAfter(candidate.uploadeAt()) ? current : candidate;
+                        }
+                ));
+
+        return latestDocumentsByTimeRecordId.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().documentId().toString()
+                ));
+    }
+
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
         var record = recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
         domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
@@ -1127,7 +1170,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         return record;
     }
-
 
     private static void isRecordBelongsEmployee(UUID employeeId, TimeRecord record) {
         if (!record.employeeId().equals(employeeId)) {
@@ -1155,7 +1197,6 @@ public class TimeRecordService implements TimeRecordUseCase {
     private TimeRecord getTimeRecord(Long timeRecordId) {
         return recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
     }
-
 
     private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
@@ -1370,7 +1411,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
-
     private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
         try {
             // 1. Busca dados da empresa (Caching recomendado em produção)
@@ -1400,5 +1440,4 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
         }
     }
-
 }
