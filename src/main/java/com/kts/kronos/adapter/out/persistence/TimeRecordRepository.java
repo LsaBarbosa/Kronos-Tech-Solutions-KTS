@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,8 +47,11 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             "WHERE tr.employeeId IN (SELECT e.employeeId FROM EmployeeEntity e WHERE e.companyId = :companyId)")
     Long findMaxNsrByCompanyId(@Param("companyId") UUID companyId);
 
+    List<TimeRecordEntity> findByEmployeeIdInAndStatusRecordInAndStartWorkIsNotNull(
+            Collection<UUID> employeeIds,
+            Collection<StatusRecord> statuses
+    );
 
-    // --- NOVO MÉTODO ESSENCIAL ---
     // Busca registros por intervalo. Usado para contar folgas no mês.
     List<TimeRecordEntity> findByEmployeeIdAndStartWorkBetween(
             UUID employeeId,

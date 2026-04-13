@@ -598,26 +598,19 @@ public class TimeRecordService implements TimeRecordUseCase {
             dailyBalanceMap.put(date, balanceStr);
         });
 
-        // =================================================================================
+
 
         // Monta a resposta final
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                recordsInRange.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .collect(Collectors.toSet())
+        );
+
         return recordsInRange.stream()
                 .sorted(Comparator.comparing(TimeRecord::startWork))
                 .map(tr -> {
-
-                    // ALTERADO: Agora recebemos uma lista e pegamos o primeiro (ou o mais recente)
-                    var docs = documentProvider.findByTimeRecordId(tr.timeRecordId());
-                    String documentPath = null;
-
-                    if (!docs.isEmpty()) {
-                        // Pega o último documento enviado (ex: comprovante de saída é mais completo)
-                        // ou simplesmente o primeiro da lista.
-                        // Aqui ordenamos para pegar o mais recente se houver mais de um.
-                        documentPath = docs.stream()
-                                .max(Comparator.comparing(Document::uploadeAt)) // Pega o mais recente
-                                .map(doc -> doc.documentId().toString())
-                                .orElse(docs.getFirst().documentId().toString());
-                    }
+                    String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
                     var date = tr.startWork().atZone(SAO_PAULO).toLocalDate();
                     var dailyBalance = dailyBalanceMap.getOrDefault(date, "+00:00");
@@ -657,7 +650,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .map(TimeRecordApprovalRequest::requestingEmployeeId)
                 .collect(Collectors.toSet());
 
-        Set<UUID> managerIds = approvalsPage.getContent().stream()
+        Set<UUID> managerUserIds = approvalsPage.getContent().stream()
                 .map(TimeRecordApprovalRequest::managerId)
                 .collect(Collectors.toSet());
 
@@ -667,7 +660,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         Map<UUID, Employee> employeesById = employeeProvider.findAllByIds(requestingEmployeeIds).stream()
                 .collect(Collectors.toMap(Employee::employeeId, employee -> employee));
 
-        Map<UUID, User> managersById = userProvider.findAllByIds(managerIds).stream()
+        Map<UUID, User> managerUsersById = userProvider.findAllByIds(managerUserIds).stream()
                 .collect(Collectors.toMap(User::userId, user -> user));
 
         Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(timeRecordIds);
@@ -676,9 +669,9 @@ public class TimeRecordService implements TimeRecordUseCase {
                 .map(approvalData -> {
                     var timeRecord = timeRecordsById.get(approvalData.timeRecordId());
                     var partnerEmployee = employeesById.get(approvalData.requestingEmployeeId());
-                    var managerUser = managersById.get(approvalData.managerId());
+                    var managerUser = managerUsersById.get(approvalData.managerId());
 
-                    if (timeRecord == null || partnerEmployee == null || managerUser == null) {
+                    if (partnerEmployee == null || managerUser == null || timeRecord == null) {
                         return null;
                     }
 
@@ -833,12 +826,31 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var pageable = PageRequest.of(page, size);
 
-        Page<VacationRequestPeriodProjection> vacationPage =
-                recordRepository.findVacationRequestPeriodsByCompanyId(pageable, companyId, targetStatuses, employeeName);
+        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
+        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
 
-        return vacationPage.getContent().stream()
-                .map(this::toVacationRequestResponse)
-                .toList();
+
+        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
+                ? allEmployeesInCompany.stream()
+                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet())
+                : employeeCache.keySet();
+
+        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.isEmpty()
+                ? Collections.emptyList()
+                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
+
+        // 6. Agrupar por funcionário e Status, depois consolidar períodos
+        List<VacationRequestResponse> consolidatedRequests = consolidateVacationPeriods(allRecordsInScope, employeeCache);
+
+        // 7. Ordenar e Paginar (implementação manual)
+        consolidatedRequests.sort(Comparator.comparing(VacationRequestResponse::startDate));
+        int start = Math.min(page * size, consolidatedRequests.size());
+        int end = Math.min(start + size, consolidatedRequests.size());
+
+        return consolidatedRequests.subList(start, end);
     }
     @Override
     public Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document) {
@@ -1018,46 +1030,36 @@ public class TimeRecordService implements TimeRecordUseCase {
             default -> EnumSet.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.TIME_OFF, StatusRecord.TIME_OFF_REJECTED);
         };
 
-        var pageable = PageRequest.of(page, size);
-        Page<TimeRecord> recordsPage =
-                recordRepository.findTimeOffRequestsByCompanyId(pageable, companyId, targetStatuses, employeeName);
+        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
+        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
+                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
 
-        if (recordsPage.isEmpty()) {
-            return new TimeRecordPageResponse(
-                    Collections.emptyList(),
-                    recordsPage.getTotalPages(),
-                    recordsPage.getTotalElements(),
-                    recordsPage.getNumber(),
-                    recordsPage.isFirst(),
-                    recordsPage.isLast()
-            );
-        }
+        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
+                ? employeeCache.values().stream()
+                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet())
+                : employeeCache.keySet();
 
-        Set<UUID> employeeIds = recordsPage.getContent().stream()
-                .map(TimeRecord::employeeId)
-                .collect(Collectors.toSet());
+        List<TimeRecord> timeOffRecords = filteredEmployeeIds.isEmpty()
+                ? Collections.emptyList()
+                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
 
-        Set<Long> timeRecordIds = recordsPage.getContent().stream()
-                .map(TimeRecord::timeRecordId)
-                .collect(Collectors.toSet());
-
-        Map<UUID, Employee> employeesById = employeeProvider.findAllByIds(employeeIds).stream()
-                .collect(Collectors.toMap(Employee::employeeId, employee -> employee));
-
-        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(timeRecordIds);
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                timeOffRecords.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .collect(Collectors.toSet())
+        );
 
         var reference = Duration.ofHours(8);
         var companyName = companyUseCase.getCompanyNameById(companyId);
 
         List<TimeRecordResponse> pageContent = recordsPage.getContent().stream()
                 .map(tr -> {
-                    var emp = employeesById.get(tr.employeeId());
-                    if (emp == null) {
-                        return null;
-                    }
+                    var emp = employeeCache.get(tr.employeeId());
+                    var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
 
-                    var employeeData = new EmployeeData(emp.fullName(), companyName);
-                    var documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
+                    String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
                     return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, null);
                 })
@@ -1129,28 +1131,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         return consolidated;
     }
 
-    private VacationRequestResponse toVacationRequestResponse(VacationRequestPeriodProjection projection) {
-        return new VacationRequestResponse(
-                projection.getEmployeeId(),
-                projection.getEmployeeName(),
-                projection.getStartDate(),
-                projection.getEndDate(),
-                projection.getStatus(),
-                parseTimeRecordIdsCsv(projection.getTimeRecordIdsCsv())
-        );
-    }
-
-    private List<Long> parseTimeRecordIdsCsv(String idsCsv) {
-        if (idsCsv == null || idsCsv.isBlank()) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.stream(idsCsv.split(","))
-                .filter(value -> !value.isBlank())
-                .map(Long::valueOf)
-                .toList();
-    }
-
     private Map<Long, String> buildLatestDocumentIdMap(Collection<Long> timeRecordIds) {
         if (timeRecordIds == null || timeRecordIds.isEmpty()) {
             return Collections.emptyMap();
@@ -1215,7 +1195,6 @@ public class TimeRecordService implements TimeRecordUseCase {
     private TimeRecord getTimeRecord(Long timeRecordId) {
         return recordRepository.findById(timeRecordId).orElseThrow(() -> new ResourceNotFoundException(RECORD_NOT_FOUND + timeRecordId));
     }
-
 
     private TimeRecord getRecord(UUID employeeId, Long timeRecordId) {
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
@@ -1430,7 +1409,6 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
     }
 
-
     private void generateAndSaveReceipt(Employee employee, Long timeRecordId, LocalDateTime recordTime, Long nsr, String typeSuffix) {
         try {
             // 1. Busca dados da empresa (Caching recomendado em produção)
@@ -1460,5 +1438,4 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
         }
     }
-
 }
