@@ -47,4 +47,5 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
             @Param("companyId") UUID companyId,
             @Param("employeeName") String employeeName
     );
+
 }
