@@ -13,6 +13,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import jakarta.transaction.Transactional;
@@ -101,20 +102,23 @@ public class UserService implements UserUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = authenticatedUserEmployee.companyId();
 
-        List<User> allUsers = active == null
-                ? userProvider.findAll()
-                : userProvider.findByActive(active);
-
         if (jwtAuthenticatedUser.getCurrentRole() == Role.CTO) {
-            return allUsers;
+            return active == null
+                    ? userProvider.findAll()
+                    : userProvider.findByActive(active);
         }
 
-        return allUsers.stream()
-                .filter(user -> {
-                    var employee = employeeProvider.findById(user.employeeId());
-                    return employee.isPresent() && employee.get().companyId().equals(companyId);
-                })
-                .collect(Collectors.toList());
+        var employeeIdsFromCompany = employeeProvider.findByCompanyId(companyId).stream()
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet());
+
+        if (employeeIdsFromCompany.isEmpty()) {
+            return List.of();
+        }
+
+        return active == null
+                ? userProvider.findByEmployeeIds(employeeIdsFromCompany)
+                : userProvider.findByEmployeeIdsAndActive(employeeIdsFromCompany, active);
     }
 
     @Override
