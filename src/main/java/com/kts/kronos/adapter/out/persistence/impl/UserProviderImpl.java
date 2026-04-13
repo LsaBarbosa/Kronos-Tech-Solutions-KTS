@@ -7,10 +7,7 @@ import com.kts.kronos.domain.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -87,5 +84,12 @@ public class UserProviderImpl implements UserProvider {
     @Override
     public void deleteById(UUID userId) {
         jpa.deleteById(userId);
+    }
+
+    @Override
+    public List<User> findAllByIds(Collection<UUID> ids) {
+        List<User> result = new ArrayList<>();
+        jpa.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
+        return result;
     }
 }
