@@ -11,6 +11,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
+import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.*;
@@ -812,15 +813,18 @@ public class TimeRecordService implements TimeRecordUseCase {
     public List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var companyId = getEmployee(employeeId).companyId();
+        var normalizedStatusFilter = statusFilter == null ? "" : statusFilter.trim().toUpperCase();
 
-        // 2. Definir os Status a serem buscados
-        Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
-            case PENDING_STATUS -> Set.of(REQUEST_VACATION);
-            case APPROVED_STATUS -> Set.of(VACATION);
-            case REJECTED_STATUS -> Set.of(VACATION_REJECTED);
-            default -> EnumSet.of(REQUEST_VACATION, VACATION, VACATION_REJECTED);
+        Set<String> targetStatuses = switch (normalizedStatusFilter) {
+            case PENDING_STATUS -> Set.of(REQUEST_VACATION.name());
+            case APPROVED_STATUS -> Set.of(VACATION.name());
+            case REJECTED_STATUS -> Set.of(VACATION_REJECTED.name());
+            default -> EnumSet.of(REQUEST_VACATION, VACATION, VACATION_REJECTED).stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toSet());
         };
 
+        var pageable = PageRequest.of(page, size);
 
         List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
         Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
@@ -848,7 +852,6 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         return consolidatedRequests.subList(start, end);
     }
-
     @Override
     public Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
@@ -1016,11 +1019,11 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size) {
-
         var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
         var companyId = getEmployee(managerEmployeeId).companyId();
+        var normalizedStatusFilter = statusFilter == null ? "" : statusFilter.trim().toUpperCase();
 
-        Set<StatusRecord> targetStatuses = switch (statusFilter.toUpperCase()) {
+        Set<StatusRecord> targetStatuses = switch (normalizedStatusFilter) {
             case PENDING_STATUS -> Set.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.WORK_TIME_REQUEST);
             case APPROVED_STATUS -> Set.of(StatusRecord.TIME_OFF, StatusRecord.UPDATED);
             case REJECTED_STATUS -> Set.of(StatusRecord.TIME_OFF_REJECTED, StatusRecord.WORK_TIME_REJECTED);
@@ -1051,34 +1054,29 @@ public class TimeRecordService implements TimeRecordUseCase {
         var reference = Duration.ofHours(8);
         var companyName = companyUseCase.getCompanyNameById(companyId);
 
-        List<TimeRecordResponse> mappedResponses = timeOffRecords.stream()
+        List<TimeRecordResponse> pageContent = recordsPage.getContent().stream()
                 .map(tr -> {
                     var emp = employeeCache.get(tr.employeeId());
                     var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
 
                     String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
-                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath, null);
+                    return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, null);
                 })
-                .sorted(Comparator.comparing(TimeRecordResponse::startWork).reversed())
-                .collect(Collectors.toList());
-
-        long totalElements = mappedResponses.size();
-        int totalPages = (int) Math.ceil((double) totalElements / size);
-        int start = Math.min(page * size, (int) totalElements);
-        int end = Math.min(start + size, (int) totalElements);
-
-        List<TimeRecordResponse> pageContent = mappedResponses.subList(start, end);
+                .filter(Objects::nonNull)
+                .toList();
 
         return new TimeRecordPageResponse(
                 pageContent,
-                totalPages,
-                totalElements,
-                page,
-                page == 0,
-                page >= totalPages - 1
+                recordsPage.getTotalPages(),
+                recordsPage.getTotalElements(),
+                recordsPage.getNumber(),
+                recordsPage.isFirst(),
+                recordsPage.isLast()
         );
     }
+
+
 
     private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
 
