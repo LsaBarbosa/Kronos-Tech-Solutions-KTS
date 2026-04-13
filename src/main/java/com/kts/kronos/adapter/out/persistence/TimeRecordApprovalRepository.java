@@ -18,24 +18,27 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
     @Query("DELETE FROM TimeRecordApprovalEntity t WHERE t.createdAt <= :threshold")
     void deleteByCreatedAtBefore(LocalDateTime threshold);
 
-    @Query(value = """
-        SELECT t FROM TimeRecordApprovalEntity t
-        JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
-        WHERE (:employeeName IS NULL OR e.fullName ILIKE %:employeeName%)
-    """)
-    Page<TimeRecordApprovalEntity> findAllPageable(Pageable pageable, @Param("employeeName") String employeeName);
-
-    @Query("""
-        SELECT t FROM TimeRecordApprovalEntity t
-        WHERE t.requestingEmployeeId IN (
-            SELECT e.employeeId FROM EmployeeEntity e
-            WHERE e.companyId = :companyId
-            AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE :employeeName)
-        )
-    """)
+    @Query(
+            value = """
+                SELECT t
+                FROM TimeRecordApprovalEntity t
+                JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
+                WHERE e.companyId = :companyId
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE CONCAT('%', :employeeName, '%'))
+                ORDER BY t.createdAt DESC
+                """,
+            countQuery = """
+                SELECT COUNT(t)
+                FROM TimeRecordApprovalEntity t
+                JOIN EmployeeEntity e ON e.employeeId = t.requestingEmployeeId
+                WHERE e.companyId = :companyId
+                  AND (:employeeName IS NULL OR LOWER(e.fullName) LIKE CONCAT('%', :employeeName, '%'))
+                """
+    )
     Page<TimeRecordApprovalEntity> findAllByCompanyId(
             Pageable pageable,
             @Param("companyId") UUID companyId,
             @Param("employeeName") String employeeName
     );
+
 }
