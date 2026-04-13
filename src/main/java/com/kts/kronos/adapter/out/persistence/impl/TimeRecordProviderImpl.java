@@ -15,6 +15,12 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 @RequiredArgsConstructor
 @Component
@@ -84,6 +90,43 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     @Override
     public Long findMaxNsrByCompanyId(UUID companyId) {
         return jpa.findMaxNsrByCompanyId(companyId);
+    }
+
+    @Override
+    public List<TimeRecord> findAllByIds(Collection<Long> ids) {
+        List<TimeRecord> result = new ArrayList<>();
+        jpa.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
+        return result;
+    }
+
+    @Override
+    public Page<TimeRecord> findTimeOffRequestsByCompanyId(
+            Pageable pageable,
+            UUID companyId,
+            Collection<StatusRecord> statuses,
+            String employeeName
+    ) {
+        String searchName = buildSearchName(employeeName);
+        return jpa.findTimeOffRequestsByCompanyId(pageable, companyId, statuses, searchName)
+                .map(TimeRecordEntity::toDomain);
+    }
+
+    @Override
+    public Page<VacationRequestPeriodProjection> findVacationRequestPeriodsByCompanyId(
+            Pageable pageable,
+            UUID companyId,
+            Collection<String> statuses,
+            String employeeName
+    ) {
+        String searchName = buildSearchName(employeeName);
+        return jpa.findVacationRequestPeriodsByCompanyId(pageable, companyId, statuses, searchName);
+    }
+
+    private String buildSearchName(String employeeName) {
+        if (employeeName == null || employeeName.isBlank()) {
+            return null;
+        }
+        return "%" + employeeName.toLowerCase() + "%";
     }
 
     @Override
