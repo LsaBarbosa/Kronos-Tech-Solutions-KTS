@@ -32,14 +32,12 @@ public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvide
 
     @Override
     public Page<TimeRecordApprovalRequest> findAllByCompanyId(Pageable pageable, String employeeName, UUID companyId) {
-
         String searchName = null;
+
         if (employeeName != null && !employeeName.isBlank()) {
-            // Formata o padrão de busca no Java para evitar problemas de tipagem no Postgres
-            searchName = "%" + employeeName.toLowerCase() + "%";
+            searchName = employeeName.trim().toLowerCase();
         }
 
-        // Passa o searchName já formatado (ex: "%joao%")
         return repository.findAllByCompanyId(pageable, companyId, searchName)
                 .map(TimeRecordApprovalEntity::toDomain);
     }
