@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
+import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
