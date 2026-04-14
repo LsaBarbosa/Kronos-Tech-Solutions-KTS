@@ -22,9 +22,39 @@ public class JwtUtils {
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration}") long expirationMs
     ) {
-        byte[] secretBytes = Base64.getDecoder().decode(secret);
+        String normalizedSecret = normalizeSecret(secret);
+        byte[] secretBytes;
+        try {
+            secretBytes = Base64.getDecoder().decode(normalizedSecret);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Valor inválido para JWT_SECRET. Use uma chave Base64 válida (sem aspas).",
+                    ex
+            );
+        }
         this.key = Keys.hmacShaKeyFor(secretBytes);
         this.expirationMs = expirationMs;
+    }
+
+    private String normalizeSecret(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException("JWT_SECRET não pode ser nulo ou vazio.");
+        }
+
+        String normalized = secret.trim();
+        if (hasMatchingWrappingQuotes(normalized)) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
+    }
+
+    private boolean hasMatchingWrappingQuotes(String value) {
+        if (value.length() < 2) {
+            return false;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        return (first == '"' && last == '"') || (first == '\'' && last == '\'');
     }
 
     public String generateToken(UUID employeeId, String username, String roleName,  UUID userId,boolean termsAccepted) {
