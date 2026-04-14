@@ -28,7 +28,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -160,5 +162,23 @@ class AuthServiceRecoverPasswordTest {
         assertThat(output.getOut())
                 .doesNotContain("very-secret-token")
                 .doesNotContain(SAFE_FRONTEND_URL);
+    }
+
+    @Test
+    void shouldKeepNeutralBehaviorWhenEmailDispatchFails() {
+        when(employeeProvider.findByCpf(request.cpf())).thenReturn(Optional.of(employee));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
+        when(tokenProvider.generateAndSaveToken(userId)).thenReturn("reset-token-123");
+        doThrow(new RuntimeException("smtp queue rejected")).when(emailSenderProvider)
+                .sendResetEmail("user@kts.com", "reset-token-123", "user.login", SAFE_FRONTEND_URL);
+
+        assertThatCode(() -> authService.recoverPassword(request)).doesNotThrowAnyException();
+
+        verify(emailSenderProvider).sendResetEmail(
+                "user@kts.com",
+                "reset-token-123",
+                "user.login",
+                SAFE_FRONTEND_URL
+        );
     }
 }
