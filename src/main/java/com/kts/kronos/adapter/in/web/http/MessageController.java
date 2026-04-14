@@ -33,8 +33,11 @@ public class MessageController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping
-    public ResponseEntity<List<MessageResponse>> getMessages() {
-        var messages = useCase.listMessagesForMyCompany();
+    public ResponseEntity<List<MessageResponse>> getMessages(
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size
+    ) {
+        var messages = useCase.listMessagesForMyCompany(page, size);
         var responseList = messages.stream()
                 .map(MessageResponse::fromDomain)
                 .collect(Collectors.toList());

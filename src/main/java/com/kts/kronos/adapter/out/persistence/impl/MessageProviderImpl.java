@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.persistence.entity.MessageEntity;
 import com.kts.kronos.application.port.out.provider.MessageProvider;
 import com.kts.kronos.domain.model.Message;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -39,6 +40,14 @@ public class MessageProviderImpl implements MessageProvider {
     @Override
     public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId) {
         return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)
+                .stream()
+                .map(MessageEntity::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId, Pageable pageable) {
+        return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId, pageable)
                 .stream()
                 .map(MessageEntity::toDomain)
                 .collect(Collectors.toList());

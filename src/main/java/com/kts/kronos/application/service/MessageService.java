@@ -7,9 +7,10 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.MessageProvider;
+import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.Message;
-import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,9 @@ import static com.kts.kronos.constants.Messages.*;
 @Transactional
 public class MessageService implements MessageUseCase {
 
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_SIZE = 50;
+    private static final int MAX_SIZE = 200;
 
     private final MessageProvider messageProvider;
     private final EmployeeProvider employeeProvider;
@@ -64,11 +68,28 @@ public class MessageService implements MessageUseCase {
 
     @Override
     public List<Message> listMessagesForMyCompany() {
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = employeeProvider.findById(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        var employee = getAuthenticatedEmployee();
         var companyId = employee.companyId();
+        var employeeId = employee.employeeId();
+
         return messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId);
+    }
+
+    @Override
+    public List<Message> listMessagesForMyCompany(Integer page, Integer size) {
+        if (page == null && size == null) {
+            return listMessagesForMyCompany();
+        }
+
+        int safePage = page == null || page < 0 ? DEFAULT_PAGE : page;
+        int safeSize = size == null || size <= 0 ? DEFAULT_SIZE : Math.min(size, MAX_SIZE);
+
+        var employee = getAuthenticatedEmployee();
+        return messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(
+                employee.companyId(),
+                employee.employeeId(),
+                PageRequest.of(safePage, safeSize)
+        );
     }
 
     @Override
@@ -84,5 +105,10 @@ public class MessageService implements MessageUseCase {
         messageProvider.deleteByMessageIdAndEmployeeId(messageId, senderEmployeeId);
     }
 
+    private Employee getAuthenticatedEmployee() {
+        var employeeId = jwtAuthenticatedUser.getEmployeeId();
+        return employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+    }
 
 }

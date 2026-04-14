@@ -11,6 +11,7 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -122,12 +123,19 @@ public class CompanyService implements CompanyUseCase {
         companyProvider.save(toggleActivate);
 
         var employees = employeeProvider.findByCompanyId(company.companyId());
-        for (var employee : employees) {
-            userProvider.findByEmployeeId(employee.employeeId()).ifPresent(user -> {
-                if (user.active() != newStatus) {
-                    userUseCase.toggleActivate(user.userId());
-                }
-            });
+        var employeeIds = employees.stream()
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet());
+
+        if (employeeIds.isEmpty()) {
+            return;
+        }
+
+        var users = userProvider.findByEmployeeIds(employeeIds);
+        for (var user : users) {
+            if (user.active() != newStatus) {
+                userUseCase.toggleActivate(user.userId());
+            }
         }
     }
 

@@ -825,32 +825,19 @@ public class TimeRecordService implements TimeRecordUseCase {
         };
 
         var pageable = PageRequest.of(page, size);
+        Page<VacationRequestPeriodProjection> periodsPage =
+                recordRepository.findVacationRequestPeriodsByCompanyId(pageable, companyId, targetStatuses, employeeName);
 
-        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
-        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
-                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
-
-
-        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
-                ? allEmployeesInCompany.stream()
-                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
-                .map(Employee::employeeId)
-                .collect(Collectors.toSet())
-                : employeeCache.keySet();
-
-        List<TimeRecord> allRecordsInScope = filteredEmployeeIds.isEmpty()
-                ? Collections.emptyList()
-                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
-
-        // 6. Agrupar por funcionário e Status, depois consolidar períodos
-        List<VacationRequestResponse> consolidatedRequests = consolidateVacationPeriods(allRecordsInScope, employeeCache);
-
-        // 7. Ordenar e Paginar (implementação manual)
-        consolidatedRequests.sort(Comparator.comparing(VacationRequestResponse::startDate));
-        int start = Math.min(page * size, consolidatedRequests.size());
-        int end = Math.min(start + size, consolidatedRequests.size());
-
-        return consolidatedRequests.subList(start, end);
+        return periodsPage.getContent().stream()
+                .map(period -> new VacationRequestResponse(
+                        period.getEmployeeId(),
+                        period.getEmployeeName(),
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        period.getStatus(),
+                        parseTimeRecordIdsCsv(period.getTimeRecordIdsCsv())
+                ))
+                .toList();
     }
     @Override
     public Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document) {
@@ -1027,26 +1014,33 @@ public class TimeRecordService implements TimeRecordUseCase {
             case PENDING_STATUS -> Set.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.WORK_TIME_REQUEST);
             case APPROVED_STATUS -> Set.of(StatusRecord.TIME_OFF, StatusRecord.UPDATED);
             case REJECTED_STATUS -> Set.of(StatusRecord.TIME_OFF_REJECTED, StatusRecord.WORK_TIME_REJECTED);
-            default -> EnumSet.of(StatusRecord.TIME_OFF_REQUEST, StatusRecord.TIME_OFF, StatusRecord.TIME_OFF_REJECTED);
+            default -> EnumSet.of(
+                    StatusRecord.TIME_OFF_REQUEST,
+                    StatusRecord.WORK_TIME_REQUEST,
+                    StatusRecord.TIME_OFF,
+                    StatusRecord.UPDATED,
+                    StatusRecord.TIME_OFF_REJECTED,
+                    StatusRecord.WORK_TIME_REJECTED
+            );
         };
 
-        List<Employee> allEmployeesInCompany = employeeProvider.findByCompanyId(companyId);
-        Map<UUID, Employee> employeeCache = allEmployeesInCompany.stream()
-                .collect(Collectors.toMap(Employee::employeeId, emp -> emp));
+        var pageable = PageRequest.of(page, size);
+        Page<TimeRecord> recordsPage = recordRepository.findTimeOffRequestsByCompanyId(
+                pageable,
+                companyId,
+                targetStatuses,
+                employeeName
+        );
 
-        Set<UUID> filteredEmployeeIds = employeeName != null && !employeeName.isBlank()
-                ? employeeCache.values().stream()
-                .filter(emp -> emp.fullName().toLowerCase().contains(employeeName.toLowerCase()))
-                .map(Employee::employeeId)
-                .collect(Collectors.toSet())
-                : employeeCache.keySet();
-
-        List<TimeRecord> timeOffRecords = filteredEmployeeIds.isEmpty()
-                ? Collections.emptyList()
-                : recordRepository.findByEmployeeIdsAndStatuses(filteredEmployeeIds, targetStatuses);
+        Map<UUID, Employee> employeesById = employeeProvider.findAllByIds(
+                        recordsPage.getContent().stream()
+                                .map(TimeRecord::employeeId)
+                                .collect(Collectors.toSet())
+                ).stream()
+                .collect(Collectors.toMap(Employee::employeeId, employee -> employee));
 
         Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
-                timeOffRecords.stream()
+                recordsPage.getContent().stream()
                         .map(TimeRecord::timeRecordId)
                         .collect(Collectors.toSet())
         );
@@ -1056,12 +1050,15 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         List<TimeRecordResponse> pageContent = recordsPage.getContent().stream()
                 .map(tr -> {
-                    var emp = employeeCache.get(tr.employeeId());
+                    var emp = employeesById.get(tr.employeeId());
+                    if (emp == null) {
+                        return null;
+                    }
                     var recordEmployeeData = new EmployeeData(emp.fullName(), companyName);
 
                     String documentPath = latestDocumentIdByTimeRecordId.get(tr.timeRecordId());
 
-                    return TimeRecordResponse.fromDomain(tr, reference, employeeData, documentPath, null);
+                    return TimeRecordResponse.fromDomain(tr, reference, recordEmployeeData, documentPath, null);
                 })
                 .filter(Objects::nonNull)
                 .toList();
@@ -1076,59 +1073,15 @@ public class TimeRecordService implements TimeRecordUseCase {
         );
     }
 
-
-
-    private List<VacationRequestResponse> consolidateVacationPeriods(List<TimeRecord> records, Map<UUID, Employee> employeeCache) {
-
-        // 1. Agrupar por EmployeeId e Status
-        Map<UUID, Map<StatusRecord, List<TimeRecord>>> grouped = records.stream()
-                .collect(Collectors.groupingBy(
-                        TimeRecord::employeeId,
-                        Collectors.groupingBy(TimeRecord::statusRecord)
-                ));
-
-        List<VacationRequestResponse> consolidated = new ArrayList<>();
-
-        for (var entryByEmployee : grouped.entrySet()) {
-            UUID empId = entryByEmployee.getKey();
-            Employee employee = employeeCache.get(empId);
-            if (employee == null) continue;
-
-            for (var entryByStatus : entryByEmployee.getValue().entrySet()) {
-                List<TimeRecord> dailyRecords = entryByStatus.getValue();
-
-                // Ordenar por data
-                dailyRecords.sort(Comparator.comparing(tr -> tr.startWork().toLocalDate()));
-
-                List<TimeRecord> currentPeriod = new ArrayList<>();
-                for (TimeRecord record : dailyRecords) {
-                    LocalDate currentDay = record.startWork().toLocalDate();
-
-                    if (currentPeriod.isEmpty()) {
-                        currentPeriod.add(record);
-                        continue;
-                    }
-
-                    LocalDate lastDayInPeriod = currentPeriod.getLast().startWork().toLocalDate();
-
-                    // Verifica se o dia atual é o dia imediatamente consecutivo
-                    if (currentDay.isEqual(lastDayInPeriod.plusDays(1))) {
-                        currentPeriod.add(record);
-                    } else {
-                        // O período contínuo quebrou. Finaliza o período anterior.
-                        consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
-                        currentPeriod = new ArrayList<>();
-                        currentPeriod.add(record);
-                    }
-                }
-
-                // Adicionar o último período remanescente, se houver
-                if (!currentPeriod.isEmpty()) {
-                    consolidated.add(VacationRequestResponse.fromConsolidatedPeriod(employee, currentPeriod));
-                }
-            }
+    private List<Long> parseTimeRecordIdsCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return List.of();
         }
-        return consolidated;
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(Long::parseLong)
+                .toList();
     }
 
     private Map<Long, String> buildLatestDocumentIdMap(Collection<Long> timeRecordIds) {
