@@ -1,6 +1,8 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.MessageEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,5 +27,17 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
     List<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
             @Param("companyId") UUID companyId,
             @Param("employeeId") UUID employeeId
+    );
+
+    @Query("""
+        SELECT m FROM MessageEntity m
+        WHERE m.companyId = :companyId
+        AND (m.employeeId = :employeeId OR m.recipientEmployeeId = :employeeId)
+        ORDER BY m.createdAt DESC
+    """)
+    Page<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
+            @Param("companyId") UUID companyId,
+            @Param("employeeId") UUID employeeId,
+            Pageable pageable
     );
 }
