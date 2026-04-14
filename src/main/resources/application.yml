@@ -23,6 +23,9 @@ spring:
         smtp:
           auth: true
           debug: true
+          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+          timeout: ${MAIL_SMTP_TIMEOUT:5000}
+          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
           starttls:
             enable: true
 

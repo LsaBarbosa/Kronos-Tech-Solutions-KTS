@@ -125,13 +125,18 @@ public class AuthService implements AuthUseCase {
         // 3. Gera e salva o token no Redis
         var resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
-        emailSenderProvider.sendResetEmail(
-                employee.email(),
-                resetToken,
-                user.username(),
-                defaultFrontendBaseUrl
-        );
-        log.info("Recuperação de senha processada com envio de e-mail.");
+        try {
+            emailSenderProvider.sendResetEmail(
+                    employee.email(),
+                    resetToken,
+                    user.username(),
+                    defaultFrontendBaseUrl
+            );
+            log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
+        } catch (Exception e) {
+            // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
+            log.error("Recuperação de senha processada sem envio de e-mail por falha interna: {}", e.getMessage(), e);
+        }
     }
 
     @Override
