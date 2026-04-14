@@ -7,5 +7,6 @@ import java.util.UUID;
 public interface MessageUseCase {
     void postMessage(CreateMessageRequest request);
     List<Message> listMessagesForMyCompany();
+    List<Message> listMessagesForMyCompany(Integer page, Integer size);
     void deleteMessage(UUID messageId);
 }

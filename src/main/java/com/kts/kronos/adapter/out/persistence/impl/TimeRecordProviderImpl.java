@@ -146,13 +146,6 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     }
 
     @Override
-    public List<TimeRecord> findAllByIds(Collection<Long> ids) {
-        List<TimeRecord> result = new ArrayList<>();
-        jpa.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
-        return result;
-    }
-
-    @Override
     public List<TimeRecord> findByEmployeeIdsAndStatuses(Collection<UUID> employeeIds,
                                                          Collection<StatusRecord> statuses) {
         if (employeeIds == null || employeeIds.isEmpty() || statuses == null || statuses.isEmpty()) {
@@ -174,4 +167,3 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .toList();
     }
 }
-

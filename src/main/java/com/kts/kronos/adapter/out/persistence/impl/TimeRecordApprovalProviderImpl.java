@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,13 +33,12 @@ public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvide
 
     @Override
     public Page<TimeRecordApprovalRequest> findAllByCompanyId(Pageable pageable, String employeeName, UUID companyId) {
-        String searchName = null;
-
+        String searchNamePrefix = null;
         if (employeeName != null && !employeeName.isBlank()) {
-            searchName = employeeName.trim().toLowerCase();
+            searchNamePrefix = employeeName.trim().toLowerCase(Locale.ROOT) + "%";
         }
 
-        return repository.findAllByCompanyId(pageable, companyId, searchName)
+        return repository.findAllByCompanyId(pageable, companyId, searchNamePrefix)
                 .map(TimeRecordApprovalEntity::toDomain);
     }
 

@@ -75,4 +75,12 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         repository.findAllById(ids).forEach(entity -> result.add(entity.toDomain()));
         return result;
     }
+
+    @Override
+    public List<CompanyEmployeeCountsProjection> countByCompanyIds(Collection<UUID> companyIds) {
+        if (companyIds == null || companyIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.countByCompanyIds(companyIds);
+    }
 }

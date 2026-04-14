@@ -40,8 +40,6 @@ public interface TimeRecordProvider {
 
     Long findMaxNsrByCompanyId(UUID companyId);
 
-    List<TimeRecord> findAllByIds(Collection<Long> ids);
-
     Page<TimeRecord> findTimeOffRequestsByCompanyId(
             Pageable pageable,
             UUID companyId,

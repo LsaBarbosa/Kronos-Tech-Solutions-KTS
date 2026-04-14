@@ -14,6 +14,8 @@ public interface UserProvider {
     List<User> findAll();
     List<User> findByActive(boolean active);
     Optional<User> findByEmployeeId(UUID employeeId);
+    List<User> findByEmployeeIds(Collection<UUID> employeeIds);
+    List<User> findByEmployeeIdsAndActive(Collection<UUID> employeeIds, boolean active);
     void deleteById(UUID userId);
     List<User> findAllByIds(Collection<UUID> ids);
 }
