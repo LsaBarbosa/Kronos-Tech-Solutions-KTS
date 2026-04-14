@@ -66,7 +66,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("employeeId: partner acessa próprio colaborador")
     void shouldAllowPartnerOwnEmployeeAccess() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
 
@@ -78,7 +78,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("employeeId: manager acessa colaborador do mesmo tenant")
     void shouldAllowManagerAccessSameTenantEmployee() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
@@ -91,7 +91,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("employeeId: manager não acessa colaborador de outro tenant")
     void shouldDenyManagerAccessOtherTenantEmployee() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(employeeProvider.findById(otherTenantEmployee.employeeId())).thenReturn(Optional.of(otherTenantEmployee));
@@ -103,7 +103,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("userId: partner acessa apenas próprio usuário")
     void shouldAllowPartnerOwnUserAccess() {
         var ownUser = buildUser(loggedUserId, loggedEmployeeId);
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(loggedUserId);
         when(userProvider.findById(loggedUserId)).thenReturn(Optional.of(ownUser));
 
@@ -116,7 +116,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("userId: partner não acessa usuário de terceiro")
     void shouldDenyPartnerAccessOtherUser() {
         var targetUser = buildUser(UUID.randomUUID(), sameTenantEmployee.employeeId());
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("PARTNER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(loggedUserId);
         when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
 
@@ -127,7 +127,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("userId: manager acessa usuário do mesmo tenant")
     void shouldAllowManagerAccessSameTenantUser() {
         var targetUser = buildUser(UUID.randomUUID(), sameTenantEmployee.employeeId());
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
@@ -142,7 +142,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("userId: manager não acessa usuário de outro tenant")
     void shouldDenyManagerAccessOtherTenantUser() {
         var targetUser = buildUser(UUID.randomUUID(), otherTenantEmployee.employeeId());
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
@@ -156,7 +156,7 @@ class DomainAuthorizationServiceTest {
     void shouldAllowManagerAccessSameTenantDocument() {
         var documentId = UUID.randomUUID();
         var document = buildDocument(documentId, sameTenantEmployee.employeeId());
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
@@ -172,7 +172,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("documentId: manager não acessa documento cross-tenant")
     void shouldDenyManagerAccessCrossTenantDocument() {
         var documentId = UUID.randomUUID();
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
         when(employeeProvider.findById(otherTenantEmployee.employeeId())).thenReturn(Optional.of(otherTenantEmployee));
@@ -185,7 +185,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("companyId: manager acessa apenas própria empresa")
     void shouldAllowManagerOwnCompanyAccess() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
 
@@ -197,7 +197,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("companyId: manager não acessa empresa de outro tenant")
     void shouldDenyManagerOtherCompanyAccess() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
 
@@ -207,7 +207,7 @@ class DomainAuthorizationServiceTest {
     @Test
     @DisplayName("companyId: cto pode acessar qualquer empresa")
     void shouldAllowCtoAccessAnyCompany() {
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("CTO");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
 
@@ -254,7 +254,7 @@ class DomainAuthorizationServiceTest {
         Employee targetEmployee = buildEmployee(targetEmployeeId, companyBId);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
-        when(jwtAuthenticatedUser.getRoleFromToken()).thenReturn("MANAGER");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
         when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
 

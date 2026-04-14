@@ -36,8 +36,8 @@ class TermsControllerTest {
     }
 
     @Test
-    @DisplayName("accept-biometric: deve usar primeiro IP de X-Forwarded-For e User-Agent padrão")
-    void shouldUseForwardedFirstIpAndDefaultUserAgent() {
+    @DisplayName("accept-biometric: deve ignorar X-Forwarded-For e usar remoteAddr")
+    void shouldIgnoreForwardedHeaderAndUseRemoteAddress() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
@@ -49,11 +49,12 @@ class TermsControllerTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
+        request.setRemoteAddr("198.51.100.7");
 
         var response = controller.acceptBiometricTerms(request);
 
         assertEquals(200, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "203.0.113.10", "Desconhecido");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "198.51.100.7", "Desconhecido");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
     }
 
@@ -81,7 +82,7 @@ class TermsControllerTest {
     }
 
     @Test
-    @DisplayName("accept-biometric: deve tratar X-Forwarded-For vazio mesmo sem remoteAddr")
+    @DisplayName("accept-biometric: deve usar fallback 'unknown' quando remoteAddr vier vazio")
     void shouldHandleEmptyForwardedHeaderAndNullRemoteAddress() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
@@ -100,7 +101,7 @@ class TermsControllerTest {
         var response = controller.acceptBiometricTerms(request);
 
         assertEquals(200, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, null, "JUnit-Agent");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "unknown", "JUnit-Agent");
     }
 
     @Test

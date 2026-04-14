@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +36,7 @@ public class DomainAuthorizationService {
                 : employeeProvider.findById(requestedEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
-        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var role = jwtAuthenticatedUser.getCurrentRole();
         if (isCto(role)) {
             return targetEmployee;
         }
@@ -52,7 +53,7 @@ public class DomainAuthorizationService {
         var targetUser = userProvider.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
 
-        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var role = jwtAuthenticatedUser.getCurrentRole();
         if (isCto(role)) {
             return targetUser;
         }
@@ -87,7 +88,7 @@ public class DomainAuthorizationService {
     public UUID authorizeCompanyAccess(UUID requestedCompanyId) {
         var authenticatedEmployee = getAuthenticatedEmployee();
         var targetCompanyId = requestedCompanyId == null ? authenticatedEmployee.companyId() : requestedCompanyId;
-        var role = jwtAuthenticatedUser.getRoleFromToken();
+        var role = jwtAuthenticatedUser.getCurrentRole();
 
         if (isCto(role)) {
             return targetCompanyId;
@@ -117,11 +118,11 @@ public class DomainAuthorizationService {
         }
     }
 
-    private boolean isManager(String role) {
-        return "MANAGER".equals(role);
+    private boolean isManager(Role role) {
+        return Role.MANAGER == role;
     }
 
-    private boolean isCto(String role) {
-        return "CTO".equals(role);
+    private boolean isCto(Role role) {
+        return Role.CTO == role;
     }
 }

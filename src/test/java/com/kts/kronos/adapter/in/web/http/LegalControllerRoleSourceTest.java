@@ -67,7 +67,6 @@ class LegalControllerRoleSourceTest {
         controller.downloadMirror(targetEmployeeId, startDate, endDate, response);
 
         verify(domainAuthorizationService).authorizeEmployeeAccess(targetEmployeeId);
-        verify(jwtAuthenticatedUser, never()).getRoleFromToken();
         verify(pointMirrorPdfUseCase).generateMirror(targetEmployeeId, startDate, endDate);
     }
     @Test
