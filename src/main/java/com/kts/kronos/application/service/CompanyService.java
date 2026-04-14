@@ -166,8 +166,7 @@ public class CompanyService implements CompanyUseCase {
             );
         });
 
-        return countsByCompanyId;
-    }
+        return countsByCompanyId;}
 
     private Company applyEmployeeCounts(Company company, Map<UUID, long[]> countsByCompanyId) {
         long[] counts = countsByCompanyId.getOrDefault(company.companyId(), new long[]{0L, 0L});

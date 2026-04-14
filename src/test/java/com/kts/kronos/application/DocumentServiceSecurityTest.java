@@ -203,7 +203,6 @@ class DocumentServiceSecurityTest {
         service.listDocuments(DocumentType.PAYSLIP, null, null);
 
         verify(jwtAuthenticatedUser, atLeastOnce()).getCurrentRole();
-        verify(jwtAuthenticatedUser, never()).getRoleFromToken();
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {

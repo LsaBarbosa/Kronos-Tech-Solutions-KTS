@@ -188,8 +188,8 @@ class TimeRecordServiceTest {
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
 
-        // CORREÇÃO: Usar minusMinutes(15) em vez de minusHours(4) para evitar virada de dia se rodar de madrugada
-        LocalDateTime startWork = LocalDateTime.now(SAO_PAULO).minusMinutes(15);
+        // Mantém o registro aberto no mesmo dia do "agora" para evitar flakiness perto da meia-noite.
+        LocalDateTime startWork = LocalDateTime.now(SAO_PAULO).toLocalDate().atStartOfDay();
 
         TimeRecord openRecord = new TimeRecord(
                 50L, startWork, null, StatusRecord.PENDING, false, true, employeeId,
@@ -308,7 +308,6 @@ class TimeRecordServiceTest {
         assertEquals(StatusRecord.PENDING_APPROVAL, captor.getValue().statusRecord());
         assertTrue(captor.getValue().edited());
         verify(jwtAuthenticatedUser).getCurrentRole();
-        verify(jwtAuthenticatedUser, never()).getRoleFromToken();
     }
 
     @Test

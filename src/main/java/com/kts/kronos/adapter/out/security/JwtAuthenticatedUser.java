@@ -63,23 +63,6 @@ public class JwtAuthenticatedUser {
         return Arrays.stream(roles).anyMatch(currentRole::equals);
     }
 
-    @Deprecated
-    public String getRoleFromToken() {
-        return getCurrentRole().name();
-    }
-
-    public UUID isWithEmployeeId(UUID employeeId) {
-        var userRole = getCurrentRole().name();
-        var loggedInEmployeeId = getEmployeeId();
-
-        return switch (userRole) {
-            case "PARTNER" -> loggedInEmployeeId;
-            case "MANAGER" -> (employeeId != null) ? employeeId : loggedInEmployeeId;
-            default ->
-                    (employeeId != null) ? employeeId : loggedInEmployeeId;
-        };
-    }
-
     private String extractToken() {
         String bearer = request.getHeader("Authorization");
         if (bearer != null && bearer.startsWith("Bearer ")) {

@@ -39,12 +39,9 @@ public class TermsController {
         String username = jwtAuthenticatedUser.getUsername();
         String role = jwtAuthenticatedUser.getCurrentRole().name();
 
-        String ipAddress = request.getHeader("X-Forwarded-For");
+        String ipAddress = request.getRemoteAddr();
         if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = request.getRemoteAddr();
-        }
-        if (ipAddress != null && ipAddress.contains(",")) {
-            ipAddress = ipAddress.split(",")[0].trim();
+            ipAddress = "unknown";
         }
 
         String userAgent = request.getHeader("User-Agent");
