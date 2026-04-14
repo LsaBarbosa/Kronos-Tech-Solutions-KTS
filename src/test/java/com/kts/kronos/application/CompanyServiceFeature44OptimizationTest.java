@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -77,6 +78,18 @@ class CompanyServiceFeature44OptimizationTest {
     }
 
     @Test
+    @DisplayName("listCompanies: com filtro active usa provider filtrado e trata lista vazia sem consulta agregada")
+    void shouldHandleActiveFilterAndEmptyCompanies() {
+        when(companyProvider.findByActive(true)).thenReturn(List.of());
+
+        var result = service.listCompanies(true);
+
+        assertEquals(0, result.size());
+        verify(companyProvider).findByActive(true);
+        verify(employeeProvider, never()).countByCompanyIds(any());
+    }
+
+    @Test
     @DisplayName("toggleActivate: carrega usuários por lote e evita findByEmployeeId em loop")
     void shouldBatchLoadUsersWhenTogglingCompanyActivation() {
         UUID companyId = UUID.randomUUID();
@@ -108,6 +121,80 @@ class CompanyServiceFeature44OptimizationTest {
         verify(userProvider, never()).findByEmployeeId(any());
         verify(userUseCase).toggleActivate(userAId);
         verify(userUseCase, never()).toggleActivate(userBId);
+    }
+
+    @Test
+    @DisplayName("toggleActivate: cobre cenário de empresa inativa voltando a ativa")
+    void shouldToggleInactiveCompanyBackToActive() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        Company company = company(companyId, "KTS", false);
+        Employee employee = employee(employeeId, companyId, "Ana");
+        User user = new User(userId, "ana", "x", Role.PARTNER, false, employeeId);
+
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+        when(employeeProvider.countByCompanyIds(Set.of(companyId))).thenReturn(List.of(
+                projection(companyId, 1L, 1L)
+        ));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        when(userProvider.findByEmployeeIds(Set.of(employeeId))).thenReturn(List.of(user));
+
+        service.toggleActivate(company.cnpj());
+
+        verify(companyProvider).save(argThat(savedCompany ->
+                savedCompany.companyId().equals(companyId) && savedCompany.active()
+        ));
+        verify(userUseCase).toggleActivate(userId);
+    }
+
+    @Test
+    @DisplayName("toggleActivate: quando empresa não possui funcionários, retorna sem buscar usuários")
+    void shouldReturnEarlyWhenCompanyHasNoEmployees() {
+        UUID companyId = UUID.randomUUID();
+        Company company = company(companyId, "KTS", true);
+
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+        when(employeeProvider.countByCompanyIds(Set.of(companyId))).thenReturn(List.of(
+                projection(companyId, null, null)
+        ));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of());
+
+        service.toggleActivate(company.cnpj());
+
+        verify(userProvider, never()).findByEmployeeIds(any());
+        verify(userUseCase, never()).toggleActivate(any());
+    }
+
+    @Test
+    @DisplayName("getCompany: normaliza contagens nulas para zero")
+    void shouldNormalizeNullCountsToZeroWhenGettingCompany() {
+        UUID companyId = UUID.randomUUID();
+        Company company = company(companyId, "KTS", true);
+
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+        when(employeeProvider.countByCompanyIds(Set.of(companyId))).thenReturn(List.of(
+                projection(companyId, null, null)
+        ));
+
+        var result = service.getCompany(company.cnpj());
+
+        assertEquals(0L, result.activeEmployees());
+        assertEquals(0L, result.inactiveEmployees());
+    }
+
+    @Test
+    @DisplayName("loadEmployeeCountsByCompanyIds: com entrada nula retorna mapa vazio")
+    void shouldReturnEmptyMapWhenCompanyIdsIsNull() throws Exception {
+        var method = CompanyService.class.getDeclaredMethod("loadEmployeeCountsByCompanyIds", Set.class);
+        method.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        Map<UUID, long[]> result = (Map<UUID, long[]>) method.invoke(service, new Object[]{null});
+
+        assertEquals(Map.of(), result);
+        verify(employeeProvider, never()).countByCompanyIds(any());
     }
 
     private Company company(UUID companyId, String name, boolean active) {

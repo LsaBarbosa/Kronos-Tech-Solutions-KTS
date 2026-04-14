@@ -38,6 +38,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -169,6 +170,278 @@ class TimeRecordServiceFeature42BatchLoadingTest {
     }
 
     @Test
+    void shouldReturnEmptyPendingApprovalsPageWithoutBatchQueries() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        var pageRequest = PageRequest.of(0, 5);
+        var emptyPage = new PageImpl<TimeRecordApprovalRequest>(List.of(), pageRequest, 0);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(emptyPage);
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(0, result.approvals().size());
+        verify(recordRepository, never()).findAllByIds(any());
+        verify(employeeProvider, never()).findAllByIds(any());
+        verify(userProvider, never()).findAllByIds(any());
+        verify(documentProvider, never()).findByTimeRecordIds(any());
+    }
+
+    @Test
+    void shouldReturnPendingApprovalsWithoutDocumentWhenNoDocumentExists() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        Employee requestingEmployee = employee(requestingEmployeeId, "Ana Souza", companyId);
+        User managerUser = new User(managerUserId, "manager.user", "x", Role.MANAGER, true, managerEmployeeId);
+        TimeRecord timeRecord = timeRecord(
+                timeRecordId,
+                requestingEmployeeId,
+                StatusRecord.PENDING_APPROVAL,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0)
+        );
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, null, companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of(timeRecord));
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of(requestingEmployee));
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of(managerUser));
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId))).thenReturn(List.of());
+
+        var result = service.listPendingApprovals(0, 5, null);
+
+        assertEquals(1, result.approvals().size());
+        assertEquals(null, result.approvals().getFirst().documentDownloadPath());
+    }
+
+    @Test
+    void shouldSkipPendingApprovalsWhenBatchDataIsMissing() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        TimeRecord timeRecord = timeRecord(
+                timeRecordId,
+                requestingEmployeeId,
+                StatusRecord.PENDING_APPROVAL,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0)
+        );
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of(timeRecord));
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of());
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of());
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId))).thenReturn(List.of());
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(0, result.approvals().size());
+    }
+
+    @Test
+    void shouldSkipPendingApprovalsWhenManagerBatchDataIsMissing() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        Employee requestingEmployee = employee(requestingEmployeeId, "Ana Souza", companyId);
+        TimeRecord timeRecord = timeRecord(
+                timeRecordId,
+                requestingEmployeeId,
+                StatusRecord.PENDING_APPROVAL,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0)
+        );
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of(timeRecord));
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of(requestingEmployee));
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of());
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId))).thenReturn(List.of());
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(0, result.approvals().size());
+    }
+
+    @Test
+    void shouldSkipPendingApprovalsWhenTimeRecordBatchDataIsMissing() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        Employee requestingEmployee = employee(requestingEmployeeId, "Ana Souza", companyId);
+        User managerUser = new User(managerUserId, "manager.user", "x", Role.MANAGER, true, managerEmployeeId);
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of());
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of(requestingEmployee));
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of(managerUser));
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId))).thenReturn(List.of());
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(0, result.approvals().size());
+    }
+
+    @Test
+    void shouldIgnoreDocumentWithoutTimeRecordIdAndKeepNewestCurrentDocument() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        Employee requestingEmployee = employee(requestingEmployeeId, "Ana Souza", companyId);
+        User managerUser = new User(managerUserId, "manager.user", "x", Role.MANAGER, true, managerEmployeeId);
+        TimeRecord timeRecord = timeRecord(
+                timeRecordId,
+                requestingEmployeeId,
+                StatusRecord.PENDING_APPROVAL,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0)
+        );
+
+        UUID expectedLatestDocumentId = UUID.randomUUID();
+        Document newestDocFirst = new Document(
+                expectedLatestDocumentId,
+                requestingEmployeeId,
+                DocumentType.TIME_OFF,
+                "newest.pdf",
+                "application/pdf",
+                "s3://newest",
+                LocalDateTime.of(2026, 3, 10, 12, 0),
+                timeRecordId,
+                false,
+                false
+        );
+        Document olderDocSecond = new Document(
+                UUID.randomUUID(),
+                requestingEmployeeId,
+                DocumentType.TIME_OFF,
+                "older.pdf",
+                "application/pdf",
+                "s3://older",
+                LocalDateTime.of(2026, 3, 10, 11, 0),
+                timeRecordId,
+                false,
+                false
+        );
+        Document nullTimeRecordDoc = new Document(
+                UUID.randomUUID(),
+                requestingEmployeeId,
+                DocumentType.TIME_OFF,
+                "ignored.pdf",
+                "application/pdf",
+                "s3://ignored",
+                LocalDateTime.of(2026, 3, 10, 13, 0),
+                null,
+                false,
+                false
+        );
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of(timeRecord));
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of(requestingEmployee));
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of(managerUser));
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId)))
+                .thenReturn(List.of(newestDocFirst, olderDocSecond, nullTimeRecordDoc));
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(1, result.approvals().size());
+        assertEquals("/documents/" + expectedLatestDocumentId, result.approvals().getFirst().documentDownloadPath());
+    }
+
+    @Test
     void shouldUseProjectionForVacationRequestsWithoutLoopQueries() {
         UUID managerEmployeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
@@ -208,6 +481,155 @@ class TimeRecordServiceFeature42BatchLoadingTest {
         );
         verify(recordRepository, never()).findByEmployeeIdsAndStatuses(any(), any());
         verify(employeeProvider, never()).findByCompanyId(any());
+    }
+
+    @Test
+    void shouldMapApprovedVacationStatusInVacationRequestListing() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+
+        VacationRequestPeriodProjection projection = mock(VacationRequestPeriodProjection.class);
+        when(projection.getEmployeeId()).thenReturn(employeeId);
+        when(projection.getEmployeeName()).thenReturn("Ana Souza");
+        when(projection.getStartDate()).thenReturn(LocalDate.of(2026, 4, 1));
+        when(projection.getEndDate()).thenReturn(LocalDate.of(2026, 4, 3));
+        when(projection.getStatus()).thenReturn(StatusRecord.VACATION.name());
+        when(projection.getTimeRecordIdsCsv()).thenReturn("11,12");
+
+        var pageRequest = PageRequest.of(0, 10);
+        var projectionPage = new PageImpl<>(List.of(projection), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findVacationRequestPeriodsByCompanyId(
+                pageRequest,
+                companyId,
+                Set.of(StatusRecord.VACATION.name()),
+                null
+        )).thenReturn(projectionPage);
+
+        var result = service.listVacationRequests("APPROVED", null, 0, 10);
+
+        assertEquals(1, result.size());
+        verify(recordRepository).findVacationRequestPeriodsByCompanyId(
+                pageRequest,
+                companyId,
+                Set.of(StatusRecord.VACATION.name()),
+                null
+        );
+    }
+
+    @Test
+    void shouldMapRejectedVacationStatusAndHandleBlankCsv() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+
+        VacationRequestPeriodProjection projection = mock(VacationRequestPeriodProjection.class);
+        when(projection.getEmployeeId()).thenReturn(employeeId);
+        when(projection.getEmployeeName()).thenReturn("Ana Souza");
+        when(projection.getStartDate()).thenReturn(LocalDate.of(2026, 4, 1));
+        when(projection.getEndDate()).thenReturn(LocalDate.of(2026, 4, 3));
+        when(projection.getStatus()).thenReturn(StatusRecord.VACATION_REJECTED.name());
+        when(projection.getTimeRecordIdsCsv()).thenReturn("   ");
+
+        var pageRequest = PageRequest.of(0, 10);
+        var projectionPage = new PageImpl<>(List.of(projection), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findVacationRequestPeriodsByCompanyId(
+                pageRequest,
+                companyId,
+                Set.of(StatusRecord.VACATION_REJECTED.name()),
+                "ana"
+        )).thenReturn(projectionPage);
+
+        var result = service.listVacationRequests("REJECTED", "ana", 0, 10);
+
+        assertEquals(1, result.size());
+        assertEquals(List.of(), result.getFirst().timeRecordIdsForApproval());
+    }
+
+    @Test
+    void shouldUseDefaultVacationStatusesWhenStatusFilterIsUnknown() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+
+        var pageRequest = PageRequest.of(0, 10);
+        var projectionPage = new PageImpl<VacationRequestPeriodProjection>(List.of(), pageRequest, 0);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findVacationRequestPeriodsByCompanyId(
+                pageRequest,
+                companyId,
+                Set.of(
+                        StatusRecord.REQUEST_VACATION.name(),
+                        StatusRecord.VACATION.name(),
+                        StatusRecord.VACATION_REJECTED.name()
+                ),
+                null
+        )).thenReturn(projectionPage);
+
+        var result = service.listVacationRequests("all", null, 0, 10);
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void shouldUseDefaultVacationStatusesWhenStatusFilterIsNullAndParseMixedCsvTokens() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeAId = UUID.randomUUID();
+        UUID employeeBId = UUID.randomUUID();
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        VacationRequestPeriodProjection projectionWithNullCsv = mock(VacationRequestPeriodProjection.class);
+        when(projectionWithNullCsv.getEmployeeId()).thenReturn(employeeAId);
+        when(projectionWithNullCsv.getEmployeeName()).thenReturn("Ana Souza");
+        when(projectionWithNullCsv.getStartDate()).thenReturn(LocalDate.of(2026, 4, 1));
+        when(projectionWithNullCsv.getEndDate()).thenReturn(LocalDate.of(2026, 4, 3));
+        when(projectionWithNullCsv.getStatus()).thenReturn(StatusRecord.REQUEST_VACATION.name());
+        when(projectionWithNullCsv.getTimeRecordIdsCsv()).thenReturn(null);
+
+        VacationRequestPeriodProjection projectionWithMixedCsv = mock(VacationRequestPeriodProjection.class);
+        when(projectionWithMixedCsv.getEmployeeId()).thenReturn(employeeBId);
+        when(projectionWithMixedCsv.getEmployeeName()).thenReturn("Bruno Lima");
+        when(projectionWithMixedCsv.getStartDate()).thenReturn(LocalDate.of(2026, 4, 4));
+        when(projectionWithMixedCsv.getEndDate()).thenReturn(LocalDate.of(2026, 4, 6));
+        when(projectionWithMixedCsv.getStatus()).thenReturn(StatusRecord.VACATION.name());
+        when(projectionWithMixedCsv.getTimeRecordIdsCsv()).thenReturn("11, ,13");
+
+        var pageRequest = PageRequest.of(0, 10);
+        var projectionPage = new PageImpl<>(
+                List.of(projectionWithNullCsv, projectionWithMixedCsv),
+                pageRequest,
+                2
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findVacationRequestPeriodsByCompanyId(
+                pageRequest,
+                companyId,
+                Set.of(
+                        StatusRecord.REQUEST_VACATION.name(),
+                        StatusRecord.VACATION.name(),
+                        StatusRecord.VACATION_REJECTED.name()
+                ),
+                null
+        )).thenReturn(projectionPage);
+
+        var result = service.listVacationRequests(null, null, 0, 10);
+
+        assertEquals(2, result.size());
+        assertEquals(List.of(), result.get(0).timeRecordIdsForApproval());
+        assertEquals(List.of(11L, 13L), result.get(1).timeRecordIdsForApproval());
     }
 
     @Test
@@ -286,6 +708,222 @@ class TimeRecordServiceFeature42BatchLoadingTest {
         verify(documentProvider).findByTimeRecordIds(Set.of(201L, 202L));
         verify(recordRepository, never()).findByEmployeeIdsAndStatuses(any(), any());
         verify(documentProvider, never()).findByTimeRecordId(anyLong());
+    }
+
+    @Test
+    void shouldUseApprovedStatusesWhenListingTimeOffRequests() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+
+        var pageRequest = PageRequest.of(0, 5);
+        var emptyPage = new PageImpl<TimeRecord>(List.of(), pageRequest, 0);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                anyCollection(),
+                eq(null)
+        )).thenReturn(emptyPage);
+        when(employeeProvider.findAllByIds(Set.of())).thenReturn(List.of());
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("KTS");
+
+        service.listTimeOffRequests("APPROVED", null, 0, 5);
+
+        ArgumentCaptor<Collection<StatusRecord>> statusesCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(recordRepository).findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                statusesCaptor.capture(),
+                eq(null)
+        );
+        assertEquals(Set.of(StatusRecord.TIME_OFF, StatusRecord.UPDATED), Set.copyOf(statusesCaptor.getValue()));
+    }
+
+    @Test
+    void shouldUseRejectedStatusesWhenListingTimeOffRequests() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+
+        var pageRequest = PageRequest.of(0, 5);
+        var emptyPage = new PageImpl<TimeRecord>(List.of(), pageRequest, 0);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                anyCollection(),
+                eq(null)
+        )).thenReturn(emptyPage);
+        when(employeeProvider.findAllByIds(Set.of())).thenReturn(List.of());
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("KTS");
+
+        service.listTimeOffRequests("REJECTED", null, 0, 5);
+
+        ArgumentCaptor<Collection<StatusRecord>> statusesCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(recordRepository).findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                statusesCaptor.capture(),
+                eq(null)
+        );
+        assertEquals(
+                Set.of(StatusRecord.TIME_OFF_REJECTED, StatusRecord.WORK_TIME_REJECTED),
+                Set.copyOf(statusesCaptor.getValue())
+        );
+    }
+
+    @Test
+    void shouldUseDefaultStatusesAndSkipRecordsWhenEmployeeBatchIsMissing() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeAId = UUID.randomUUID();
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        TimeRecord recordA = timeRecord(
+                201L,
+                employeeAId,
+                StatusRecord.TIME_OFF_REQUEST,
+                LocalDate.of(2026, 4, 5).atTime(8, 0),
+                LocalDate.of(2026, 4, 5).atTime(17, 0)
+        );
+
+        var pageRequest = PageRequest.of(0, 2);
+        var recordsPage = new PageImpl<>(List.of(recordA), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(recordRepository.findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                anyCollection(),
+                eq(null)
+        )).thenReturn(recordsPage);
+        when(employeeProvider.findAllByIds(Set.of(employeeAId))).thenReturn(List.of());
+        when(documentProvider.findByTimeRecordIds(Set.of(201L))).thenReturn(List.of(
+                new Document(
+                        UUID.randomUUID(),
+                        employeeAId,
+                        DocumentType.TIME_OFF,
+                        "doc.pdf",
+                        "application/pdf",
+                        "s3://doc",
+                        LocalDateTime.of(2026, 4, 5, 12, 0),
+                        201L,
+                        false,
+                        false
+                )
+        ));
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("KTS");
+
+        var response = service.listTimeOffRequests(null, null, 0, 2);
+
+        assertEquals(0, response.records().size());
+        ArgumentCaptor<Collection<StatusRecord>> statusesCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(recordRepository).findTimeOffRequestsByCompanyId(
+                eq(pageRequest),
+                eq(companyId),
+                statusesCaptor.capture(),
+                eq(null)
+        );
+        assertEquals(
+                Set.of(
+                        StatusRecord.TIME_OFF_REQUEST,
+                        StatusRecord.WORK_TIME_REQUEST,
+                        StatusRecord.TIME_OFF,
+                        StatusRecord.UPDATED,
+                        StatusRecord.TIME_OFF_REJECTED,
+                        StatusRecord.WORK_TIME_REJECTED
+                ),
+                Set.copyOf(statusesCaptor.getValue())
+        );
+    }
+
+    @Test
+    void shouldReturnEmptyMapWhenBuildLatestDocumentMapReceivesNullCollection() throws Exception {
+        var method = TimeRecordService.class.getDeclaredMethod("buildLatestDocumentIdMap", Collection.class);
+        method.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        Map<Long, String> result = (Map<Long, String>) method.invoke(service, new Object[]{null});
+
+        assertEquals(Map.of(), result);
+        verify(documentProvider, never()).findByTimeRecordIds(any());
+    }
+
+    @Test
+    void shouldChooseLatestDocumentHandlingNullUploadedAtValues() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID requestingEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
+        Long timeRecordId = 101L;
+
+        Employee managerEmployee = employee(managerEmployeeId, "Manager", companyId);
+        Employee requestingEmployee = employee(requestingEmployeeId, "Ana Souza", companyId);
+        User managerUser = new User(managerUserId, "manager.user", "x", Role.MANAGER, true, managerEmployeeId);
+        TimeRecord timeRecord = timeRecord(
+                timeRecordId,
+                requestingEmployeeId,
+                StatusRecord.PENDING_APPROVAL,
+                LocalDate.of(2026, 3, 10).atTime(9, 0),
+                LocalDate.of(2026, 3, 10).atTime(18, 0)
+        );
+
+        UUID latestDocumentId = UUID.randomUUID();
+        Document withNullUploadedAt = new Document(
+                UUID.randomUUID(),
+                requestingEmployeeId,
+                DocumentType.TIME_OFF,
+                "null-time.pdf",
+                "application/pdf",
+                "s3://null",
+                null,
+                timeRecordId,
+                false,
+                false
+        );
+        Document withRecentUploadedAt = new Document(
+                latestDocumentId,
+                requestingEmployeeId,
+                DocumentType.TIME_OFF,
+                "recent.pdf",
+                "application/pdf",
+                "s3://recent",
+                LocalDateTime.of(2026, 3, 10, 12, 0),
+                timeRecordId,
+                false,
+                false
+        );
+
+        TimeRecordApprovalRequest approval = new TimeRecordApprovalRequest(
+                timeRecordId,
+                requestingEmployeeId,
+                managerUserId,
+                timeRecord.startWork(),
+                timeRecord.endWork(),
+                LocalDateTime.of(2026, 3, 10, 19, 0)
+        );
+        var pageRequest = PageRequest.of(0, 5);
+        var approvalsPage = new PageImpl<>(List.of(approval), pageRequest, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(managerEmployee));
+        when(approvalProvider.findAllByCompanyId(pageRequest, "ana", companyId)).thenReturn(approvalsPage);
+        when(recordRepository.findAllByIds(Set.of(timeRecordId))).thenReturn(List.of(timeRecord));
+        when(employeeProvider.findAllByIds(Set.of(requestingEmployeeId))).thenReturn(List.of(requestingEmployee));
+        when(userProvider.findAllByIds(Set.of(managerUserId))).thenReturn(List.of(managerUser));
+        when(documentProvider.findByTimeRecordIds(Set.of(timeRecordId)))
+                .thenReturn(List.of(withNullUploadedAt, withRecentUploadedAt, withNullUploadedAt));
+
+        var result = service.listPendingApprovals(0, 5, "ana");
+
+        assertEquals(1, result.approvals().size());
+        assertEquals("/documents/" + latestDocumentId, result.approvals().getFirst().documentDownloadPath());
     }
 
     private Employee employee(UUID id, String name, UUID companyId) {
