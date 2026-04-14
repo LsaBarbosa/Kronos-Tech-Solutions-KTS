@@ -111,6 +111,68 @@ class UserServiceFeature44ListUsersOptimizationTest {
         verify(userProvider, never()).findByActive(true);
     }
 
+    @Test
+    @DisplayName("listUsers: manager retorna vazio quando empresa não possui funcionários")
+    void shouldReturnEmptyWhenTenantHasNoEmployees() {
+        UUID managerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee manager = employee(managerEmployeeId, companyId, "Manager");
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of());
+
+        var result = service.listUsers(false);
+
+        assertEquals(List.of(), result);
+        verify(userProvider, never()).findByEmployeeIdsAndActive(java.util.Set.of(), false);
+        verify(userProvider, never()).findByEmployeeIds(java.util.Set.of());
+    }
+
+    @Test
+    @DisplayName("listUsers: CTO sem filtro active usa findAll")
+    void shouldUseFindAllWhenCtoHasNoActiveFilter() {
+        UUID ctoEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee ctoEmployee = employee(ctoEmployeeId, companyId, "CTO");
+
+        User userA = new User(UUID.randomUUID(), "a", "x", Role.MANAGER, true, UUID.randomUUID());
+        User userB = new User(UUID.randomUUID(), "b", "x", Role.PARTNER, false, UUID.randomUUID());
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(ctoEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findById(ctoEmployeeId)).thenReturn(Optional.of(ctoEmployee));
+        when(userProvider.findAll()).thenReturn(List.of(userA, userB));
+
+        var result = service.listUsers(null);
+
+        assertEquals(List.of(userA, userB), result);
+        verify(userProvider).findAll();
+        verify(userProvider, never()).findByActive(true);
+    }
+
+    @Test
+    @DisplayName("listUsers: CTO com filtro active usa findByActive")
+    void shouldUseFindByActiveWhenCtoFiltersByStatus() {
+        UUID ctoEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee ctoEmployee = employee(ctoEmployeeId, companyId, "CTO");
+
+        User activeUser = new User(UUID.randomUUID(), "a", "x", Role.MANAGER, true, UUID.randomUUID());
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(ctoEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findById(ctoEmployeeId)).thenReturn(Optional.of(ctoEmployee));
+        when(userProvider.findByActive(true)).thenReturn(List.of(activeUser));
+
+        var result = service.listUsers(true);
+
+        assertEquals(List.of(activeUser), result);
+        verify(userProvider).findByActive(true);
+        verify(userProvider, never()).findAll();
+    }
+
     private Employee employee(UUID employeeId, UUID companyId, String name) {
         return new Employee(
                 employeeId,
