@@ -5,6 +5,17 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:5000}
+      initialization-fail-timeout: ${DB_INITIALIZATION_FAIL_TIMEOUT_MS:10000}
+      data-source-properties:
+        connectTimeout: ${DB_CONNECT_TIMEOUT_SECONDS:10}
+        socketTimeout: ${DB_SOCKET_TIMEOUT_SECONDS:15}
+        tcpKeepAlive: true
+  jpa:
+    properties:
+      jakarta.persistence.query.timeout: ${JPA_QUERY_TIMEOUT_MS:10000}
 
   docker:
     compose:
@@ -38,6 +49,9 @@ management:
     web:
       exposure:
         include: health
+  health:
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
   endpoint:
     health:
       show-details: never
