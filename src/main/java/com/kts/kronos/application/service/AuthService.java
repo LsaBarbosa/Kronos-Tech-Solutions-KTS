@@ -103,39 +103,48 @@ public class AuthService implements AuthUseCase {
     }
     @Override
     public void recoverPassword(RecoverPasswordRequest request) {
-        // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
-        var employee = employeeProvider.findByCpf(request.cpf())
-                .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
-                .orElse(null);
-
-        // Retorna sucesso (No Content) para evitar ataques de enumeração.
-        if (employee == null) {
-            log.info("Recuperação de senha processada sem envio de e-mail.");
-            return;
-        }
-
-        // 2. Encontra o User associado
-        var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
-
-        if (user == null) {
-            log.info("Recuperação de senha processada sem envio de e-mail.");
-            return;
-        }
-
-        // 3. Gera e salva o token no Redis
-        var resetToken = tokenProvider.generateAndSaveToken(user.userId());
+        String maskedCpf = maskCpf(request.cpf());
+        String maskedEmail = maskEmail(request.email());
+        log.info("Iniciando recuperação de senha para cpf={} e email={}.", maskedCpf, maskedEmail);
 
         try {
-            emailSenderProvider.sendResetEmail(
-                    employee.email(),
-                    resetToken,
-                    user.username(),
-                    defaultFrontendBaseUrl
-            );
-            log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
+            // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
+            var employee = employeeProvider.findByCpf(request.cpf())
+                    .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
+                    .orElse(null);
+
+            // Retorna sucesso (No Content) para evitar ataques de enumeração.
+            if (employee == null) {
+                log.info("Recuperação de senha processada sem envio de e-mail.");
+                return;
+            }
+
+            // 2. Encontra o User associado
+            var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
+
+            if (user == null) {
+                log.info("Recuperação de senha processada sem envio de e-mail.");
+                return;
+            }
+
+            // 3. Gera e salva o token no Redis
+            var resetToken = tokenProvider.generateAndSaveToken(user.userId());
+
+            try {
+                emailSenderProvider.sendResetEmail(
+                        employee.email(),
+                        resetToken,
+                        user.username(),
+                        defaultFrontendBaseUrl
+                );
+                log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
+            } catch (Exception e) {
+                // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
+                log.error("Recuperação de senha processada sem envio de e-mail por falha interna: {}", e.getMessage(), e);
+            }
         } catch (Exception e) {
-            // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
-            log.error("Recuperação de senha processada sem envio de e-mail por falha interna: {}", e.getMessage(), e);
+            // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
+            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação: {}", e.getMessage(), e);
         }
     }
 
@@ -178,5 +187,28 @@ public class AuthService implements AuthUseCase {
         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
             throw new BadRequestException(INVALID_PASSWORD_POLICY);
         }
+    }
+
+    private String maskCpf(String cpf) {
+        if (cpf == null) {
+            return "null";
+        }
+        String digits = cpf.replaceAll("\\D", "");
+        if (digits.isEmpty()) {
+            return "***";
+        }
+        String suffix = digits.length() <= 4 ? digits : digits.substring(digits.length() - 4);
+        return "***" + suffix;
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "***";
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 1 || atIndex == email.length() - 1) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(atIndex);
     }
 }

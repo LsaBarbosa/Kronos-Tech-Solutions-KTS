@@ -115,6 +115,16 @@ class AuthServiceRecoverPasswordTest {
     }
 
     @Test
+    void shouldKeepNeutralBehaviorWhenEmployeeLookupFails() {
+        when(employeeProvider.findByCpf(request.cpf()))
+                .thenThrow(new RuntimeException("db locked"));
+
+        assertThatCode(() -> authService.recoverPassword(request)).doesNotThrowAnyException();
+
+        verifyNoInteractions(userProvider, tokenProvider, emailSenderProvider);
+    }
+
+    @Test
     void shouldKeepNeutralBehaviorAndNotSendEmailWhenEmailDoesNotMatch() {
         when(employeeProvider.findByCpf(request.cpf())).thenReturn(Optional.of(employee.withEmail("other@kts.com")));
 
