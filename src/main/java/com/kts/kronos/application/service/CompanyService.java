@@ -36,7 +36,7 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
-        if (companyProvider.findByCnpj(request.cnpj()).isPresent()) {
+        if (companyProvider.existsByCnpj(request.cnpj())) {
             throw new BadRequestException(COMPANY_ALREADY_EXIST);
         }
 
@@ -146,7 +146,7 @@ public class CompanyService implements CompanyUseCase {
     }
 
     public boolean cnpjExists(String cnpj) {
-        return companyProvider.findByCnpj(cnpj).isPresent();
+        return companyProvider.existsByCnpj(cnpj);
     }
 
     private Map<UUID, long[]> loadEmployeeCountsByCompanyIds(Set<UUID> companyIds) {
