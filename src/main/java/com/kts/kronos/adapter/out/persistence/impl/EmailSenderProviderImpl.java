@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class EmailSenderProviderImpl implements EmailSenderProvider {
+    private static final String RESET_PASSWORD_ROUTE = "/resetar-senha";
     private final JavaMailSender mailSender;
     @Value("${spring.mail.username}")
     private String emailRemetente;
@@ -91,7 +92,7 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             helper.setTo(toEmail);
             helper.setSubject("🔒 Kronos Suporte - Redefinição de Senha");
 
-            var resetLink = frontendUrl + "/?token=" + token;
+            var resetLink = buildResetLink(frontendUrl, token);
 
             // CORREÇÃO: Passando os 4 argumentos que o HTML espera!
             var htmlText = String.format(
@@ -115,5 +116,13 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação: {}", e.getMessage(), e);
             throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
         }
+    }
+
+    private String buildResetLink(String frontendUrl, String token) {
+        String baseUrl = frontendUrl == null ? "" : frontendUrl.trim();
+        while (baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+        return baseUrl + RESET_PASSWORD_ROUTE + "?token=" + token;
     }
 }
