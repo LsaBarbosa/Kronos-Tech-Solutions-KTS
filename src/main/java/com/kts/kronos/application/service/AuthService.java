@@ -103,14 +103,17 @@ public class AuthService implements AuthUseCase {
     }
     @Override
     public void recoverPassword(RecoverPasswordRequest request) {
-        String maskedCpf = maskCpf(request.cpf());
-        String maskedEmail = maskEmail(request.email());
+        String normalizedCpf = request.cpf() == null ? null : request.cpf().trim();
+        String normalizedEmail = request.email() == null ? null : request.email().trim();
+
+        String maskedCpf = maskCpf(normalizedCpf);
+        String maskedEmail = maskEmail(normalizedEmail);
         log.info("Iniciando recuperação de senha para cpf={} e email={}.", maskedCpf, maskedEmail);
 
         try {
             // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
-            var employee = employeeProvider.findByCpf(request.cpf())
-                    .filter(emp -> emp.email().equalsIgnoreCase(request.email()))
+            var employee = employeeProvider.findByCpf(normalizedCpf)
+                    .filter(emp -> emp.email() != null && emp.email().equalsIgnoreCase(normalizedEmail))
                     .orElse(null);
 
             // Retorna sucesso (No Content) para evitar ataques de enumeração.
