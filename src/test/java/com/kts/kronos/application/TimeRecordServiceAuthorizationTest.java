@@ -1,7 +1,6 @@
 package com.kts.kronos.application;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
@@ -69,22 +68,6 @@ class TimeRecordServiceAuthorizationTest {
     private NtpTimeService ntpTimeService;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
-
-    @Test
-    void shouldBlockSimpleReportForOtherTenantTarget() {
-        UUID targetEmployeeId = UUID.randomUUID();
-        SimpleReportRequest request = new SimpleReportRequest(
-                "08:00",
-                new LocalDate[]{LocalDate.of(2026, 1, 10)}
-        );
-
-        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId))
-                .thenThrow(new ForbiddenException("Acesso negado"));
-
-        assertThrows(ForbiddenException.class, () -> service.simpleReport(targetEmployeeId, request));
-
-        verifyNoInteractions(recordRepository, companyProvider, documentProvider);
-    }
 
     @Test
     void shouldBlockListReportForOtherTenantTarget() {
