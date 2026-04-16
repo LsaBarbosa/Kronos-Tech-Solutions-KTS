@@ -10,7 +10,9 @@ import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Optional<UserEntity> findByUsernameIgnoreCase(String username);
+    boolean existsByUsernameIgnoreCase(String username);
     Optional<UserEntity> findByEmployeeId(UUID employeeId);
+    boolean existsByEmployeeId(UUID employeeId);
     List<UserEntity> findByActiveTrue();
     List<UserEntity> findByActiveFalse();
     List<UserEntity> findByEmployeeIdIn(Collection<UUID> employeeIds);
