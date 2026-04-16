@@ -45,7 +45,7 @@ public class UserController {
     }
 
     @GetMapping(USERS)
-    @PreAuthorize(ADMINISTRATOR)
+    @PreAuthorize("hasAnyRole('MANAGER', 'CTO') or (hasRole('PARTNER') and #active == true)")
     public ResponseEntity<UserListResponse> allUsers(
             @RequestParam(value = "active", required = false) Boolean active
     ) {

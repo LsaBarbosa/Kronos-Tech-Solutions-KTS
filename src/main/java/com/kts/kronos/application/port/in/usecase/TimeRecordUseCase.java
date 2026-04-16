@@ -14,7 +14,6 @@ public interface TimeRecordUseCase {
     void updateStatus(UUID employeeId, Long recordId, UpdateTimeRecordStatusRequest request);
     void deleteTimeRecord(UUID employeeId, Long recordId);
     void toggleActivate(UUID employeeId, Long timeRecordId);
-    SimpleReportResponse simpleReport(UUID employeeId, SimpleReportRequest req);
     void updateTimeRecord(Long timeRecordId, UpdateTimeRecordRequest req);
     List<TimeRecordResponse> listReport(UUID employeeId, ListReportRequest req);
     TimeRecordApprovalPageResponse listPendingApprovals(int page, int size, String employeeName);
@@ -29,4 +28,3 @@ public interface TimeRecordUseCase {
     void rejectTimeOff(Long timeRecordId);
     TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size);
 }
-

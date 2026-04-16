@@ -49,11 +49,20 @@ class PointMirrorPdfServiceSecurityTest {
 
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
-        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(recordRepository.findByRange(
+                employeeId,
+                LocalDate.of(2026, 1, 1).atStartOfDay(),
+                LocalDate.of(2026, 1, 1).atTime(23, 59, 59)
+        )).thenReturn(List.of());
 
         byte[] pdf = service.generateMirror(employeeId, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 1));
 
         assertTrue(pdf.length > 0);
+        verify(recordRepository).findByRange(
+                employeeId,
+                LocalDate.of(2026, 1, 1).atStartOfDay(),
+                LocalDate.of(2026, 1, 1).atTime(23, 59, 59)
+        );
     }
 
     @Test

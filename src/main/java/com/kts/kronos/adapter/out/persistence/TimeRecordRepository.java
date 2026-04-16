@@ -59,6 +59,21 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             LocalDateTime startWorkEnd
     );
 
+    List<TimeRecordEntity> findByEmployeeIdAndStartWorkBetweenAndStatusRecordIn(
+            UUID employeeId,
+            LocalDateTime startWorkStart,
+            LocalDateTime startWorkEnd,
+            Collection<StatusRecord> statuses
+    );
+
+    List<TimeRecordEntity> findByEmployeeIdAndActiveAndStartWorkBetweenAndStatusRecordIn(
+            UUID employeeId,
+            boolean active,
+            LocalDateTime startWorkStart,
+            LocalDateTime startWorkEnd,
+            Collection<StatusRecord> statuses
+    );
+
     @Query(
             value = """
                 SELECT tr
@@ -151,6 +166,7 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("statuses") Collection<String> statuses,
             @Param("employeeName") String employeeName
     );
+           
     @Query(value = """
     SELECT COUNT(*)
     FROM tb_time_records tr
@@ -165,4 +181,19 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("startOfMonth") LocalDateTime startOfMonth,
             @Param("endExclusive") LocalDateTime endExclusive
     );
+
+    @Query("""
+    SELECT tr
+    FROM TimeRecordEntity tr
+    WHERE tr.employeeId IN :employeeIds
+      AND tr.startWork BETWEEN :start AND :end
+    ORDER BY tr.employeeId ASC, tr.startWork ASC, tr.timeRecordId ASC
+    """)
+    List<TimeRecordEntity> findByEmployeeIdsAndStartWorkBetween(
+            @Param("employeeIds") Collection<UUID> employeeIds,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+
 }

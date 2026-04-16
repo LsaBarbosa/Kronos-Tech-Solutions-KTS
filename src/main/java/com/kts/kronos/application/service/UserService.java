@@ -97,12 +97,13 @@ public class UserService implements UserUseCase {
 
     @Override
     public List<User> listUsers(Boolean active) {
+        var currentRole = jwtAuthenticatedUser.getCurrentRole();
         var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
         var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var companyId = authenticatedUserEmployee.companyId();
 
-        if (jwtAuthenticatedUser.getCurrentRole() == Role.CTO) {
+        if (currentRole == Role.CTO) {
             return active == null
                     ? userProvider.findAll()
                     : userProvider.findByActive(active);
@@ -116,9 +117,17 @@ public class UserService implements UserUseCase {
             return List.of();
         }
 
-        return active == null
+        var usersFromTenant = active == null
                 ? userProvider.findByEmployeeIds(employeeIdsFromCompany)
                 : userProvider.findByEmployeeIdsAndActive(employeeIdsFromCompany, active);
+
+        if (currentRole == Role.PARTNER) {
+            return usersFromTenant.stream()
+                    .filter(user -> user.role() == Role.MANAGER)
+                    .toList();
+        }
+
+        return usersFromTenant;
     }
 
     @Override

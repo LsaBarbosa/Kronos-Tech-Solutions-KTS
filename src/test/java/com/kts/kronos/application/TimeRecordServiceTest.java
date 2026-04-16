@@ -2,7 +2,6 @@ package com.kts.kronos.application;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.SimpleReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
@@ -212,52 +211,6 @@ class TimeRecordServiceTest {
         assertNotNull(saved.endWork());
         assertEquals(StatusRecord.CREATED, saved.statusRecord());
         assertEquals(101L, saved.nsrCheckout());
-    }
-
-    @Test
-    @DisplayName("Deve calcular corretamente o saldo de horas no Simple Report")
-    void shouldCalculateBalanceInSimpleReport() {
-        LocalDate today = LocalDate.now(SAO_PAULO);
-        SimpleReportRequest req = new SimpleReportRequest("08:00", new LocalDate[]{today});
-
-        // 8 horas trabalhadas (4h manhã + 4h tarde)
-        TimeRecord r1 = new TimeRecord(1L, today.atTime(8,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
-        TimeRecord r2 = new TimeRecord(2L, today.atTime(13,0), today.atTime(17,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 3L, 4L, null, null);
-
-        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
-        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
-        when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1, r2));
-
-        // Act
-        var response = service.simpleReport(employeeId, req);
-
-        // Assert
-        assertEquals(1, response.days().size());
-        assertEquals("08:00", response.days().get(0).totalHours());
-        assertEquals("+00:00", response.days().get(0).balance());
-    }
-
-    @Test
-    @DisplayName("Deve calcular saldo negativo se trabalhou menos que a referência")
-    void shouldCalculateNegativeBalance() {
-        LocalDate today = LocalDate.now(SAO_PAULO);
-        SimpleReportRequest req = new SimpleReportRequest("08:00", new LocalDate[]{today});
-
-        // 3 horas trabalhadas apenas
-        TimeRecord r1 = new TimeRecord(1L, today.atTime(9,0), today.atTime(12,0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
-
-        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
-        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
-        when(recordRepository.findByEmployeeIdAndActive(employeeId, true)).thenReturn(List.of(r1));
-
-        // Act
-        var response = service.simpleReport(employeeId, req);
-
-        // Assert
-        assertEquals("03:00", response.days().get(0).totalHours());
-        assertEquals("-05:00", response.days().get(0).balance());
     }
 
     @Test
