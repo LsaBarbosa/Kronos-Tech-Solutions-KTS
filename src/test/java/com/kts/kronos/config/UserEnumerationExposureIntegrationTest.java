@@ -101,6 +101,23 @@ class UserEnumerationExposureIntegrationTest {
     }
 
     @Test
+    void shouldAllowPartnerToSearchActiveManagersOnly() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        User manager = new User(userId, "manager1", "encoded", Role.MANAGER, true, employeeId);
+        when(userUseCase.listUsers(true)).thenReturn(List.of(manager));
+
+        mockMvc.perform(get("/users/search")
+                        .param("active", "true")
+                        .with(user("partner").roles("PARTNER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users[0].userId").value(userId.toString()))
+                .andExpect(jsonPath("$.users[0].username").value("manager1"))
+                .andExpect(jsonPath("$.users[0].role").value("MANAGER"))
+                .andExpect(jsonPath("$.users[0].active").value(true));
+    }
+
+    @Test
     void shouldReduceUsersSearchPayloadMetadata() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
