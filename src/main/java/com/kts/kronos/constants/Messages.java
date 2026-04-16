@@ -165,6 +165,8 @@ public class Messages {
     public static final String FAILURE_TO_GENERAT_AEJ = "Falha ao gerar arquivo fiscal AEJ: ";
     public static final String ERROR_TO_GENERATE_HASH = "Erro ao calcular Hash SHA-256";
     public static final String ERROR_TO_GENERATE_PDF = "Falha na geração do Termo PDF: ";
+    public static final String END_DATE_BEFORE_START_DATE = "A data final não pode ser anterior à data inicial.";
+    public static final String EXPORT_PERIOD_TOO_LARGE = "O período informado excede o limite permitido para exportação de %d dias.";
 
 
     // Enums de Status (Mantidos)

@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -51,10 +52,12 @@ public class AejService implements AejUseCase {
     @Override
     @Transactional(readOnly = true)
     public void generateAej(UUID companyId, LocalDate startDate, LocalDate endDate, OutputStream outputStream) {
+        long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
+
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        log.info("Iniciando geração de AEJ para empresa {} de {} a {}", companyId, startDate, endDate);
+        log.info("Iniciando geração de AEJ para empresa {} de {} a {} ({} dias)", companyId, startDate, endDate, totalDays);
 
         // Buffer em memória para montar o texto antes de assinar
         try (var textBuffer = new ByteArrayOutputStream();
@@ -70,6 +73,22 @@ public class AejService implements AejUseCase {
 
             // 3. LOOP DE FUNCIONÁRIOS
             List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
+
+            var employeeIds = employees.stream()
+                    .map(Employee::employeeId)
+                    .toList();
+
+            var recordsByEmployeeId = recordRepository.findByEmployeeIdsAndRange(
+                            employeeIds,
+                            startDate.atStartOfDay(),
+                            endDate.atTime(23, 59, 59)
+                    ).stream()
+                    .collect(Collectors.groupingBy(
+                            TimeRecord::employeeId,
+                            LinkedHashMap::new,
+                            Collectors.toList()
+                    ));
+
             int sequenceId = 1;
 
             for (var employee : employees) {
@@ -83,16 +102,12 @@ public class AejService implements AejUseCase {
                 var scheduleId = "H" + bondId;
                 writeLine(writer, generateType04(scheduleId, employee));
 
-                // Busca registros do período
-                List<TimeRecord> records = recordRepository.findByEmployeeId(employee.employeeId()).stream()
-                        .filter(r -> r.startWork() != null)
-                        .filter(r -> !r.startWork().toLocalDate().isBefore(startDate) && !r.startWork().toLocalDate().isAfter(endDate))
-                        .sorted(Comparator.comparing(TimeRecord::startWork))
-                        .toList();
+                List<TimeRecord> records = recordsByEmployeeId.getOrDefault(employee.employeeId(), List.of());
 
                 // REGISTRO 05: MARCAÇÕES
                 for (var record : records) {
-                    generateType05Lines(bondId, scheduleId, record).forEach(line -> writeLine(writer, line));
+                    generateType05Lines(bondId, scheduleId, record)
+                            .forEach(line -> writeLine(writer, line));
                 }
 
                 // REGISTRO 07: AUSÊNCIAS E FÉRIAS

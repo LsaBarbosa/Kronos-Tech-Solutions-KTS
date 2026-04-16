@@ -36,7 +36,21 @@ public interface TimeRecordProvider {
 
     boolean existsByEmployeeIdAndDate(UUID employeeId, LocalDate date);
     void deleteByEmployeeId(UUID employeeId);
+
     List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end);
+
+    List<TimeRecord> findByEmployeeIdsAndRange(
+            Collection<UUID> employeeIds,
+            LocalDateTime start,
+            LocalDateTime end
+      );
+    List<TimeRecord> findReportRecords(
+            UUID employeeId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Collection<StatusRecord> statuses,
+            Boolean active
+    );
 
     Long findMaxNsrByCompanyId(UUID companyId);
 
@@ -55,4 +69,5 @@ public interface TimeRecordProvider {
     );
 
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
+
 }

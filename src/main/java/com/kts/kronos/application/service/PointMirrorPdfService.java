@@ -31,7 +31,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.DATE_FMT_BR;
 import static com.kts.kronos.constants.Messages.TIME_FORMATTER;
@@ -50,9 +52,18 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+
+        log.info(
+                "Gerando espelho de ponto para employeeId {} no período {} a {} ({} dias)",
+                employee.employeeId(),
+                startDate,
+                endDate,
+                totalDays
+        );
 
         try (var baos = new ByteArrayOutputStream()) {
             var writer = new PdfWriter(baos);
@@ -84,14 +95,22 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             var totalBalance = Duration.ZERO;
             var totalWorked = Duration.ZERO;
 
+            var recordsByDay = recordRepository.findByRange(
+                            employee.employeeId(),
+                            startDate.atStartOfDay(),
+                            endDate.atTime(23, 59, 59)
+                    ).stream()
+                    .filter(r -> r.startWork() != null)
+                    .sorted(Comparator.comparing(TimeRecord::startWork))
+                    .collect(Collectors.groupingBy(
+                            r -> r.startWork().toLocalDate(),
+                            TreeMap::new,
+                            Collectors.toList()
+                    ));
+
             for (var date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
 
-                // Busca registros do dia
-                var finalDate = date;
-                List<TimeRecord> dailyRecords = recordRepository.findByEmployeeId(employee.employeeId()).stream()
-                        .filter(r -> r.startWork() != null && r.startWork().toLocalDate().equals(finalDate))
-                        .sorted(Comparator.comparing(TimeRecord::startWork))
-                        .toList();
+                List<TimeRecord> dailyRecords = recordsByDay.getOrDefault(date, List.of());
 
                 // --- CÁLCULO REAL ---
                 var dayData = processDay(date, dailyRecords, employee);
@@ -101,7 +120,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
 
                 // Montagem da Linha
                 addCell(table, date.format(DateTimeFormatter.ofPattern("dd/MM (EEE)")));
-                addCell(table, dayData.jornadaDisplay); // Exibe horário contratual ou "Folga"
+                addCell(table, dayData.jornadaDisplay);
                 addCell(table, dayData.originalMarks);
                 addCell(table, dayData.treatedMarks);
                 addCell(table, formatDuration(dayData.worked));
