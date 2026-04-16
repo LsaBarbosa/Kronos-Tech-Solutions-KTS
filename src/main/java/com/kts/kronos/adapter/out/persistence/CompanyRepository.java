@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public interface CompanyRepository extends JpaRepository<CompanyEntity, UUID> {
     Optional<CompanyEntity> findByCnpj(String cnpj);
+    boolean existsByCnpj(String cnpj);
     List<CompanyEntity> findByActiveTrue();
     List<CompanyEntity> findByActiveFalse();
     void deleteByCnpj(String cnpj);

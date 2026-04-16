@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
@@ -32,6 +33,26 @@ public class DayOffScheduler {
     private final TimeRecordProvider trRepo;
     private final CompanyProvider companyProvider;
 
+    record DailyRunStats(
+            int companiesProcessed,
+            int employeesProcessed,
+            int existingRecordsSkipped,
+            int absencesCreated,
+            int dayOffsCreated
+    ) {
+        int totalCreated() {
+            return absencesCreated + dayOffsCreated;
+        }
+    }
+
+    record WeeklyRunStats(
+            int companiesProcessed,
+            int employeesProcessed,
+            int employeesEligibleForSwap,
+            int swapsApplied
+    ) {
+    }
+
     // =========================================================================
     // 1. ROTINA DIÁRIA (23:59): GERAÇÃO DE PONTO AUTOMÁTICO
     // =========================================================================
@@ -40,18 +61,43 @@ public class DayOffScheduler {
     public void ensureDayOffRecords() {
         log.info("Iniciando rotina diária de fechamento de folgas/ausências.");
         var today = LocalDate.now(SAO_PAULO);
+        long startedAt = System.nanoTime();
+        DailyRunStats stats = ensureDayOffRecords(today);
+        long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+        log.info(
+                "Rotina diária concluída em {} ms. empresas={}, colaboradores={}, já-com-registro={}, ausências-criadas={}, folgas-criadas={}, total-criados={}",
+                elapsedMs,
+                stats.companiesProcessed(),
+                stats.employeesProcessed(),
+                stats.existingRecordsSkipped(),
+                stats.absencesCreated(),
+                stats.dayOffsCreated(),
+                stats.totalCreated()
+        );
+    }
+
+    DailyRunStats ensureDayOffRecords(LocalDate today) {
+        int companiesProcessed = 0;
+        int employeesProcessed = 0;
+        int existingRecordsSkipped = 0;
+        int absencesCreated = 0;
+        int dayOffsCreated = 0;
 
         List<Company> activeCompanies = companyProvider.findByActive(true);
 
         for (var company : activeCompanies) {
+            companiesProcessed++;
             List<Employee> activeEmployees = empRepo.findByCompanyIdAndActive(company.companyId(), true);
 
             for (var employee : activeEmployees) {
+                employeesProcessed++;
                 var empId = employee.employeeId();
 
                 // BLINDAGEM: Se já existe registro hoje (Trabalho, Folga Manual, Atestado),
                 // não fazemos nada. Respeitamos o status atual.
                 if (trRepo.existsByEmployeeIdAndDate(empId, today)) {
+                    existingRecordsSkipped++;
                     continue;
                 }
 
@@ -68,9 +114,22 @@ public class DayOffScheduler {
                         false, true, empId, null, null, null, null, null, null, null, null
                 );
                 trRepo.save(record);
+
+                if (status == StatusRecord.ABSENCE) {
+                    absencesCreated++;
+                } else {
+                    dayOffsCreated++;
+                }
             }
         }
-        log.info("Rotina diária concluída.");
+
+        return new DailyRunStats(
+                companiesProcessed,
+                employeesProcessed,
+                existingRecordsSkipped,
+                absencesCreated,
+                dayOffsCreated
+        );
     }
 
     // =========================================================================
@@ -81,23 +140,53 @@ public class DayOffScheduler {
     @Transactional
     public void reconcileWeeklySwaps() {
         log.info("Iniciando reconciliação semanal de trocas de folga...");
-
         var today = LocalDate.now(SAO_PAULO);
+        long startedAt = System.nanoTime();
+        WeeklyRunStats stats = reconcileWeeklySwaps(today);
+        long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+        log.info(
+                "Reconciliação semanal concluída em {} ms. empresas={}, colaboradores={}, elegíveis={}, trocas-aplicadas={}",
+                elapsedMs,
+                stats.companiesProcessed(),
+                stats.employeesProcessed(),
+                stats.employeesEligibleForSwap(),
+                stats.swapsApplied()
+        );
+    }
+
+    WeeklyRunStats reconcileWeeklySwaps(LocalDate today) {
         var endOfLastWeek = today.minusDays(1); // Domingo
         var startOfLastWeek = endOfLastWeek.minusDays(6); // Segunda anterior
+
+        int companiesProcessed = 0;
+        int employeesProcessed = 0;
+        int employeesEligibleForSwap = 0;
+        int swapsApplied = 0;
 
         List<Company> activeCompanies = companyProvider.findByActive(true);
 
         for (var company : activeCompanies) {
+            companiesProcessed++;
             List<Employee> employees = empRepo.findByCompanyIdAndActive(company.companyId(), true);
 
             for (var employee : employees) {
+                employeesProcessed++;
                 if (shouldAnalyzeSwap(employee)) {
-                    processEmployeeSwap(employee, startOfLastWeek, endOfLastWeek);
+                    employeesEligibleForSwap++;
+                    if (processEmployeeSwap(employee, startOfLastWeek, endOfLastWeek)) {
+                        swapsApplied++;
+                    }
                 }
             }
         }
-        log.info("Reconciliação semanal concluída.");
+
+        return new WeeklyRunStats(
+                companiesProcessed,
+                employeesProcessed,
+                employeesEligibleForSwap,
+                swapsApplied
+        );
     }
 
     private boolean shouldAnalyzeSwap(Employee employee) {
@@ -111,7 +200,7 @@ public class DayOffScheduler {
         };
     }
 
-    private void processEmployeeSwap(Employee employee, LocalDate start, LocalDate end) {
+    private boolean processEmployeeSwap(Employee employee, LocalDate start, LocalDate end) {
         // Busca histórico da semana
         List<TimeRecord> weekRecords = trRepo.findByRange(
                 employee.employeeId(),
@@ -120,7 +209,7 @@ public class DayOffScheduler {
         );
 
         var preferredDayOff = employee.preferredDayOff();
-        if (preferredDayOff == null) return;
+        if (preferredDayOff == null) return false;
 
         // Se trabalhou no dia fixo de folga
         boolean workedOnPreferredDayOff = weekRecords.stream()
@@ -140,8 +229,10 @@ public class DayOffScheduler {
                 trRepo.save(swappedRecord);
                 log.info("Troca Automática: Func. {} trabalhou na folga fixa e teve a falta de {} abonada.",
                         employee.fullName(), recordToUpdate.startWork().toLocalDate());
+                return true;
             }
         }
+        return false;
     }
 
     private boolean isWorkingRecord(TimeRecord r) {

@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface CompanyProvider {
     void save(Company company);
     Optional<Company> findByCnpj(String cnpj);
+    boolean existsByCnpj(String cnpj);
     List<Company> findAll();
     Optional<Company> findById(UUID company);
     List<Company> findByActive(boolean active);

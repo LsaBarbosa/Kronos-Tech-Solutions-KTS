@@ -44,13 +44,13 @@ public class UserService implements UserUseCase {
     @Override
     public void createUser(CreateUserRequest req) {
 
-        if (userProvider.findByUsername(req.username().toLowerCase()).isPresent()) {
+        if (userProvider.existsByUsername(req.username().toLowerCase())) {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
 
         findById(req.employeeId());
 
-        if (userProvider.findByEmployeeId(req.employeeId()).isPresent()) {
+        if (userProvider.existsByEmployeeId(req.employeeId())) {
             throw new BadRequestException(USER_ALREADY_LINKED_TO_EMPLOYEE);
         }
 
@@ -200,7 +200,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public boolean usernameExists(String username) {
-        return userProvider.findByUsername(username.toLowerCase()).isPresent();
+        return userProvider.existsByUsername(username.toLowerCase());
     }
 
     private void validatePasswordPolicy(String raw) {

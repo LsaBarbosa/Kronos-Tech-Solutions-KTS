@@ -31,6 +31,11 @@ public class CompanyProviderImpl implements CompanyProvider {
     }
 
     @Override
+    public boolean existsByCnpj(String cnpj) {
+        return repository.existsByCnpj(cnpj);
+    }
+
+    @Override
     public List<Company> findAll() {
         return repository.findAll()
                 .stream()

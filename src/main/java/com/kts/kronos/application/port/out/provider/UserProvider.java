@@ -10,10 +10,12 @@ import java.util.UUID;
 public interface UserProvider {
     void save(User user);
     Optional<User> findByUsername(String username);
+    boolean existsByUsername(String username);
     Optional<User> findById(UUID userId);
     List<User> findAll();
     List<User> findByActive(boolean active);
     Optional<User> findByEmployeeId(UUID employeeId);
+    boolean existsByEmployeeId(UUID employeeId);
     List<User> findByEmployeeIds(Collection<UUID> employeeIds);
     List<User> findByEmployeeIdsAndActive(Collection<UUID> employeeIds, boolean active);
     void deleteById(UUID userId);

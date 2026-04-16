@@ -131,18 +131,10 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
 
     @Override
     public long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate) {
-        LocalDateTime startOfMonth = referenceDate.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
-        LocalDateTime endOfReferenceDay = referenceDate.atStartOfDay(); // Conta até ontem/hoje antes do processamento
+        LocalDateTime startOfMonth = referenceDate.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endExclusive = referenceDate.atStartOfDay();
 
-        // Busca registros do mês e filtra em memória (Seguro e compatível com qualquer banco)
-        return jpa.findByEmployeeIdAndStartWorkBetween(empId, startOfMonth, endOfReferenceDay)
-                .stream()
-                .filter(t -> t.getStatusRecord() == StatusRecord.DAY_OFF) // Apenas folgas
-                .filter(t -> {
-                    DayOfWeek day = t.getStartWork().getDayOfWeek();
-                    return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY; // Apenas finais de semana
-                })
-                .count();
+        return jpa.countWeekendDaysOffThisMonth(empId, startOfMonth, endExclusive);
     }
 
     @Override
@@ -164,6 +156,39 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
         return jpa.findByEmployeeIdAndStartWorkBetween(employeeId, start, end)
                 .stream()
                 .map(TimeRecordEntity::toDomain) // Converte para o modelo de domínio
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> findByEmployeeIdsAndRange(Collection<UUID> employeeIds,
+                                                      LocalDateTime start,
+                                                      LocalDateTime end) {
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdsAndStartWorkBetween(employeeIds, start, end)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> findReportRecords(UUID employeeId,
+                                              LocalDateTime start,
+                                              LocalDateTime end,
+                                              Collection<StatusRecord> statuses,
+                                              Boolean active) {
+        if (statuses == null || statuses.isEmpty()) {
+            return List.of();
+        }
+
+        var entities = active == null
+                ? jpa.findByEmployeeIdAndStartWorkBetweenAndStatusRecordIn(employeeId, start, end, statuses)
+                : jpa.findByEmployeeIdAndActiveAndStartWorkBetweenAndStatusRecordIn(employeeId, active, start, end, statuses);
+
+        return entities.stream()
+                .map(TimeRecordEntity::toDomain)
                 .toList();
     }
 }

@@ -32,7 +32,6 @@ public class ApiPaths {
     public static final String TOGGLE_ACTIVATE_RECORD = "/toggle-activate/{employeeId}/{timeRecordId}";
     public static final String DELETE_RECORD = "records/{employeeId}/{timeRecordId}";
     public static final String REPORT = "/report";
-    public static final String SIMPLE_REPORT = "/report/simple";
     public static final String REJECT_UPDATE = "/reject/{timeRecordId}";
     public static final String APPROVE_UPDATE = "/approve/{timeRecordId}";
     public static final String PENDING_APPROVALS = "/pending-approvals";
