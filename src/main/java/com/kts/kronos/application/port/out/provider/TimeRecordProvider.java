@@ -38,6 +38,14 @@ public interface TimeRecordProvider {
     void deleteByEmployeeId(UUID employeeId);
     List<TimeRecord> findByRange(UUID employeeId, LocalDateTime start, LocalDateTime end);
 
+    List<TimeRecord> findReportRecords(
+            UUID employeeId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Collection<StatusRecord> statuses,
+            Boolean active
+    );
+
     Long findMaxNsrByCompanyId(UUID companyId);
 
     Page<TimeRecord> findTimeOffRequestsByCompanyId(
