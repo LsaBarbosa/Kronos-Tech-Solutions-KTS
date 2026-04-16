@@ -166,4 +166,18 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
                 .map(TimeRecordEntity::toDomain) // Converte para o modelo de domínio
                 .toList();
     }
+
+    @Override
+    public List<TimeRecord> findByEmployeeIdsAndRange(Collection<UUID> employeeIds,
+                                                      LocalDateTime start,
+                                                      LocalDateTime end) {
+        if (employeeIds == null || employeeIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpa.findByEmployeeIdsAndStartWorkBetween(employeeIds, start, end)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
 }
