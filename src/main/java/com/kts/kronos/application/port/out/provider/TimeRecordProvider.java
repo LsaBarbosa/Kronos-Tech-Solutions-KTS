@@ -43,6 +43,13 @@ public interface TimeRecordProvider {
             Collection<UUID> employeeIds,
             LocalDateTime start,
             LocalDateTime end
+      );
+    List<TimeRecord> findReportRecords(
+            UUID employeeId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Collection<StatusRecord> statuses,
+            Boolean active
     );
 
     Long findMaxNsrByCompanyId(UUID companyId);
