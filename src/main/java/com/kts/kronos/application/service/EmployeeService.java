@@ -60,7 +60,7 @@ public class EmployeeService implements EmployeeUseCase {
 
         if (existingEmployeeOpt.isPresent()) {
             var existingEmployee = existingEmployeeOpt.get();
-            if (userProvider.findByEmployeeId(existingEmployee.employeeId()).isPresent()) {
+            if (userProvider.existsByEmployeeId(existingEmployee.employeeId())) {
                 throw new BadRequestException(CPF_ALREADY_EXIST);
             }
             return updateOrphanEmployee(existingEmployee, req, companyId);
@@ -206,7 +206,7 @@ public class EmployeeService implements EmployeeUseCase {
     public void deleteEmployee(UUID id) {
         var employee = getEmployee(id);
 
-        if (userProvider.findByEmployeeId(employee.employeeId()).isPresent()) {
+        if (userProvider.existsByEmployeeId(employee.employeeId())) {
             throw new BadRequestException(EMPLOYEE_HAS_LINKED_USER);
         }
 
