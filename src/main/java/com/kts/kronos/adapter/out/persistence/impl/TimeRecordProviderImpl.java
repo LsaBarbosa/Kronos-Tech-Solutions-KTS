@@ -169,6 +169,11 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
 
         return jpa.findByEmployeeIdsAndStartWorkBetween(employeeIds, start, end)
                 .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<TimeRecord> findReportRecords(UUID employeeId,
                                               LocalDateTime start,
                                               LocalDateTime end,

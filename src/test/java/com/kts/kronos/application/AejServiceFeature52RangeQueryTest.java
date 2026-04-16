@@ -1,9 +1,11 @@
 package com.kts.kronos.application;
 
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.service.AejService;
+import com.kts.kronos.application.service.LegalExportRangeGuard;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
@@ -25,9 +27,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static com.kts.kronos.constants.Messages.END_DATE_BEFORE_START_DATE;
+import static com.kts.kronos.constants.Messages.EXPORT_PERIOD_TOO_LARGE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -120,5 +127,44 @@ class AejServiceFeature52RangeQueryTest {
         );
         verify(recordRepository, never()).findByEmployeeId(any());
         verify(signatureService).signData(any(byte[].class));
+    }
+
+    @Test
+    @DisplayName("generateAej: bloqueia quando data final é anterior à inicial")
+    void shouldRejectWhenEndDateIsBeforeStartDate() {
+        UUID companyId = UUID.randomUUID();
+        LocalDate startDate = LocalDate.of(2026, 2, 10);
+        LocalDate endDate = LocalDate.of(2026, 2, 9);
+
+        var output = new ByteArrayOutputStream();
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.generateAej(companyId, startDate, endDate, output)
+        );
+
+        assertEquals(END_DATE_BEFORE_START_DATE, exception.getMessage());
+        verifyNoInteractions(companyProvider, employeeProvider, recordRepository, signatureService);
+    }
+
+    @Test
+    @DisplayName("generateAej: bloqueia períodos acima do limite de segurança")
+    void shouldRejectWhenPeriodIsTooLarge() {
+        UUID companyId = UUID.randomUUID();
+        LocalDate startDate = LocalDate.of(2026, 1, 1);
+        LocalDate endDate = LocalDate.of(2027, 1, 2);
+
+        var output = new ByteArrayOutputStream();
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.generateAej(companyId, startDate, endDate, output)
+        );
+
+        assertEquals(
+                String.format(EXPORT_PERIOD_TOO_LARGE, LegalExportRangeGuard.MAX_EXPORT_RANGE_DAYS),
+                exception.getMessage()
+        );
+        verifyNoInteractions(companyProvider, employeeProvider, recordRepository, signatureService);
     }
 }

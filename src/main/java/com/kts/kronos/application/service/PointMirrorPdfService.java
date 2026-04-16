@@ -52,9 +52,18 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+
+        log.info(
+                "Gerando espelho de ponto para employeeId {} no período {} a {} ({} dias)",
+                employee.employeeId(),
+                startDate,
+                endDate,
+                totalDays
+        );
 
         try (var baos = new ByteArrayOutputStream()) {
             var writer = new PdfWriter(baos);
