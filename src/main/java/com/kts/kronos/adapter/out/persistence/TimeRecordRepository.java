@@ -166,6 +166,21 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("statuses") Collection<String> statuses,
             @Param("employeeName") String employeeName
     );
+           
+    @Query(value = """
+    SELECT COUNT(*)
+    FROM tb_time_records tr
+    WHERE tr.employee_id = :empId
+      AND tr.status_record = 'DAY_OFF'
+      AND tr.start_work >= :startOfMonth
+      AND tr.start_work < :endExclusive
+      AND EXTRACT(ISODOW FROM tr.start_work) IN (6, 7)
+    """, nativeQuery = true)
+    long countWeekendDaysOffThisMonth(
+            @Param("empId") UUID empId,
+            @Param("startOfMonth") LocalDateTime startOfMonth,
+            @Param("endExclusive") LocalDateTime endExclusive
+    );
 
     @Query("""
     SELECT tr
