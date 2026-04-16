@@ -1,9 +1,11 @@
 package com.kts.kronos.application;
 
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.service.LegalExportRangeGuard;
 import com.kts.kronos.application.service.PointMirrorPdfService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
@@ -20,10 +22,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.kts.kronos.constants.Messages.END_DATE_BEFORE_START_DATE;
+import static com.kts.kronos.constants.Messages.EXPORT_PERIOD_TOO_LARGE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,6 +82,37 @@ class PointMirrorPdfServiceSecurityTest {
                 () -> service.generateMirror(employeeId, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 1)));
 
         verify(companyProvider, never()).findById(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("espelho: bloqueia período com data final anterior à inicial")
+    void shouldRejectMirrorWhenEndDateIsBeforeStartDate() {
+        UUID employeeId = UUID.randomUUID();
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.generateMirror(employeeId, LocalDate.of(2026, 1, 2), LocalDate.of(2026, 1, 1))
+        );
+
+        assertEquals(END_DATE_BEFORE_START_DATE, exception.getMessage());
+        verifyNoInteractions(domainAuthorizationService, companyProvider, recordRepository);
+    }
+
+    @Test
+    @DisplayName("espelho: bloqueia período acima do limite de segurança")
+    void shouldRejectMirrorWhenPeriodIsTooLarge() {
+        UUID employeeId = UUID.randomUUID();
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.generateMirror(employeeId, LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 2))
+        );
+
+        assertEquals(
+                String.format(EXPORT_PERIOD_TOO_LARGE, LegalExportRangeGuard.MAX_EXPORT_RANGE_DAYS),
+                exception.getMessage()
+        );
+        verifyNoInteractions(domainAuthorizationService, companyProvider, recordRepository);
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {

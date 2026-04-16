@@ -52,10 +52,12 @@ public class AejService implements AejUseCase {
     @Override
     @Transactional(readOnly = true)
     public void generateAej(UUID companyId, LocalDate startDate, LocalDate endDate, OutputStream outputStream) {
+        long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
+
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        log.info("Iniciando geração de AEJ para empresa {} de {} a {}", companyId, startDate, endDate);
+        log.info("Iniciando geração de AEJ para empresa {} de {} a {} ({} dias)", companyId, startDate, endDate, totalDays);
 
         // Buffer em memória para montar o texto antes de assinar
         try (var textBuffer = new ByteArrayOutputStream();
