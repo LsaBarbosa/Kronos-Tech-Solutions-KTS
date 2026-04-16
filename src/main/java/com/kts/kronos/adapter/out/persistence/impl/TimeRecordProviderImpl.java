@@ -131,18 +131,10 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
 
     @Override
     public long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate) {
-        LocalDateTime startOfMonth = referenceDate.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
-        LocalDateTime endOfReferenceDay = referenceDate.atStartOfDay(); // Conta até ontem/hoje antes do processamento
+        LocalDateTime startOfMonth = referenceDate.withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endExclusive = referenceDate.atStartOfDay();
 
-        // Busca registros do mês e filtra em memória (Seguro e compatível com qualquer banco)
-        return jpa.findByEmployeeIdAndStartWorkBetween(empId, startOfMonth, endOfReferenceDay)
-                .stream()
-                .filter(t -> t.getStatusRecord() == StatusRecord.DAY_OFF) // Apenas folgas
-                .filter(t -> {
-                    DayOfWeek day = t.getStartWork().getDayOfWeek();
-                    return day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY; // Apenas finais de semana
-                })
-                .count();
+        return jpa.countWeekendDaysOffThisMonth(empId, startOfMonth, endExclusive);
     }
 
     @Override
