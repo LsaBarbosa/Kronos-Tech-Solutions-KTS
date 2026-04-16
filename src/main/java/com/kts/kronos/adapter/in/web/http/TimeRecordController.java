@@ -63,14 +63,6 @@ public class TimeRecordController {
         return useCase.listReport(employeeId, req);
     }
 
-    @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping(SIMPLE_REPORT)
-    public ResponseEntity<SimpleReportResponse> simpleReport(@RequestParam(required = false) UUID employeeId,
-                                                             @Valid @RequestBody SimpleReportRequest req) {
-        var resp = useCase.simpleReport(employeeId, req);
-        return ResponseEntity.ok(resp);
-    }
-
     @PreAuthorize(MANAGER)
     @PatchMapping(APPROVE_UPDATE)
     public void approveChange(@PathVariable Long timeRecordId) {
