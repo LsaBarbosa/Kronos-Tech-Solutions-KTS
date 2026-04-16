@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import jakarta.mail.Session;
+import jakarta.mail.Multipart;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,13 +14,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -59,12 +61,12 @@ class EmailSenderProviderImplTest {
         assertEquals("destinatario@kts.com", ((InternetAddress) message.getAllRecipients()[0]).getAddress());
         assertEquals("🔒 Kronos Suporte - Redefinição de Senha", message.getSubject());
 
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        message.writeTo(output);
-        String raw = output.toString(StandardCharsets.UTF_8);
-        assertTrue(raw.contains("token-123"));
-        assertTrue(raw.contains("alice"));
-        assertTrue(raw.contains("frontend.kronos.local"));
+        String body = extractBody(message);
+        assertTrue(body.contains("token-123"));
+        assertTrue(body.contains("alice"));
+        assertTrue(body.contains("frontend.kronos.local"));
+        assertTrue(body.contains("/resetar-senha?token=token-123"));
+        assertFalse(body.contains("//resetar-senha?token=token-123"));
     }
 
     @Test
@@ -102,5 +104,29 @@ class EmailSenderProviderImplTest {
         assertEquals("Falha na configuração do e-mail de recuperação.", exception.getMessage());
         assertNotNull(exception.getCause());
         verify(mailSender, never()).send(any(MimeMessage.class));
+    }
+
+    private String extractBody(MimeMessage message) throws Exception {
+        return extractText(message.getContent());
+    }
+
+    private String extractText(Object content) throws Exception {
+        if (content == null) {
+            return "";
+        }
+        if (content instanceof String text) {
+            return text;
+        }
+        if (content instanceof InputStream inputStream) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        if (content instanceof Multipart multipart) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < multipart.getCount(); i++) {
+                builder.append(extractText(multipart.getBodyPart(i).getContent()));
+            }
+            return builder.toString();
+        }
+        return content.toString();
     }
 }
