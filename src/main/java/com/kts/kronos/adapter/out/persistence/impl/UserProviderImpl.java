@@ -28,6 +28,11 @@ public class UserProviderImpl implements UserProvider {
     }
 
     @Override
+    public boolean existsByUsername(String username) {
+        return jpa.existsByUsernameIgnoreCase(username);
+    }
+
+    @Override
     public Optional<User> findById(UUID userId) {
         Optional<UserEntity> opt = jpa.findById(userId);
         return opt.map(UserEntity::toDomain);
@@ -55,6 +60,11 @@ public class UserProviderImpl implements UserProvider {
     public Optional<User> findByEmployeeId(UUID employeeId) {
         Optional<UserEntity> opt = jpa.findByEmployeeId(employeeId);
         return opt.map(UserEntity::toDomain);
+    }
+
+    @Override
+    public boolean existsByEmployeeId(UUID employeeId) {
+        return jpa.existsByEmployeeId(employeeId);
     }
 
     @Override
