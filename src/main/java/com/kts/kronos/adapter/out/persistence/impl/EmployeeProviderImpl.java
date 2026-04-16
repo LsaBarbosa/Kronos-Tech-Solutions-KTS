@@ -9,10 +9,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 @RequiredArgsConstructor
 @Component
 public class EmployeeProviderImpl implements EmployeeProvider {
+    private static final Pattern NON_DIGIT_PATTERN = Pattern.compile("\\D");
     private final EmployeeRepository repository;
     @Override
     public Employee save(Employee employee) {
@@ -29,12 +31,23 @@ public class EmployeeProviderImpl implements EmployeeProvider {
 
     @Override
     public Optional<Employee> findByCpf(String cpf) {
-        return repository.findByCpf(cpf).map(EmployeeEntity::toDomain);
+        for (String candidate : buildCpfCandidates(cpf)) {
+            Optional<EmployeeEntity> opt = repository.findByCpf(candidate);
+            if (opt.isPresent()) {
+                return opt.map(EmployeeEntity::toDomain);
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
     public boolean cpfExists(String cpf) {
-        return repository.existsByCpf(cpf);
+        for (String candidate : buildCpfCandidates(cpf)) {
+            if (repository.existsByCpf(candidate)) {
+                return true;
+            }
+        }
+        return false;
     }
     @Override
     public List<Employee> findAll() {
@@ -82,5 +95,38 @@ public class EmployeeProviderImpl implements EmployeeProvider {
             return List.of();
         }
         return repository.countByCompanyIds(companyIds);
+    }
+
+    private List<String> buildCpfCandidates(String cpf) {
+        if (cpf == null) {
+            return List.of();
+        }
+
+        String raw = cpf.trim();
+        if (raw.isEmpty()) {
+            return List.of();
+        }
+
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(raw);
+
+        String digits = NON_DIGIT_PATTERN.matcher(raw).replaceAll("");
+        if (!digits.isEmpty()) {
+            candidates.add(digits);
+            if (digits.length() == 11) {
+                candidates.add(formatCpf(digits));
+            }
+        }
+
+        return List.copyOf(candidates);
+    }
+
+    private String formatCpf(String digits) {
+        return "%s.%s.%s-%s".formatted(
+                digits.substring(0, 3),
+                digits.substring(3, 6),
+                digits.substring(6, 9),
+                digits.substring(9, 11)
+        );
     }
 }
