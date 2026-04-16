@@ -173,6 +173,35 @@ class UserServiceFeature44ListUsersOptimizationTest {
         verify(userProvider, never()).findAll();
     }
 
+    @Test
+    @DisplayName("listUsers: partner recebe apenas gestores ativos da própria empresa")
+    void shouldReturnOnlyManagersForPartner() {
+        UUID partnerEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeAId = UUID.randomUUID();
+        UUID employeeBId = UUID.randomUUID();
+
+        Employee partner = employee(partnerEmployeeId, companyId, "Partner");
+        Employee managerEmployee = employee(employeeAId, companyId, "Manager");
+        Employee partnerEmployee = employee(employeeBId, companyId, "Partner2");
+
+        User managerUser = new User(UUID.randomUUID(), "manager1", "x", Role.MANAGER, true, employeeAId);
+        User partnerUser = new User(UUID.randomUUID(), "partner1", "x", Role.PARTNER, true, employeeBId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(partnerEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(employeeProvider.findById(partnerEmployeeId)).thenReturn(Optional.of(partner));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(managerEmployee, partnerEmployee));
+        when(userProvider.findByEmployeeIdsAndActive(Set.of(employeeAId, employeeBId), true))
+                .thenReturn(List.of(managerUser, partnerUser));
+
+        var result = service.listUsers(true);
+
+        assertEquals(List.of(managerUser), result);
+        verify(userProvider).findByEmployeeIdsAndActive(Set.of(employeeAId, employeeBId), true);
+        verify(userProvider, never()).findAll();
+    }
+
     private Employee employee(UUID employeeId, UUID companyId, String name) {
         return new Employee(
                 employeeId,
