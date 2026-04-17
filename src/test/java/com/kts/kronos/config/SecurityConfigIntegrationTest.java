@@ -19,7 +19,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 @SpringBootTest(
         classes = SecurityTestApplication.class,
         properties = {
@@ -91,5 +92,13 @@ class SecurityConfigIntegrationTest {
         mockMvc.perform(get("/v3/api-docs")
                         .with(user("manager").roles("MANAGER")))
                 .andExpect(status().isNotFound());
+    }
+    @Test
+    void shouldAllowCorsPreflightWithoutAuthentication() throws Exception {
+        mockMvc.perform(options("/companies/check-cnpj")
+                        .header("Origin", "http://local.test")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://local.test"));
     }
 }
