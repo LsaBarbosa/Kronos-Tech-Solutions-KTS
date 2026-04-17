@@ -396,6 +396,7 @@ class EmployeeServiceTest {
         verify(employeeProvider, never()).deleteById(any());
     }
 
+
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
         return new Employee(
                 employeeId,
