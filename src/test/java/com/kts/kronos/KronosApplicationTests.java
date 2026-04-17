@@ -1,18 +1,13 @@
 package com.kts.kronos;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
-import com.kts.kronos.adapter.out.persistence.impl.EmailSenderProviderImpl;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
-import com.kts.kronos.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.SpringBootConfiguration;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,10 +15,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import testsupport.ContextSmokeTestApplication;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest(classes = KronosApplicationTests.TestApp.class)
+@SpringBootTest(classes = ContextSmokeTestApplication.class)
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "spring.mail.username=test@kronos.local",
@@ -80,9 +76,4 @@ class KronosApplicationTests {
         assertNotNull(passwordEncoder);
     }
 
-    @SpringBootConfiguration
-    @EnableAutoConfiguration
-    @Import({SecurityConfig.class, EmailSenderProviderImpl.class, RekognitionSetup.class})
-    static class TestApp {
-    }
 }
