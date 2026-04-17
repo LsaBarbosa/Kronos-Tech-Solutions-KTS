@@ -20,7 +20,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticationFilterTest {
 
@@ -81,5 +88,70 @@ class JwtAuthenticationFilterTest {
 
         assertThrows(DisabledException.class, () -> filter.doFilter(request, response, chain));
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void shouldContinueWhenAuthorizationHeaderIsMissing() throws Exception {
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verifyNoInteractions(jwtUtils, userDetailsService);
+    }
+
+    @Test
+    void shouldContinueWhenAuthorizationHeaderIsNotBearer() throws Exception {
+        var request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Basic abc123");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verifyNoInteractions(jwtUtils, userDetailsService);
+    }
+
+    @Test
+    void shouldContinueWhenTokenIsInvalid() throws Exception {
+        var request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer invalid-token");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        when(jwtUtils.validateToken("invalid-token")).thenReturn(false);
+
+        filter.doFilter(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(jwtUtils).validateToken("invalid-token");
+        verify(jwtUtils, never()).getUsernameFromToken(anyString());
+        verifyNoInteractions(userDetailsService);
+    }
+
+    @Test
+    void shouldNotOverrideExistingAuthentication() throws Exception {
+        var existingAuthentication = new UsernamePasswordAuthenticationToken(
+                "existing-user",
+                null,
+                AuthorityUtils.createAuthorityList("ROLE_PARTNER")
+        );
+        SecurityContextHolder.getContext().setAuthentication(existingAuthentication);
+
+        var request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer valid-token");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        when(jwtUtils.validateToken("valid-token")).thenReturn(true);
+        when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals("existing-user", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+        verify(userDetailsService, never()).loadUserByUsername(anyString());
     }
 }
