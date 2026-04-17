@@ -1,0 +1,39 @@
+name: kronos-testcontainers
+
+services:
+  docker:
+    image: docker:27-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - --host=tcp://0.0.0.0:2375
+      - --tls=false
+    healthcheck:
+      test: ["CMD-SHELL", "docker info >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - docker-dind-data:/var/lib/docker
+
+  gradle-tests:
+    image: gradle:8.14.2-jdk21
+    working_dir: /workspace
+    depends_on:
+      docker:
+        condition: service_healthy
+    environment:
+      DOCKER_HOST: tcp://docker:2375
+      TESTCONTAINERS_HOST_OVERRIDE: docker
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      GRADLE_USER_HOME: /home/gradle/.gradle
+    volumes:
+      - .:/workspace
+      - gradle-user-home:/home/gradle/.gradle
+    command: >
+      bash -lc "chmod +x ./gradlew && ./gradlew test --no-daemon"
+
+volumes:
+  docker-dind-data:
+  gradle-user-home:
