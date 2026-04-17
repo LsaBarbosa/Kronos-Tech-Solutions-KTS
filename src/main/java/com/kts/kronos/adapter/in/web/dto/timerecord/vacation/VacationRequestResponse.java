@@ -31,13 +31,15 @@ public record VacationRequestResponse(
         }
 
 
-        period.sort(Comparator.comparing(TimeRecord::startWork));
+        List<TimeRecord> sortedPeriod = period.stream()
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
 
-        LocalDate startDate = period.getFirst().startWork().toLocalDate();
-        LocalDate endDate = period.getLast().startWork().toLocalDate();
-        StatusRecord status = period.getFirst().statusRecord();
+        LocalDate startDate = sortedPeriod.getFirst().startWork().toLocalDate();
+        LocalDate endDate = sortedPeriod.getLast().startWork().toLocalDate();
+        StatusRecord status = sortedPeriod.getFirst().statusRecord();
 
-        List<Long> ids = period.stream()
+        List<Long> ids = sortedPeriod.stream()
                 .map(TimeRecord::timeRecordId)
                 .collect(Collectors.toList());
 
