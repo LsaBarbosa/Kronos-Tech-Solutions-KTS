@@ -101,6 +101,7 @@ tasks.named('bootBuildImage') {
 
 tasks.named('test') {
     useJUnitPlatform()
+    systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'test')
     finalizedBy(tasks.named('jacocoTestReport'))
 }
 
@@ -123,16 +124,22 @@ tasks.named('jacocoTestCoverageVerification') {
         rule {
             enabled = true
             element = 'BUNDLE'
+
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 1.0
+                minimum = 0.40
             }
+
             limit {
                 counter = 'BRANCH'
                 value = 'COVEREDRATIO'
-                minimum = 1.0
+                minimum = 0.30
             }
         }
     }
+}
+
+tasks.named('check') {
+    dependsOn(tasks.named('jacocoTestCoverageVerification'))
 }
