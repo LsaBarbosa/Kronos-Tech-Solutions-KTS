@@ -3,11 +3,13 @@ package com.kts.kronos.application;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.UserService;
 import com.kts.kronos.domain.model.User;
@@ -53,6 +55,8 @@ class UserServiceTenantSecurityTest {
     private EmployeeUseCase employeeUseCase;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     @Test
     @DisplayName("updateUser: manager pode operar usuário do mesmo tenant")
@@ -91,7 +95,6 @@ class UserServiceTenantSecurityTest {
         var existing = new User(userId, "john", "hashed", Role.PARTNER, true, employeeId);
 
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
-
         service.deleteUser(userId);
 
         var inOrder = inOrder(documentProvider, timeRecordProvider, userProvider, employeeProvider);
