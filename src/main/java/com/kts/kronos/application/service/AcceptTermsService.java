@@ -5,16 +5,12 @@ import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.AuditLog;
-import com.kts.kronos.domain.model.Company;
-import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
@@ -30,6 +26,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
     private final AuditLogProvider auditLogProvider;
+    private final FaceStorageProvider faceStorageProvider;
+    private final FaceRecognitionProvider faceRecognitionProvider;
+
     @Override
     @Transactional
     public void acceptBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
@@ -88,6 +87,41 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         auditLogProvider.registerLog(audit);
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
+    }
+
+    @Override
+    @Transactional
+    public void revokeBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
+        var employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (employee.faceS3ObjectKey() != null && !employee.faceS3ObjectKey().isBlank()) {
+            faceStorageProvider.deleteFaceImage(employee.faceS3ObjectKey());
+        }
+
+        faceRecognitionProvider.deleteFacesByExternalImageId(employeeId);
+        employeeProvider.save(employee.withFaceS3ObjectKey(null));
+
+        var consentDocuments = documentProvider.findByEmployeeAndType(
+                employeeId,
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                true
+        );
+
+        for (var document : consentDocuments) {
+            documentProvider.delete(employeeId, document.documentId());
+        }
+
+        var audit = AuditLog.create(
+                employeeId,
+                "REVOGACAO_TERMOS_BIOMETRIA",
+                ipAddress,
+                userAgent,
+                "Consentimento biométrico revogado e artefatos biométricos purgados."
+        );
+
+        auditLogProvider.registerLog(audit);
+        log.info("Revogação biométrica concluída com sucesso para o colaborador {}", employeeId);
     }
 
     @Override
