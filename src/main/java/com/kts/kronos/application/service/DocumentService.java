@@ -30,6 +30,8 @@ import java.util.UUID;
 import java.util.zip.ZipInputStream;
 
 import static com.kts.kronos.constants.Messages.*;
+import com.kts.kronos.application.port.out.provider.FileScanningProvider;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +52,10 @@ public class DocumentService implements DocumentUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
     private final DomainAuthorizationService domainAuthorizationService;
+    private final FileScanningProvider fileScanningProvider;
 
+    @Value("${kronos.security.upload.max-bytes:5242880}")
+    private long maxUploadBytes;
      
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
@@ -198,9 +203,12 @@ public class DocumentService implements DocumentUseCase {
     }
 
     private UploadData validateAndPrepareUpload(MultipartFile file) throws IOException {
-        var contentType = normalizeContentType(file.getContentType());
-        if (!ALLOWED_MIME_TYPES.contains(contentType)) {
+        if (file == null || file.isEmpty()) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        if (file.getSize() > maxUploadBytes) {
+            throw new BadRequestException(FILE_TOO_LARGE);
         }
 
         var safeFileName = sanitizeFileName(file.getOriginalFilename());
@@ -209,22 +217,28 @@ public class DocumentService implements DocumentUseCase {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
-        var allowedExtensionsForMime = ALLOWED_EXTENSIONS_BY_MIME.get(contentType);
+        var bytes = file.getBytes();
+        if (bytes.length == 0) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var detectedContentType = detectRealMimeType(bytes);
+        if (!ALLOWED_MIME_TYPES.contains(detectedContentType)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var allowedExtensionsForMime = ALLOWED_EXTENSIONS_BY_MIME.get(detectedContentType);
         if (allowedExtensionsForMime == null || !allowedExtensionsForMime.contains(extension)) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
-        var bytes = file.getBytes();
-        if (bytes.length == 0 || !matchesSignature(extension, bytes)) {
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
+        fileScanningProvider.scanOrThrow(safeFileName, detectedContentType, bytes);
 
-        return new UploadData(bytes, safeFileName, contentType);
+        return new UploadData(bytes, safeFileName, detectedContentType);
     }
 
-    private String normalizeContentType(String contentType) {
-        return contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
-    }
+
+
 
     private String sanitizeFileName(String originalFileName) {
         if (originalFileName == null || originalFileName.isBlank()) {
@@ -263,15 +277,23 @@ public class DocumentService implements DocumentUseCase {
         return fileName.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
     }
 
-    private boolean matchesSignature(String extension, byte[] bytes) {
-        return switch (extension) {
-            case "pdf" -> hasPrefix(bytes, 0x25, 0x50, 0x44, 0x46);
-            case "jpg", "jpeg" -> hasPrefix(bytes, 0xFF, 0xD8, 0xFF);
-            case "png" -> hasPrefix(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
-            case "doc" -> hasPrefix(bytes, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1);
-            case "docx" -> isDocx(bytes);
-            default -> false;
-        };
+    private String detectRealMimeType(byte[] bytes) {
+        if (hasPrefix(bytes, 0x25, 0x50, 0x44, 0x46)) {
+            return "application/pdf";
+        }
+        if (hasPrefix(bytes, 0xFF, 0xD8, 0xFF)) {
+            return "image/jpeg";
+        }
+        if (hasPrefix(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) {
+            return "image/png";
+        }
+        if (hasPrefix(bytes, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)) {
+            return "application/msword";
+        }
+        if (isDocx(bytes)) {
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
+        return "";
     }
 
     private boolean isDocx(byte[] bytes) {

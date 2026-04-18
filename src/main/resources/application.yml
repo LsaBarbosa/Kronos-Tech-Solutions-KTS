@@ -109,6 +109,14 @@ kronos:
     certificate:
       path: "caminho/para/certificado.pfx"
       password: "sua_senha_secreta"
+    biometric-term-salt: ${SECRET_TERM}
+    upload:
+      max-bytes: ${UPLOAD_MAX_BYTES:5242880}
+      antivirus:
+        enabled: ${UPLOAD_ANTIVIRUS_ENABLED:false}
+        host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
+        port: ${UPLOAD_ANTIVIRUS_PORT:3310}
+        timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
     biometric-term-salt: ${SECRET_TERM}  
 
 biometric:
