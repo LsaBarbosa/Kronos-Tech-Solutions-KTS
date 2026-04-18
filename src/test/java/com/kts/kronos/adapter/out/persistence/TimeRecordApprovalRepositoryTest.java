@@ -59,12 +59,12 @@ class TimeRecordApprovalRepositoryTest extends AbstractPostgresDataJpaTest {
         repository.flush();
 
         em.getEntityManager()
-                .createNativeQuery("""
-                UPDATE tb_time_record_approval
-                   SET created_at = :createdAt
-                 WHERE time_record_id = :timeRecordId
-            """)
-                .setParameter("createdAt", Timestamp.valueOf(LocalDateTime.now().minusDays(40)))
+                .createQuery("""
+                    UPDATE TimeRecordApprovalEntity t
+                       SET t.createdAt = :createdAt
+                     WHERE t.timeRecordId = :timeRecordId
+                """)
+                .setParameter("createdAt", LocalDateTime.now().minusDays(40))
                 .setParameter("timeRecordId", 10L)
                 .executeUpdate();
 
