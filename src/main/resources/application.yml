@@ -117,3 +117,17 @@ kronos:
         host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
+    biometric-term-salt: ${SECRET_TERM}  
+
+biometric:
+  max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
+  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}
+  login-face:
+    limit: ${BIOMETRIC_LOGIN_FACE_LIMIT:5}
+    window-seconds: ${BIOMETRIC_LOGIN_FACE_WINDOW_SECONDS:60}
+  checkin:
+    limit: ${BIOMETRIC_CHECKIN_LIMIT:20}
+    window-seconds: ${BIOMETRIC_CHECKIN_WINDOW_SECONDS:60}
+  enrollment:
+    limit: ${BIOMETRIC_ENROLLMENT_LIMIT:10}
+    window-seconds: ${BIOMETRIC_ENROLLMENT_WINDOW_SECONDS:600}

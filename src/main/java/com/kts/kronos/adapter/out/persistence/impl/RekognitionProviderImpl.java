@@ -9,10 +9,11 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.*;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -121,6 +122,44 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
             rekognitionClient.deleteFaces(deleteFacesRequest);
         } catch (Exception e) {
             log.error("Erro ao deletar face {}: {}", faceId, e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void deleteFacesByExternalImageId(UUID externalImageId) {
+        try {
+            List<String> faceIds = new ArrayList<>();
+            String nextToken = null;
+
+            do {
+                var listRequest = ListFacesRequest.builder()
+                        .collectionId(collectionId)
+                        .maxResults(1000)
+                        .nextToken(nextToken)
+                        .build();
+
+                var response = rekognitionClient.listFaces(listRequest);
+
+                response.faces().stream()
+                        .filter(face -> externalImageId.toString().equals(face.externalImageId()))
+                        .map(Face::faceId)
+                        .forEach(faceIds::add);
+
+                nextToken = response.nextToken();
+            } while (nextToken != null);
+
+            if (faceIds.isEmpty()) {
+                return;
+            }
+
+            rekognitionClient.deleteFaces(DeleteFacesRequest.builder()
+                    .collectionId(collectionId)
+                    .faceIds(faceIds)
+                    .build());
+
+            log.info("Templates biométricos removidos para externalImageId={}", externalImageId);
+        } catch (Exception e) {
+            log.error("Erro ao remover templates biométricos de externalImageId={}: {}", externalImageId, e.getMessage(), e);
         }
     }
 }
