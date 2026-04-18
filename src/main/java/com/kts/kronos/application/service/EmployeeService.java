@@ -1,12 +1,17 @@
 package com.kts.kronos.application.service;
 
-import com.kts.kronos.adapter.in.web.dto.employee.*;
+import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Base64;
@@ -34,7 +38,8 @@ public class EmployeeService implements EmployeeUseCase {
     private final UserProvider userProvider;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
-
+    private final BiometricProtectionService biometricProtectionService;
+    private final AcceptTermsUseCase acceptTermsUseCase;
 
     // MANAGER
     @Override
@@ -107,6 +112,11 @@ public class EmployeeService implements EmployeeUseCase {
         var savedEmployee = employeeProvider.save(newEmployee);
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            biometricProtectionService.protectEnrollment(
+                    savedEmployee.employeeId(),
+                    req.faceImageBase64()
+            );
+
             var s3Key = handleFaceRegistration(
                     savedEmployee.employeeId(),
                     savedEmployee.faceS3ObjectKey(),
@@ -190,6 +200,11 @@ public class EmployeeService implements EmployeeUseCase {
         String newS3ObjectKey = updatedEmployee.faceS3ObjectKey();
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            biometricProtectionService.protectEnrollment(
+                    updatedEmployee.employeeId(),
+                    req.faceImageBase64()
+            );
+
             newS3ObjectKey = handleFaceRegistration(
                     updatedEmployee.employeeId(),
                     updatedEmployee.faceS3ObjectKey(),
@@ -209,7 +224,7 @@ public class EmployeeService implements EmployeeUseCase {
         if (userProvider.existsByEmployeeId(employee.employeeId())) {
             throw new BadRequestException(EMPLOYEE_HAS_LINKED_USER);
         }
-
+        acceptTermsUseCase.revokeBiometricTerms(employee.employeeId(), "system", "EMPLOYEE_DELETE");
         employeeProvider.deleteById(employee.employeeId());
     }
     // PARTNER
@@ -278,7 +293,10 @@ public class EmployeeService implements EmployeeUseCase {
             // 2. Upload para o S3 (cria um novo arquivo)
             newS3ObjectKey = faceStorageProvider.uploadFaceImage(employeeId, inputStream, "image/jpeg");
 
-            // 3. Indexar a Face no Rekognition (usa employeeId como ExternalImageId)
+            // 3. Remove templates antigos do colaborador antes de indexar a nova biometria
+            faceRecognitionProvider.deleteFacesByExternalImageId(employeeId);
+
+            // 4. Indexar a Face no Rekognition (usa employeeId como ExternalImageId)
             String faceId = faceRecognitionProvider.indexFace(newS3ObjectKey, employeeId);
 
             if (faceId == null) {
@@ -287,12 +305,11 @@ public class EmployeeService implements EmployeeUseCase {
                 throw new BadRequestException(NO_FACE_DETECTED);
             }
 
-            // 4. Se a indexação foi bem-sucedida, deletar a imagem antiga do S3 (se existir)
+            // 5. Se a indexação foi bem-sucedida, deletar a imagem antiga do S3 (se existir)
             if (oldS3ObjectKey != null && !oldS3ObjectKey.isBlank()) {
                 faceStorageProvider.deleteFaceImage(oldS3ObjectKey);
             }
 
-            // 5. Retorna a nova chave S3
             return newS3ObjectKey;
 
         } catch (IllegalArgumentException e) {
@@ -356,6 +373,11 @@ public class EmployeeService implements EmployeeUseCase {
         // Processa a imagem facial novamente
         // Se houver nova foto, o handleFaceRegistration cuidará de deletar a antiga do S3/Rekognition
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            biometricProtectionService.protectEnrollment(
+                    savedEmployee.employeeId(),
+                    req.faceImageBase64()
+            );
+
             var s3Key = handleFaceRegistration(
                     savedEmployee.employeeId(),
                     savedEmployee.faceS3ObjectKey(),

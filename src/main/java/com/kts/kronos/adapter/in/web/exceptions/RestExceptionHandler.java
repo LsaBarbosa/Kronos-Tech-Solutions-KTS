@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.exceptions;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -43,18 +44,6 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, request, errors);
     }
 
-    private ResponseEntity<Object> buildResponseEntity(Exception ex, HttpStatus status, WebRequest request, List<ProblemDetail.Error> errors) {
-        ProblemDetail problemDetail = ProblemDetail.builder()
-                .status(status.value())
-                .title(status.getReasonPhrase())
-                .detail(ex.getMessage())
-                .errors(errors)
-                .build();
-
-        return handleExceptionInternal(ex, problemDetail, new HttpHeaders(), status, request);
-    }
-
-
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Object> handleForbiddenException(ForbiddenException ex, WebRequest request) {
         return buildResponseEntity(ex, HttpStatus.FORBIDDEN, request, null);
@@ -72,5 +61,20 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
         // Usamos uma mensagem customizada para não expor detalhes
         var customException = new BadCredentialsException("Usuário ou senha inválidos");
         return buildResponseEntity(customException, HttpStatus.UNAUTHORIZED, request, null);
+    }
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Object> handleTooManyRequestsException(TooManyRequestsException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.TOO_MANY_REQUESTS, request, null);
+    }
+
+    private ResponseEntity<Object> buildResponseEntity(Exception ex, HttpStatus status, WebRequest request, List<ProblemDetail.Error> errors) {
+        ProblemDetail problemDetail = ProblemDetail.builder()
+                .status(status.value())
+                .title(status.getReasonPhrase())
+                .detail(ex.getMessage())
+                .errors(errors)
+                .build();
+
+        return handleExceptionInternal(ex, problemDetail, new HttpHeaders(), status, request);
     }
 }

@@ -8,4 +8,5 @@ public interface FaceRecognitionProvider {
     String indexFace(String imageS3Key, UUID externalImageId);
     UUID searchFaceByImage(InputStream imageStream);
     void deleteFace(String faceId);
+    void deleteFacesByExternalImageId(UUID externalImageId);
 }
