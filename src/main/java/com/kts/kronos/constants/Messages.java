@@ -124,6 +124,9 @@ public class Messages {
     public static final String IMAGE_DATA_NOT_BLANK = "A imagem da face é obrigatória para o registro de ponto";
     public static final String IMAGE_DATA_REGISTER_NOT_BLANK = "A imagem da face é obrigatória para o cadastro de referência.";
     public static final String NO_FACE_DETECTED = "Nenhuma face válida detectada na imagem fornecida. Tente novamente.";
+    public static final String FILE_TOO_LARGE = "O arquivo excede o limite permitido para upload.";
+    public static final String MALICIOUS_FILE_DETECTED = "O arquivo foi bloqueado pela verificação de segurança.";
+    public static final String FILE_SCAN_FAILED = "Falha ao validar a segurança do arquivo enviado.";
 
     // Security / Headers
     public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
