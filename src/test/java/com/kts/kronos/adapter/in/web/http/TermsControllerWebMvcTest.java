@@ -17,6 +17,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -71,5 +72,26 @@ class TermsControllerWebMvcTest {
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("true"));
+    }
+
+    @Test
+    void shouldRevokeBiometricTermsAndReturnRenewedToken() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, false))
+                .thenReturn("revoked-token");
+
+        mockMvc.perform(delete("/terms/revoke-biometric")
+                        .header("Authorization", "Bearer token")
+                        .header("User-Agent", "JUnit"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("revoked-token"));
+
+        verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit");
     }
 }

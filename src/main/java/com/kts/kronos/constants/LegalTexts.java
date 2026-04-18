@@ -14,6 +14,7 @@ public class LegalTexts {
     public static final String BIOMETRIC_ITEM_1 = "FINALIDADE: Autenticação segura da identidade no momento do registro de ponto eletrônico, prevenindo fraudes.";
     public static final String BIOMETRIC_ITEM_2 = "ARMAZENAMENTO: Os dados serão armazenados em ambiente seguro de computação em nuvem (SaaS) provido pela KRONOS TECH SOLUTIONS.";
     public static final String BIOMETRIC_ITEM_3 = "REVOGAÇÃO: Este consentimento poderá ser revogado a qualquer momento pelo Titular, mediante solicitação expressa ao departamento de Recursos Humanos.";
+    public static final String BIOMETRIC_ITEM_4 = "RETENÇÃO: A imagem facial, os templates biométricos e o termo de consentimento serão mantidos apenas enquanto houver consentimento biométrico ativo e necessidade operacional vinculada ao registro de jornada. A revogação do consentimento, a exclusão do usuário ou a exclusão do colaborador disparam a purga dos artefatos biométricos e a remoção dos documentos de consentimento.";
 
     public static final String BIOMETRIC_FOOTER_BOX = "Este documento foi assinado digitalmente através da plataforma KRONOS, garantindo autenticidade e integridade conforme MP 2.200-2/2001.";
 

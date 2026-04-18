@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.*;
 
@@ -40,7 +41,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .build());
         } catch (ResourceAlreadyExistsException e) {
             // Se já existe, é o comportamento esperado no startup.
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("❌ Erro fatal ao tentar criar ou verificar coleção '{}': {}", collectionId, e.getMessage(), e);
             throw new RuntimeException("Falha na inicialização do serviço Rekognition.", e);
         }
@@ -72,7 +73,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
 
             return response.faceRecords().get(0).face().faceId();
 
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("Erro ao indexar face do funcionário {}: {}", externalImageId, e.getMessage(), e);
             throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
         }
@@ -106,7 +107,10 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
         } catch (IOException e) {
             log.error("Erro ao ler o stream da imagem para busca: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao ler a imagem para reconhecimento.", e);
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
+            log.error("ExternalImageId inválido retornado pelo Rekognition: {}", e.getMessage(), e);
+            throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
+        } catch (SdkException e) {
             log.error("Erro ao buscar face na coleção Rekognition: {}", e.getMessage(), e);
             throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
         }
@@ -120,7 +124,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .faceIds(faceId)
                     .build();
             rekognitionClient.deleteFaces(deleteFacesRequest);
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("Erro ao deletar face {}: {}", faceId, e.getMessage(), e);
         }
     }
@@ -158,7 +162,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .build());
 
             log.info("Templates biométricos removidos para externalImageId={}", externalImageId);
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("Erro ao remover templates biométricos de externalImageId={}: {}", externalImageId, e.getMessage(), e);
         }
     }

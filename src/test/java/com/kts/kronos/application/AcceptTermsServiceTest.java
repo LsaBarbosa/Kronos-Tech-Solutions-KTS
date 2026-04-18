@@ -5,6 +5,8 @@ import com.kts.kronos.application.port.out.provider.AuditLogProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.service.AcceptTermsService;
 import com.kts.kronos.application.service.BiometricTermPdfService;
 import com.kts.kronos.domain.model.Company;
@@ -52,6 +54,10 @@ class AcceptTermsServiceTest {
     private DocumentProvider documentProvider;
     @Mock
     private AuditLogProvider auditLogProvider;
+    @Mock
+    private FaceStorageProvider faceStorageProvider;
+    @Mock
+    private FaceRecognitionProvider faceRecognitionProvider;
 
     @Test
     @DisplayName("aceite: deve encerrar fluxo quando termo já existe")
@@ -121,6 +127,44 @@ class AcceptTermsServiceTest {
         assertTrue(service.hasAcceptedBiometricTerm(employeeId));
         verify(documentProvider).existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM);
         verify(employeeProvider, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("revogação: deve remover artefatos biométricos, documentos e registrar auditoria")
+    void shouldRevokeBiometricArtifactsAndAudit() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId, "12345678901").withFaceS3ObjectKey("faces/employee/image.jpg");
+        UUID documentId = UUID.randomUUID();
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(List.of(
+                        new Document(
+                                documentId,
+                                employeeId,
+                                DocumentType.BIOMETRIC_CONSENT_TERM,
+                                "termo.pdf",
+                                "application/pdf",
+                                "legal/company/file.pdf",
+                                LocalDateTime.now(),
+                                null,
+                                false,
+                                false
+                        )
+                ));
+
+        service.revokeBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent");
+
+        verify(faceStorageProvider).deleteFaceImage("faces/employee/image.jpg");
+        verify(faceRecognitionProvider).deleteFacesByExternalImageId(employeeId);
+        verify(employeeProvider).save(employee.withFaceS3ObjectKey(null));
+        verify(documentProvider).delete(employeeId, documentId);
+
+        ArgumentCaptor<com.kts.kronos.domain.model.AuditLog> auditCaptor =
+                ArgumentCaptor.forClass(com.kts.kronos.domain.model.AuditLog.class);
+        verify(auditLogProvider).registerLog(auditCaptor.capture());
+        assertTrue(auditCaptor.getValue().details().contains("purgados"));
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId, String cpf) {

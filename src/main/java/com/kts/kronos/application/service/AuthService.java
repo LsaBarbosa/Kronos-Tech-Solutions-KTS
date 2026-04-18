@@ -156,13 +156,15 @@ public class AuthService implements AuthUseCase {
                         defaultFrontendBaseUrl
                 );
                 log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
-                log.error("Recuperação de senha processada sem envio de e-mail por falha interna: {}", e.getMessage(), e);
+                log.error("Recuperação de senha processada sem envio de e-mail por falha interna. exceptionType={}",
+                        e.getClass().getSimpleName(), e);
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
-            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação: {}", e.getMessage(), e);
+            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação. exceptionType={}",
+                    e.getClass().getSimpleName(), e);
         }
     }
 
