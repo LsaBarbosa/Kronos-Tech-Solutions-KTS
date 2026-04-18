@@ -13,6 +13,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,7 +31,10 @@ import java.util.UUID;
 import java.util.zip.ZipInputStream;
 
 import static com.kts.kronos.constants.Messages.*;
+import com.kts.kronos.application.port.out.provider.FileScanningProvider;
+import org.springframework.beans.factory.annotation.Value;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -50,7 +54,10 @@ public class DocumentService implements DocumentUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
     private final DomainAuthorizationService domainAuthorizationService;
+    private final FileScanningProvider fileScanningProvider;
 
+    @Value("${kronos.security.upload.max-bytes:5242880}")
+    private long maxUploadBytes;
      
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
@@ -75,8 +82,12 @@ public class DocumentService implements DocumentUseCase {
             );
 
         } catch (ResourceNotFoundException e) {
+            log.warn("Documento não encontrado durante download. documentId={}, requestedEmployeeId={}",
+                    documentId, employeeId);
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
+            log.error("Falha interna no download do documento. documentId={}, requestedEmployeeId={}, storagePath={}",
+                    documentId, employeeId, doc.storagePath(), e);
             throw new BadRequestException(ERROR_GET_FILE);
         }
     }
@@ -158,9 +169,30 @@ public class DocumentService implements DocumentUseCase {
             );
             documentProvider.save(doc);
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            log.warn("Upload de documento rejeitado. type={}, employeeId={}, timeRecordId={}, originalFilename={}, exceptionType={}, message={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             throw e;
-        } catch (Exception e) {
+        } catch (IOException e) {
+            log.warn("Falha ao ler arquivo para upload. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e);
             throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
+        } catch (RuntimeException e) {
+            log.error("Falha interna no upload do documento. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e);
+            throw e;
         }
     }
 
@@ -191,16 +223,32 @@ public class DocumentService implements DocumentUseCase {
             documentProvider.save(doc);
 
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            log.warn("Persistência de documento gerado rejeitada. type={}, employeeId={}, timeRecordId={}, fileName={}, exceptionType={}, message={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    fileName,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             throw e;
-        } catch (Exception e) {
-            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC);
+        } catch (RuntimeException e) {
+            log.error("Falha interna ao persistir documento gerado. type={}, employeeId={}, timeRecordId={}, fileName={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    fileName,
+                    e);
+            throw e;
         }
     }
 
     private UploadData validateAndPrepareUpload(MultipartFile file) throws IOException {
-        var contentType = normalizeContentType(file.getContentType());
-        if (!ALLOWED_MIME_TYPES.contains(contentType)) {
+        if (file == null || file.isEmpty()) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        if (file.getSize() > maxUploadBytes) {
+            throw new BadRequestException(FILE_TOO_LARGE);
         }
 
         var safeFileName = sanitizeFileName(file.getOriginalFilename());
@@ -209,22 +257,28 @@ public class DocumentService implements DocumentUseCase {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
-        var allowedExtensionsForMime = ALLOWED_EXTENSIONS_BY_MIME.get(contentType);
+        var bytes = file.getBytes();
+        if (bytes.length == 0) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var detectedContentType = detectRealMimeType(bytes);
+        if (!ALLOWED_MIME_TYPES.contains(detectedContentType)) {
+            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
+        }
+
+        var allowedExtensionsForMime = ALLOWED_EXTENSIONS_BY_MIME.get(detectedContentType);
         if (allowedExtensionsForMime == null || !allowedExtensionsForMime.contains(extension)) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
-        var bytes = file.getBytes();
-        if (bytes.length == 0 || !matchesSignature(extension, bytes)) {
-            throw new BadRequestException(INVALID_DOCUMENT_TYPE);
-        }
+        fileScanningProvider.scanOrThrow(safeFileName, detectedContentType, bytes);
 
-        return new UploadData(bytes, safeFileName, contentType);
+        return new UploadData(bytes, safeFileName, detectedContentType);
     }
 
-    private String normalizeContentType(String contentType) {
-        return contentType == null ? "" : contentType.trim().toLowerCase(Locale.ROOT);
-    }
+
+
 
     private String sanitizeFileName(String originalFileName) {
         if (originalFileName == null || originalFileName.isBlank()) {
@@ -263,15 +317,23 @@ public class DocumentService implements DocumentUseCase {
         return fileName.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
     }
 
-    private boolean matchesSignature(String extension, byte[] bytes) {
-        return switch (extension) {
-            case "pdf" -> hasPrefix(bytes, 0x25, 0x50, 0x44, 0x46);
-            case "jpg", "jpeg" -> hasPrefix(bytes, 0xFF, 0xD8, 0xFF);
-            case "png" -> hasPrefix(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
-            case "doc" -> hasPrefix(bytes, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1);
-            case "docx" -> isDocx(bytes);
-            default -> false;
-        };
+    private String detectRealMimeType(byte[] bytes) {
+        if (hasPrefix(bytes, 0x25, 0x50, 0x44, 0x46)) {
+            return "application/pdf";
+        }
+        if (hasPrefix(bytes, 0xFF, 0xD8, 0xFF)) {
+            return "image/jpeg";
+        }
+        if (hasPrefix(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) {
+            return "image/png";
+        }
+        if (hasPrefix(bytes, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)) {
+            return "application/msword";
+        }
+        if (isDocx(bytes)) {
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
+        return "";
     }
 
     private boolean isDocx(byte[] bytes) {

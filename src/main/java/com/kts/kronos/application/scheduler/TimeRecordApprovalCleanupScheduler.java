@@ -26,7 +26,7 @@ public class TimeRecordApprovalCleanupScheduler {
         try {
             repository.deleteByCreatedAtBefore(threshold);
             log.info("Limpeza de solicitações de aprovação concluída. Registros anteriores a {} foram removidos.", threshold);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.error("Erro durante a limpeza de solicitações de aprovação agendada: {}", e.getMessage(), e);
         }
     }

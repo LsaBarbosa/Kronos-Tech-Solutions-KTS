@@ -52,25 +52,13 @@ public class DomainAuthorizationService {
     public User authorizeUserAccess(UUID targetUserId) {
         var targetUser = userProvider.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        return authorizeResolvedUserAccess(targetUser);
+    }
 
-        var role = jwtAuthenticatedUser.getCurrentRole();
-        if (isCto(role)) {
-            return targetUser;
-        }
-
-        if (isManager(role)) {
-            var authenticatedEmployee = getAuthenticatedEmployee();
-            var targetEmployee = employeeProvider.findById(targetUser.employeeId())
-                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-            validateSameTenant(authenticatedEmployee, targetEmployee);
-            return targetUser;
-        }
-
-        var authenticatedUserId = jwtAuthenticatedUser.getuserId();
-        if (!targetUser.userId().equals(authenticatedUserId)) {
-            throw new ForbiddenException(FORBIDDEN_OTHER_USER_RESOURCE);
-        }
-        return targetUser;
+    public User authorizeUserAccessByUsername(String username) {
+        var targetUser = userProvider.findByUsername(username.toLowerCase())
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+        return authorizeResolvedUserAccess(targetUser);
     }
 
     public Document authorizeDocumentAccess(UUID documentId, UUID requestedEmployeeId) {
@@ -100,10 +88,41 @@ public class DomainAuthorizationService {
         return targetCompanyId;
     }
 
+    public Employee requireEmployeeFromCompany(UUID targetEmployeeId, UUID companyId, String notFoundMessage, String forbiddenMessage) {
+        var targetEmployee = employeeProvider.findById(targetEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(notFoundMessage));
+
+        if (!targetEmployee.companyId().equals(companyId)) {
+            throw new ForbiddenException(forbiddenMessage);
+        }
+        return targetEmployee;
+    }
+
     private Employee getAuthenticatedEmployee() {
         var authenticatedEmployeeId = jwtAuthenticatedUser.getEmployeeId();
         return employeeProvider.findById(authenticatedEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+    }
+
+    private User authorizeResolvedUserAccess(User targetUser) {
+        var role = jwtAuthenticatedUser.getCurrentRole();
+        if (isCto(role)) {
+            return targetUser;
+        }
+
+        if (isManager(role)) {
+            var authenticatedEmployee = getAuthenticatedEmployee();
+            var targetEmployee = employeeProvider.findById(targetUser.employeeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+            validateSameTenant(authenticatedEmployee, targetEmployee);
+            return targetUser;
+        }
+
+        var authenticatedUserId = jwtAuthenticatedUser.getuserId();
+        if (!targetUser.userId().equals(authenticatedUserId)) {
+            throw new ForbiddenException(FORBIDDEN_OTHER_USER_RESOURCE);
+        }
+        return targetUser;
     }
 
     private void validateSameTenant(Employee authenticatedEmployee, Employee targetEmployee) {

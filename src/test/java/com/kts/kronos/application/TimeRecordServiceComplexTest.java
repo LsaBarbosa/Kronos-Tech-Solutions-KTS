@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.application.service.NtpTimeService;
@@ -62,7 +63,7 @@ class TimeRecordServiceComplexTest {
     @Mock private NtpTimeService ntpTimeService;
     @Mock private ReceiptPdfService receiptPdfService;
     @Mock private DomainAuthorizationService domainAuthorizationService;
-
+    @Mock private BiometricProtectionService biometricProtectionService;
     private UUID employeeId;
     private UUID managerId;
     private UUID companyId;
@@ -225,7 +226,7 @@ class TimeRecordServiceComplexTest {
     @DisplayName("Deve converter registro de FOLGA em TRABALHO ao fazer check-in")
     void shouldConvertDayOffRecordToWorkOnCheckIn() {
         String validBase64 = Base64.getEncoder().encodeToString("img".getBytes());
-        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, null);
         
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));

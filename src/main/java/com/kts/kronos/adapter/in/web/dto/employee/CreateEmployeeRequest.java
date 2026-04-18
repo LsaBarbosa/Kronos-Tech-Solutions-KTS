@@ -47,6 +47,7 @@ public record CreateEmployeeRequest(
         @Valid AddressRequest
         address, UUID companyId,
         boolean homeOffice,
+        @Size(max = 1500000, message = "A imagem da face excede o tamanho máximo permitido.")
         String faceImageBase64,
         @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,

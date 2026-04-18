@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -45,7 +46,7 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
         } catch (IOException e) {
             log.error("Erro ao ler o stream da imagem para upload no S3: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao preparar a imagem para upload no S3.", e);
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("Erro no upload do arquivo para o S3: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao salvar a imagem no S3.", e);
         }
@@ -61,7 +62,7 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
 
             s3Client.deleteObject(deleteObjectRequest);
             log.info("Exclusão de imagem facial do S3 concluída: {}", objectKey);
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("Erro na exclusão do arquivo {}: {}", objectKey, e.getMessage(), e);
         }
     }

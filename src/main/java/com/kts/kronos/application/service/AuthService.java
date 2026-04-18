@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +33,7 @@ public class AuthService implements AuthUseCase {
     public static final String NO_USER_LINKED_TO_THIS_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
     public static final String INACTIVE_USER = "Usuário inativo.";
     public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
-    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial: ";
+    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial.";
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -45,6 +46,7 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final DocumentProvider documentProvider;
+    private final BiometricProtectionService biometricProtectionService;
 
     @Override
     public String login(String username, String password) {
@@ -59,7 +61,9 @@ public class AuthService implements AuthUseCase {
     }
 
     @Override
-    public String loginFace(String faceImageBase64) {
+    public String loginFace(String faceImageBase64, Boolean livenessPassed) {
+        biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
+
         try {
             // 1. Decodifica a imagem Base64
             byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
@@ -96,9 +100,20 @@ public class AuthService implements AuthUseCase {
             );
 
         } catch (IllegalArgumentException e) {
+            log.warn("Imagem inválida recebida no login facial. payloadLength={}",
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
             throw new BadRequestException(INVALID_IMAGE);
-        } catch (Exception e) {
-            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION + e.getMessage());
+        } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
+            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
+                    e.getClass().getSimpleName(),
+                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
+                    e.getMessage());
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("Falha interna na autenticação facial. payloadLength={}",
+                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
+                    e);
+            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
     @Override
@@ -141,13 +156,15 @@ public class AuthService implements AuthUseCase {
                         defaultFrontendBaseUrl
                 );
                 log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
-                log.error("Recuperação de senha processada sem envio de e-mail por falha interna: {}", e.getMessage(), e);
+                log.error("Recuperação de senha processada sem envio de e-mail por falha interna. exceptionType={}",
+                        e.getClass().getSimpleName(), e);
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
-            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação: {}", e.getMessage(), e);
+            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação. exceptionType={}",
+                    e.getClass().getSimpleName(), e);
         }
     }
 

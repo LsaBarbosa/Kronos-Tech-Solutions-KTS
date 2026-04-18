@@ -30,8 +30,8 @@ public class MessageCleanupScheduler {
         try {
             messageProvider.deleteByCreationDateBefore(thirtyDaysAgo);
             log.info("Limpeza de mensagens concluída com sucesso.");
-        } catch (Exception e) {
-            log.error("Erro durante a limpeza de mensagens agendada: {}", e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("Erro durante a limpeza de mensagens agendada. threshold={}", thirtyDaysAgo, e);
         }
     }
 }

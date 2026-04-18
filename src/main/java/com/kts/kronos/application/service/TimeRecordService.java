@@ -13,6 +13,7 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -60,6 +61,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final NsrProvider nsrProvider;     // Provider de Sequência Atômica
     private final NtpTimeService ntpTimeService; // Validação de Relógio
     private final DomainAuthorizationService domainAuthorizationService;
+    private final BiometricProtectionService biometricProtectionService;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -69,6 +71,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
+
+        biometricProtectionService.protectCheckIn(
+                employeeId,
+                request.faceImageBase64(),
+                request.livenessPassed()
+        );
 
         // 1. Validações Prévias (Biometria e Geolocalização)
         validateFaceRecognition(employeeId, request.faceImageBase64());
@@ -287,17 +295,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             if (req.managerId() == null) {
                 throw new BadRequestException(MANAGER_ID_REQUIRED);
             }
-            var managerUser = userProvider.findById(req.managerId()).orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-
-            if (managerUser.role() != Role.MANAGER) {
-                throw new BadRequestException(USER_IS_NOT_MANAGER);
-            }
-
-            var managerEmployee = employeeProvider.findById(managerUser.employeeId()).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-            if (!managerEmployee.companyId().equals(employee.companyId())) {
-                throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-            }
+            getManagerApprover(req.managerId(), employee.companyId(), USER_IS_NOT_MANAGER, false);
 
             // 1. Cria o payload simplificado
             var approvalRequest = new TimeRecordApprovalRequest(timeRecordId, employeeId, req.managerId(), newStart, newEnd, TIME_ZONE_BRAZIL);
@@ -588,16 +586,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public List<Long> requestVacation(RequestVacationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
-        var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-
-        if (managerUser.role() != Role.MANAGER) {
-            throw new ForbiddenException(ROLE_IS_NOT_MANAGER);
-        }
-
-        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-        }
+        getManagerApprover(request.managerId(), employee.companyId(), ROLE_IS_NOT_MANAGER, true);
 
         var start = request.startDate();
         var end = request.endDate();
@@ -738,14 +727,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         // Validação do Manager
-        var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-        if (managerUser.role() != Role.MANAGER) {
-            throw new BadRequestException(USER_NOT_IS_MANAGER);
-        }
-        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-        }
+        getManagerApprover(request.managerId(), employee.companyId(), USER_NOT_IS_MANAGER, false);
 
         var type = request.type() != null ? request.type() : RequestType.TIME_OFF_REQUEST;
 
@@ -823,8 +805,12 @@ public class TimeRecordService implements TimeRecordUseCase {
                         // --------------------------------------------------
 
                     } catch (IOException e) {
-                        log.error("Falha ao salvar o documento de abono para o registro {}: {}", savedRecord.timeRecordId(), e.getMessage());
-                        throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
+                        log.warn("Falha ao ler documento de abono. timeRecordId={}, employeeId={}, originalFilename={}",
+                                savedRecord.timeRecordId(),
+                                employeeId,
+                                document.getOriginalFilename(),
+                                e);
+                        throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
                     }
                 } else if (uploadedStoragePath != null) {
                     // Para os dias seguintes, reutiliza o caminho físico
@@ -1037,6 +1023,31 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
+    }
+
+    private User getManagerApprover(UUID managerUserId, UUID companyId, String invalidRoleMessage, boolean forbiddenWhenInvalidRole) {
+        var managerUser = userProvider.findById(managerUserId)
+                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
+
+        if (managerUser.role() != Role.MANAGER) {
+            if (forbiddenWhenInvalidRole) {
+                throw new ForbiddenException(invalidRoleMessage);
+            }
+            throw new BadRequestException(invalidRoleMessage);
+        }
+
+        try {
+            domainAuthorizationService.requireEmployeeFromCompany(
+                    managerUser.employeeId(),
+                    companyId,
+                    EMPLOYEE_NOT_FOUND,
+                    MANAGER_DIFFERENT_COMPANY
+            );
+        } catch (ForbiddenException e) {
+            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
+        }
+
+        return managerUser;
     }
 
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
@@ -1294,9 +1305,13 @@ public class TimeRecordService implements TimeRecordUseCase {
                     fileName
             );
 
-        } catch (Exception e) {
-            // Loga erro crítico mas não aborta a transação principal do ponto para não prejudicar o usuário
-            log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("Falha ao gerar comprovante de ponto. nsr={}, timeRecordId={}, employeeId={}, typeSuffix={}",
+                    nsr,
+                    timeRecordId,
+                    employee.employeeId(),
+                    typeSuffix,
+                    e);
         }
     }
 }

@@ -60,16 +60,14 @@ class UserServiceFeature44ListUsersOptimizationTest {
         UUID employeeAId = UUID.randomUUID();
         UUID employeeBId = UUID.randomUUID();
 
-        Employee manager = employee(managerEmployeeId, companyId, "Manager");
         Employee employeeA = employee(employeeAId, companyId, "Ana");
         Employee employeeB = employee(employeeBId, companyId, "Bruno");
 
         User userA = new User(UUID.randomUUID(), "ana", "x", Role.PARTNER, true, employeeAId);
         User userB = new User(UUID.randomUUID(), "bruno", "x", Role.MANAGER, true, employeeBId);
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(manager));
+        when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(companyId);
         when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employeeA, employeeB));
         when(userProvider.findByEmployeeIds(Set.of(employeeAId, employeeBId))).thenReturn(List.of(userA, userB));
 
@@ -90,15 +88,13 @@ class UserServiceFeature44ListUsersOptimizationTest {
         UUID employeeAId = UUID.randomUUID();
         UUID employeeBId = UUID.randomUUID();
 
-        Employee manager = employee(managerEmployeeId, companyId, "Manager");
         Employee employeeA = employee(employeeAId, companyId, "Ana");
         Employee employeeB = employee(employeeBId, companyId, "Bruno");
 
         User activeUser = new User(UUID.randomUUID(), "ana", "x", Role.PARTNER, true, employeeAId);
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(manager));
+        when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(companyId);
         when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employeeA, employeeB));
         when(userProvider.findByEmployeeIdsAndActive(Set.of(employeeAId, employeeBId), true))
                 .thenReturn(List.of(activeUser));
@@ -116,11 +112,9 @@ class UserServiceFeature44ListUsersOptimizationTest {
     void shouldReturnEmptyWhenTenantHasNoEmployees() {
         UUID managerEmployeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
-        Employee manager = employee(managerEmployeeId, companyId, "Manager");
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(employeeProvider.findById(managerEmployeeId)).thenReturn(Optional.of(manager));
+        when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(companyId);
         when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of());
 
         var result = service.listUsers(false);
@@ -133,16 +127,10 @@ class UserServiceFeature44ListUsersOptimizationTest {
     @Test
     @DisplayName("listUsers: CTO sem filtro active usa findAll")
     void shouldUseFindAllWhenCtoHasNoActiveFilter() {
-        UUID ctoEmployeeId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee ctoEmployee = employee(ctoEmployeeId, companyId, "CTO");
-
         User userA = new User(UUID.randomUUID(), "a", "x", Role.MANAGER, true, UUID.randomUUID());
         User userB = new User(UUID.randomUUID(), "b", "x", Role.PARTNER, false, UUID.randomUUID());
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(ctoEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findById(ctoEmployeeId)).thenReturn(Optional.of(ctoEmployee));
         when(userProvider.findAll()).thenReturn(List.of(userA, userB));
 
         var result = service.listUsers(null);
@@ -155,15 +143,9 @@ class UserServiceFeature44ListUsersOptimizationTest {
     @Test
     @DisplayName("listUsers: CTO com filtro active usa findByActive")
     void shouldUseFindByActiveWhenCtoFiltersByStatus() {
-        UUID ctoEmployeeId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee ctoEmployee = employee(ctoEmployeeId, companyId, "CTO");
-
         User activeUser = new User(UUID.randomUUID(), "a", "x", Role.MANAGER, true, UUID.randomUUID());
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(ctoEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findById(ctoEmployeeId)).thenReturn(Optional.of(ctoEmployee));
         when(userProvider.findByActive(true)).thenReturn(List.of(activeUser));
 
         var result = service.listUsers(true);
@@ -181,16 +163,14 @@ class UserServiceFeature44ListUsersOptimizationTest {
         UUID employeeAId = UUID.randomUUID();
         UUID employeeBId = UUID.randomUUID();
 
-        Employee partner = employee(partnerEmployeeId, companyId, "Partner");
         Employee managerEmployee = employee(employeeAId, companyId, "Manager");
         Employee partnerEmployee = employee(employeeBId, companyId, "Partner2");
 
         User managerUser = new User(UUID.randomUUID(), "manager1", "x", Role.MANAGER, true, employeeAId);
         User partnerUser = new User(UUID.randomUUID(), "partner1", "x", Role.PARTNER, true, employeeBId);
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(partnerEmployeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(employeeProvider.findById(partnerEmployeeId)).thenReturn(Optional.of(partner));
+        when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(companyId);
         when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(managerEmployee, partnerEmployee));
         when(userProvider.findByEmployeeIdsAndActive(Set.of(employeeAId, employeeBId), true))
                 .thenReturn(List.of(managerUser, partnerUser));

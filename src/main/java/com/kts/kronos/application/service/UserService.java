@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -40,6 +41,7 @@ public class UserService implements UserUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final EmployeeUseCase employeeUseCase;
     private final DomainAuthorizationService domainAuthorizationService;
+    private final AcceptTermsUseCase acceptTermsUseCase;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -68,26 +70,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public User getUserByUsername(String username) {
-        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var companyId = authenticatedUserEmployee.companyId();
-
-        var targetUser = userProvider.findByUsername(username.toLowerCase())
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
-
-        if (jwtAuthenticatedUser.getCurrentRole() == Role.CTO) {
-            return targetUser;
-        }
-
-        var targetEmployee = employeeProvider.findById(targetUser.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-        if (!targetEmployee.companyId().equals(companyId)) {
-            throw new ResourceNotFoundException(USER_NOT_FOUND);
-        }
-
-        return targetUser;
+        return domainAuthorizationService.authorizeUserAccessByUsername(username);
     }
 
     @Override
@@ -98,10 +81,6 @@ public class UserService implements UserUseCase {
     @Override
     public List<User> listUsers(Boolean active) {
         var currentRole = jwtAuthenticatedUser.getCurrentRole();
-        var authenticatedUserEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        var authenticatedUserEmployee = employeeProvider.findById(authenticatedUserEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var companyId = authenticatedUserEmployee.companyId();
 
         if (currentRole == Role.CTO) {
             return active == null
@@ -109,6 +88,7 @@ public class UserService implements UserUseCase {
                     : userProvider.findByActive(active);
         }
 
+        var companyId = domainAuthorizationService.authorizeCompanyAccess(null);
         var employeeIdsFromCompany = employeeProvider.findByCompanyId(companyId).stream()
                 .map(Employee::employeeId)
                 .collect(Collectors.toSet());
@@ -153,12 +133,12 @@ public class UserService implements UserUseCase {
     public void deleteUser(UUID userId) {
         var existing = getUserId(userId);
         var employeeId = existing.employeeId();
+        acceptTermsUseCase.revokeBiometricTerms(employeeId, "system", "USER_DELETE");
         documentProvider.deleteByEmployeeId(employeeId);
         timeRecordProvider.deleteByEmployeeId(employeeId);
         userProvider.deleteById(userId);
         employeeProvider.deleteById(employeeId);
     }
-
 
     @Override
     public void toggleActivate(UUID userId) {

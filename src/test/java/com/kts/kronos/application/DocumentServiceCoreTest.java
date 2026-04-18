@@ -3,6 +3,7 @@ package com.kts.kronos.application;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.domain.model.Address;
@@ -10,6 +11,7 @@ import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -46,6 +49,13 @@ class DocumentServiceCoreTest {
     private BucketStorageProvider bucketStorageProvider;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private FileScanningProvider fileScanningProvider;
+
+    @BeforeEach
+     void configureUploadLimit() {
+        ReflectionTestUtils.setField(service, "maxUploadBytes", 5 * 1024 * 1024L);
+    }
 
     @Test
     @DisplayName("listDocuments: manager usa visão gerencial sem data")
