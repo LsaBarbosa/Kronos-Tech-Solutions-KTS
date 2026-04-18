@@ -69,13 +69,14 @@ class AuthControllerWebMvcTest {
 
     @Test
     void shouldLoginFaceSuccessfully() throws Exception {
-        when(authUseCase.loginFace("base64-image")).thenReturn("face-token");
+        when(authUseCase.loginFace("base64-image", true)).thenReturn("face-token");
 
         mockMvc.perform(post("/auth/login-face")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "faceImageBase64": "base64-image"
+                                  "faceImageBase64": "base64-image",
+                                  "livenessPassed": true
                                 }
                                 """))
                 .andExpect(status().isOk())
