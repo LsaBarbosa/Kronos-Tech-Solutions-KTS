@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,7 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final DocumentProvider documentProvider;
+    private final BiometricProtectionService biometricProtectionService;
 
     @Override
     public String login(String username, String password) {
@@ -59,7 +61,9 @@ public class AuthService implements AuthUseCase {
     }
 
     @Override
-    public String loginFace(String faceImageBase64) {
+    public String loginFace(String faceImageBase64, Boolean livenessPassed) {
+        biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
+
         try {
             // 1. Decodifica a imagem Base64
             byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);

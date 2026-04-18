@@ -10,6 +10,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.application.service.NtpTimeService;
@@ -63,6 +64,7 @@ class TimeRecordServiceTest {
     @Mock private NsrProvider nsrProvider;
     @Mock private NtpTimeService ntpTimeService;
     @Mock private DomainAuthorizationService domainAuthorizationService;
+    @Mock private BiometricProtectionService biometricProtectionService;
 
     private UUID employeeId;
     private UUID companyId;
@@ -112,7 +114,7 @@ class TimeRecordServiceTest {
     @DisplayName("Deve realizar Check-in com sucesso quando não há registro aberto")
     void shouldRegisterCheckInSuccessfully() {
         // Arrange
-        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, validBase64, false );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -144,7 +146,7 @@ class TimeRecordServiceTest {
     @Test
     @DisplayName("Deve falhar Check-in se a validação facial não reconhecer o funcionário")
     void shouldFailCheckInWhenFaceDoesNotMatch() {
-        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, null);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -164,7 +166,7 @@ class TimeRecordServiceTest {
     @DisplayName("Deve falhar Check-in se funcionário presencial estiver fora da cerca virtual")
     void shouldFailCheckInWhenLocationIsInvalid() {
         // Coordenadas distantes (-23 vs -22)
-        GeolocationRequest request = new GeolocationRequest(-23.0, -43.0, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-23.0, -43.0, validBase64, null);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -180,7 +182,7 @@ class TimeRecordServiceTest {
     @Test
     @DisplayName("Deve realizar Check-out com sucesso fechando registro PENDING do MESMO DIA")
     void shouldRegisterCheckOutSuccessfully() {
-        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, null);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -365,7 +367,7 @@ class TimeRecordServiceTest {
     @DisplayName("Deve converter registro de FOLGA em TRABALHO ao fazer check-in")
     void shouldConvertDayOffRecordToWorkOnCheckIn() {
         String validBase64 = Base64.getEncoder().encodeToString("img".getBytes());
-        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64);
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64,null);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));

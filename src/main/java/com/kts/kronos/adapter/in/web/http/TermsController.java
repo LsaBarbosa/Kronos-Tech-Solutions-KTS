@@ -10,10 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -52,6 +49,32 @@ public class TermsController {
         acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent);
 
         String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true);
+        return ResponseEntity.ok(new LoginResponse(newToken));
+    }
+
+    @DeleteMapping("/revoke-biometric")
+    @PreAuthorize(ANY_EMPLOYEE)
+    @Operation(summary = "Revogar Consentimento Biométrico",
+            description = "Revoga o consentimento, remove imagem/template biométrico e invalida a flag de aceite no JWT.")
+    public ResponseEntity<LoginResponse> revokeBiometricTerms(HttpServletRequest request) {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        UUID userId = jwtAuthenticatedUser.getuserId();
+        String username = jwtAuthenticatedUser.getUsername();
+        String role = jwtAuthenticatedUser.getCurrentRole().name();
+
+        String ipAddress = request.getRemoteAddr();
+        if (ipAddress == null || ipAddress.isBlank()) {
+            ipAddress = "unknown";
+        }
+
+        String userAgent = request.getHeader("User-Agent");
+        if (userAgent == null || userAgent.isBlank()) {
+            userAgent = "Desconhecido";
+        }
+
+        acceptanceUseCase.revokeBiometricTerms(employeeId, ipAddress, userAgent);
+
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, false);
         return ResponseEntity.ok(new LoginResponse(newToken));
     }
 

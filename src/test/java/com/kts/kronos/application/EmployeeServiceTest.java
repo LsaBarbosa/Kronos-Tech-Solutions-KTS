@@ -7,11 +7,13 @@ import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.service.EmployeeService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
@@ -57,6 +59,10 @@ class EmployeeServiceTest {
     private FaceStorageProvider faceStorageProvider;
     @Mock
     private FaceRecognitionProvider faceRecognitionProvider;
+    @Mock
+    private BiometricProtectionService biometricProtectionService;
+    @Mock
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     private UUID loggedEmployeeId;
     private UUID companyId;

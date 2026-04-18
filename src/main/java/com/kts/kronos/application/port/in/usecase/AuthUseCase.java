@@ -5,7 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 
 public interface AuthUseCase {
     String login(String username, String password);
-    String loginFace(String faceImageBase64);
+    String loginFace(String faceImageBase64, Boolean livenessPassed);
     void recoverPassword(RecoverPasswordRequest request);
     void resetPassword(ResetPasswordRequest request);
 }

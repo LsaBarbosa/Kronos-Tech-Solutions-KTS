@@ -129,7 +129,7 @@ class DtoValidationTest {
     @Test
     @DisplayName("GeolocationRequest: deve invalidar faceImageBase64 em branco")
     void shouldInvalidateGeolocationRequestWhenFaceImageIsBlank() {
-        GeolocationRequest dto = new GeolocationRequest(-22.90, -43.20, "");
+        GeolocationRequest dto = new GeolocationRequest(-22.90, -43.20, "",false);
 
         Set<String> fields = VALIDATOR.validate(dto).stream()
                 .map(v -> v.getPropertyPath().toString())

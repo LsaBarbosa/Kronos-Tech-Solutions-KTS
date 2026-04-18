@@ -13,6 +13,7 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -60,6 +61,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final NsrProvider nsrProvider;     // Provider de Sequência Atômica
     private final NtpTimeService ntpTimeService; // Validação de Relógio
     private final DomainAuthorizationService domainAuthorizationService;
+    private final BiometricProtectionService biometricProtectionService;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -69,6 +71,12 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
+
+        biometricProtectionService.protectCheckIn(
+                employeeId,
+                request.faceImageBase64(),
+                request.livenessPassed()
+        );
 
         // 1. Validações Prévias (Biometria e Geolocalização)
         validateFaceRecognition(employeeId, request.faceImageBase64());
