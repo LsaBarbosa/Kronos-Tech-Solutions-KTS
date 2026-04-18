@@ -13,6 +13,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,6 +32,7 @@ import java.util.zip.ZipInputStream;
 
 import static com.kts.kronos.constants.Messages.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -75,8 +77,12 @@ public class DocumentService implements DocumentUseCase {
             );
 
         } catch (ResourceNotFoundException e) {
+            log.warn("Documento não encontrado durante download. documentId={}, requestedEmployeeId={}",
+                    documentId, employeeId);
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
+            log.error("Falha interna no download do documento. documentId={}, requestedEmployeeId={}, storagePath={}",
+                    documentId, employeeId, doc.storagePath(), e);
             throw new BadRequestException(ERROR_GET_FILE);
         }
     }
@@ -158,9 +164,30 @@ public class DocumentService implements DocumentUseCase {
             );
             documentProvider.save(doc);
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            log.warn("Upload de documento rejeitado. type={}, employeeId={}, timeRecordId={}, originalFilename={}, exceptionType={}, message={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             throw e;
-        } catch (Exception e) {
+        } catch (IOException e) {
+            log.warn("Falha ao ler arquivo para upload. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e);
             throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
+        } catch (RuntimeException e) {
+            log.error("Falha interna no upload do documento. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    file != null ? file.getOriginalFilename() : null,
+                    e);
+            throw e;
         }
     }
 
@@ -191,9 +218,22 @@ public class DocumentService implements DocumentUseCase {
             documentProvider.save(doc);
 
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            log.warn("Persistência de documento gerado rejeitada. type={}, employeeId={}, timeRecordId={}, fileName={}, exceptionType={}, message={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    fileName,
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
             throw e;
-        } catch (Exception e) {
-            throw new BadRequestException(FAILURE_TO_SAVE_AUTO_GENERATED_DOC);
+        } catch (RuntimeException e) {
+            log.error("Falha interna ao persistir documento gerado. type={}, employeeId={}, timeRecordId={}, fileName={}",
+                    type,
+                    employeeId,
+                    timeRecordId,
+                    fileName,
+                    e);
+            throw e;
         }
     }
 
