@@ -9,7 +9,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public abstract class AbstractPostgresDataJpaTest {
 
     private static final boolean RUN_WITH_POSTGRES =
-            "true".equalsIgnoreCase(System.getenv("GITHUB_ACTIONS"));
+            "true".equalsIgnoreCase(System.getenv("USE_TESTCONTAINERS"));
 
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
