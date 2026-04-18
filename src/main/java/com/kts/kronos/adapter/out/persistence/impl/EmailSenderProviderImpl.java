@@ -111,9 +111,10 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
         } catch (MessagingException e) {
             log.error("Falha ao configurar MimeMessage do fluxo de recuperação: {}", e.getMessage(), e);
             throw new RuntimeException("Falha na configuração do e-mail de recuperação.", e);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             // Este log captura o erro de envio (como o MissingFormatArgumentException original)
-            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação: {}", e.getMessage(), e);
+            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação. toEmail={}, exceptionType={}",
+                    toEmail, e.getClass().getSimpleName(), e);
             throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
         }
     }

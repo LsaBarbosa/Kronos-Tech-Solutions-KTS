@@ -1,12 +1,13 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.S3StorageProvider; // Sua interface
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -17,6 +18,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 import jakarta.annotation.PostConstruct;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -72,7 +74,7 @@ public class S3StorageProviderImpl implements S3StorageProvider {
             log.info("✅ Upload S3 com Object Lock concluído: {}", keyName);
             return keyName;
 
-        } catch (Exception e) {
+        } catch (SdkException e) {
             log.error("❌ Falha crítica ao enviar para o S3", e);
             throw new RuntimeException("Erro de comunicação com Storage S3", e);
         }
@@ -87,8 +89,19 @@ public class S3StorageProviderImpl implements S3StorageProvider {
                     .build();
 
             return s3Client.getObject(getOb).readAllBytes();
-        } catch (Exception e) {
-            log.error("Erro ao baixar arquivo do S3", e);
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException e) {
+            throw new ResourceNotFoundException("Arquivo não encontrado no S3.");
+        } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+            if (e.statusCode() == 404) {
+                throw new ResourceNotFoundException("Arquivo não encontrado no S3.");
+            }
+            log.error("Erro ao baixar arquivo do S3. key={}, statusCode={}", fileKey, e.statusCode(), e);
+            throw new RuntimeException("Erro ao baixar arquivo do S3.", e);
+        } catch (IOException e) {
+            log.error("Erro de IO ao baixar arquivo do S3. key={}", fileKey, e);
+            throw new RuntimeException("Erro ao ler arquivo do S3.", e);
+        } catch (SdkException e) {
+            log.error("Erro ao baixar arquivo do S3. key={}", fileKey, e);
             throw new RuntimeException("Arquivo não encontrado ou erro S3", e);
         }
     }

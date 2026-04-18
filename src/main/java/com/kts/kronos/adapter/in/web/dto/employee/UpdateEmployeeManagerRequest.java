@@ -38,6 +38,7 @@ public record UpdateEmployeeManagerRequest(
         String phone,
         Boolean homeOffice,
         @Valid UpdateAddressRequest address,
+        @Size(max = 1500000, message = "A imagem da face excede o tamanho máximo permitido.")
         String faceImageBase64,
         @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,

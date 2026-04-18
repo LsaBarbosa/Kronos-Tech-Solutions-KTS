@@ -31,28 +31,28 @@ public class BiometricProtectionService {
     private final HttpServletRequest request;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
 
-    @Value("${app.biometric.max-base64-chars:1500000}")
+    @Value("${app.biometric.max-base64-chars:${biometric.max-base64-chars:1500000}}")
     private int maxBase64Chars;
 
-    @Value("${app.biometric.liveness-required:false}")
+    @Value("${app.biometric.liveness-required:${biometric.liveness-required:false}}")
     private boolean livenessRequired;
 
-    @Value("${app.biometric.login-face.limit:5}")
+    @Value("${app.biometric.login-face.limit:${biometric.login-face.limit:5}}")
     private int loginFaceLimit;
 
-    @Value("${app.biometric.login-face.window-seconds:60}")
+    @Value("${app.biometric.login-face.window-seconds:${biometric.login-face.window-seconds:60}}")
     private int loginFaceWindowSeconds;
 
-    @Value("${app.biometric.checkin.limit:20}")
+    @Value("${app.biometric.checkin.limit:${biometric.checkin.limit:20}}")
     private int checkinLimit;
 
-    @Value("${app.biometric.checkin.window-seconds:60}")
+    @Value("${app.biometric.checkin.window-seconds:${biometric.checkin.window-seconds:60}}")
     private int checkinWindowSeconds;
 
-    @Value("${app.biometric.enrollment.limit:10}")
+    @Value("${app.biometric.enrollment.limit:${biometric.enrollment.limit:10}}")
     private int enrollmentLimit;
 
-    @Value("${app.biometric.enrollment.window-seconds:600}")
+    @Value("${app.biometric.enrollment.window-seconds:${biometric.enrollment.window-seconds:600}}")
     private int enrollmentWindowSeconds;
 
     public void protectPublicLogin(String faceImageBase64, Boolean livenessPassed) {
@@ -120,10 +120,6 @@ public class BiometricProtectionService {
             }
 
             bucket.addLast(now);
-
-            if (bucket.isEmpty()) {
-                buckets.remove(key, bucket);
-            }
         }
     }
 
