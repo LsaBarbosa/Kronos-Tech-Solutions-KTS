@@ -33,7 +33,7 @@ public class AuthService implements AuthUseCase {
     public static final String NO_USER_LINKED_TO_THIS_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
     public static final String INACTIVE_USER = "Usuário inativo.";
     public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
-    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial: ";
+    public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial.";
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -100,9 +100,20 @@ public class AuthService implements AuthUseCase {
             );
 
         } catch (IllegalArgumentException e) {
+            log.warn("Imagem inválida recebida no login facial. payloadLength={}",
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
             throw new BadRequestException(INVALID_IMAGE);
-        } catch (Exception e) {
-            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION + e.getMessage());
+        } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
+            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
+                    e.getClass().getSimpleName(),
+                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
+                    e.getMessage());
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("Falha interna na autenticação facial. payloadLength={}",
+                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
+                    e);
+            throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
     @Override

@@ -6,6 +6,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.DocumentService;
 import com.kts.kronos.domain.model.Document;
@@ -21,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -49,6 +51,8 @@ class DocumentServiceSecurityTest {
     private BucketStorageProvider bucketStorageProvider;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private FileScanningProvider fileScanningProvider;
 
     private UUID loggedEmployeeId;
     private UUID managerEmployeeId;
@@ -63,6 +67,7 @@ class DocumentServiceSecurityTest {
         otherTenantEmployeeId = UUID.randomUUID();
         companyAId = UUID.randomUUID();
         companyBId = UUID.randomUUID();
+        ReflectionTestUtils.setField(service, "maxUploadBytes", 5 * 1024 * 1024L);
     }
 
     @Test
