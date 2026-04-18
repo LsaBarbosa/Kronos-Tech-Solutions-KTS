@@ -823,8 +823,12 @@ public class TimeRecordService implements TimeRecordUseCase {
                         // --------------------------------------------------
 
                     } catch (IOException e) {
-                        log.error("Falha ao salvar o documento de abono para o registro {}: {}", savedRecord.timeRecordId(), e.getMessage());
-                        throw new BadRequestException(NOT_ABLE_TO_READ_FILE + e.getMessage());
+                        log.warn("Falha ao ler documento de abono. timeRecordId={}, employeeId={}, originalFilename={}",
+                                savedRecord.timeRecordId(),
+                                employeeId,
+                                document.getOriginalFilename(),
+                                e);
+                        throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
                     }
                 } else if (uploadedStoragePath != null) {
                     // Para os dias seguintes, reutiliza o caminho físico
@@ -1294,9 +1298,13 @@ public class TimeRecordService implements TimeRecordUseCase {
                     fileName
             );
 
-        } catch (Exception e) {
-            // Loga erro crítico mas não aborta a transação principal do ponto para não prejudicar o usuário
-            log.error("FALHA AO GERAR COMPROVANTE (NSR {}): {}", nsr, e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("Falha ao gerar comprovante de ponto. nsr={}, timeRecordId={}, employeeId={}, typeSuffix={}",
+                    nsr,
+                    timeRecordId,
+                    employee.employeeId(),
+                    typeSuffix,
+                    e);
         }
     }
 }
