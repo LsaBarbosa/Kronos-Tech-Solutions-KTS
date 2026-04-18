@@ -32,7 +32,7 @@ public class AuthController {
 
     @PostMapping(LOGIN_FACE)
     public ResponseEntity<LoginResponse> loginFace(@Valid @RequestBody FaceLoginRequest req) {
-        String token = authUseCase.loginFace(req.faceImageBase64());
+        String token = authUseCase.loginFace(req.faceImageBase64(), req.livenessPassed());
         return ResponseEntity.ok(new LoginResponse(token));
     }
 
