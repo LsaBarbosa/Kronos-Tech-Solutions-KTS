@@ -20,10 +20,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_1;
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_2;
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_3;
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_4;
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_TERM_BODY;
+import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_TERM_TITLE;
 import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
@@ -63,7 +71,7 @@ public class BiometricTermPdfService {
             // --- 3. CONSTRUÇÃO DO LAYOUT ---
 
             // TÍTULO
-            var title = new Paragraph("TERMO DE CONSENTIMENTO PARA\nTRATAMENTO DE DADOS BIOMÉTRICOS").setFont(fontBold).setFontSize(16).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20);
+            var title = new Paragraph(BIOMETRIC_TERM_TITLE).setFont(fontBold).setFontSize(16).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20);
             document.add(title);
 
             // IDENTIFICAÇÃO DAS PARTES (Caixa sutil)
@@ -78,17 +86,16 @@ public class BiometricTermPdfService {
             document.add(partiesTable);
 
             // TEXTO LEGAL (Justificado e Elegante)
-            var legalTextContent = "O TITULAR autoriza, de forma livre, informada e inequívoca, o tratamento de seus dados pessoais sensíveis, especificamente sua IMAGEM FACIAL (Biometria), para a finalidade exclusiva de REGISTRO E CONTROLE DE JORNADA DE TRABALHO, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018) e a Portaria 671/2021 do Ministério do Trabalho e Previdência.";
-
-            document.add(new Paragraph(legalTextContent).setFont(fontBody).setFontSize(12).setTextAlignment(TextAlignment.JUSTIFIED).setFirstLineIndent(30).setMarginBottom(10));
+            document.add(new Paragraph(BIOMETRIC_TERM_BODY).setFont(fontBody).setFontSize(12).setTextAlignment(TextAlignment.JUSTIFIED).setFirstLineIndent(30).setMarginBottom(10));
 
             // LISTA DE ITENS
             var list = new com.itextpdf.layout.element.List().setSymbolIndent(12).setListSymbol("\u2022") // Bullet point
                     .setFont(fontBody).setFontSize(12).setMarginBottom(20).setMarginLeft(20);
 
-            list.add(new ListItem("FINALIDADE: Autenticação segura da identidade no momento do registro de ponto eletrônico, prevenindo fraudes."));
-            list.add(new ListItem("ARMAZENAMENTO: Os dados serão armazenados em ambiente seguro de computação em nuvem (SaaS) provido pela KRONOS TECH SOLUTIONS."));
-            list.add(new ListItem("REVOGAÇÃO: Este consentimento poderá ser revogado a qualquer momento pelo Titular, mediante solicitação expressa ao departamento de Recursos Humanos."));
+            list.add(new ListItem(BIOMETRIC_ITEM_1));
+            list.add(new ListItem(BIOMETRIC_ITEM_2));
+            list.add(new ListItem(BIOMETRIC_ITEM_3));
+            list.add(new ListItem(BIOMETRIC_ITEM_4));
 
             document.add(list);
 
@@ -136,9 +143,13 @@ public class BiometricTermPdfService {
             document.close();
             return baos.toByteArray();
 
-        } catch (Exception e) {
+        } catch (IOException e) {
+            log.error("Erro de IO ao gerar Termo de Consentimento. employeeId={}, companyId={}",
+                    employee.employeeId(), company.companyId(), e);
+            throw new RuntimeException(ERROR_TO_GENERATE_PDF, e);
+        } catch (RuntimeException e) {
             log.error("Erro ao gerar Termo de Consentimento", e);
-            throw new RuntimeException(ERROR_TO_GENERATE_PDF + e.getMessage());
+            throw new RuntimeException(ERROR_TO_GENERATE_PDF, e);
         }
     }
 
@@ -156,7 +167,7 @@ public class BiometricTermPdfService {
             var digest = MessageDigest.getInstance("SHA-256");
             byte[] encodedhash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             return bytesToHex(encodedhash);
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
         }
     }

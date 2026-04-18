@@ -295,17 +295,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             if (req.managerId() == null) {
                 throw new BadRequestException(MANAGER_ID_REQUIRED);
             }
-            var managerUser = userProvider.findById(req.managerId()).orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-
-            if (managerUser.role() != Role.MANAGER) {
-                throw new BadRequestException(USER_IS_NOT_MANAGER);
-            }
-
-            var managerEmployee = employeeProvider.findById(managerUser.employeeId()).orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-
-            if (!managerEmployee.companyId().equals(employee.companyId())) {
-                throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-            }
+            getManagerApprover(req.managerId(), employee.companyId(), USER_IS_NOT_MANAGER, false);
 
             // 1. Cria o payload simplificado
             var approvalRequest = new TimeRecordApprovalRequest(timeRecordId, employeeId, req.managerId(), newStart, newEnd, TIME_ZONE_BRAZIL);
@@ -596,16 +586,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     public List<Long> requestVacation(RequestVacationRequest request) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
-        var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-
-        if (managerUser.role() != Role.MANAGER) {
-            throw new ForbiddenException(ROLE_IS_NOT_MANAGER);
-        }
-
-        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-        }
+        getManagerApprover(request.managerId(), employee.companyId(), ROLE_IS_NOT_MANAGER, true);
 
         var start = request.startDate();
         var end = request.endDate();
@@ -746,14 +727,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         // Validação do Manager
-        var managerUser = userProvider.findById(request.managerId())
-                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
-        if (managerUser.role() != Role.MANAGER) {
-            throw new BadRequestException(USER_NOT_IS_MANAGER);
-        }
-        if (!employeeProvider.findById(managerUser.employeeId()).map(e -> e.companyId().equals(employee.companyId())).orElse(false)) {
-            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
-        }
+        getManagerApprover(request.managerId(), employee.companyId(), USER_NOT_IS_MANAGER, false);
 
         var type = request.type() != null ? request.type() : RequestType.TIME_OFF_REQUEST;
 
@@ -1049,6 +1023,31 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         isRecordBelongsEmployee(employee.employeeId(), record);
         return record;
+    }
+
+    private User getManagerApprover(UUID managerUserId, UUID companyId, String invalidRoleMessage, boolean forbiddenWhenInvalidRole) {
+        var managerUser = userProvider.findById(managerUserId)
+                .orElseThrow(() -> new ResourceNotFoundException(MANAGER_NOT_FOUND));
+
+        if (managerUser.role() != Role.MANAGER) {
+            if (forbiddenWhenInvalidRole) {
+                throw new ForbiddenException(invalidRoleMessage);
+            }
+            throw new BadRequestException(invalidRoleMessage);
+        }
+
+        try {
+            domainAuthorizationService.requireEmployeeFromCompany(
+                    managerUser.employeeId(),
+                    companyId,
+                    EMPLOYEE_NOT_FOUND,
+                    MANAGER_DIFFERENT_COMPANY
+            );
+        } catch (ForbiddenException e) {
+            throw new BadRequestException(MANAGER_DIFFERENT_COMPANY);
+        }
+
+        return managerUser;
     }
 
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {

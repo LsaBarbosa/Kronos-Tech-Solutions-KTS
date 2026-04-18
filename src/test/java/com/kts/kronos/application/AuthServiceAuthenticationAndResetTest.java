@@ -3,6 +3,7 @@ package com.kts.kronos.application;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
@@ -123,55 +124,51 @@ class AuthServiceAuthenticationAndResetTest {
         when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(false);
         when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, false)).thenReturn("face-jwt");
 
-        String token = authService.loginFace(imageBase64,null );
+        String token = authService.loginFace(imageBase64, true);
 
         assertEquals("face-jwt", token);
+        verify(biometricProtectionService).protectPublicLogin(imageBase64, true);
     }
 
     @Test
     @DisplayName("loginFace: deve retornar erro específico para base64 inválido")
     void shouldRejectInvalidBase64OnFaceLogin() {
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace("%%%",null ));
+        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace("%%%", null));
         assertEquals(AuthService.INVALID_IMAGE, exception.getMessage());
+        verify(biometricProtectionService).protectPublicLogin("%%%", null);
     }
 
     @Test
-    @DisplayName("loginFace: deve encapsular ausência de match facial")
-    void shouldWrapNoFaceMatchAsFacialAuthError() {
+    @DisplayName("loginFace: deve preservar ausência de match facial como Forbidden")
+    void shouldPreserveNoFaceMatchAsForbidden() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(null);
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64, null ));
-
-        assertTrue(exception.getMessage().startsWith(AuthService.ERROR_FACIAL_AUTHENTICATION));
-        assertTrue(exception.getMessage().contains("Sem permissão para utilizar esse recurso"));
+        ForbiddenException exception = assertThrows(ForbiddenException.class, () -> authService.loginFace(imageBase64, null));
+        assertEquals(AuthService.FACE_NOT_RECOGNIZE, exception.getMessage());
     }
 
     @Test
-    @DisplayName("loginFace: deve encapsular ausência de usuário vinculado")
-    void shouldWrapMissingUserLinkAsFacialAuthError() {
+    @DisplayName("loginFace: deve preservar ausência de usuário vinculado")
+    void shouldPreserveMissingUserLink() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64,null ));
-
-        assertTrue(exception.getMessage().startsWith(AuthService.ERROR_FACIAL_AUTHENTICATION));
-        assertTrue(exception.getMessage().contains(AuthService.NO_USER_LINKED_TO_THIS_EMPLOYEE));
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> authService.loginFace(imageBase64, null));
+        assertEquals(AuthService.NO_USER_LINKED_TO_THIS_EMPLOYEE, exception.getMessage());
     }
 
     @Test
-    @DisplayName("loginFace: deve encapsular usuário inativo")
-    void shouldWrapInactiveUserAsFacialAuthError() {
+    @DisplayName("loginFace: deve preservar usuário inativo como BadRequest")
+    void shouldPreserveInactiveUserAsBadRequest() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         User inactiveUser = new User(userId, "alice", "hashed", Role.MANAGER, false, employeeId);
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(inactiveUser));
 
         BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64, null));
-
-        assertTrue(exception.getMessage().startsWith(AuthService.ERROR_FACIAL_AUTHENTICATION));
-        assertTrue(exception.getMessage().contains(AuthService.INACTIVE_USER));
+        assertEquals(AuthService.INACTIVE_USER, exception.getMessage());
     }
 
     @Test
@@ -180,10 +177,8 @@ class AuthServiceAuthenticationAndResetTest {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenThrow(new RuntimeException("aws unavailable"));
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64,null ));
-
-        assertTrue(exception.getMessage().startsWith(AuthService.ERROR_FACIAL_AUTHENTICATION));
-        assertTrue(exception.getMessage().contains("aws unavailable"));
+        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64, null));
+        assertEquals(AuthService.ERROR_FACIAL_AUTHENTICATION, exception.getMessage());
     }
 
     @Test

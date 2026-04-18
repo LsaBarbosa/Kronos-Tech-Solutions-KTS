@@ -97,7 +97,8 @@ class UserServiceTenantSecurityTest {
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
         service.deleteUser(userId);
 
-        var inOrder = inOrder(documentProvider, timeRecordProvider, userProvider, employeeProvider);
+        var inOrder = inOrder(acceptTermsUseCase, documentProvider, timeRecordProvider, userProvider, employeeProvider);
+        inOrder.verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "system", "USER_DELETE");
         inOrder.verify(documentProvider).deleteByEmployeeId(employeeId);
         inOrder.verify(timeRecordProvider).deleteByEmployeeId(employeeId);
         inOrder.verify(userProvider).deleteById(userId);

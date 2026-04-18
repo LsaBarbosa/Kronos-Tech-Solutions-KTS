@@ -30,7 +30,7 @@ public class PasswordTokenCleanupScheduler {
             // O repositório executa a query DELETE FROM WHERE expiryDate <= :now
             repository.deleteExpiredTokens(now);
             log.info("Limpeza de tokens concluída com sucesso.");
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.error("Erro durante a limpeza de tokens agendada: {}", e.getMessage(), e);
         }
     }

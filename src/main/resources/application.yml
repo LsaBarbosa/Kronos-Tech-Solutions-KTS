@@ -117,7 +117,6 @@ kronos:
         host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
-    biometric-term-salt: ${SECRET_TERM}  
 
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}

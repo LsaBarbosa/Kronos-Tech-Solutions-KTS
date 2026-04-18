@@ -17,9 +17,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticatedUserRoleStrategyTest {
@@ -57,6 +55,6 @@ class JwtAuthenticatedUserRoleStrategyTest {
         assertEquals(Role.PARTNER, currentRole);
         assertFalse(jwtAuthenticatedUser.hasAnyRole(Role.MANAGER, Role.CTO));
         assertTrue(jwtAuthenticatedUser.hasAnyRole(Role.PARTNER));
-        verify(jwtUtils, never()).getRoleFromToken(anyString());
+        verifyNoInteractions(jwtUtils);
     }
 }
