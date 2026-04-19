@@ -1,8 +1,7 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.AfdEntryEntity;
-import com.kts.kronos.support.jpa.AbstractPostgresContainerTest;
-import com.kts.kronos.support.jpa.PostgresDataJpaTest;
+import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,8 +15,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@PostgresDataJpaTest
-class AfdEntryRepositoryDataJpaTest extends AbstractPostgresContainerTest {
+class AfdEntryRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private AfdEntryRepository repository;
@@ -69,7 +67,6 @@ class AfdEntryRepositoryDataJpaTest extends AbstractPostgresContainerTest {
 
         try (Stream<AfdEntryEntity> stream = repository.streamAllByCompanyIdOrderByNsrAsc(targetCompanyId)) {
             List<Long> nsrs = stream.map(AfdEntryEntity::getNsr).toList();
-
             assertEquals(List.of(10L, 20L, 30L), nsrs);
         }
     }
