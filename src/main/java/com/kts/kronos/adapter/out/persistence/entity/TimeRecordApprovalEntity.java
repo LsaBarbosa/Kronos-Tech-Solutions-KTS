@@ -27,11 +27,11 @@ public class TimeRecordApprovalEntity {
     @Column(name = "time_record_id")
     private Long timeRecordId;
 
-    @Column(name = "requesting_employee_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "requesting_employee_id" , nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID requestingEmployeeId;
 
-    @Column(name = "manager_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "manager_id",   nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID managerId;
 

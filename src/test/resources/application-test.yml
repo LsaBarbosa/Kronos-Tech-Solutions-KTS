@@ -4,9 +4,12 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+
+  flyway:
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
   mail:
     host: localhost
     port: 2525
