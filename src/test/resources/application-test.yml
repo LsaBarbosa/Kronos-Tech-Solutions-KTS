@@ -6,10 +6,11 @@ spring:
     password:
 
   flyway:
-    enabled: true
+    enabled: false
+
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
   mail:
     host: localhost
     port: 2525

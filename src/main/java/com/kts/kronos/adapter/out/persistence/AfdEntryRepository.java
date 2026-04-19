@@ -15,11 +15,18 @@ import static org.hibernate.jpa.HibernateHints.HINT_FETCH_SIZE;
 
 public interface AfdEntryRepository extends JpaRepository<AfdEntryEntity, Long> {
 
-    @Query("SELECT a.currentHash FROM AfdEntryEntity a WHERE a.companyId = :companyId ORDER BY a.nsr DESC LIMIT 1")
+    @Query(
+            value = """
+                    SELECT current_hash
+                    FROM tb_afd_entry
+                    WHERE company_id = :companyId
+                    ORDER BY nsr DESC
+                    LIMIT 1
+                    """,
+            nativeQuery = true
+    )
     Optional<String> findLastHashByCompanyId(@Param("companyId") UUID companyId);
 
-    // HINT_FETCH_SIZE é vital para o driver JDBC não carregar tudo na RAM.
-    // O banco enviará em lotes (ex: 1000 linhas por vez).
     @QueryHints(value = @QueryHint(name = HINT_FETCH_SIZE, value = "1000"))
     @Query("SELECT a FROM AfdEntryEntity a WHERE a.companyId = :companyId ORDER BY a.nsr ASC")
     Stream<AfdEntryEntity> streamAllByCompanyIdOrderByNsrAsc(@Param("companyId") UUID companyId);

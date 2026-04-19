@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
-import com.kts.kronos.support.jpa.AbstractPostgresContainerTest;
+import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,10 +11,10 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class PasswordResetTokenRepositoryDataJpaTest extends AbstractPostgresContainerTest {
-
+class PasswordResetTokenRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
     @Autowired
     private PasswordResetTokenRepository repository;
 
