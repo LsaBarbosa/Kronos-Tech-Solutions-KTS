@@ -39,11 +39,11 @@ public class AfdEntryEntity {
     @Column(name = "employee_pis", length = 11)
     private String employeePis; // Opcional no layout novo, mas bom ter
 
-    @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "company_id",   nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
-    @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "employee_id",   nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 

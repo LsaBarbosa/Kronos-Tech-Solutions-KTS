@@ -22,15 +22,15 @@ import java.util.UUID;
 @Builder
 public class MessageEntity {
     @Id
-    @Column(name = "message_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "message_id",  nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID messageId;
 
-    @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "employee_id", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
-    @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "company_id", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
@@ -48,7 +48,7 @@ public class MessageEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "recipient_employee_id", columnDefinition = "CHAR(36)")
+    @Column(name = "recipient_employee_id")
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID recipientEmployeeId;
 
