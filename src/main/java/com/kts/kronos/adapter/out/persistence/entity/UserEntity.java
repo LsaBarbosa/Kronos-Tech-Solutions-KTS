@@ -18,7 +18,7 @@ import java.util.UUID;
 @Builder
 public class UserEntity {
     @Id
-    @Column(name = "user_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "user_id",  nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID userId;
 
@@ -37,7 +37,7 @@ public class UserEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    @Column(name = "employee_id", columnDefinition = "CHAR(36)", unique = true)
+    @Column(name = "employee_id", unique = true)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
