@@ -6,19 +6,17 @@ import com.kts.kronos.adapter.out.persistence.entity.TimeRecordApprovalEntity;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
-class TimeRecordApprovalRepositoryTest extends AbstractPostgresDataJpaTest {
+class TimeRecordApprovalRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private TimeRecordApprovalRepository repository;
