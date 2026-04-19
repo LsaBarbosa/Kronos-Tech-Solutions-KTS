@@ -1,7 +1,6 @@
 package com.kts.kronos.support.jpa;
 
 import com.kts.kronos.KronosApplication;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -22,6 +21,5 @@ import java.lang.annotation.Target;
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = KronosApplication.class)
-@EnabledIfEnvironmentVariable(named = "GITHUB_ACTIONS", matches = "true")
 public @interface PostgresDataJpaTest {
 }
