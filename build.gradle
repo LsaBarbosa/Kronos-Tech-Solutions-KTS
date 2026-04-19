@@ -173,7 +173,7 @@ tasks.named('check') {
 }
 
 tasks.register('dataJpaTest', Test) {
-    description = 'Executa os testes de repository/@DataJpaTest com PostgreSQL/Testcontainers'
+    description = 'Executa apenas os testes JPA com PostgreSQL/Testcontainers'
     group = 'verification'
 
     testClassesDirs = sourceSets.test.output.classesDirs
@@ -182,8 +182,36 @@ tasks.register('dataJpaTest', Test) {
     include '**/*DataJpaTest.class'
     include '**/*RepositoryTest.class'
 
-    shouldRunAfter(tasks.named('test'))
+    shouldRunAfter(tasks.named('unitTest'))
+
+    useJUnitPlatform()
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 
     systemProperty 'spring.profiles.active', 'test'
     environment 'DOCKER_HOST', System.getenv('DOCKER_HOST') ?: 'unix:///var/run/docker.sock'
+}
+
+tasks.register('unitTest', Test) {
+    description = 'Executa apenas os testes unitários, excluindo JPA/integracao'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform()
+
+    include '**/*Test.class'
+
+    exclude '**/*DataJpaTest.class'
+    exclude '**/*RepositoryTest.class'
+    exclude '**/*IntegrationTest.class'
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
+    systemProperty 'spring.profiles.active', 'test'
 }
