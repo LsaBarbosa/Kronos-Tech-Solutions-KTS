@@ -17,7 +17,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@DataJpaTest
+
 class TimeRecordApprovalRepositoryTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
