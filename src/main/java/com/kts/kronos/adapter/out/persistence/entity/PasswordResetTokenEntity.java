@@ -24,7 +24,7 @@ public class PasswordResetTokenEntity {
     @Column(name = "token", length = 64, nullable = false)
     private String token;
 
-    @Column(name = "user_id", columnDefinition = "CHAR(36)", nullable = false, unique = true)
+    @Column(name = "user_id", nullable = false, unique = true)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID userId;
 

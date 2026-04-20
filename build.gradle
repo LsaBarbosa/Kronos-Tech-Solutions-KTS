@@ -20,88 +20,116 @@ configurations {
     }
 }
 
+configurations.configureEach {
+    exclude group: 'com.spotify', module: 'docker-client'
+
+    resolutionStrategy {
+        force 'com.github.docker-java:docker-java-api:3.4.2'
+        force 'com.github.docker-java:docker-java-transport:3.4.2'
+        force 'com.github.docker-java:docker-java-transport-zerodep:3.4.2'
+    }
+}
+
 repositories {
     mavenCentral()
     google()
 }
-// Cloud
+
 dependencyManagement {
     imports {
-        mavenBom('com.google.cloud:libraries-bom:26.60.0')
-        mavenBom('com.google.cloud:spring-cloud-gcp-dependencies:7.2.0')
-
-        mavenBom("software.amazon.awssdk:bom:2.25.10")
+        mavenBom 'com.google.cloud:libraries-bom:26.60.0'
+        mavenBom 'com.google.cloud:spring-cloud-gcp-dependencies:7.2.0'
+        mavenBom 'software.amazon.awssdk:bom:2.25.10'
     }
-
 }
+
 dependencies {
     // CORE
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-integration'
 
-    // OBSERVABILITY METRICS
-    implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
-    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
     // DATA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
     testRuntimeOnly 'com.h2database:h2'
 
-    // DOC
+    // OBSERVABILITY
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+
+    // DOCUMENTS / PDF
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
     implementation 'com.itextpdf:kernel:7.2.5'
     implementation 'com.itextpdf:layout:7.2.5'
 
-    // DEV UTILS
-    implementation "org.springframework.boot:spring-boot-starter-webflux"
-    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // UTILITIES
     implementation 'commons-net:commons-net:3.10.0'
-     developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
     compileOnly 'org.projectlombok:lombok'
 
-    //SECURITY
+    // SECURITY
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // para converter claims em JSON
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
     implementation 'org.springframework.security:spring-security-crypto'
 
-    implementation 'org.springframework.boot:spring-boot-starter-integration'
-    testImplementation 'org.mockito:mockito-inline:5.2.0'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'io.projectreactor:reactor-test'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation 'org.springframework.security:spring-security-test'
-
+    // AWS
     implementation 'software.amazon.awssdk:rekognition'
     implementation 'software.amazon.awssdk:s3'
 
+    // CRYPTO
     implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
 
+    // TEST
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.mockito:mockito-inline:5.2.0'
+    testImplementation 'io.projectreactor:reactor-test'
 
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.2')
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
 
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-
-
 tasks.named('bootBuildImage') {
-    builder = "paketobuildpacks/builder-jammy-base"
-    imageName = "489540979930.dkr.ecr.sa-east-1.amazonaws.com/kronos:latest"
+    builder = 'paketobuildpacks/builder-jammy-base'
+    imageName = '489540979930.dkr.ecr.sa-east-1.amazonaws.com/kronos:latest'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
+    systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'test')
+
+    environment 'DOCKER_HOST', System.getenv('DOCKER_HOST') ?: 'unix:///var/run/docker.sock'
+
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+        showStandardStreams = true
+    }
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
-    systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'test')
     finalizedBy(tasks.named('jacocoTestReport'))
 }
 
@@ -142,4 +170,48 @@ tasks.named('jacocoTestCoverageVerification') {
 
 tasks.named('check') {
     dependsOn(tasks.named('jacocoTestCoverageVerification'))
+}
+
+tasks.register('dataJpaTest', Test) {
+    description = 'Executa apenas os testes JPA com PostgreSQL/Testcontainers'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    include '**/*DataJpaTest.class'
+    include '**/*RepositoryTest.class'
+
+    shouldRunAfter(tasks.named('unitTest'))
+
+    useJUnitPlatform()
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
+    systemProperty 'spring.profiles.active', 'test'
+    environment 'DOCKER_HOST', System.getenv('DOCKER_HOST') ?: 'unix:///var/run/docker.sock'
+}
+
+tasks.register('unitTest', Test) {
+    description = 'Executa apenas os testes unitários, excluindo JPA/integracao'
+    group = 'verification'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+
+    useJUnitPlatform()
+
+    include '**/*Test.class'
+
+    exclude '**/*DataJpaTest.class'
+    exclude '**/*RepositoryTest.class'
+    exclude '**/*IntegrationTest.class'
+
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+
+    systemProperty 'spring.profiles.active', 'test'
 }

@@ -4,7 +4,6 @@ import com.kts.kronos.adapter.out.persistence.entity.MessageEntity;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 
@@ -13,8 +12,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@DataJpaTest
-class MessageRepositoryTest extends AbstractPostgresDataJpaTest {
+class MessageRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private MessageRepository repository;

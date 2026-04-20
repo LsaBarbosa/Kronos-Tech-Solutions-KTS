@@ -24,7 +24,7 @@ public class DocumentEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID documentId;
 
-    @Column(name = "employee_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "employee_id",  nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
