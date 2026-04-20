@@ -1,6 +1,5 @@
-package com.kts.kronos.adapter.out.persistence.impl;
+package com.kts.kronos.adapter.out.persistence;
 
-import com.kts.kronos.adapter.out.persistence.CompanyRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.CompanyEntity;
 import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
@@ -14,7 +13,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
-class CompanyRepositoryTest extends AbstractPostgresDataJpaTest {
+class CompanyRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private CompanyRepository repository;

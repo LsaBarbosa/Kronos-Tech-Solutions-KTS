@@ -69,7 +69,7 @@ public class EmployeeEntity {
     @Embedded
     private AddressEmbeddable address;
 
-    @Column(name = "company_id", columnDefinition = "CHAR(36)", nullable = false)
+    @Column(name = "company_id", nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID companyId;
 
