@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -140,9 +141,15 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             document.close();
             return baos.toByteArray();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar Espelho de Ponto", e);
-            throw new RuntimeException("Erro na geração do PDF: " + e.getMessage());
+        } catch (RuntimeException | IOException e) {
+            log.error(
+                    "Erro ao gerar espelho de ponto. employeeId={}, startDate={}, endDate={}",
+                    employee.employeeId(),
+                    startDate,
+                    endDate,
+                    e
+            );
+            throw new RuntimeException("Erro na geração do PDF", e);
         }
     }
 

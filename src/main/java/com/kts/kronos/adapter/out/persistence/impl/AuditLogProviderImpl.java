@@ -6,6 +6,7 @@ import com.kts.kronos.application.port.out.provider.AuditLogProvider;
 import com.kts.kronos.domain.model.AuditLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -29,10 +30,14 @@ public class AuditLogProviderImpl implements AuditLogProvider {
                     .build();
 
             repository.save(entity);
-            
-        } catch (Exception e) {
-            // Log de auditoria não deve quebrar a aplicação, mas deve ser reportado no console
-            log.error("FALHA CRÍTICA AO SALVAR LOG DE AUDITORIA: {}", e.getMessage(), e);
+
+        } catch (DataAccessException e) {
+            log.error(
+                    "Falha ao salvar log de auditoria. userId={}, action={}",
+                    domainLog.userId(),
+                    domainLog.action(),
+                    e
+            );
         }
     }
 }

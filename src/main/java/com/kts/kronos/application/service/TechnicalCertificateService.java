@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import static com.kts.kronos.constants.LegalCompanyData.*;
@@ -87,9 +88,11 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
             document.close();
             return baos.toByteArray();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar Atestado Técnico", e);
+        } catch (RuntimeException e) {
+            log.error("Erro ao gerar Atestado Técnico. companyId={}", companyId, e);
             throw new RuntimeException(ERROR_GENERATING_TECHNICAL_CERTIFICATE, e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
