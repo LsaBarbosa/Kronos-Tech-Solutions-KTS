@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -24,12 +25,10 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -130,19 +129,34 @@ public class AejService implements AejUseCase {
             // --- PROCESSO DE ASSINATURA DIGITAL ---
 
             byte[] originalContent = textBuffer.toByteArray();
-            log.info("Layout AEJ gerado com sucesso. Tamanho original: {} bytes. Iniciando assinatura...", originalContent.length);
+            log.info(
+                    "Layout AEJ gerado. companyId={}, startDate={}, endDate={}, originalSize={}. Iniciando assinatura digital.",
+                    companyId,
+                    startDate,
+                    endDate,
+                    originalContent.length
+            );
 
-            // Assina o conteúdo (Gera o .p7s)
             byte[] signedContent = signatureService.signData(originalContent);
-
-            // Escreve o conteúdo assinado na saída (Download)
             outputStream.write(signedContent);
 
-            log.info("AEJ assinado digitalmente e enviado para output. Tamanho final: {} bytes.", signedContent.length);
+            log.info(
+                    "AEJ assinado e enviado com sucesso. companyId={}, startDate={}, endDate={}, signedSize={}",
+                    companyId,
+                    startDate,
+                    endDate,
+                    signedContent.length
+            );
 
-        } catch (Exception e) {
-            log.error("Erro crítico na geração/assinatura do AEJ", e);
-            throw new RuntimeException(FAILURE_TO_GENERAT_AEJ + e.getMessage());
+        } catch (RuntimeException | IOException e) {
+            log.error(
+                    "Falha na geração do AEJ. companyId={}, startDate={}, endDate={}",
+                    companyId,
+                    startDate,
+                    endDate,
+                    e
+            );
+            throw new RuntimeException(FAILURE_TO_GENERAT_AEJ, e);
         }
     }
 

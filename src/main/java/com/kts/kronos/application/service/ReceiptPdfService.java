@@ -12,8 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -90,8 +92,15 @@ public class ReceiptPdfService {
 
             return baos.toByteArray();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar comprovante de ponto PDF", e);
+        } catch (RuntimeException | IOException e) {
+            log.error(
+                    "Erro ao gerar comprovante de ponto PDF. companyCnpj={}, employeeCpf={}, recordDate={}, nsr={}",
+                    company.cnpj(),
+                    employee.cpf(),
+                    recordDate,
+                    nsr,
+                    e
+            );
             throw new RuntimeException("Erro na geração do comprovante de ponto", e);
         }
     }
@@ -134,7 +143,7 @@ public class ReceiptPdfService {
                 hexString.append(hex);
             }
             return hexString.toString();
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Erro ao calcular Hash SHA-256", e);
         }
     }

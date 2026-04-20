@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/legal")
 @RequiredArgsConstructor
@@ -57,7 +59,21 @@ public class LegalController {
 
         // 2. Gera PDF e Assina
         byte[] pdfBytes = certificateService.generateCertificate(company);
-        byte[] signedBytes = signatureService.signData(pdfBytes);
+
+        log.info("Iniciando assinatura digital do atestado técnico. companyId={}", companyId);
+
+        byte[] signedBytes;
+        try {
+            signedBytes = signatureService.signData(pdfBytes);
+            log.info(
+                    "Atestado técnico assinado com sucesso. companyId={}, signedSize={}",
+                    companyId,
+                    signedBytes.length
+            );
+        } catch (RuntimeException e) {
+            log.error("Falha na assinatura digital do atestado técnico. companyId={}", companyId, e);
+            throw e;
+        }
 
         // 3. Download .p7s
         String filename = "Atestado_Tecnico_Kronos_" + LocalDate.now().getYear() + ".p7s";
