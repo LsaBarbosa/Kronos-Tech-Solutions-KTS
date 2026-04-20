@@ -107,8 +107,8 @@ aws:
 kronos:
   security:
     certificate:
-      path: "caminho/para/certificado.pfx"
-      password: "sua_senha_secreta"
+      path: ${KRONOS_CERTIFICATE_PATH}
+      password: ${KRONOS_CERTIFICATE_PASSWORD}
     biometric-term-salt: ${SECRET_TERM}
     upload:
       max-bytes: ${UPLOAD_MAX_BYTES:5242880}
