@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -295,12 +297,35 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
+    @DisplayName("deleteEmployee: deve traduzir colaborador inexistente")
+    void shouldTranslateExceptionWhenDeletingEmployee() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        doThrow(new ResourceNotFoundException("Colaborador não encontrado"))
+                .when(useCase).deleteEmployee(employeeId);
+
+        mockMvc.perform(delete("/employee/{employeeId}", employeeId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Colaborador não encontrado"));
+    }
+
+    @Test
     @DisplayName("markMessagesAsSeen: deve delegar marcação de mensagens vistas")
     void shouldMarkMessagesAsSeen() throws Exception {
         mockMvc.perform(post("/employee/mark-messages-seen"))
                 .andExpect(status().isOk());
 
         verify(useCase).markMessagesAsSeen();
+    }
+
+    @Test
+    @DisplayName("markMessagesAsSeen: deve traduzir erro de regra")
+    void shouldTranslateExceptionWhenMarkingMessagesAsSeen() throws Exception {
+        doThrow(new BadRequestException("Usuário sem colaborador vinculado"))
+                .when(useCase).markMessagesAsSeen();
+
+        mockMvc.perform(post("/employee/mark-messages-seen"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Usuário sem colaborador vinculado"));
     }
 
     @Test

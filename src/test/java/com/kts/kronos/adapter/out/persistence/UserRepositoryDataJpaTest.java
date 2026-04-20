@@ -26,6 +26,7 @@ class UserRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
         assertTrue(repository.findByUsernameIgnoreCase("john").isPresent());
         assertTrue(repository.findByUsernameIgnoreCase("JOHN").isPresent());
+        assertTrue(repository.existsByUsernameIgnoreCase("john"));
     }
 
     @Test
@@ -42,6 +43,44 @@ class UserRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
         assertEquals(1, result.size());
         assertEquals(employeeA, result.getFirst().getEmployeeId());
         assertTrue(result.getFirst().isActive());
+    }
+
+    @Test
+    @DisplayName("findByEmployeeId/existsByEmployeeId: deve localizar por colaborador")
+    void shouldFindAndCheckExistenceByEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        repository.save(user("john", true, employeeId));
+
+        assertTrue(repository.findByEmployeeId(employeeId).isPresent());
+        assertTrue(repository.existsByEmployeeId(employeeId));
+        assertTrue(repository.findByEmployeeId(UUID.randomUUID()).isEmpty());
+    }
+
+    @Test
+    @DisplayName("findByActiveTrue/findByActiveFalse: deve separar ativos e inativos")
+    void shouldFindByActiveFlags() {
+        UUID employeeA = UUID.randomUUID();
+        UUID employeeB = UUID.randomUUID();
+        repository.save(user("john", true, employeeA));
+        repository.save(user("mary", false, employeeB));
+
+        assertEquals(1, repository.findByActiveTrue().size());
+        assertEquals(1, repository.findByActiveFalse().size());
+    }
+
+    @Test
+    @DisplayName("findByEmployeeIdIn: deve filtrar coleção de colaboradores")
+    void shouldFindByEmployeeIds() {
+        UUID employeeA = UUID.randomUUID();
+        UUID employeeB = UUID.randomUUID();
+        UUID employeeC = UUID.randomUUID();
+        repository.save(user("john", true, employeeA));
+        repository.save(user("mary", false, employeeB));
+        repository.save(user("carl", true, employeeC));
+
+        List<UserEntity> result = repository.findByEmployeeIdIn(List.of(employeeA, employeeC));
+
+        assertEquals(2, result.size());
     }
 
     private UserEntity user(String username, boolean active, UUID employeeId) {

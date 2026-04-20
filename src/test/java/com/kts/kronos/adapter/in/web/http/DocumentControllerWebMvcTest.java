@@ -2,6 +2,8 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
+import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -23,6 +25,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -76,6 +79,24 @@ class DocumentControllerWebMvcTest {
                         .file(file)
                         .param("type", "INVALID_TYPE"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldTranslateExceptionWhenUploadingDocument() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "script.exe",
+                "application/octet-stream",
+                "binary".getBytes(StandardCharsets.UTF_8)
+        );
+        doThrow(new BadRequestException("Tipo de arquivo inválido"))
+                .when(documentUseCase).uploadDocument(eq(DocumentType.PAYSLIP), eq(null), any(MultipartFile.class));
+
+        mockMvc.perform(multipart("/documents")
+                        .file(file)
+                        .param("type", "PAYSLIP"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Tipo de arquivo inválido"));
     }
 
     @Test
@@ -174,6 +195,17 @@ class DocumentControllerWebMvcTest {
     }
 
     @Test
+    void shouldTranslateExceptionWhenDownloadingDocument() throws Exception {
+        UUID documentId = UUID.randomUUID();
+        when(documentUseCase.downloadDocument(null, documentId))
+                .thenThrow(new ResourceNotFoundException("Documento não encontrado"));
+
+        mockMvc.perform(get("/documents/{documentId}", documentId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Documento não encontrado"));
+    }
+
+    @Test
     void shouldDeleteDocumentWithEmployeeId() throws Exception {
         UUID employeeId = UUID.randomUUID();
         UUID documentId = UUID.randomUUID();
@@ -193,5 +225,16 @@ class DocumentControllerWebMvcTest {
                 .andExpect(status().isOk());
 
         verify(documentUseCase).deleteDocument(null, documentId);
+    }
+
+    @Test
+    void shouldTranslateExceptionWhenDeletingDocument() throws Exception {
+        UUID documentId = UUID.randomUUID();
+        doThrow(new ResourceNotFoundException("Documento não encontrado"))
+                .when(documentUseCase).deleteDocument(null, documentId);
+
+        mockMvc.perform(delete("/documents/{documentId}", documentId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Documento não encontrado"));
     }
 }

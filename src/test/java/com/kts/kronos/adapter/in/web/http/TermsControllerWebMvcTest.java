@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import jakarta.annotation.Resource;
 import java.util.UUID;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -93,5 +95,24 @@ class TermsControllerWebMvcTest {
                 .andExpect(jsonPath("$.token").value("revoked-token"));
 
         verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+    }
+
+    @Test
+    void shouldTranslateExceptionWhenAcceptingBiometricTerms() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        doThrow(new BadRequestException("Termo já aceito"))
+                .when(acceptTermsUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+
+        mockMvc.perform(post("/terms/accept-biometric")
+                        .header("Authorization", "Bearer token")
+                        .header("User-Agent", "JUnit"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Termo já aceito"));
     }
 }
