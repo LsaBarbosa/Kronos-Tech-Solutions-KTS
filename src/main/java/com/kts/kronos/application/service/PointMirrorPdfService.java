@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -58,7 +59,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         log.info(
-                "Gerando espelho de ponto para employeeId {} no período {} a {} ({} dias)",
+                "Gerando espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}, totalDays={}",
+                company.companyId(),
                 employee.employeeId(),
                 startDate,
                 endDate,
@@ -138,11 +140,29 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             addSignatures(document, employee.fullName());
 
             document.close();
-            return baos.toByteArray();
+            byte[] pdfBytes = baos.toByteArray();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar Espelho de Ponto", e);
-            throw new RuntimeException("Erro na geração do PDF: " + e.getMessage());
+            log.info(
+                    "Espelho de ponto gerado com sucesso. companyId={}, employeeId={}, startDate={}, endDate={}, pdfSize={}",
+                    company.companyId(),
+                    employee.employeeId(),
+                    startDate,
+                    endDate,
+                    pdfBytes.length
+            );
+
+            return pdfBytes;
+
+        } catch (RuntimeException | IOException e) {
+            log.error(
+                    "Erro ao gerar espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}",
+                    company.companyId(),
+                    employee.employeeId(),
+                    startDate,
+                    endDate,
+                    e
+            );
+            throw new RuntimeException("Erro na geração do PDF", e);
         }
     }
 

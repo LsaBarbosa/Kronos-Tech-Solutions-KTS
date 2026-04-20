@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -108,8 +109,12 @@ public class TechnicalCertificatePdfService {
             document.close();
             return baos.toByteArray();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar PDF do atestado técnico", e);
+        } catch (IOException | RuntimeException e) {
+            log.error(
+                    "Erro ao gerar PDF do atestado técnico. clientCompanyId={}",
+                    clientCompany.companyId(),
+                    e
+            );
             throw new RuntimeException(ERROR_GENERATING_TECHNICAL_CERTIFICATE, e);
         }
     }

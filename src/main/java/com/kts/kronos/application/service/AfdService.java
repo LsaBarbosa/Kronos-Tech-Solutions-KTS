@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,30 +39,45 @@ public class AfdService implements AdfUseCase {
     private String inpiNumber;
 
     @Override
-    @Transactional // Mantém transação para garantir integridade do HASH
+    @Transactional
     public void logMarking(Company company, Employee employee, LocalDateTime date, Long nsr) {
-        // 1. Busca o Hash do registro anterior para garantir o encadeamento (Blockchain style)
-        var previousHash = afdProvider.findLastHashByCompanyId(company.companyId())
-                .orElse(null); // Se for null, é o primeiro registro da empresa
+        try {
+            var previousHash = afdProvider.findLastHashByCompanyId(company.companyId())
+                    .orElse(null);
 
-        // 2. Monta a linha crua conforme layout para cálculo do hash
-        // Layout simplificado: NSR + Tipo + DataHora + CPF + HashAnterior
-        var rawData = String.format("%09d", nsr) +
-                "7" + // Tipo 7 = Marcação de Ponto
-                date.format(AFD_DATE_FMT) +
-                formatCpf(employee.cpf()) +
-                (previousHash != null ? previousHash : ""); // Hash anterior faz parte do novo hash
+            var rawData = String.format("%09d", nsr) +
+                    "7" +
+                    date.format(AFD_DATE_FMT) +
+                    formatCpf(employee.cpf()) +
+                    (previousHash != null ? previousHash : "");
 
-        var currentHash = calculateSha256(rawData);
+            var currentHash = calculateSha256(rawData);
 
-        // 3. Persiste o registro de auditoria
-        var entry = new AfdEntry(
-                nsr, "7", date, employee.cpf(), employee.phone(),
-                company.companyId(), employee.employeeId(), previousHash, currentHash
-        );
+            var entry = new AfdEntry(
+                    nsr, "7", date, employee.cpf(), employee.phone(),
+                    company.companyId(), employee.employeeId(), previousHash, currentHash
+            );
 
-        afdProvider.save(entry);
-        log.debug("AFD registrado. NSR: {}, Hash: {}", nsr, currentHash);
+            afdProvider.save(entry);
+
+            log.info(
+                    "AFD registrado com sucesso. companyId={}, employeeId={}, nsr={}, recordDate={}",
+                    company.companyId(),
+                    employee.employeeId(),
+                    nsr,
+                    date
+            );
+        } catch (RuntimeException e) {
+            log.error(
+                    "Falha ao registrar AFD. companyId={}, employeeId={}, nsr={}, recordDate={}",
+                    company.companyId(),
+                    employee.employeeId(),
+                    nsr,
+                    date,
+                    e
+            );
+            throw e;
+        }
     }
 
     @Override
@@ -69,6 +85,8 @@ public class AfdService implements AdfUseCase {
     public void writeAfdToStream(UUID companyId, OutputStream outputStream) {
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+
+        log.info("Iniciando exportação de AFD. companyId={}", companyId);
 
         try (var writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
 
@@ -104,9 +122,10 @@ public class AfdService implements AdfUseCase {
             // Trailer é a última linha, alguns validadores não exigem \r\n no final, mas é bom garantir flush.
 
             writer.flush();
+            log.info("AFD exportado com sucesso. companyId={}, totalRegistros={}", companyId, totalRegistros);
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar arquivo AFD", e);
+        } catch (RuntimeException e) {
+            log.error("Erro ao gerar arquivo AFD. companyId={}", companyId, e);
             throw new RuntimeException(FAILURE_TO_GENERATE_AFD, e);
         }
     }
@@ -151,7 +170,7 @@ public class AfdService implements AdfUseCase {
                 hexString.append(hex);
             }
             return hexString.toString();
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
         }
     }
