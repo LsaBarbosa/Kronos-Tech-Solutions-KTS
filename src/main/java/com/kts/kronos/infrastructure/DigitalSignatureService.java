@@ -46,8 +46,10 @@ public class DigitalSignatureService {
      */
     public byte[] signData(byte[] dataToSign) {
         try {
-            log.info("Iniciando processo de assinatura digital com certificado: {}", certificatePath);
-
+            log.info(
+                    "Iniciando processo de assinatura digital. payloadSize={}",
+                    dataToSign != null ? dataToSign.length : 0
+            );
             // 1. Carregar KeyStore (Certificado .pfx)
             var keyStore = KeyStore.getInstance("PKCS12");
             try (var is = new FileInputStream(certificatePath)) {
@@ -89,7 +91,11 @@ public class DigitalSignatureService {
             return signedData.getEncoded();
 
         } catch (IOException | GeneralSecurityException | CMSException | OperatorCreationException e) {
-            log.error("Erro crítico na assinatura digital. certificatePath={}", certificatePath, e);
+            log.error(
+                    "Erro crítico na assinatura digital. payloadSize={}",
+                    dataToSign != null ? dataToSign.length : 0,
+                    e
+            );
             throw new RuntimeException("Falha ao assinar documento digitalmente", e);
         }
     }

@@ -129,19 +129,28 @@ public class AejService implements AejUseCase {
             // --- PROCESSO DE ASSINATURA DIGITAL ---
 
             byte[] originalContent = textBuffer.toByteArray();
-            log.info("Layout AEJ gerado com sucesso. Tamanho original: {} bytes. Iniciando assinatura...", originalContent.length);
+            log.info(
+                    "Layout AEJ gerado. companyId={}, startDate={}, endDate={}, originalSize={}. Iniciando assinatura digital.",
+                    companyId,
+                    startDate,
+                    endDate,
+                    originalContent.length
+            );
 
-            // Assina o conteúdo (Gera o .p7s)
             byte[] signedContent = signatureService.signData(originalContent);
-
-            // Escreve o conteúdo assinado na saída (Download)
             outputStream.write(signedContent);
 
-            log.info("AEJ assinado digitalmente e enviado para output. Tamanho final: {} bytes.", signedContent.length);
+            log.info(
+                    "AEJ assinado e enviado com sucesso. companyId={}, startDate={}, endDate={}, signedSize={}",
+                    companyId,
+                    startDate,
+                    endDate,
+                    signedContent.length
+            );
 
-        } catch (IOException e) {
+        } catch (RuntimeException | IOException e) {
             log.error(
-                    "Erro ao escrever AEJ assinado no output. companyId={}, startDate={}, endDate={}",
+                    "Falha na geração do AEJ. companyId={}, startDate={}, endDate={}",
                     companyId,
                     startDate,
                     endDate,
