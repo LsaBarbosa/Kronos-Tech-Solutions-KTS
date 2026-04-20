@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -54,11 +55,11 @@ class ViaCepClientImplTest {
     }
 
     @Test
-    @DisplayName("lookup: deve encapsular resposta malformada como InternalError")
+    @DisplayName("lookup: deve encapsular resposta malformada como Decoding Error")
     void shouldWrapMalformedResponse() {
         ViaCepClientImpl client = clientWithResponse(HttpStatus.OK, "{invalid-json");
 
-        assertThrows(InternalError.class, () -> client.lookup("01001000"));
+        assertThrows(DecodingException.class, () -> client.lookup("01001000"));
     }
 
     private static ViaCepClientImpl clientWithResponse(HttpStatus status, String body) {
