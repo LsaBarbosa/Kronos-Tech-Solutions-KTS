@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Document;
@@ -46,6 +47,8 @@ class DocumentServiceCoreTest {
     private BucketStorageProvider bucketStorageProvider;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private FileScanningProvider fileScanningProvider;
 
     @BeforeEach
      void configureUploadLimit() {
@@ -57,7 +60,7 @@ class DocumentServiceCoreTest {
     void shouldListDocumentsForManagerViewWithoutDate() {
         UUID employeeId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId);
-        List<Document> expected = List.of(buildDocument(employeeId, false));
+        List<Document> expected = List.of(buildDocument(employeeId, false, false));
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
@@ -75,7 +78,7 @@ class DocumentServiceCoreTest {
         UUID employeeId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId);
         LocalDate date = LocalDate.of(2026, 4, 17);
-        List<Document> expected = List.of(buildDocument(employeeId, false));
+        List<Document> expected = List.of(buildDocument(employeeId, false, false));
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
@@ -202,7 +205,7 @@ class DocumentServiceCoreTest {
         );
     }
 
-    private Document buildDocument(UUID employeeId, boolean deletedByEmployee) {
+    private Document buildDocument(UUID employeeId, boolean deletedByEmployee, boolean deletedByManager) {
         return new Document(
                 UUID.randomUUID(),
                 employeeId,
@@ -213,7 +216,7 @@ class DocumentServiceCoreTest {
                 LocalDateTime.now(),
                 null,
                 deletedByEmployee,
-                false
+                deletedByManager
         );
     }
 }
