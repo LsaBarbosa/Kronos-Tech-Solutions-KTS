@@ -59,7 +59,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         log.info(
-                "Gerando espelho de ponto para employeeId {} no período {} a {} ({} dias)",
+                "Gerando espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}, totalDays={}",
+                company.companyId(),
                 employee.employeeId(),
                 startDate,
                 endDate,
@@ -139,11 +140,23 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
             addSignatures(document, employee.fullName());
 
             document.close();
-            return baos.toByteArray();
+            byte[] pdfBytes = baos.toByteArray();
+
+            log.info(
+                    "Espelho de ponto gerado com sucesso. companyId={}, employeeId={}, startDate={}, endDate={}, pdfSize={}",
+                    company.companyId(),
+                    employee.employeeId(),
+                    startDate,
+                    endDate,
+                    pdfBytes.length
+            );
+
+            return pdfBytes;
 
         } catch (RuntimeException | IOException e) {
             log.error(
-                    "Erro ao gerar espelho de ponto. employeeId={}, startDate={}, endDate={}",
+                    "Erro ao gerar espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}",
+                    company.companyId(),
                     employee.employeeId(),
                     startDate,
                     endDate,

@@ -29,6 +29,7 @@ public class ViaCepClientImpl implements AddressLookupProvider {
 
     @Override
     public Address lookup(String postalCode) {
+        log.info("Consultando ViaCEP. postalCode={}", postalCode);
         try {
             ViaCepResponse resp = webClient.get()
                     .uri("/{cep}/json", postalCode)
@@ -37,6 +38,7 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     .block();
 
             if (resp == null || Boolean.TRUE.equals(resp.erro)) {
+                log.warn("CEP não encontrado no ViaCEP. postalCode={}", postalCode);
                 throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
             }
             return new Address(
@@ -47,6 +49,7 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     resp.uf
             );
         } catch (WebClientResponseException.NotFound e) {
+            log.warn("CEP não encontrado no ViaCEP. postalCode={}", postalCode);
             throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
         } catch (WebClientResponseException | WebClientRequestException e) {
             log.error("Falha ao consultar ViaCEP. postalCode={}", postalCode, e);
