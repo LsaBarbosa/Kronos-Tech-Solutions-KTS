@@ -1,0 +1,13 @@
+spring:
+  mail:
+    properties:
+      mail:
+        smtp:
+          debug: ${MAIL_SMTP_DEBUG:true}
+
+logging:
+  level:
+    org.springframework:
+      security: DEBUG
+    com.kts.kronos.application.service.AuthService: DEBUG
+    com.kts.kronos.adapter.out.persistence.impl.EmailSenderProviderImpl: DEBUG
