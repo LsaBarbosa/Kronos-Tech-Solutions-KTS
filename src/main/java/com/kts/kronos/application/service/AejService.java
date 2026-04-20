@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -24,12 +25,10 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -140,9 +139,15 @@ public class AejService implements AejUseCase {
 
             log.info("AEJ assinado digitalmente e enviado para output. Tamanho final: {} bytes.", signedContent.length);
 
-        } catch (Exception e) {
-            log.error("Erro crítico na geração/assinatura do AEJ", e);
-            throw new RuntimeException(FAILURE_TO_GENERAT_AEJ + e.getMessage());
+        } catch (IOException e) {
+            log.error(
+                    "Erro ao escrever AEJ assinado no output. companyId={}, startDate={}, endDate={}",
+                    companyId,
+                    startDate,
+                    endDate,
+                    e
+            );
+            throw new RuntimeException(FAILURE_TO_GENERAT_AEJ, e);
         }
     }
 
