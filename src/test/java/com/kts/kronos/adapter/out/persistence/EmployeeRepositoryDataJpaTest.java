@@ -62,6 +62,45 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
         assertEquals(1, repository.findByCompanyIdAndActive(companyId, false).size());
     }
 
+    @Test
+    @DisplayName("existsByCpf/findByCpf: deve localizar colaborador por CPF")
+    void shouldFindAndCheckExistenceByCpf() {
+        UUID companyId = UUID.randomUUID();
+        repository.save(employee(companyId, "12345678909", true));
+
+        assertTrue(repository.existsByCpf("12345678909"));
+        assertTrue(repository.findByCpf("12345678909").isPresent());
+        assertTrue(repository.findByCpf("00000000000").isEmpty());
+    }
+
+    @Test
+    @DisplayName("findByCompanyId/countByCompanyIdAndActive: deve filtrar e contar por empresa")
+    void shouldFindAndCountByCompanyId() {
+        UUID companyId = UUID.randomUUID();
+        UUID otherCompanyId = UUID.randomUUID();
+
+        repository.save(employee(companyId, "12345678909", true));
+        repository.save(employee(companyId, "98765432100", false));
+        repository.save(employee(otherCompanyId, "11144477735", true));
+
+        assertEquals(2, repository.findByCompanyId(companyId).size());
+        assertEquals(1, repository.countByCompanyIdAndActive(companyId, true));
+        assertEquals(1, repository.countByCompanyIdAndActive(companyId, false));
+    }
+
+    @Test
+    @DisplayName("deleteById: deve remover colaborador por id")
+    void shouldDeleteById() {
+        UUID companyId = UUID.randomUUID();
+        EmployeeEntity saved = repository.save(employee(companyId, "12345678909", true));
+        repository.flush();
+
+        repository.deleteById(saved.getEmployeeId());
+        repository.flush();
+
+        assertTrue(repository.findById(saved.getEmployeeId()).isEmpty());
+    }
+
     private EmployeeEntity employee(UUID companyId, String cpf, boolean active) {
         return EmployeeEntity.builder()
                 .employeeId(UUID.randomUUID())

@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +37,36 @@ class CompanyProviderImplTest {
         var result = provider.findByCnpj("12345678000199");
 
         assertEquals("KTS", result.orElseThrow().name());
+    }
+
+    @Test
+    void deveVerificarExistenciaPorCnpj() {
+        when(repository.existsByCnpj("12345678000199")).thenReturn(true);
+
+        assertTrue(provider.existsByCnpj("12345678000199"));
+
+        verify(repository).existsByCnpj("12345678000199");
+    }
+
+    @Test
+    void deveListarTodasAsEmpresasMapeandoParaDominio() {
+        when(repository.findAll()).thenReturn(List.of(companyEntity(true), companyEntity(false)));
+
+        var result = provider.findAll();
+
+        assertEquals(2, result.size());
+        assertEquals("KTS", result.getFirst().name());
+    }
+
+    @Test
+    void deveBuscarPorIdMapeandoParaDominio() {
+        var entity = companyEntity(true);
+        when(repository.findById(entity.getId())).thenReturn(Optional.of(entity));
+
+        var result = provider.findById(entity.getId());
+
+        assertTrue(result.isPresent());
+        assertEquals(entity.getId(), result.get().companyId());
     }
 
     @Test
@@ -70,6 +101,13 @@ class CompanyProviderImplTest {
         provider.save(company);
 
         verify(repository).save(org.mockito.ArgumentMatchers.any(CompanyEntity.class));
+    }
+
+    @Test
+    void deveExcluirPorCnpjDelegandoParaRepository() {
+        provider.deleteByCnpj("12345678000199");
+
+        verify(repository).deleteByCnpj("12345678000199");
     }
 
     private static CompanyEntity companyEntity(boolean active) {

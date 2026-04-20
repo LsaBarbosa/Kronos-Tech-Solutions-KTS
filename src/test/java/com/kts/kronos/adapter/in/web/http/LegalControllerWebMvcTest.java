@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.AejUseCase;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -234,6 +236,39 @@ class LegalControllerWebMvcTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail")
                         .value("Colaborador não encontrado."));
+    }
+
+    @Test
+    @DisplayName("downloadTechnicalCertificate: deve traduzir empresa inexistente")
+    void shouldReturnNotFoundWhenCertificateCompanyDoesNotExist() throws Exception {
+        UUID loggedEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        var employee = employee(loggedEmployeeId, companyId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/legal/technical-certificate"))
+                .andExpect(status().isNotFound())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail")
+                        .value("Empresa não encontrada"));
+    }
+
+    @Test
+    @DisplayName("downloadMirror: deve traduzir bloqueio de autorização")
+    void shouldReturnForbiddenWhenMirrorTargetIsForbidden() throws Exception {
+        UUID targetEmployeeId = UUID.randomUUID();
+        doThrow(new ForbiddenException("Acesso negado"))
+                .when(domainAuthorizationService).authorizeEmployeeAccess(targetEmployeeId);
+
+        mockMvc.perform(get("/legal/espelho-ponto")
+                        .param("targetEmployeeId", targetEmployeeId.toString())
+                        .param("startDate", "2026-03-01")
+                        .param("endDate", "2026-03-31"))
+                .andExpect(status().isForbidden())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail")
+                        .value("Acesso negado"));
     }
 
     private Employee employee(UUID employeeId, UUID companyId) {

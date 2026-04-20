@@ -38,6 +38,20 @@ class CompanyRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
         assertFalse(repository.findByCnpj("99999999000199").isPresent());
     }
 
+    @Test
+    @DisplayName("deleteByCnpj: deve remover apenas a empresa do CNPJ informado")
+    void shouldDeleteByCnpj() {
+        repository.save(company("12345678000199", true));
+        repository.save(company("99999999000199", true));
+        repository.flush();
+
+        repository.deleteByCnpj("12345678000199");
+        repository.flush();
+
+        assertFalse(repository.existsByCnpj("12345678000199"));
+        assertTrue(repository.existsByCnpj("99999999000199"));
+    }
+
     private CompanyEntity company(String cnpj, boolean active) {
         return CompanyEntity.builder()
                 .id(UUID.randomUUID())
