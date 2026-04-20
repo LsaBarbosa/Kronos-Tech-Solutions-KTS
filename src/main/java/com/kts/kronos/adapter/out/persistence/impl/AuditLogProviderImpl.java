@@ -32,8 +32,8 @@ public class AuditLogProviderImpl implements AuditLogProvider {
             repository.save(entity);
 
         } catch (DataAccessException e) {
-            log.error(
-                    "Falha ao salvar log de auditoria. userId={}, action={}",
+            log.warn(
+                    "Falha absorvida ao salvar log de auditoria. userId={}, action={}",
                     domainLog.userId(),
                     domainLog.action(),
                     e
