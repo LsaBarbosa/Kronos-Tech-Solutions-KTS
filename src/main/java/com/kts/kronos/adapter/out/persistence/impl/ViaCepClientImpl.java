@@ -6,14 +6,17 @@ import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.domain.model.Address;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import static com.kts.kronos.constants.ApiPaths.API_VIA_CEP;
 import static com.kts.kronos.constants.Messages.INTERNAL_SERVER_ERROR;
 import static com.kts.kronos.constants.Messages.ZIPCODE_NOT_FOUND;
 
+@Slf4j
 @Component
 public class ViaCepClientImpl implements AddressLookupProvider {
 
@@ -45,8 +48,9 @@ public class ViaCepClientImpl implements AddressLookupProvider {
             );
         } catch (WebClientResponseException.NotFound e) {
             throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
-        } catch (Exception e) {
-            throw new InternalError(INTERNAL_SERVER_ERROR+ e.getMessage());
+        } catch (WebClientResponseException | WebClientRequestException e) {
+            log.error("Falha ao consultar ViaCEP. postalCode={}", postalCode, e);
+            throw new IllegalStateException(INTERNAL_SERVER_ERROR, e);
         }
     }
 

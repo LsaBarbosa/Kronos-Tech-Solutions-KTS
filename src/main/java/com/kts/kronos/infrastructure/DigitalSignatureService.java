@@ -20,7 +20,10 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import org.bouncycastle.operator.OperatorCreationException;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 @Slf4j
 @Service
 public class DigitalSignatureService {
@@ -85,9 +88,9 @@ public class DigitalSignatureService {
 
             return signedData.getEncoded();
 
-        } catch (Exception e) {
-            log.error("Erro crítico na assinatura digital", e);
-            throw new RuntimeException("Falha ao assinar documento digitalmente: " + e.getMessage());
+        } catch (IOException | GeneralSecurityException | CMSException | OperatorCreationException e) {
+            log.error("Erro crítico na assinatura digital. certificatePath={}", certificatePath, e);
+            throw new RuntimeException("Falha ao assinar documento digitalmente", e);
         }
     }
 }

@@ -17,6 +17,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -105,8 +106,8 @@ public class AfdService implements AdfUseCase {
 
             writer.flush();
 
-        } catch (Exception e) {
-            log.error("Erro ao gerar arquivo AFD", e);
+        } catch (RuntimeException e) {
+            log.error("Erro ao gerar arquivo AFD. companyId={}", companyId, e);
             throw new RuntimeException(FAILURE_TO_GENERATE_AFD, e);
         }
     }
@@ -151,7 +152,7 @@ public class AfdService implements AdfUseCase {
                 hexString.append(hex);
             }
             return hexString.toString();
-        } catch (Exception e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
         }
     }
