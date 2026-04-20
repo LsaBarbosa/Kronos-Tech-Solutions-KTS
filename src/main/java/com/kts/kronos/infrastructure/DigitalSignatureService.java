@@ -20,7 +20,10 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import org.bouncycastle.operator.OperatorCreationException;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 @Slf4j
 @Service
 public class DigitalSignatureService {
@@ -43,8 +46,10 @@ public class DigitalSignatureService {
      */
     public byte[] signData(byte[] dataToSign) {
         try {
-            log.info("Iniciando processo de assinatura digital com certificado: {}", certificatePath);
-
+            log.info(
+                    "Iniciando processo de assinatura digital. payloadSize={}",
+                    dataToSign != null ? dataToSign.length : 0
+            );
             // 1. Carregar KeyStore (Certificado .pfx)
             var keyStore = KeyStore.getInstance("PKCS12");
             try (var is = new FileInputStream(certificatePath)) {
@@ -85,9 +90,13 @@ public class DigitalSignatureService {
 
             return signedData.getEncoded();
 
-        } catch (Exception e) {
-            log.error("Erro crítico na assinatura digital", e);
-            throw new RuntimeException("Falha ao assinar documento digitalmente: " + e.getMessage());
+        } catch (IOException | GeneralSecurityException | CMSException | OperatorCreationException e) {
+            log.error(
+                    "Erro crítico na assinatura digital. payloadSize={}",
+                    dataToSign != null ? dataToSign.length : 0,
+                    e
+            );
+            throw new RuntimeException("Falha ao assinar documento digitalmente", e);
         }
     }
 }
