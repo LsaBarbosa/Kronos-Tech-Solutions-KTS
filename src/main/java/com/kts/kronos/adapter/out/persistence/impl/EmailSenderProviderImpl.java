@@ -109,12 +109,15 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             mailSender.send(message);
             log.info("E-mail de redefinição enviado com sucesso.");
         } catch (MessagingException e) {
-            log.error("Falha ao configurar MimeMessage do fluxo de recuperação: {}", e.getMessage(), e);
+            log.error("Falha ao configurar MimeMessage do fluxo de recuperação. exceptionType={}",
+                    e.getClass().getSimpleName());
+            log.debug("Detalhe da falha de configuração do MimeMessage.", e);
             throw new RuntimeException("Falha na configuração do e-mail de recuperação.", e);
         } catch (RuntimeException e) {
             // Este log captura o erro de envio (como o MissingFormatArgumentException original)
-            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação. toEmail={}, exceptionType={}",
-                    toEmail, e.getClass().getSimpleName(), e);
+            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação. recipient={}, exceptionType={}",
+                    maskEmail(toEmail), e.getClass().getSimpleName());
+            log.debug("Detalhe da falha de envio SMTP no fluxo de recuperação.", e);
             throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
         }
     }
@@ -125,5 +128,16 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
         return baseUrl + RESET_PASSWORD_ROUTE + "?token=" + token;
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "***";
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 1 || atIndex == email.length() - 1) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(atIndex);
     }
 }

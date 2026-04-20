@@ -104,15 +104,16 @@ public class AuthService implements AuthUseCase {
                     faceImageBase64 == null ? 0 : faceImageBase64.length());
             throw new BadRequestException(INVALID_IMAGE);
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
-            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
+            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}",
                     e.getClass().getSimpleName(),
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e.getMessage());
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
+            log.debug("Detalhe da falha de autenticação facial.", e);
             throw e;
         } catch (RuntimeException e) {
-            log.error("Falha interna na autenticação facial. payloadLength={}",
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e);
+            log.error("Falha interna na autenticação facial. exceptionType={}, payloadLength={}",
+                    e.getClass().getSimpleName(),
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
+            log.debug("Detalhe da falha interna na autenticação facial.", e);
             throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
@@ -159,12 +160,14 @@ public class AuthService implements AuthUseCase {
             } catch (RuntimeException e) {
                 // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
                 log.error("Recuperação de senha processada sem envio de e-mail por falha interna. exceptionType={}",
-                        e.getClass().getSimpleName(), e);
+                        e.getClass().getSimpleName());
+                log.debug("Detalhe da falha interna no fluxo de recuperação de senha.", e);
             }
         } catch (RuntimeException e) {
             // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
             log.error("Recuperação de senha processada sem envio de e-mail por falha de validação. exceptionType={}",
-                    e.getClass().getSimpleName(), e);
+                    e.getClass().getSimpleName());
+            log.debug("Detalhe da falha de validação no fluxo de recuperação de senha.", e);
         }
     }
 
@@ -199,7 +202,7 @@ public class AuthService implements AuthUseCase {
 
         // 4. Limpa o token do Redis
         tokenProvider.deleteToken(request.token());
-        log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
+        log.info("Senha redefinida com sucesso.");
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha
