@@ -2,6 +2,7 @@ package com.kts.kronos.domain.model;
 
 import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
@@ -151,5 +152,22 @@ class DomainModelBehaviorTest {
 
         assertThrows(IllegalStateException.class, () -> StatusRecord.DAY_OFF.onCheckout());
         assertThrows(IllegalStateException.class, () -> StatusRecord.DAY_OFF.onUpdate());
+    }
+
+    @Test
+    void deveCriarContadorNsrDaEmpresa() {
+        UUID companyId = UUID.randomUUID();
+
+        CompanyNsr companyNsr = CompanyNsr.create(companyId);
+
+        assertEquals(companyId, companyNsr.companyId());
+        assertEquals(0L, companyNsr.lastNsr());
+    }
+
+    @Test
+    void deveExporTiposDeSolicitacaoDePonto() {
+        assertEquals(RequestType.TIME_OFF_REQUEST, RequestType.valueOf("TIME_OFF_REQUEST"));
+        assertEquals(RequestType.FORGOTTEN_REGISTRATION, RequestType.valueOf("FORGOTTEN_REGISTRATION"));
+        assertEquals(2, RequestType.values().length);
     }
 }

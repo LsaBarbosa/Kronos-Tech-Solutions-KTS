@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
 import com.kts.kronos.domain.model.Message;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
@@ -129,6 +130,26 @@ class MessageControllerWebMvcTest {
                 .andExpect(jsonPath("$.errors[*].name", hasItem("messageText")))
                 .andExpect(jsonPath("$.errors[*].name", hasItem("title")))
                 .andExpect(jsonPath("$.errors[*].name", hasItem("priority")));
+    }
+
+    @Test
+    @DisplayName("postMessage: deve traduzir erro de regra")
+    void shouldTranslateExceptionOnPost() throws Exception {
+        doThrow(new BadRequestException("Destinatário inválido"))
+                .when(useCase).postMessage(any());
+
+        mockMvc.perform(post("/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "messageText": "Mensagem importante",
+                                  "title": "Comunicado",
+                                  "priority": "ALERT",
+                                  "recipientEmployeeIds": ["%s"]
+                                }
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Destinatário inválido"));
     }
 
     @Test

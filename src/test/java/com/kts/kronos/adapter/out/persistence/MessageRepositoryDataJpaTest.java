@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.persistence.entity.MessageEntity;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 
@@ -16,6 +17,9 @@ class MessageRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private MessageRepository repository;
+
+    @Autowired
+    private TestEntityManager em;
 
     @Test
     void deveListarMensagensVisiveisPorEmpresaEEmployee() {
@@ -50,6 +54,49 @@ class MessageRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
         assertEquals(2, page.getContent().size());
         assertEquals("m3", page.getContent().getFirst().getTitle());
+    }
+
+    @Test
+    void deveExcluirMensagemPorMessageIdEEmployeeId() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID otherEmployeeId = UUID.randomUUID();
+        MessageEntity target = repository.save(message(companyId, employeeId, employeeId, "alvo", LocalDateTime.now()));
+        MessageEntity other = repository.save(message(companyId, otherEmployeeId, otherEmployeeId, "outro", LocalDateTime.now()));
+        repository.flush();
+
+        repository.deleteByMessageIdAndEmployeeId(target.getMessageId(), employeeId);
+        repository.flush();
+
+        assertEquals(1, repository.findAll().size());
+        assertEquals(other.getMessageId(), repository.findAll().getFirst().getMessageId());
+    }
+
+    @Test
+    void deveExcluirMensagensCriadasAntesDoLimite() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        repository.save(message(companyId, employeeId, employeeId, "antiga", LocalDateTime.now().minusDays(10)));
+        repository.save(message(companyId, employeeId, employeeId, "recente", LocalDateTime.now()));
+        repository.flush();
+
+        em.getEntityManager()
+                .createQuery("""
+                    UPDATE MessageEntity m
+                       SET m.createdAt = :createdAt
+                     WHERE m.title = :title
+                """)
+                .setParameter("createdAt", LocalDateTime.now().minusDays(10))
+                .setParameter("title", "antiga")
+                .executeUpdate();
+        em.flush();
+        em.clear();
+
+        repository.deleteByCreatedAtBefore(LocalDateTime.now().minusDays(1));
+        repository.flush();
+
+        assertEquals(1, repository.findAll().size());
+        assertEquals("recente", repository.findAll().getFirst().getTitle());
     }
 
     private static MessageEntity message(

@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
+import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import jakarta.annotation.Resource;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -113,6 +115,23 @@ class AuthControllerWebMvcTest {
     }
 
     @Test
+    void shouldTranslateRecoverPasswordException() throws Exception {
+        doThrow(new BadRequestException("E-mail não confere"))
+                .when(authUseCase).recoverPassword(any(RecoverPasswordRequest.class));
+
+        mockMvc.perform(post("/auth/recover-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cpf": "12345678901",
+                                  "email": "user@test.com"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("E-mail não confere"));
+    }
+
+    @Test
     void shouldResetPasswordWithoutResponseBody() throws Exception {
         mockMvc.perform(post("/auth/reset-password")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -127,5 +146,23 @@ class AuthControllerWebMvcTest {
                 .andExpect(content().string(""));
 
         verify(authUseCase).resetPassword(any(ResetPasswordRequest.class));
+    }
+
+    @Test
+    void shouldTranslateResetPasswordException() throws Exception {
+        doThrow(new BadRequestException("Token inválido"))
+                .when(authUseCase).resetPassword(any(ResetPasswordRequest.class));
+
+        mockMvc.perform(post("/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "token": "reset-token",
+                                  "newPassword": "Abcd1234",
+                                  "confirmPassword": "Abcd1234"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Token inválido"));
     }
 }

@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -71,7 +72,7 @@ class AuditLogProviderImplTest {
                 .build();
 
         when(repository.save(any(AuditLogEntity.class)))
-                .thenThrow(new RuntimeException("falha ao salvar"));
+                .thenThrow(new DataAccessResourceFailureException("falha ao salvar"));
 
         assertDoesNotThrow(() -> provider.registerLog(domain));
         verify(repository).save(any(AuditLogEntity.class));

@@ -48,6 +48,22 @@ class TimeRecordApprovalRepositoryDataJpaTest extends AbstractPostgresDataJpaTes
     }
 
     @Test
+    void deveBuscarAprovacoesPorCompanyIdSemFiltroOrdenandoPorCriacaoDesc() {
+        UUID companyId = UUID.randomUUID();
+        UUID anaId = persistEmployee(companyId, "Ana Paula", "52345678901");
+        UUID brunoId = persistEmployee(companyId, "Bruno Silva", "62345678901");
+
+        repository.save(approval(20L, anaId, LocalDateTime.now().minusMinutes(10)));
+        repository.save(approval(21L, brunoId, LocalDateTime.now().minusMinutes(1)));
+
+        var page = repository.findAllByCompanyId(PageRequest.of(0, 1), companyId, null);
+
+        assertEquals(1, page.getContent().size());
+        assertEquals(2, page.getTotalElements());
+        assertEquals(21L, page.getContent().getFirst().getTimeRecordId());
+    }
+
+    @Test
     void deveRemoverAprovacoesAntigas() {
         UUID companyId = UUID.randomUUID();
         UUID employeeId = persistEmployee(companyId, "Carlos", "42345678901");

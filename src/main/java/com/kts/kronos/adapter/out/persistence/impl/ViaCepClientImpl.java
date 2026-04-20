@@ -43,6 +43,8 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     resp.localidade,
                     resp.uf
             );
+        } catch (ResourceNotFoundException e) {
+            throw e;
         } catch (WebClientResponseException.NotFound e) {
             throw new ResourceNotFoundException(ZIPCODE_NOT_FOUND + postalCode);
         } catch (Exception e) {
