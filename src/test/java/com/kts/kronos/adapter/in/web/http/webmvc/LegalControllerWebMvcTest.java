@@ -267,7 +267,7 @@ class LegalControllerWebMvcTest {
                         .param("endDate", "2026-03-31"))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail")
-                        .value("Acesso negado"));
+                        .value("Acesso negado."));
     }
 
     private Employee employee(UUID employeeId, UUID companyId) {

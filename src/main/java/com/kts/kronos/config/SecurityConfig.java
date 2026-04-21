@@ -1,6 +1,7 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
+import com.kts.kronos.adapter.in.web.exceptions.DelegatedAccessDeniedHandler;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
@@ -57,7 +58,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
+                .exceptionHandling(customizer -> customizer
+                        .authenticationEntryPoint(delegatedAuthenticationEntryPoint)
+                        .accessDeniedHandler(new DelegatedAccessDeniedHandler()))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
 
