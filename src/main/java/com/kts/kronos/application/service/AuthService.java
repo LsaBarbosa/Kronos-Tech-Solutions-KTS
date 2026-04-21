@@ -10,7 +10,6 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
-import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +56,14 @@ public class AuthService implements AuthUseCase {
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
-        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId(), termsAccepted);
+        return jwtUtils.generateToken(
+                user.employeeId(),
+                username,
+                user.role().name(),
+                user.userId(),
+                termsAccepted,
+                user.tokenVersion()
+        );
     }
 
     @Override
@@ -96,7 +102,8 @@ public class AuthService implements AuthUseCase {
                     user.username(),
                     user.role().name(),
                     user.userId(),
-                    termsAccepted
+                    termsAccepted,
+                    user.tokenVersion()
             );
 
         } catch (IllegalArgumentException e) {
@@ -186,15 +193,7 @@ public class AuthService implements AuthUseCase {
 
         var hashed = passwordEncoder.encode(request.newPassword());
 
-        // Cria um novo objeto User com a senha atualizada
-        var updatedUser = new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        );
+        var updatedUser = user.withPassword(hashed).withIncrementedTokenVersion();
         userProvider.save(updatedUser);
 
         // 4. Limpa o token do Redis

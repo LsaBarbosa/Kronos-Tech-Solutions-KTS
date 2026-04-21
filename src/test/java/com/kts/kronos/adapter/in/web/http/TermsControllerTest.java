@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.TokenRevocationService;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,12 +28,14 @@ class TermsControllerTest {
     private JwtAuthenticatedUser jwtAuthenticatedUser;
     @Mock
     private JwtUtils jwtUtils;
+    @Mock
+    private TokenRevocationService tokenRevocationService;
 
     private TermsController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils);
+        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils, tokenRevocationService);
     }
 
     @Test
@@ -45,7 +48,8 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, true)).thenReturn("new-token");
+        when(tokenRevocationService.getCurrentTokenVersion(userId)).thenReturn(1);
+        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, true, 1)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
@@ -55,7 +59,7 @@ class TermsControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "198.51.100.7", "Desconhecido");
-        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
+        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true, 1);
     }
 
     @Test
@@ -68,7 +72,8 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("bob");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "bob", "MANAGER", userId, true)).thenReturn("new-token");
+        when(tokenRevocationService.getCurrentTokenVersion(userId)).thenReturn(2);
+        when(jwtUtils.generateToken(employeeId, "bob", "MANAGER", userId, true, 2)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.setRemoteAddr("127.0.0.1");
@@ -78,7 +83,7 @@ class TermsControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit-Agent");
-        verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, true);
+        verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, true, 2);
     }
 
     @Test
@@ -91,7 +96,8 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("carol");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(jwtUtils.generateToken(employeeId, "carol", "PARTNER", userId, true)).thenReturn("new-token");
+        when(tokenRevocationService.getCurrentTokenVersion(userId)).thenReturn(3);
+        when(jwtUtils.generateToken(employeeId, "carol", "PARTNER", userId, true, 3)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "");

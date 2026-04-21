@@ -109,7 +109,7 @@ class UserServiceCoreTest {
 
         service.toggleActivate(userId);
 
-        verify(userProvider).save(existingUser.withActive(false));
+        verify(userProvider).save(existingUser.withActive(false).withIncrementedTokenVersion());
         verify(employeeUseCase).toggleActivate(employeeId);
     }
 
@@ -131,7 +131,8 @@ class UserServiceCoreTest {
                 "new-hash",
                 Role.MANAGER,
                 true,
-                employeeId
+                employeeId,
+                1
         ));
     }
 
