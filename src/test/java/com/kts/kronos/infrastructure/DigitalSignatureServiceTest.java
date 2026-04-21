@@ -1,5 +1,6 @@
 package com.kts.kronos.infrastructure;
 
+import com.kts.kronos.config.CertificateCryptoProperties;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.cms.CMSSignedData;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.security.auth.x500.X500Principal;
 import java.math.BigInteger;
@@ -68,10 +68,7 @@ class DigitalSignatureServiceTest {
     }
 
     private DigitalSignatureService service(Path certificatePath, String password) {
-        DigitalSignatureService service = new DigitalSignatureService();
-        ReflectionTestUtils.setField(service, "certificatePath", certificatePath.toString());
-        ReflectionTestUtils.setField(service, "certificatePassword", password);
-        return service;
+        return new DigitalSignatureService(new CertificateCryptoProperties(certificatePath.toString(), password));
     }
 
     private Path createPkcs12Certificate(String password) throws Exception {
