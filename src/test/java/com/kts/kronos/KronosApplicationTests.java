@@ -3,6 +3,7 @@ package com.kts.kronos;
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,9 @@ class KronosApplicationTests {
 
     @MockitoBean
     private DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
+
+    @MockitoBean
+    private DocumentProvider documentProvider;
 
     @MockitoBean
     private FaceRecognitionProvider faceRecognitionProvider;

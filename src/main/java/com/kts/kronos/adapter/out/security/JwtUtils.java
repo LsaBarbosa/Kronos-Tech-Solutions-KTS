@@ -5,7 +5,6 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -57,7 +56,7 @@ public class JwtUtils {
         return (first == '"' && last == '"') || (first == '\'' && last == '\'');
     }
 
-    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId,boolean termsAccepted) {
+    public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
@@ -80,18 +79,6 @@ public class JwtUtils {
                 .getSubject();
     }
 
-    public boolean getTermsAcceptedFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-
-        // Se não houver a claim (tokens antigos), assume falso por segurança
-        Object accepted = claims.get("terms_accepted");
-        return accepted != null && (boolean) accepted;
-    }
-
     public UUID getEmployeeIdFromToken(String token) {
         var claims = Jwts.parserBuilder()
                 .setSigningKey(key)
@@ -105,6 +92,7 @@ public class JwtUtils {
         }
         return UUID.fromString(employeeIdStr);
     }
+
     public UUID getUserIdFromToken(String token) {
         var claims = Jwts.parserBuilder()
                 .setSigningKey(key)

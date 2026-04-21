@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtUtilsTest {
@@ -21,8 +22,9 @@ class JwtUtilsTest {
         String wrappedSecret = "\"" + base64Secret + "\"";
 
         JwtUtils jwtUtils = new JwtUtils(wrappedSecret, 60_000L);
+        UUID employeeId = UUID.randomUUID();
         String token = jwtUtils.generateToken(
-                UUID.randomUUID(),
+                employeeId,
                 "alice",
                 "MANAGER",
                 UUID.randomUUID(),
@@ -30,7 +32,7 @@ class JwtUtilsTest {
         );
 
         assertTrue(jwtUtils.validateToken(token));
-        assertTrue(jwtUtils.getTermsAcceptedFromToken(token));
+        assertEquals(employeeId, jwtUtils.getEmployeeIdFromToken(token));
     }
 
     @Test

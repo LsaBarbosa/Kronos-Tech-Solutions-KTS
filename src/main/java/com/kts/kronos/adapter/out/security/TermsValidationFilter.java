@@ -2,24 +2,29 @@ package com.kts.kronos.adapter.out.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.adapter.in.web.exceptions.ProblemDetail;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @RequiredArgsConstructor
 public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
+    private final DocumentProvider documentProvider;
     private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
     // Lista de endpoints permitidos mesmo sem aceite dos termos
     private static final List<String> WHITELIST = Arrays.asList(
@@ -48,20 +53,27 @@ public class TermsValidationFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
-            // 3. Verifica a claim de aceite
             if (jwtUtils.validateToken(token)) {
-                boolean accepted = jwtUtils.getTermsAcceptedFromToken(token);
-
-                if (!accepted) {
+                UUID employeeId = jwtUtils.getEmployeeIdFromToken(token);
+                if (employeeId == null || !hasAcceptedBiometricTerms(employeeId)) {
                     sendRedirectInstruction(response);
                     return;
                 }
             }
         }
 
-
-
         chain.doFilter(request, response);
+    }
+
+    private boolean hasAcceptedBiometricTerms(UUID employeeId) {
+        try {
+            return documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM);
+        } catch (RuntimeException ex) {
+            log.warn("Falha ao consultar aceite biometrico. employeeId={}, exceptionType={}",
+                    employeeId,
+                    ex.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private void blockRequest(HttpServletResponse response) throws IOException {
