@@ -77,9 +77,15 @@ logging:
       security: DEBUG
 
 jwt:
-  # Variável para o segredo JWT
+  # Variáveis obrigatórias e segregadas por ambiente.
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:3600000}
+  issuer: ${JWT_ISSUER}
+  audience: ${JWT_AUDIENCE}
+  current-key-id: ${JWT_CURRENT_KEY_ID}
+  previous-secrets: ${JWT_PREVIOUS_SECRETS:}
+  allowed-clock-skew-seconds: ${JWT_ALLOWED_CLOCK_SKEW_SECONDS:30}
+  not-before-skew-seconds: ${JWT_NOT_BEFORE_SKEW_SECONDS:0}
 
 frontend:
   # Variável para a URL base do Frontend
