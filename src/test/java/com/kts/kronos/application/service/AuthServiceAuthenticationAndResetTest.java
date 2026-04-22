@@ -3,7 +3,6 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
-import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
@@ -24,6 +23,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -139,35 +140,35 @@ class AuthServiceAuthenticationAndResetTest {
     }
 
     @Test
-    @DisplayName("loginFace: deve preservar ausência de match facial como Forbidden")
-    void shouldPreserveNoFaceMatchAsForbidden() {
+    @DisplayName("loginFace: deve tratar ausência de match facial como falha de autenticação")
+    void shouldTreatNoFaceMatchAsAuthenticationFailure() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(null);
 
-        ForbiddenException exception = assertThrows(ForbiddenException.class, () -> authService.loginFace(imageBase64, null));
+        BadCredentialsException exception = assertThrows(BadCredentialsException.class, () -> authService.loginFace(imageBase64, null));
         assertEquals(AuthService.FACE_NOT_RECOGNIZE, exception.getMessage());
     }
 
     @Test
-    @DisplayName("loginFace: deve preservar ausência de usuário vinculado")
-    void shouldPreserveMissingUserLink() {
+    @DisplayName("loginFace: deve tratar ausência de usuário vinculado como falha de autenticação")
+    void shouldTreatMissingUserLinkAsAuthenticationFailure() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
 
-        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> authService.loginFace(imageBase64, null));
+        BadCredentialsException exception = assertThrows(BadCredentialsException.class, () -> authService.loginFace(imageBase64, null));
         assertEquals(AuthService.NO_USER_LINKED_TO_THIS_EMPLOYEE, exception.getMessage());
     }
 
     @Test
-    @DisplayName("loginFace: deve preservar usuário inativo como BadRequest")
-    void shouldPreserveInactiveUserAsBadRequest() {
+    @DisplayName("loginFace: deve tratar usuário inativo como falha de autenticação")
+    void shouldTreatInactiveUserAsAuthenticationFailure() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         User inactiveUser = new User(userId, "alice", "hashed", Role.MANAGER, false, employeeId);
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(inactiveUser));
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.loginFace(imageBase64, null));
+        DisabledException exception = assertThrows(DisabledException.class, () -> authService.loginFace(imageBase64, null));
         assertEquals(AuthService.INACTIVE_USER, exception.getMessage());
     }
 

@@ -15,7 +15,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -80,15 +83,15 @@ public class AuthService implements AuthUseCase {
             var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
 
             if (employeeId == null) {
-                throw new ForbiddenException(FACE_NOT_RECOGNIZE);
+                throw new BadCredentialsException(FACE_NOT_RECOGNIZE);
             }
 
             // 3. Busca o Usuário vinculado ao EmployeeId encontrado
             var user = userProvider.findByEmployeeId(employeeId)
-                    .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
+                    .orElseThrow(() -> new BadCredentialsException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
 
             if (!user.active()) {
-                throw new BadRequestException(INACTIVE_USER);
+                throw new DisabledException(INACTIVE_USER);
             }
 
             var termsAccepted = documentProvider.existsByEmployeeIdAndType(
@@ -110,6 +113,12 @@ public class AuthService implements AuthUseCase {
             log.warn("Imagem inválida recebida no login facial. payloadLength={}",
                     faceImageBase64 == null ? 0 : faceImageBase64.length());
             throw new BadRequestException(INVALID_IMAGE);
+        } catch (AuthenticationException e) {
+            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
+                    e.getClass().getSimpleName(),
+                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
+                    e.getMessage());
+            throw e;
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
             log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}",
                     e.getClass().getSimpleName(),
