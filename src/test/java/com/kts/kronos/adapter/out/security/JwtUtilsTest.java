@@ -50,15 +50,17 @@ class JwtUtilsTest {
                 "alice",
                 "MANAGER",
                 UUID.randomUUID(),
-                true
+                true,
+                3
         );
 
         assertTrue(jwtUtils.validateToken(token));
         assertTrue(jwtUtils.getTermsAcceptedFromToken(token));
+        assertEquals(3, jwtUtils.getTokenVersionFromToken(token));
     }
 
     @Test
-    @DisplayName("deve falhar com mensagem clara quando JWT_SECRET não for Base64 válido")
+    @DisplayName("deve falhar com mensagem clara quando JWT_SECRET nao for Base64 valido")
     void shouldFailWithClearMessageWhenSecretIsNotValidBase64() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -79,11 +81,11 @@ class JwtUtilsTest {
     }
 
     @Test
-    @DisplayName("deve emitir token com issuer, audience, jti, nbf e kid atual")
+    @DisplayName("deve emitir token com issuer, audience, jti, nbf, kid e token_version")
     void shouldGenerateTokenWithRequiredSecurityClaims() {
         JwtUtils jwtUtils = jwtUtils();
 
-        String token = jwtUtils.generateToken(UUID.randomUUID(), "alice", "MANAGER", UUID.randomUUID(), true);
+        String token = jwtUtils.generateToken(UUID.randomUUID(), "alice", "MANAGER", UUID.randomUUID(), true, 7);
 
         var parsed = Jwts.parserBuilder()
                 .setSigningKey(key(CURRENT_SECRET))
@@ -94,37 +96,38 @@ class JwtUtilsTest {
 
         assertEquals(CURRENT_KEY_ID, parsed.getHeader().getKeyId());
         assertEquals("alice", parsed.getBody().getSubject());
+        assertEquals(7, parsed.getBody().get("token_version", Integer.class));
         assertNotNull(parsed.getBody().getId());
         assertNotNull(parsed.getBody().getNotBefore());
         assertTrue(jwtUtils.validateToken(token));
     }
 
     @Test
-    @DisplayName("deve rejeitar token sem issuer ou sem audience obrigatórios")
+    @DisplayName("deve rejeitar token sem issuer ou sem audience obrigatorios")
     void shouldRejectTokenWithoutRequiredIssuerOrAudience() {
         JwtUtils jwtUtils = jwtUtils();
 
-        String tokenWithoutIssuer = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, null, AUDIENCE);
-        String tokenWithoutAudience = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, ISSUER, null);
+        String tokenWithoutIssuer = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, null, AUDIENCE, 0);
+        String tokenWithoutAudience = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, ISSUER, null, 0);
 
         assertFalse(jwtUtils.validateToken(tokenWithoutIssuer));
         assertFalse(jwtUtils.validateToken(tokenWithoutAudience));
     }
 
     @Test
-    @DisplayName("deve rejeitar token com issuer ou audience inválidos")
+    @DisplayName("deve rejeitar token com issuer ou audience invalidos")
     void shouldRejectTokenWithInvalidIssuerOrAudience() {
         JwtUtils jwtUtils = jwtUtils();
 
-        String tokenWithInvalidIssuer = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, "invalid-issuer", AUDIENCE);
-        String tokenWithInvalidAudience = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, ISSUER, "invalid-audience");
+        String tokenWithInvalidIssuer = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, "invalid-issuer", AUDIENCE, 0);
+        String tokenWithInvalidAudience = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, ISSUER, "invalid-audience", 0);
 
         assertFalse(jwtUtils.validateToken(tokenWithInvalidIssuer));
         assertFalse(jwtUtils.validateToken(tokenWithInvalidAudience));
     }
 
     @Test
-    @DisplayName("deve aceitar segredo anterior somente quando kid estiver configurado para rotação")
+    @DisplayName("deve aceitar segredo anterior somente quando kid estiver configurado para rotacao")
     void shouldAcceptPreviousSecretOnlyWhenKeyIdIsConfiguredForRotation() {
         JwtUtils jwtUtils = new JwtUtils(
                 CURRENT_SECRET,
@@ -137,8 +140,8 @@ class JwtUtilsTest {
                 0L
         );
 
-        String tokenSignedWithPreviousSecret = buildToken(PREVIOUS_KEY_ID, PREVIOUS_SECRET, ISSUER, AUDIENCE);
-        String tokenSignedWithUnknownKey = buildToken("unknown-key", PREVIOUS_SECRET, ISSUER, AUDIENCE);
+        String tokenSignedWithPreviousSecret = buildToken(PREVIOUS_KEY_ID, PREVIOUS_SECRET, ISSUER, AUDIENCE, 0);
+        String tokenSignedWithUnknownKey = buildToken("unknown-key", PREVIOUS_SECRET, ISSUER, AUDIENCE, 0);
 
         assertTrue(jwtUtils.validateToken(tokenSignedWithPreviousSecret));
         assertFalse(jwtUtils.validateToken(tokenSignedWithUnknownKey));
@@ -149,13 +152,23 @@ class JwtUtilsTest {
     void shouldRejectTokenWithoutKeyId() {
         JwtUtils jwtUtils = jwtUtils();
 
-        String tokenWithoutKeyId = buildToken(null, CURRENT_SECRET, ISSUER, AUDIENCE);
+        String tokenWithoutKeyId = buildToken(null, CURRENT_SECRET, ISSUER, AUDIENCE, 0);
 
         assertFalse(jwtUtils.validateToken(tokenWithoutKeyId));
     }
 
     @Test
-    @DisplayName("deve falhar quando issuer não estiver configurado por ambiente")
+    @DisplayName("deve rejeitar token sem token_version")
+    void shouldRejectTokenWithoutTokenVersion() {
+        JwtUtils jwtUtils = jwtUtils();
+
+        String tokenWithoutTokenVersion = buildToken(CURRENT_KEY_ID, CURRENT_SECRET, ISSUER, AUDIENCE, null);
+
+        assertFalse(jwtUtils.validateToken(tokenWithoutTokenVersion));
+    }
+
+    @Test
+    @DisplayName("deve falhar quando issuer nao estiver configurado por ambiente")
     void shouldFailWhenIssuerIsMissing() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -187,7 +200,7 @@ class JwtUtilsTest {
         );
     }
 
-    private String buildToken(String keyId, String secret, String issuer, String audience) {
+    private String buildToken(String keyId, String secret, String issuer, String audience, Integer tokenVersion) {
         Date now = new Date();
         var builder = Jwts.builder()
                 .setSubject("alice")
@@ -205,6 +218,9 @@ class JwtUtilsTest {
         }
         if (audience != null) {
             builder.setAudience(audience);
+        }
+        if (tokenVersion != null) {
+            builder.claim("token_version", tokenVersion);
         }
 
         return builder.signWith(key(secret), SignatureAlgorithm.HS256).compact();

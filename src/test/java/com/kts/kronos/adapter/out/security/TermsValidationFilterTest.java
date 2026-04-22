@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.security.TokenRevocationService;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,13 +28,16 @@ class TermsValidationFilterTest {
     private JwtUtils jwtUtils;
 
     @Mock
+    private TokenRevocationService tokenRevocationService;
+
+    @Mock
     private FilterChain filterChain;
 
     private TermsValidationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new TermsValidationFilter(jwtUtils);
+        filter = new TermsValidationFilter(jwtUtils, tokenRevocationService);
     }
 
     @Test
@@ -46,7 +50,7 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(jwtUtils, tokenRevocationService);
     }
 
     @Test
@@ -58,6 +62,7 @@ class TermsValidationFilterTest {
         var response = new MockHttpServletResponse();
 
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("legacy-token")).thenReturn(true);
         when(jwtUtils.getTermsAcceptedFromToken("legacy-token")).thenReturn(false);
 
         filter.doFilter(request, response, filterChain);
@@ -77,6 +82,7 @@ class TermsValidationFilterTest {
         var response = new MockHttpServletResponse();
 
         when(jwtUtils.validateToken("fresh-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("fresh-token")).thenReturn(true);
         when(jwtUtils.getTermsAcceptedFromToken("fresh-token")).thenReturn(true);
 
         filter.doFilter(request, response, filterChain);
@@ -101,6 +107,23 @@ class TermsValidationFilterTest {
     }
 
     @Test
+    @DisplayName("deve seguir fluxo sem validar termos quando token foi revogado")
+    void shouldContinueWhenTokenWasRevoked() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer revoked-token");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("revoked-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("revoked-token")).thenReturn(false);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(jwtUtils, never()).getTermsAcceptedFromToken(any());
+    }
+
+    @Test
     @DisplayName("deve permitir rota privada sem header Authorization")
     void shouldAllowProtectedRouteWhenAuthorizationHeaderIsMissing() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
@@ -110,7 +133,7 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(jwtUtils, tokenRevocationService);
     }
 
     @Test
@@ -124,7 +147,7 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(jwtUtils, tokenRevocationService);
     }
 
     @Test
@@ -137,7 +160,7 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(jwtUtils, tokenRevocationService);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.security.TokenRevocationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,10 +17,16 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final TokenRevocationService tokenRevocationService;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(
+            JwtUtils jwtUtils,
+            UserDetailsService userDetailsService,
+            TokenRevocationService tokenRevocationService
+    ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.tokenRevocationService = tokenRevocationService;
     }
 
     @Override
@@ -35,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-         if (!jwtUtils.validateToken(token)) {
+        if (!jwtUtils.validateToken(token) || !tokenRevocationService.isTokenCurrent(token)) {
             chain.doFilter(request, response);
             return;
         }
@@ -45,11 +52,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails user = userDetailsService.loadUserByUsername(username);
 
-
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null,
                     user.getAuthorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }

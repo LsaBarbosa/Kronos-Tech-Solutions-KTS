@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.TokenRevocationService;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -44,6 +45,9 @@ class TermsControllerWebMvcTest {
     @MockitoBean
     private JwtUtils jwtUtils;
 
+    @MockitoBean
+    private TokenRevocationService tokenRevocationService;
+
     @Test
     void shouldAcceptBiometricTermsAndReturnRenewedToken() throws Exception {
         UUID employeeId = UUID.randomUUID();
@@ -53,7 +57,8 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, true))
+        when(tokenRevocationService.getCurrentTokenVersion(userId)).thenReturn(1);
+        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, true, 1))
                 .thenReturn("renewed-token");
 
         mockMvc.perform(post("/terms/accept-biometric")
@@ -86,7 +91,8 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, false))
+        when(tokenRevocationService.getCurrentTokenVersion(userId)).thenReturn(2);
+        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, false, 2))
                 .thenReturn("revoked-token");
 
         mockMvc.perform(delete("/terms/revoke-biometric")

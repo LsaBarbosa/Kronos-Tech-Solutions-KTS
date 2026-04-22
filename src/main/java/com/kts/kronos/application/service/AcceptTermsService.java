@@ -4,6 +4,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.TokenRevocationService;
 import com.kts.kronos.domain.model.AuditLog;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final AuditLogProvider auditLogProvider;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final TokenRevocationService tokenRevocationService;
 
     @Override
     @Transactional
@@ -85,6 +87,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
 
         auditLogProvider.registerLog(audit);
+        tokenRevocationService.revokeTokensByEmployeeId(employeeId);
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
     }
@@ -121,6 +124,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
 
         auditLogProvider.registerLog(audit);
+        tokenRevocationService.revokeTokensByEmployeeId(employeeId);
         log.info("Revogação biométrica concluída com sucesso para o colaborador {}", employeeId);
     }
 

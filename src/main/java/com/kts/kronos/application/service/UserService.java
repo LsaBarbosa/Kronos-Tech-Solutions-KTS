@@ -124,7 +124,18 @@ public class UserService implements UserUseCase {
 
         var role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
         boolean active = req.enabled() != null ? req.enabled() : existing.active();
-        var updated = new User(userId, username, password, role, active, existing.employeeId());
+        var updated = new User(
+                userId,
+                username,
+                password,
+                role,
+                active,
+                existing.employeeId(),
+                existing.tokenVersion()
+        );
+        if (hasSensitiveUserChange(existing, updated)) {
+            updated = updated.withIncrementedTokenVersion();
+        }
 
         userProvider.save(updated);
     }
@@ -143,7 +154,7 @@ public class UserService implements UserUseCase {
     @Override
     public void toggleActivate(UUID userId) {
         var existing = getUserId(userId);
-        var active = existing.withActive(!existing.active());
+        var active = existing.withActive(!existing.active()).withIncrementedTokenVersion();
         userProvider.save(active);
         employeeUseCase.toggleActivate(existing.employeeId());
     }
@@ -162,14 +173,7 @@ public class UserService implements UserUseCase {
         validatePasswordPolicy(req.newPassword());
 
         String hashed = passwordEncoder.encode(req.newPassword());
-        userProvider.save(new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        ));
+        userProvider.save(user.withPassword(hashed).withIncrementedTokenVersion());
     }
 
     @Override
@@ -196,5 +200,12 @@ public class UserService implements UserUseCase {
 
     private User getUserId(UUID userId) {
         return domainAuthorizationService.authorizeUserAccess(userId);
+    }
+
+    private boolean hasSensitiveUserChange(User existing, User updated) {
+        return !existing.username().equals(updated.username())
+                || !existing.password().equals(updated.password())
+                || existing.role() != updated.role()
+                || existing.active() != updated.active();
     }
 }

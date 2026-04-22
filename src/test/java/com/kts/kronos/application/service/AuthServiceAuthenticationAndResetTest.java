@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -89,7 +90,7 @@ class AuthServiceAuthenticationAndResetTest {
     void shouldLoginAndGenerateToken() {
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
         when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "Alice", "MANAGER", userId, true)).thenReturn("jwt-token");
+        when(jwtUtils.generateToken(employeeId, "Alice", "MANAGER", userId, true, 0)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
 
@@ -111,7 +112,7 @@ class AuthServiceAuthenticationAndResetTest {
 
         assertEquals(USER_NOT_FOUND, exception.getMessage());
         verify(documentProvider, never()).existsByEmployeeIdAndType(any(), any());
-        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class));
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), anyInt());
     }
 
     @Test
@@ -121,7 +122,7 @@ class AuthServiceAuthenticationAndResetTest {
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
         when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(false);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, false)).thenReturn("face-jwt");
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, false, 0)).thenReturn("face-jwt");
 
         String token = authService.loginFace(imageBase64, true);
 
@@ -250,7 +251,8 @@ class AuthServiceAuthenticationAndResetTest {
                 "new-hash",
                 Role.MANAGER,
                 true,
-                employeeId
+                employeeId,
+                1
         )));
         verify(tokenProvider).deleteToken("valid-token");
     }
