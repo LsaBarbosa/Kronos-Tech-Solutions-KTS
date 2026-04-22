@@ -6,7 +6,7 @@ import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.application.exceptions.BadRequestException;
-import com.kts.kronos.domain.model.Document;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +38,46 @@ class DocumentProviderImplTest {
     private DocumentProviderImpl provider;
 
     @Test
+    void deveSalvarDocumentoConvertendoParaEntidade() {
+        UUID employeeId = UUID.randomUUID();
+        DocumentEntity entity = documentEntity(employeeId, "save.pdf");
+        when(documentRepository.save(any(DocumentEntity.class))).thenReturn(entity);
+
+        provider.save(entity.toDomain());
+
+        verify(documentRepository).save(any(DocumentEntity.class));
+    }
+
+    @Test
+    void deveBuscarPorIdOuFalharQuandoNaoExiste() {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        DocumentEntity entity = documentEntity(employeeId, "found.pdf");
+        entity.setDocumentId(documentId);
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(entity));
+        when(documentRepository.findById(UUID.fromString("00000000-0000-0000-0000-000000000001")))
+                .thenReturn(Optional.empty());
+
+        assertEquals(documentId, provider.findById(documentId).documentId());
+        assertThrows(ResourceNotFoundException.class, () ->
+                provider.findById(UUID.fromString("00000000-0000-0000-0000-000000000001")));
+    }
+
+    @Test
+    void deveBuscarPorIdEEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        DocumentEntity entity = documentEntity(employeeId, "owned.pdf");
+        entity.setDocumentId(documentId);
+
+        when(documentRepository.findByDocumentIdAndEmployeeId(documentId, employeeId))
+                .thenReturn(Optional.of(entity));
+
+        assertEquals(documentId, provider.findByIdAndEmployeeId(documentId, employeeId).orElseThrow().documentId());
+    }
+
+    @Test
     void deveBuscarVisaoDeManager() {
         UUID employeeId = UUID.randomUUID();
 
@@ -50,6 +90,19 @@ class DocumentProviderImplTest {
         assertEquals("manager.pdf", result.getFirst().fileName());
         verify(documentRepository).findVisibleToManager(employeeId, DocumentType.TIME_OFF);
         verify(documentRepository, never()).findVisibleToEmployee(any(), any());
+    }
+
+    @Test
+    void deveBuscarVisaoDeEmployee() {
+        UUID employeeId = UUID.randomUUID();
+
+        when(documentRepository.findVisibleToEmployee(employeeId, DocumentType.PAYSLIP))
+                .thenReturn(List.of(documentEntity(employeeId, "employee.pdf")));
+
+        var result = provider.findByEmployeeAndType(employeeId, DocumentType.PAYSLIP, false);
+
+        assertEquals(1, result.size());
+        assertEquals("employee.pdf", result.getFirst().fileName());
     }
 
     @Test
@@ -75,6 +128,39 @@ class DocumentProviderImplTest {
     }
 
     @Test
+    void deveBuscarVisaoDeManagerComData() {
+        UUID employeeId = UUID.randomUUID();
+        LocalDate date = LocalDate.of(2026, 4, 17);
+
+        when(documentRepository.findVisibleToManagerByDate(
+                eq(employeeId),
+                eq(date.atStartOfDay()),
+                eq(date.atTime(23, 59, 59)),
+                eq(DocumentType.TIME_OFF)
+        )).thenReturn(List.of(documentEntity(employeeId, "manager-date.pdf")));
+
+        var result = provider.findByEmployeeAndDateAndType(employeeId, date, DocumentType.TIME_OFF, true);
+
+        assertEquals(1, result.size());
+        assertEquals("manager-date.pdf", result.getFirst().fileName());
+    }
+
+    @Test
+    void deveDeletarDocumentoDoProprioEmployee() {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        DocumentEntity entity = documentEntity(employeeId, "own.pdf");
+        entity.setDocumentId(documentId);
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.of(employeeEntity(employeeId)));
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(entity));
+
+        provider.delete(employeeId, documentId);
+
+        verify(documentRepository).deleteById(documentId);
+    }
+
+    @Test
     void deveFalharAoDeletarDocumentoDeOutroEmployee() {
         UUID loggedEmployeeId = UUID.randomUUID();
         UUID ownerEmployeeId = UUID.randomUUID();
@@ -86,6 +172,29 @@ class DocumentProviderImplTest {
         assertThrows(BadRequestException.class, () -> provider.delete(loggedEmployeeId, documentId));
 
         verify(documentRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void deveFalharAoDeletarQuandoEmployeeNaoExiste() {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+
+        when(employeeRepository.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> provider.delete(employeeId, documentId));
+    }
+
+    @Test
+    void deveDelegarDeleteByEmployeeIdExistsEBuscaPorTimeRecord() {
+        UUID employeeId = UUID.randomUUID();
+        when(documentRepository.findByTimeRecordId(10L)).thenReturn(List.of(documentEntity(employeeId, "tr.pdf")));
+        when(documentRepository.existsByEmployeeIdAndType(employeeId, DocumentType.TIME_OFF)).thenReturn(true);
+
+        provider.deleteByEmployeeId(employeeId);
+
+        assertEquals(1, provider.findByTimeRecordId(10L).size());
+        assertEquals(true, provider.existsByEmployeeIdAndType(employeeId, DocumentType.TIME_OFF));
+        verify(documentRepository).deleteByEmployeeId(employeeId);
     }
 
     @Test

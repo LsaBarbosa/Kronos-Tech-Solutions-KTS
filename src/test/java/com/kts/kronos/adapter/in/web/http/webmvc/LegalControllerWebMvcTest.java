@@ -37,6 +37,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -252,6 +253,25 @@ class LegalControllerWebMvcTest {
                 .andExpect(status().isNotFound())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.detail")
                         .value("Empresa não encontrada"));
+    }
+
+    @Test
+    @DisplayName("downloadTechnicalCertificate: deve propagar falha de assinatura")
+    void shouldPropagateTechnicalCertificateSignatureFailure() throws Exception {
+        UUID loggedEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        var employee = employee(loggedEmployeeId, companyId);
+        var company = company(companyId);
+        byte[] pdfBytes = "pdf".getBytes(StandardCharsets.UTF_8);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(certificateService.generateCertificate(company)).thenReturn(pdfBytes);
+        when(signatureService.signData(pdfBytes)).thenThrow(new RuntimeException("sign failed"));
+
+        assertThrows(jakarta.servlet.ServletException.class,
+                () -> mockMvc.perform(get("/legal/technical-certificate")));
     }
 
     @Test

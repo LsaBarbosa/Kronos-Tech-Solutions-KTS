@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.AuditLogProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -67,6 +69,33 @@ class AcceptTermsServiceTest {
         service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit");
 
         verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditLogProvider);
+    }
+
+    @Test
+    @DisplayName("aceite: falha quando colaborador não existe")
+    void shouldFailAcceptanceWhenEmployeeDoesNotExist() {
+        UUID employeeId = UUID.randomUUID();
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit"));
+    }
+
+    @Test
+    @DisplayName("aceite: falha quando empresa não existe")
+    void shouldFailAcceptanceWhenCompanyDoesNotExist() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId, "12345678901");
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit"));
     }
 
     @Test
@@ -116,6 +145,26 @@ class AcceptTermsServiceTest {
     }
 
     @Test
+    @DisplayName("aceite: falha quando documento recém-gerado não é encontrado")
+    void shouldFailAcceptanceWhenPersistedDocumentMetadataIsMissing() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId, "12345678901");
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true, null, null, 0, 0);
+        byte[] pdfBytes = "pdf-content".getBytes(StandardCharsets.UTF_8);
+
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(pdfService.generateConsentTerm(employee, company, "10.0.0.1", "JUnit-Agent")).thenReturn(pdfBytes);
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(List.of());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent"));
+    }
+
+    @Test
     @DisplayName("status: deve refletir se colaborador já aceitou o termo")
     void shouldReturnAcceptanceStatus() {
         UUID employeeId = UUID.randomUUID();
@@ -125,6 +174,16 @@ class AcceptTermsServiceTest {
         assertTrue(service.hasAcceptedBiometricTerm(employeeId));
         verify(documentProvider).existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM);
         verify(employeeProvider, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("revogação: falha quando colaborador não existe")
+    void shouldFailRevocationWhenEmployeeDoesNotExist() {
+        UUID employeeId = UUID.randomUUID();
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.revokeBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent"));
     }
 
     @Test

@@ -17,9 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.Field;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +38,30 @@ class DayOffSchedulerTest {
     private TimeRecordProvider timeRecordProvider;
     @Mock
     private CompanyProvider companyProvider;
+
+    @Test
+    @DisplayName("ensureDayOffRecords scheduled: executa rotina sem empresas ativas")
+    void shouldRunScheduledDailyEntrypointWithNoCompanies() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        when(companyProvider.findByActive(true)).thenReturn(List.of());
+
+        scheduler.ensureDayOffRecords();
+
+        verify(employeeProvider, never()).findByCompanyIdAndActive(any(), eq(true));
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps scheduled: executa rotina sem empresas ativas")
+    void shouldRunScheduledWeeklyEntrypointWithNoCompanies() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        when(companyProvider.findByActive(true)).thenReturn(List.of());
+
+        scheduler.reconcileWeeklySwaps();
+
+        verify(employeeProvider, never()).findByCompanyIdAndActive(any(), eq(true));
+        verify(timeRecordProvider, never()).findByRange(any(), any(), any());
+    }
 
     @Test
     @DisplayName("ensureDayOffRecords: cria ABSENCE para 5x2 em dia útil")
@@ -100,6 +124,56 @@ class DayOffSchedulerTest {
     }
 
     @Test
+    @DisplayName("ensureDayOffRecords: schedule nulo usa dia de trabalho")
+    void shouldDefaultNullScheduleToWorkDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(null, null, null, null);
+        LocalDate sunday = LocalDate.of(2026, 4, 12);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), sunday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(sunday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: default defensivo do switch trata escala desconhecida como trabalho")
+    void shouldUseDefensiveDefaultBranchWhenScheduleMappingIsUnknown() throws Exception {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
+        LocalDate sunday = LocalDate.of(2026, 4, 12);
+
+        Field switchMapField = Class.forName("com.kts.kronos.application.scheduler.DayOffScheduler$1")
+                .getDeclaredField("$SwitchMap$com$kts$kronos$domain$model$enuns$WorkScheduleType");
+        switchMapField.setAccessible(true);
+        int[] switchMap = (int[]) switchMapField.get(null);
+        int ordinal = WorkScheduleType.TRADITIONAL_5X2.ordinal();
+        int originalMapping = switchMap[ordinal];
+
+        try {
+            switchMap[ordinal] = 0;
+            when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+            when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+            when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), sunday)).thenReturn(false);
+
+            scheduler.ensureDayOffRecords(sunday);
+
+            ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+            verify(timeRecordProvider).save(captor.capture());
+            assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+        } finally {
+            switchMap[ordinal] = originalMapping;
+        }
+    }
+
+    @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para 6x1 no dia fixo de folga")
     void shouldCreateDayOffForSixByOneFixedOnPreferredDayOff() {
         DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
@@ -116,6 +190,25 @@ class DayOffSchedulerTest {
         ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
         verify(timeRecordProvider).save(captor.capture());
         assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: 6x1 fixo trabalha em dia diferente da folga")
+    void shouldCreateAbsenceForSixByOneFixedOnRegularDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.THURSDAY, null);
+        LocalDate friday = LocalDate.of(2026, 4, 17);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), friday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(friday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
     }
 
     @Test
@@ -138,6 +231,25 @@ class DayOffSchedulerTest {
     }
 
     @Test
+    @DisplayName("ensureDayOffRecords: escala rotativa sem data inicial usa dia de trabalho")
+    void shouldDefaultRotatingWithoutStartDateToWorkDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.ROTATING_24X72, null, null, null);
+        LocalDate saturday = LocalDate.of(2026, 4, 18);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), saturday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(saturday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+    }
+
+    @Test
     @DisplayName("ensureDayOffRecords: cria ABSENCE para 12x36 em dia de trabalho")
     void shouldCreateAbsenceForRotating12x36OnWorkDay() {
         DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
@@ -154,6 +266,26 @@ class DayOffSchedulerTest {
         ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
         verify(timeRecordProvider).save(captor.capture());
         assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: tipo 5 cria DAY_OFF no dia fixo")
+    void shouldCreateDayOffForTypeFivePreferredDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate monday = LocalDate.of(2026, 4, 13);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), monday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(monday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+        verify(timeRecordProvider, never()).countWeekendDaysOffThisMonth(any(), any());
     }
 
     @Test
@@ -177,6 +309,65 @@ class DayOffSchedulerTest {
     }
 
     @Test
+    @DisplayName("ensureDayOffRecords: tipo 5 trabalha quando quota de fim de semana foi atingida")
+    void shouldCreateAbsenceForTypeFiveWhenWeekendQuotaIsReached() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate sunday = LocalDate.of(2026, 4, 19);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), sunday)).thenReturn(false);
+        when(timeRecordProvider.countWeekendDaysOffThisMonth(employee.employeeId(), sunday)).thenReturn(2L);
+
+        scheduler.ensureDayOffRecords(sunday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: tipo 5 trabalha em dia útil comum")
+    void shouldCreateAbsenceForTypeFiveRegularWeekday() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate tuesday = LocalDate.of(2026, 4, 14);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), tuesday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(tuesday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+        verify(timeRecordProvider, never()).countWeekendDaysOffThisMonth(any(), any());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: tipo 6 cria DAY_OFF no dia fixo")
+    void shouldCreateDayOffForTypeSixPreferredDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate monday = LocalDate.of(2026, 4, 13);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), monday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(monday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+    }
+
+    @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para tipo 6 no fim de semana configurado")
     void shouldCreateDayOffForTypeSixConfiguredWeekendIndex() {
         DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
@@ -193,6 +384,44 @@ class DayOffSchedulerTest {
         ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
         verify(timeRecordProvider).save(captor.capture());
         assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: tipo 6 trabalha em fim de semana não configurado")
+    void shouldCreateAbsenceForTypeSixNonConfiguredWeekend() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate saturdayOfThirdWeek = LocalDate.of(2026, 4, 18);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), saturdayOfThirdWeek)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(saturdayOfThirdWeek);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+    }
+
+    @Test
+    @DisplayName("ensureDayOffRecords: tipo 6 trabalha em dia útil comum")
+    void shouldCreateAbsenceForTypeSixRegularWeekday() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        LocalDate tuesday = LocalDate.of(2026, 4, 14);
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), tuesday)).thenReturn(false);
+
+        scheduler.ensureDayOffRecords(tuesday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
     }
 
     @Test
@@ -256,6 +485,136 @@ class DayOffSchedulerTest {
         verify(timeRecordProvider).save(captor.capture());
         assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
         assertEquals(1, stats.swapsApplied());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: ignora escalas não elegíveis")
+    void shouldSkipNonEligibleSchedulesForWeeklySwap() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.ROTATING_12X36, LocalDate.of(2026, 4, 13), null, null);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(LocalDate.of(2026, 4, 20));
+
+        assertEquals(1, stats.companiesProcessed());
+        assertEquals(1, stats.employeesProcessed());
+        assertEquals(0, stats.employeesEligibleForSwap());
+        verify(timeRecordProvider, never()).findByRange(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: ignora colaborador sem tipo de escala")
+    void shouldSkipNullScheduleForWeeklySwap() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(null, null, DayOfWeek.WEDNESDAY, null);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(LocalDate.of(2026, 4, 20));
+
+        assertEquals(0, stats.employeesEligibleForSwap());
+        verify(timeRecordProvider, never()).findByRange(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: colaborador sem folga preferida não gera troca")
+    void shouldNotSwapWhenPreferredDayIsMissing() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
+        LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.findByRange(any(), any(), any())).thenReturn(List.of());
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(mondayAfterWeek);
+
+        assertEquals(1, stats.employeesEligibleForSwap());
+        assertEquals(0, stats.swapsApplied());
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: não troca quando não trabalhou na folga fixa")
+    void shouldNotSwapWhenPreferredDayWasNotWorked() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
+        LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
+        TimeRecord absence = record(1L, LocalDate.of(2026, 4, 16), StatusRecord.ABSENCE);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.findByRange(any(), any(), any())).thenReturn(List.of(absence));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(mondayAfterWeek);
+
+        assertEquals(0, stats.swapsApplied());
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: não troca quando não há falta para abonar")
+    void shouldNotSwapWhenThereIsNoAbsence() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
+        LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
+        TimeRecord worked = record(1L, LocalDate.of(2026, 4, 15), StatusRecord.PENDING_APPROVAL);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.findByRange(any(), any(), any())).thenReturn(List.of(worked));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(mondayAfterWeek);
+
+        assertEquals(0, stats.swapsApplied());
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("reconcileWeeklySwaps: não abona ausência no próprio dia de folga")
+    void shouldNotSwapAbsenceOnPreferredDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
+        TimeRecord worked = record(1L, LocalDate.of(2026, 4, 15), StatusRecord.UPDATED);
+        TimeRecord absenceOnPreferredDay = record(2L, LocalDate.of(2026, 4, 15), StatusRecord.ABSENCE);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.findByRange(any(), any(), any())).thenReturn(List.of(worked, absenceOnPreferredDay));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(LocalDate.of(2026, 4, 20));
+
+        assertEquals(0, stats.swapsApplied());
+        verify(timeRecordProvider, never()).save(any());
+    }
+
+    private TimeRecord record(Long id, LocalDate day, StatusRecord status) {
+        return new TimeRecord(
+                id,
+                day.atTime(8, 0),
+                day.atTime(17, 0),
+                status,
+                false,
+                true,
+                UUID.randomUUID(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private Company buildCompany() {

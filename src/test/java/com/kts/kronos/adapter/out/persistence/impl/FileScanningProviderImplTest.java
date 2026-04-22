@@ -32,6 +32,22 @@ class FileScanningProviderImplTest {
     }
 
     @Test
+    @DisplayName("scanOrThrow: aceita arquivo limpo")
+    void shouldAcceptCleanFile() throws Exception {
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            startFakeClamAv(serverSocket, "stream: OK");
+
+            var provider = configuredProvider(serverSocket.getLocalPort());
+
+            assertDoesNotThrow(() -> provider.scanOrThrow(
+                    "doc.pdf",
+                    "application/pdf",
+                    "pdf".getBytes(StandardCharsets.US_ASCII)
+            ));
+        }
+    }
+
+    @Test
     @DisplayName("scanOrThrow: deve rejeitar arquivo infectado")
     void shouldRejectInfectedFile() throws Exception {
         try (ServerSocket serverSocket = new ServerSocket(0)) {
@@ -45,6 +61,24 @@ class FileScanningProviderImplTest {
 
             assertEquals(MALICIOUS_FILE_DETECTED, exception.getMessage());
         }
+    }
+
+    @Test
+    @DisplayName("scanOrThrow: deve falhar quando antivírus está indisponível")
+    void shouldFailWhenAntivirusIsUnavailable() throws Exception {
+        int unusedPort;
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            unusedPort = serverSocket.getLocalPort();
+        }
+
+        var provider = configuredProvider(unusedPort);
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> provider.scanOrThrow("doc.pdf", "application/pdf", "pdf".getBytes(StandardCharsets.US_ASCII))
+        );
+
+        assertEquals(FILE_SCAN_FAILED, exception.getMessage());
     }
 
     @Test

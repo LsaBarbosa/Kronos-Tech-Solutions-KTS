@@ -10,10 +10,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,6 +29,37 @@ class EmployeeProviderImplTest {
 
     @InjectMocks
     private EmployeeProviderImpl provider;
+
+    @Test
+    @DisplayName("save: deve converter domínio para entidade e retornar domínio salvo")
+    void shouldSaveEmployee() {
+        EmployeeEntity entity = employeeEntity("12345678901");
+        when(repository.save(any(EmployeeEntity.class))).thenReturn(entity);
+
+        var result = provider.save(entity.toDomain());
+
+        assertEquals(entity.getEmployeeId(), result.employeeId());
+        assertEquals(entity.getCpf(), result.cpf());
+        verify(repository).save(any(EmployeeEntity.class));
+    }
+
+    @Test
+    @DisplayName("findById/findAll/delete: devem delegar e mapear resultados")
+    void shouldDelegateSimpleRepositoryMethods() {
+        UUID employeeId = UUID.randomUUID();
+        EmployeeEntity entity = employeeEntity("12345678901");
+        entity.setEmployeeId(employeeId);
+
+        when(repository.findById(employeeId)).thenReturn(Optional.of(entity));
+        when(repository.findAll()).thenReturn(List.of(entity));
+
+        assertTrue(provider.findById(employeeId).isPresent());
+        assertEquals(List.of(employeeId), provider.findAll().stream().map(com.kts.kronos.domain.model.Employee::employeeId).toList());
+
+        provider.deleteById(employeeId);
+
+        verify(repository).deleteById(employeeId);
+    }
 
     @Test
     @DisplayName("findByCpf: deve localizar registro com CPF mascarado quando entrada vier sem máscara")
@@ -58,6 +92,14 @@ class EmployeeProviderImplTest {
     }
 
     @Test
+    @DisplayName("findByCpf: deve retornar vazio sem consultar quando CPF é nulo ou vazio")
+    void shouldReturnEmptyForNullOrBlankCpf() {
+        assertTrue(provider.findByCpf(null).isEmpty());
+        assertTrue(provider.findByCpf(" ").isEmpty());
+        verify(repository, never()).findByCpf(any());
+    }
+
+    @Test
     @DisplayName("cpfExists: deve considerar CPF existente mesmo com diferença de máscara")
     void shouldReportCpfExistsAcrossMaskedAndUnmaskedRepresentations() {
         String digits = "12345678901";
@@ -80,6 +122,47 @@ class EmployeeProviderImplTest {
 
         assertFalse(exists);
         verify(repository, never()).existsByCpf("   ");
+    }
+
+    @Test
+    @DisplayName("consultas por empresa e lote devem mapear entidades")
+    void shouldMapCompanyAndBatchQueries() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        EmployeeEntity entity = employeeEntity("12345678901");
+        entity.setEmployeeId(employeeId);
+        entity.setCompanyId(companyId);
+
+        when(repository.findByCompanyId(companyId)).thenReturn(List.of(entity));
+        when(repository.findByCompanyIdAndActive(companyId, true)).thenReturn(List.of(entity));
+        when(repository.countByCompanyIdAndActive(companyId, true)).thenReturn(7L);
+        when(repository.findAllById(List.of(employeeId))).thenReturn(List.of(entity));
+
+        assertEquals(1, provider.findByCompanyId(companyId).size());
+        assertEquals(1, provider.findByCompanyIdAndActive(companyId, true).size());
+        assertEquals(7L, provider.countByCompanyIdAndActive(companyId, true));
+        assertEquals(List.of(employeeId), provider.findAllByIds(List.of(employeeId)).stream()
+                .map(com.kts.kronos.domain.model.Employee::employeeId)
+                .toList());
+    }
+
+    @Test
+    @DisplayName("countByCompanyIds: evita consulta para entrada nula ou vazia")
+    void shouldAvoidCountQueryForNullOrEmptyCompanyIds() {
+        assertEquals(List.of(), provider.countByCompanyIds(null));
+        assertEquals(List.of(), provider.countByCompanyIds(List.of()));
+        verify(repository, never()).countByCompanyIds(any());
+    }
+
+    @Test
+    @DisplayName("countByCompanyIds: delega quando há empresas")
+    void shouldDelegateCountByCompanyIds() {
+        UUID companyId = UUID.randomUUID();
+        when(repository.countByCompanyIds(List.of(companyId))).thenReturn(List.of());
+
+        assertEquals(List.of(), provider.countByCompanyIds(List.of(companyId)));
+
+        verify(repository).countByCompanyIds(List.of(companyId));
     }
 
     private EmployeeEntity employeeEntity(String cpf) {

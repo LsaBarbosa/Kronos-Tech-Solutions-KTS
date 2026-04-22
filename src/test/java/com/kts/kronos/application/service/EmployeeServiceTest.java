@@ -4,9 +4,13 @@ import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
 import com.kts.kronos.adapter.in.web.dto.address.UpdateAddressRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.exceptions.ForbiddenException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
@@ -15,7 +19,9 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,9 +32,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -150,6 +158,31 @@ class EmployeeServiceTest {
     }
 
     @Test
+    @DisplayName("createEmployee: role sem permissão falha")
+    void shouldRejectCreateEmployeeForUnauthorizedRole() {
+        CreateEmployeeRequest request = createRequest("Maria Silva", "12345678901", null, null);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+
+        assertThrows(ForbiddenException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).findByCpf(anyString());
+        verify(employeeProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createEmployee: manager inexistente falha antes de criar")
+    void shouldFailCreateEmployeeWhenLoggedManagerIsMissing() {
+        CreateEmployeeRequest request = createRequest("Maria Silva", "12345678901", null, null);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).findByCpf(anyString());
+    }
+
+    @Test
     @DisplayName("createEmployee: MANAGER herda a company do colaborador logado")
     void shouldCreateEmployeeUsingManagersCompany() {
         UUID anotherCompanyId = UUID.randomUUID();
@@ -187,6 +220,28 @@ class EmployeeServiceTest {
         Employee created = service.createEmployee(request);
 
         assertEquals(companyId, created.companyId());
+    }
+
+    @Test
+    @DisplayName("createEmployee: registra face e salva chave biométrica")
+    void shouldCreateEmployeeWithFaceRegistration() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
+        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any())).thenReturn("face-id");
+
+        Employee created = service.createEmployee(request);
+
+        assertEquals("faces/new-key.jpg", created.faceS3ObjectKey());
+        verify(biometricProtectionService).protectEnrollment(created.employeeId(), validBase64);
+        verify(faceRecognitionProvider).deleteFacesByExternalImageId(created.employeeId());
+        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
+        verify(employeeProvider, times(2)).save(any(Employee.class));
     }
 
     @Test
@@ -230,6 +285,31 @@ class EmployeeServiceTest {
         assertEquals(companyId, updated.companyId());
         assertEquals("Novo Nome", updated.fullName());
         assertEquals("99", updated.address().number());
+    }
+
+    @Test
+    @DisplayName("createEmployee: CPF órfão com face substitui imagem antiga")
+    void shouldUpdateOrphanEmployeeWithFaceAndDeleteOldImage() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        UUID orphanEmployeeId = UUID.randomUUID();
+        Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID()).withFaceS3ObjectKey("faces/old.jpg");
+        CreateEmployeeRequest request = createRequest("Novo Nome", orphan.cpf(), companyId, validBase64);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
+        when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(faceStorageProvider.uploadFaceImage(eq(orphanEmployeeId), any(), eq("image/jpeg"))).thenReturn("faces/new.jpg");
+        when(faceRecognitionProvider.indexFace("faces/new.jpg", orphanEmployeeId)).thenReturn("face-id");
+
+        Employee updated = service.createEmployee(request);
+
+        assertEquals(orphanEmployeeId, updated.employeeId());
+        assertEquals("faces/new.jpg", updated.faceS3ObjectKey());
+        verify(biometricProtectionService).protectEnrollment(orphanEmployeeId, validBase64);
+        verify(faceStorageProvider).deleteFaceImage("faces/old.jpg");
+        verify(employeeProvider, times(2)).save(any(Employee.class));
     }
 
     @Test
@@ -351,6 +431,26 @@ class EmployeeServiceTest {
     }
 
     @Test
+    @DisplayName("createEmployee: falha de reconhecimento remove upload parcial")
+    void shouldDeleteUploadedFaceWhenRecognitionFails() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
+        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any()))
+                .thenThrow(new RuntimeException("rekognition down"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.createEmployee(request));
+
+        assertEquals("Falha ao registrar face no Rekognition.", exception.getMessage());
+        verify(faceStorageProvider).deleteFaceImage("faces/new-key.jpg");
+    }
+
+    @Test
     @DisplayName("updateOwnProfile: atualiza email, telefone e endereço")
     void shouldUpdateOwnProfile() {
         UpdateEmployeePartnerRequest request = new UpdateEmployeePartnerRequest(
@@ -376,6 +476,178 @@ class EmployeeServiceTest {
     }
 
     @Test
+    @DisplayName("listEmployees: lista por empresa com e sem filtro active")
+    void shouldListEmployeesByLoggedCompany() {
+        Employee another = buildEmployee(UUID.randomUUID(), companyId);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(loggedEmployee, another));
+
+        assertEquals(2, service.listEmployees(null).size());
+
+        when(employeeProvider.findByCompanyIdAndActive(companyId, true)).thenReturn(List.of(loggedEmployee));
+        assertEquals(1, service.listEmployees(true).size());
+    }
+
+    @Test
+    @DisplayName("getEmployee: retorna apenas colaborador da mesma empresa")
+    void shouldGetEmployeeOnlyFromLoggedCompany() {
+        UUID targetId = UUID.randomUUID();
+        Employee target = buildEmployee(targetId, companyId);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(employeeProvider.findById(targetId)).thenReturn(Optional.of(target));
+
+        assertEquals(targetId, service.getEmployee(targetId).employeeId());
+
+        UUID otherCompanyEmployeeId = UUID.randomUUID();
+        Employee otherCompanyEmployee = buildEmployee(otherCompanyEmployeeId, UUID.randomUUID());
+        when(employeeProvider.findById(otherCompanyEmployeeId)).thenReturn(Optional.of(otherCompanyEmployee));
+        assertThrows(ResourceNotFoundException.class, () -> service.getEmployee(otherCompanyEmployeeId));
+    }
+
+    @Test
+    @DisplayName("getEmployee: falha quando colaborador não existe")
+    void shouldFailWhenEmployeeIsMissing() {
+        UUID targetId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(employeeProvider.findById(targetId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getEmployee(targetId));
+    }
+
+    @Test
+    @DisplayName("updateEmployee: atualiza campos gerenciais, endereço e face")
+    void shouldUpdateEmployeeWithManagerFieldsAddressAndFace() {
+        UUID targetId = UUID.randomUUID();
+        Employee target = buildEmployee(targetId, companyId).withFaceS3ObjectKey("faces/old.jpg");
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
+                "Nome Atualizado",
+                null,
+                "98765432100",
+                "Lead",
+                "lead@kts.com",
+                9000.0,
+                "21977777777",
+                true,
+                new UpdateAddressRequest("12345678", "88"),
+                validBase64,
+                LocalTime.of(7, 0),
+                LocalTime.of(16, 0),
+                LocalTime.of(11, 30),
+                LocalTime.of(12, 30),
+                WorkScheduleType.TRADITIONAL_5X2,
+                LocalDate.of(2026, 4, 1),
+                DayOfWeek.FRIDAY,
+                1,
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY)
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(employeeProvider.findById(targetId)).thenReturn(Optional.of(target));
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua Nova", "0", "12345678", "Rio", "RJ"));
+        when(faceStorageProvider.uploadFaceImage(eq(targetId), any(), eq("image/jpeg"))).thenReturn("faces/new.jpg");
+        when(faceRecognitionProvider.indexFace("faces/new.jpg", targetId)).thenReturn("face-id");
+
+        service.updateEmployee(targetId, request);
+
+        ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
+        verify(employeeProvider).save(captor.capture());
+        Employee saved = captor.getValue();
+        assertEquals("Nome Atualizado", saved.fullName());
+        assertEquals("98765432100", saved.pis());
+        assertEquals("Lead", saved.jobPosition());
+        assertEquals(9000.0, saved.salary());
+        assertEquals(LocalDate.of(2026, 4, 1), saved.scaleStartDate());
+        assertEquals("88", saved.address().number());
+        assertEquals("faces/new.jpg", saved.faceS3ObjectKey());
+        verify(faceStorageProvider).deleteFaceImage("faces/old.jpg");
+        verify(biometricProtectionService).protectEnrollment(targetId, validBase64);
+    }
+
+    @Test
+    @DisplayName("updateEmployee: preserva campos quando request vem vazio")
+    void shouldPreserveEmployeeFieldsWhenManagerRequestIsEmpty() {
+        UUID targetId = UUID.randomUUID();
+        Employee target = buildEmployee(targetId, companyId);
+        UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(employeeProvider.findById(targetId)).thenReturn(Optional.of(target));
+
+        service.updateEmployee(targetId, request);
+
+        verify(employeeProvider).save(argThat(saved ->
+                saved.fullName().equals(target.fullName())
+                        && saved.email().equals(target.email())
+                        && saved.address().equals(target.address())
+                        && saved.faceS3ObjectKey() == null
+        ));
+        verify(viaCep, never()).lookup(anyString());
+        verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("deleteEmployee: remove colaborador sem user e revoga termo biométrico")
+    void shouldDeleteEmployeeAndRevokeBiometricTerms() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(userProvider.existsByEmployeeId(loggedEmployeeId)).thenReturn(false);
+
+        service.deleteEmployee(loggedEmployeeId);
+
+        verify(acceptTermsUseCase).revokeBiometricTerms(loggedEmployeeId, "system", "EMPLOYEE_DELETE");
+        verify(employeeProvider).deleteById(loggedEmployeeId);
+    }
+
+    @Test
+    @DisplayName("getOwnProfile: retorna colaborador e role atual")
+    void shouldReturnOwnProfileWithRole() {
+        User user = new User(UUID.randomUUID(), "partner", "x", Role.PARTNER, true, loggedEmployeeId);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(userProvider.findByEmployeeId(loggedEmployeeId)).thenReturn(Optional.of(user));
+
+        EmployeeProfile profile = service.getOwnProfile();
+
+        assertEquals(loggedEmployee, profile.employee());
+        assertEquals("PARTNER", profile.role());
+    }
+
+    @Test
+    @DisplayName("getOwnProfile: falha quando user vinculado não existe")
+    void shouldFailOwnProfileWhenUserIsMissing() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(userProvider.findByEmployeeId(loggedEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getOwnProfile());
+    }
+
+    @Test
+    @DisplayName("updateOwnProfile: preserva campos quando request vem vazio")
+    void shouldPreserveOwnProfileFieldsWhenRequestIsEmpty() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+
+        service.updateOwnProfile(new UpdateEmployeePartnerRequest(null, null, null));
+
+        verify(employeeProvider).save(argThat(saved ->
+                saved.email().equals(loggedEmployee.email())
+                        && saved.phone().equals(loggedEmployee.phone())
+                        && saved.address().equals(loggedEmployee.address())
+        ));
+        verify(viaCep, never()).lookup(anyString());
+    }
+
+    @Test
     @DisplayName("markMessagesAsSeen: grava timestamp")
     void shouldMarkMessagesAsSeen() {
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
@@ -389,6 +661,84 @@ class EmployeeServiceTest {
     }
 
     @Test
+    @DisplayName("markMessagesAsSeen: falha quando colaborador logado não existe")
+    void shouldFailMarkMessagesAsSeenWhenEmployeeIsMissing() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.markMessagesAsSeen());
+    }
+
+    @Test
+    @DisplayName("listEmployees: falha quando gestor autenticado não existe")
+    void shouldFailListWhenLoggedManagerDoesNotExist() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.listEmployees(null));
+    }
+
+    @Test
+    @DisplayName("cpfExists: delega ao provider")
+    void shouldDelegateCpfExists() {
+        when(employeeProvider.cpfExists("12345678901")).thenReturn(true);
+
+        assertTrue(service.cpfExists("12345678901"));
+    }
+
+    @Test
+    @DisplayName("toggleActivate: inverte status do colaborador da empresa")
+    void shouldToggleEmployeeActivation() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+
+        service.toggleActivate(loggedEmployeeId);
+
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(loggedEmployeeId) && !saved.active()
+        ));
+    }
+
+    @Test
+    @DisplayName("toggleActivate: reativa colaborador inativo")
+    void shouldToggleInactiveEmployeeBackToActive() {
+        Employee inactive = new Employee(
+                loggedEmployee.employeeId(),
+                loggedEmployee.fullName(),
+                loggedEmployee.cpf(),
+                loggedEmployee.pis(),
+                loggedEmployee.jobPosition(),
+                loggedEmployee.email(),
+                loggedEmployee.salary(),
+                loggedEmployee.phone(),
+                false,
+                loggedEmployee.address(),
+                loggedEmployee.companyId(),
+                loggedEmployee.lastSeenMessageTimestamp(),
+                loggedEmployee.homeOffice(),
+                loggedEmployee.faceS3ObjectKey(),
+                loggedEmployee.workStartTime(),
+                loggedEmployee.workEndTime(),
+                loggedEmployee.breakStartTime(),
+                loggedEmployee.breakEndTime(),
+                loggedEmployee.scheduleType(),
+                loggedEmployee.scaleStartDate(),
+                loggedEmployee.preferredDayOff(),
+                loggedEmployee.weekendOffIndex(),
+                loggedEmployee.fixedWorkDays()
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(inactive));
+
+        service.toggleActivate(loggedEmployeeId);
+
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(loggedEmployeeId) && saved.active()
+        ));
+    }
+
+    @Test
     @DisplayName("deleteEmployee: bloqueia exclusão quando há user vinculado")
     void shouldBlockDeleteWhenEmployeeHasLinkedUser() {
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
@@ -399,6 +749,88 @@ class EmployeeServiceTest {
         verify(employeeProvider, never()).deleteById(any());
     }
 
+    @Test
+    @DisplayName("createEmployee: remove upload parcial quando provider lança IllegalArgumentException após upload")
+    void shouldDeleteUploadedFaceWhenIllegalArgumentOccursAfterUpload() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
+        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any()))
+                .thenThrow(new IllegalArgumentException("invalid external id"));
+
+        assertThrows(BadRequestException.class, () -> service.createEmployee(request));
+
+        verify(faceStorageProvider).deleteFaceImage("faces/new-key.jpg");
+    }
+
+    @Test
+    @DisplayName("createEmployee: CPF órfão usa salário default quando ausente")
+    void shouldUpdateOrphanEmployeeWithDefaultSalary() {
+        UUID orphanEmployeeId = UUID.randomUUID();
+        Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID());
+        CreateEmployeeRequest request = new CreateEmployeeRequest(
+                "Novo Nome",
+                orphan.cpf(),
+                "12345678901",
+                "Tech Lead",
+                "novo@kts.com",
+                null,
+                "21922222222",
+                new AddressRequest("12345678", "99"),
+                companyId,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                DayOfWeek.FRIDAY,
+                2,
+                Set.of(DayOfWeek.MONDAY)
+        );
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
+        when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Employee updated = service.createEmployee(request);
+
+        assertEquals(0.0, updated.salary());
+    }
+
+    private CreateEmployeeRequest createRequest(String name, String cpf, UUID requestCompanyId, String faceImageBase64) {
+        return new CreateEmployeeRequest(
+                name,
+                cpf,
+                "12345678901",
+                "Dev",
+                name.toLowerCase().replace(" ", ".") + "@kts.com",
+                3000.0,
+                "21999999999",
+                new AddressRequest("12345678", "10"),
+                requestCompanyId,
+                false,
+                faceImageBase64,
+                LocalTime.of(8, 0),
+                LocalTime.of(17, 0),
+                LocalTime.of(12, 0),
+                LocalTime.of(13, 0),
+                WorkScheduleType.TRADITIONAL_5X2,
+                null,
+                DayOfWeek.FRIDAY,
+                1,
+                Set.of(DayOfWeek.MONDAY)
+        );
+    }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
         return new Employee(
