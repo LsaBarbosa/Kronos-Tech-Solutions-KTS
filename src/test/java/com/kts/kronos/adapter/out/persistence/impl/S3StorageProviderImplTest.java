@@ -8,13 +8,13 @@ import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.*;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -135,5 +135,73 @@ class S3StorageProviderImplTest {
 
         assertThrows(ResourceNotFoundException.class,
                 () -> provider.downloadFile("legal/file.pdf"));
+    }
+
+    @Test
+    @DisplayName("downloadFile: traduz S3Exception 404 para ResourceNotFoundException")
+    void shouldTranslateS3NotFoundStatus() {
+        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3Client s3Client = mock(S3Client.class);
+
+        ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
+        ReflectionTestUtils.setField(provider, "s3Client", s3Client);
+
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenThrow(S3Exception.builder().statusCode(404).message("missing").build());
+
+        assertThrows(ResourceNotFoundException.class, () -> provider.downloadFile("legal/missing.pdf"));
+    }
+
+    @Test
+    @DisplayName("downloadFile: encapsula S3Exception diferente de 404")
+    void shouldWrapNonNotFoundS3Exception() {
+        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3Client s3Client = mock(S3Client.class);
+
+        ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
+        ReflectionTestUtils.setField(provider, "s3Client", s3Client);
+
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenThrow(S3Exception.builder().statusCode(503).message("unavailable").build());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> provider.downloadFile("legal/file.pdf"));
+
+        assertEquals("Erro ao baixar arquivo do S3.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("downloadFile: encapsula IOException de leitura")
+    void shouldWrapDownloadIOException() throws IOException {
+        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3Client s3Client = mock(S3Client.class);
+
+        ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
+        ReflectionTestUtils.setField(provider, "s3Client", s3Client);
+
+        @SuppressWarnings("unchecked")
+        ResponseInputStream<GetObjectResponse> responseStream = mock(ResponseInputStream.class);
+        when(responseStream.readAllBytes()).thenThrow(new IOException("read failure"));
+        when(s3Client.getObject(any(GetObjectRequest.class))).thenReturn(responseStream);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> provider.downloadFile("legal/file.pdf"));
+
+        assertEquals("Erro ao ler arquivo do S3.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("downloadFile: encapsula falha genérica do SDK")
+    void shouldWrapGenericSdkFailureOnDownload() {
+        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3Client s3Client = mock(S3Client.class);
+
+        ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
+        ReflectionTestUtils.setField(provider, "s3Client", s3Client);
+
+        when(s3Client.getObject(any(GetObjectRequest.class)))
+                .thenThrow(SdkClientException.builder().message("network").build());
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> provider.downloadFile("legal/file.pdf"));
+
+        assertEquals("Arquivo não encontrado ou erro S3", ex.getMessage());
     }
 }

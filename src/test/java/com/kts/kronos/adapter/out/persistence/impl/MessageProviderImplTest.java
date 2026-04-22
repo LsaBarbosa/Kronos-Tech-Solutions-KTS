@@ -16,9 +16,11 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +50,34 @@ class MessageProviderImplTest {
     }
 
     @Test
+    @DisplayName("findById: deve mapear entity encontrada")
+    void shouldFindById() {
+        Message message = buildMessage();
+        when(repository.findById(message.messageId())).thenReturn(Optional.of(MessageEntity.fromDomain(message)));
+
+        Optional<Message> result = provider.findById(message.messageId());
+
+        assertTrue(result.isPresent());
+        assertEquals(message.messageId(), result.get().messageId());
+    }
+
+    @Test
+    @DisplayName("findVisibleMessagesByCompanyIdAndEmployeeId: sem pageable deve mapear retorno")
+    void shouldFindVisibleMessagesWithoutPageable() {
+        Message message = buildMessage();
+        UUID companyId = message.companyId();
+        UUID employeeId = message.employeeId();
+
+        when(repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId))
+                .thenReturn(List.of(MessageEntity.fromDomain(message)));
+
+        List<Message> result = provider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId);
+
+        assertEquals(1, result.size());
+        assertEquals(message.messageId(), result.getFirst().messageId());
+    }
+
+    @Test
     @DisplayName("findVisibleMessagesByCompanyIdAndEmployeeId: pageable deve mapear retorno")
     void shouldFindVisibleMessagesWithPageable() {
         Message message = buildMessage();
@@ -62,6 +92,17 @@ class MessageProviderImplTest {
 
         assertEquals(1, result.size());
         assertEquals(message.messageId(), result.getFirst().messageId());
+    }
+
+    @Test
+    @DisplayName("deleteByMessageIdAndEmployeeId: deve delegar exclusão")
+    void shouldDeleteByMessageIdAndEmployeeId() {
+        UUID messageId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+
+        provider.deleteByMessageIdAndEmployeeId(messageId, employeeId);
+
+        verify(repository).deleteByMessageIdAndEmployeeId(messageId, employeeId);
     }
 
     @Test

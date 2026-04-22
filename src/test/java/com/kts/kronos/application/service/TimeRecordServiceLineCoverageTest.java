@@ -1,11 +1,8 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.Location;
-import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.RequestTimeOffRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordStatusRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.*;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -13,23 +10,10 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
-import com.kts.kronos.application.port.out.provider.CompanyProvider;
-import com.kts.kronos.application.port.out.provider.DocumentProvider;
-import com.kts.kronos.application.port.out.provider.EmployeeProvider;
-import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
-import com.kts.kronos.application.port.out.provider.NsrProvider;
-import com.kts.kronos.application.port.out.provider.TimeRecordApprovalProvider;
-import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
-import com.kts.kronos.domain.model.Address;
-import com.kts.kronos.domain.model.Company;
-import com.kts.kronos.domain.model.Document;
-import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.domain.model.TimeRecord;
-import com.kts.kronos.domain.model.TimeRecordApprovalRequest;
-import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -52,27 +36,12 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static com.kts.kronos.constants.Messages.SAO_PAULO;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -173,6 +142,53 @@ class TimeRecordServiceLineCoverageTest {
 
         assertEquals("CHECKIN", response.actionType());
         verify(recordRepository).findTopByEmployeeIdOrderByStartWorkDesc(employeeId);
+    }
+
+    @Test
+    void registerTimeShouldCoverMissingCompanyLatestRecordWithoutEndAndReceiptCompanyFailure() {
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, true);
+        Employee homeOffice = employee(employeeId, "Ana Souza", true);
+        LocalDate today = LocalDate.now(SAO_PAULO);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(homeOffice));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of());
+        when(recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employeeId))
+                .thenReturn(Optional.of(record(99L, employeeId, StatusRecord.CREATED, today.atTime(8, 0), null)));
+        when(nsrProvider.generateNextNsr(companyId)).thenReturn(222L);
+
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.registerTime(request));
+
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company), Optional.empty());
+        var response = service.registerTime(request);
+
+        assertEquals("CHECKIN", response.actionType());
+    }
+
+    @Test
+    void registerTimeShouldConvertAbsenceIntoCheckIn() {
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, true);
+        Employee homeOffice = employee(employeeId, "Ana Souza", true);
+        LocalDate today = LocalDate.now(SAO_PAULO);
+        TimeRecord absence = record(77L, employeeId, StatusRecord.ABSENCE, today.atStartOfDay(), today.atStartOfDay());
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(homeOffice));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company), Optional.of(company));
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of(absence));
+        when(nsrProvider.generateNextNsr(companyId)).thenReturn(223L);
+
+        var response = service.registerTime(request);
+
+        assertEquals("CHECKIN_ON_DAY_OFF", response.actionType());
+        verify(recordRepository).save(org.mockito.ArgumentMatchers.argThat(tr ->
+                tr.timeRecordId().equals(77L) && tr.statusRecord() == StatusRecord.PENDING
+        ));
     }
 
     @Test
@@ -402,6 +418,34 @@ class TimeRecordServiceLineCoverageTest {
     }
 
     @Test
+    void listReportShouldFilterStatusesAndHandleOpenAndPositiveBalanceDays() {
+        LocalDate day1 = LocalDate.of(2026, 4, 20);
+        LocalDate day2 = LocalDate.of(2026, 4, 21);
+        TimeRecord open = record(31L, employeeId, StatusRecord.PENDING, day1.atTime(8, 0), null);
+        TimeRecord overtime = record(32L, employeeId, StatusRecord.CREATED, day2.atTime(8, 0), day2.atTime(18, 0));
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(recordRepository.findReportRecords(
+                eq(employeeId),
+                eq(day1.atStartOfDay()),
+                eq(day2.atTime(23, 59, 59)),
+                anyCollection(),
+                eq(true)
+        )).thenReturn(List.of(open, overtime));
+        when(documentProvider.findByTimeRecordIds(List.of(31L, 32L))).thenReturn(List.of());
+
+        var response = service.listReport(
+                employeeId,
+                new ListReportRequest("08:00", true, List.of(StatusRecord.PENDING, StatusRecord.CREATED), new LocalDate[]{day1, day2})
+        );
+
+        assertEquals(2, response.size());
+        assertTrue(response.stream().anyMatch(item -> item.balance() != null && item.balance().startsWith("+")));
+    }
+
+    @Test
     void vacationApprovalAndRejectionShouldCoverSuccessInvalidStatusAndForbidden() {
         TimeRecord vacationRequest = record(20L, employeeId, StatusRecord.REQUEST_VACATION, LocalDateTime.of(2026, 5, 1, 0, 0), LocalDateTime.of(2026, 5, 1, 0, 0));
         TimeRecord created = vacationRequest.withId(21L).withStatus(StatusRecord.CREATED);
@@ -420,6 +464,46 @@ class TimeRecordServiceLineCoverageTest {
         verify(domainAuthorizationService, org.mockito.Mockito.times(4)).authorizeEmployeeAccess(employeeId);
         verify(recordRepository).save(org.mockito.ArgumentMatchers.argThat(tr -> tr.statusRecord() == StatusRecord.VACATION));
         verify(recordRepository).save(org.mockito.ArgumentMatchers.argThat(tr -> tr.statusRecord() == StatusRecord.VACATION_REJECTED));
+    }
+
+    @Test
+    void vacationRequestsShouldValidateDateOrderAndMissingRecords() {
+        LocalDate start = LocalDate.of(2026, 5, 10);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(userProvider.findById(managerUserId)).thenReturn(Optional.of(managerUser));
+
+        assertThrows(BadRequestException.class, () ->
+                service.requestVacation(new com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest(
+                        start,
+                        start.minusDays(1),
+                        managerUserId
+                )));
+
+        when(jwtAuthenticatedUser.hasAnyRole(Role.MANAGER, Role.CTO)).thenReturn(true);
+        when(recordRepository.findById(404L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () ->
+                service.approveVacation(new VacationApprovalRequest(List.of(404L))));
+        assertThrows(ResourceNotFoundException.class, () ->
+                service.rejectVacation(new VacationApprovalRequest(List.of(404L))));
+    }
+
+    @Test
+    void managerApproverShouldCoverMissingAndForbiddenInvalidRole() {
+        LocalDate day = LocalDate.of(2026, 5, 4);
+        RequestTimeOffRequest request = new RequestTimeOffRequest(day, day, "08:00", "12:00", managerUserId, RequestType.TIME_OFF_REQUEST);
+        User partnerUser = new User(managerUserId, "partner", "pass", Role.PARTNER, true, managerEmployeeId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        when(userProvider.findById(managerUserId)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.requestTimeOff(request, null));
+
+        when(userProvider.findById(managerUserId)).thenReturn(Optional.of(partnerUser));
+        assertThrows(BadRequestException.class, () -> service.requestTimeOff(request, null));
+        assertThrows(ForbiddenException.class, () -> service.requestVacation(new RequestVacationRequest(day, day, managerUserId)));
     }
 
     @Test
@@ -478,6 +562,19 @@ class TimeRecordServiceLineCoverageTest {
     }
 
     @Test
+    void requestTimeOffShouldFailWhenSavedRecordsDoNotReceiveIds() {
+        LocalDate day = LocalDate.of(2026, 5, 4);
+        RequestTimeOffRequest request = new RequestTimeOffRequest(day, day, "08:00", "12:00", managerUserId, RequestType.TIME_OFF_REQUEST);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(userProvider.findById(managerUserId)).thenReturn(Optional.of(managerUser));
+        when(recordRepository.save(any(TimeRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThrows(BadRequestException.class, () -> service.requestTimeOff(request, null));
+    }
+
+    @Test
     void approveAndRejectTimeOffShouldCoverAllStatusBranches() {
         when(recordRepository.findById(1L)).thenReturn(Optional.of(record(1L, employeeId, StatusRecord.TIME_OFF_REQUEST, LocalDateTime.of(2026, 5, 1, 8, 0), LocalDateTime.of(2026, 5, 1, 12, 0))));
         when(recordRepository.findById(2L)).thenReturn(Optional.of(record(2L, employeeId, StatusRecord.WORK_TIME_REQUEST, LocalDateTime.of(2026, 5, 1, 8, 0), LocalDateTime.of(2026, 5, 1, 12, 0))));
@@ -526,6 +623,70 @@ class TimeRecordServiceLineCoverageTest {
         @SuppressWarnings("unchecked")
         Map<Long, String> empty = (Map<Long, String>) buildLatest.invoke(service, List.of());
         assertEquals(Map.of(), empty);
+    }
+
+    @Test
+    void privateHelpersShouldCoverAdjustmentDeletionOverlapAndLatestDocumentBranches() throws Exception {
+        LocalDate day = LocalDate.of(2026, 6, 1);
+        TimeRecord target = record(10L, employeeId, StatusRecord.CREATED, day.atTime(9, 0), day.atTime(17, 0));
+        TimeRecord precedingBreak = record(8L, employeeId, StatusRecord.IMPLICIT_BREAK, day.atTime(8, 30), day.atTime(9, 0));
+        TimeRecord succeedingBreak = record(9L, employeeId, StatusRecord.IMPLICIT_BREAK, day.atTime(17, 0), day.atTime(17, 30));
+
+        Method adjust = TimeRecordService.class.getDeclaredMethod("adjustAdjacentRecordsOnUpdate", UUID.class, TimeRecord.class, LocalDateTime.class, LocalDateTime.class);
+        adjust.setAccessible(true);
+
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of());
+        adjust.invoke(service, employeeId, target, day.atTime(9, 0), day.atTime(17, 0));
+
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(precedingBreak));
+        adjust.invoke(service, employeeId, target, day.atTime(9, 0), day.atTime(17, 0));
+
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(precedingBreak, target, succeedingBreak));
+        adjust.invoke(service, employeeId, target, day.atTime(8, 30), day.atTime(17, 30));
+
+        verify(recordRepository).deleteTimeRecord(precedingBreak);
+        verify(recordRepository).deleteTimeRecord(succeedingBreak);
+
+        Method calculateBreak = TimeRecordService.class.getDeclaredMethod("calculateTotalBreakDuration", List.class, java.time.ZoneId.class);
+        calculateBreak.setAccessible(true);
+        Duration duration = (Duration) calculateBreak.invoke(
+                service,
+                List.of(
+                        record(20L, employeeId, StatusRecord.CREATED, day.atTime(8, 0), day.atTime(12, 0)),
+                        record(21L, employeeId, StatusRecord.CREATED, day.atTime(13, 0), day.atTime(17, 0))
+                ),
+                SAO_PAULO
+        );
+        assertEquals(Duration.ofHours(1), duration);
+
+        Method validateOverlap = TimeRecordService.class.getDeclaredMethod("validateNonBreakOverlap", UUID.class, Long.class, LocalDateTime.class, LocalDateTime.class);
+        validateOverlap.setAccessible(true);
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(
+                record(30L, employeeId, StatusRecord.CREATED, day.atTime(10, 0), day.atTime(11, 0))
+        ));
+        assertThrows(Exception.class, () ->
+                validateOverlap.invoke(service, employeeId, 10L, day.atTime(10, 30), day.atTime(12, 0)));
+
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(
+                record(31L, employeeId, StatusRecord.CREATED, day.atTime(7, 0), day.atTime(8, 0))
+        ));
+        validateOverlap.invoke(service, employeeId, 10L, day.atTime(9, 0), day.atTime(10, 0));
+
+        Method latestPath = TimeRecordService.class.getDeclaredMethod("getLatestDocumentPathByTimeRecordId", List.class);
+        latestPath.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<Long, String> noIds = (Map<Long, String>) latestPath.invoke(service, List.of(record(null, employeeId, StatusRecord.CREATED, day.atTime(8, 0), day.atTime(12, 0))));
+        assertEquals(Map.of(), noIds);
+
+        UUID docWithNullDate = UUID.randomUUID();
+        when(documentProvider.findByTimeRecordIds(List.of(40L))).thenReturn(List.of(
+                new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "dated.pdf", "application/pdf", "dated", day.atTime(9, 0), 40L, false, false),
+                new Document(docWithNullDate, employeeId, DocumentType.TIME_OFF, "null.pdf", "application/pdf", "null", null, 40L, false, false),
+                new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "ignored.pdf", "application/pdf", "ignored", day.atTime(10, 0), null, false, false)
+        ));
+        @SuppressWarnings("unchecked")
+        Map<Long, String> latest = (Map<Long, String>) latestPath.invoke(service, List.of(record(40L, employeeId, StatusRecord.CREATED, day.atTime(8, 0), day.atTime(12, 0))));
+        assertEquals(docWithNullDate.toString(), latest.get(40L));
     }
 
     private Employee employee(UUID id, String name, boolean homeOffice) {

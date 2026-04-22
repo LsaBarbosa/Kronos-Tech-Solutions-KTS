@@ -1,6 +1,12 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
+import com.kts.kronos.adapter.in.web.dto.address.UpdateAddressRequest;
+import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.Location;
+import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
+import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
@@ -26,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -49,6 +56,49 @@ class CompanyServiceFeature44OptimizationTest {
     private UserProvider userProvider;
     @Mock
     private UserUseCase userUseCase;
+
+    @Test
+    @DisplayName("createCompany: cria empresa com endereço consultado")
+    void shouldCreateCompanyWhenCnpjDoesNotExist() {
+        CreateCompanyRequest request = new CreateCompanyRequest(
+                "KTS",
+                "12345678000199",
+                "contato@kts.com",
+                new AddressRequest("01001000", "123"),
+                null,
+                new Location(-23.55, -46.63)
+        );
+
+        when(companyProvider.existsByCnpj(request.cnpj())).thenReturn(false);
+        when(viaCep.lookup("01001000")).thenReturn(new Address("Rua A", "0", "01001000", "Sao Paulo", "SP"));
+
+        service.createCompany(request);
+
+        verify(companyProvider).save(argThat(company ->
+                company.name().equals("KTS")
+                        && company.cnpj().equals("12345678000199")
+                        && company.address().number().equals("123")
+                        && company.location().latitude().equals(-23.55)
+        ));
+    }
+
+    @Test
+    @DisplayName("createCompany: rejeita CNPJ já cadastrado")
+    void shouldRejectExistingCnpjWhenCreatingCompany() {
+        CreateCompanyRequest request = new CreateCompanyRequest(
+                "KTS",
+                "12345678000199",
+                "contato@kts.com",
+                new AddressRequest("01001000", "123"),
+                null,
+                new Location(-23.55, -46.63)
+        );
+
+        when(companyProvider.existsByCnpj(request.cnpj())).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> service.createCompany(request));
+        verify(companyProvider, never()).save(any());
+    }
 
     @Test
     @DisplayName("listCompanies: consolida contagens por empresa em uma única consulta agregada")
@@ -167,6 +217,15 @@ class CompanyServiceFeature44OptimizationTest {
     }
 
     @Test
+    @DisplayName("getCompany: falha quando CNPJ não existe")
+    void shouldFailWhenGettingUnknownCompany() {
+        when(companyProvider.findByCnpj("00000000000000")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.getCompany("00000000000000"));
+        verify(employeeProvider, never()).countByCompanyIds(any());
+    }
+
+    @Test
     @DisplayName("getCompany: normaliza contagens nulas para zero")
     void shouldNormalizeNullCountsToZeroWhenGettingCompany() {
         UUID companyId = UUID.randomUUID();
@@ -181,6 +240,105 @@ class CompanyServiceFeature44OptimizationTest {
 
         assertEquals(0L, result.activeEmployees());
         assertEquals(0L, result.inactiveEmployees());
+    }
+
+    @Test
+    @DisplayName("getCompanyNameById: retorna nome ou falha quando ausente")
+    void shouldGetCompanyNameByIdOrFail() {
+        UUID companyId = UUID.randomUUID();
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company(companyId, "KTS", true)));
+
+        assertEquals("KTS", service.getCompanyNameById(companyId));
+
+        UUID missingId = UUID.randomUUID();
+        when(companyProvider.findById(missingId)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.getCompanyNameById(missingId));
+    }
+
+    @Test
+    @DisplayName("updateCompany: atualiza campos básicos sem trocar endereço")
+    void shouldUpdateCompanyWithoutAddressChange() {
+        Company company = company(UUID.randomUUID(), "Old", true);
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+
+        service.updateCompany(company.cnpj(), new UpdateCompanyRequest("New", "new@kts.com", false, null, null));
+
+        verify(companyProvider).save(argThat(saved ->
+                saved.name().equals("New")
+                        && saved.email().equals("new@kts.com")
+                        && !saved.active()
+                        && saved.address().equals(company.address())
+                        && saved.location().equals(company.location())
+        ));
+        verify(viaCep, never()).lookup(any());
+    }
+
+    @Test
+    @DisplayName("updateCompany: exige geolocalização quando endereço muda")
+    void shouldRequireLocationWhenUpdatingAddress() {
+        Company company = company(UUID.randomUUID(), "KTS", true);
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+
+        UpdateCompanyRequest request = new UpdateCompanyRequest(
+                null,
+                null,
+                null,
+                new UpdateAddressRequest("01001000", "500"),
+                null
+        );
+
+        assertThrows(BadRequestException.class, () -> service.updateCompany(company.cnpj(), request));
+        verify(companyProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateCompany: troca endereço quando localização é informada")
+    void shouldUpdateCompanyAddressWhenLocationIsProvided() {
+        Company company = company(UUID.randomUUID(), "KTS", true);
+        UpdateCompanyRequest request = new UpdateCompanyRequest(
+                null,
+                null,
+                null,
+                new UpdateAddressRequest("01001000", "500"),
+                new Location(-22.9, -43.2)
+        );
+
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+        when(viaCep.lookup("01001000")).thenReturn(new Address("Rua Nova", "0", "01001000", "Rio", "RJ"));
+
+        service.updateCompany(company.cnpj(), request);
+
+        verify(companyProvider).save(argThat(saved ->
+                saved.name().equals(company.name())
+                        && saved.email().equals(company.email())
+                        && saved.active() == company.active()
+                        && saved.address().street().equals("Rua Nova")
+                        && saved.address().number().equals("500")
+                        && saved.location().latitude().equals(-22.9)
+        ));
+    }
+
+    @Test
+    @DisplayName("updateCompany: falha quando empresa não existe")
+    void shouldFailWhenUpdatingUnknownCompany() {
+        when(companyProvider.findByCnpj("00000000000000")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.updateCompany("00000000000000", new UpdateCompanyRequest(null, null, null, null, null)));
+    }
+
+    @Test
+    @DisplayName("deleteByCnpj/cnpjExists: delegam ao provider")
+    void shouldDeleteAndCheckCnpj() {
+        Company company = company(UUID.randomUUID(), "KTS", true);
+        when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
+        when(employeeProvider.countByCompanyIds(Set.of(company.companyId()))).thenReturn(List.of());
+        when(companyProvider.existsByCnpj(company.cnpj())).thenReturn(true);
+
+        service.deleteByCnpj(company.cnpj());
+
+        verify(companyProvider).deleteByCnpj(company.cnpj());
+        assertEquals(true, service.cnpjExists(company.cnpj()));
     }
 
     @Test
