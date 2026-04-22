@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.security.LoginResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.TokenRevocationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,6 +26,7 @@ public class TermsController {
     private final AcceptTermsUseCase acceptanceUseCase;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final JwtUtils jwtUtils;
+    private final TokenRevocationService tokenRevocationService;
 
     @PostMapping("/accept-biometric")
     @PreAuthorize(ANY_EMPLOYEE)
@@ -48,7 +50,8 @@ public class TermsController {
 
         acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent);
 
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true);
+        int tokenVersion = tokenRevocationService.getCurrentTokenVersion(userId);
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true, tokenVersion);
         return ResponseEntity.ok(new LoginResponse(newToken));
     }
 
@@ -74,7 +77,8 @@ public class TermsController {
 
         acceptanceUseCase.revokeBiometricTerms(employeeId, ipAddress, userAgent);
 
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, false);
+        int tokenVersion = tokenRevocationService.getCurrentTokenVersion(userId);
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, false, tokenVersion);
         return ResponseEntity.ok(new LoginResponse(newToken));
     }
 

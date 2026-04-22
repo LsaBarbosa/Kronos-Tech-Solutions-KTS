@@ -1,7 +1,11 @@
 package com.kts.kronos.adapter.out.security;
 
-import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwsHeader;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,39 +14,82 @@ import org.springframework.stereotype.Component;
 import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
 public class JwtUtils {
-    private final Key key;
+    private static final String PREVIOUS_SECRET_SEPARATOR = ",";
+    private static final String PREVIOUS_SECRET_PAIR_SEPARATOR = ":";
+    private static final String TOKEN_VERSION_CLAIM = "token_version";
+  
+    private final Key signingKey;
+    private final Map<String, Key> verificationKeys;
     private final long expirationMs;
+    private final String issuer;
+    private final String audience;
+    private final String currentKeyId;
+    private final long allowedClockSkewSeconds;
+    private final long notBeforeSkewSeconds;
 
     public JwtUtils(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.expiration}") long expirationMs
+            @Value("${jwt.expiration}") long expirationMs,
+            @Value("${jwt.issuer}") String issuer,
+            @Value("${jwt.audience}") String audience,
+            @Value("${jwt.current-key-id}") String currentKeyId,
+            @Value("${jwt.previous-secrets:}") String previousSecrets,
+            @Value("${jwt.allowed-clock-skew-seconds:30}") long allowedClockSkewSeconds,
+            @Value("${jwt.not-before-skew-seconds:0}") long notBeforeSkewSeconds
     ) {
-        String normalizedSecret = normalizeSecret(secret);
+        this.issuer = requireConfigured("JWT_ISSUER", issuer);
+        this.audience = requireConfigured("JWT_AUDIENCE", audience);
+        this.currentKeyId = requireConfigured("JWT_CURRENT_KEY_ID", currentKeyId);
+        this.signingKey = buildHmacKey("JWT_SECRET", secret);
+        this.verificationKeys = buildVerificationKeys(this.currentKeyId, signingKey, previousSecrets);
+        this.expirationMs = expirationMs;
+        this.allowedClockSkewSeconds = validateNonNegative("JWT_ALLOWED_CLOCK_SKEW_SECONDS", allowedClockSkewSeconds);
+        this.notBeforeSkewSeconds = validateNonNegative("JWT_NOT_BEFORE_SKEW_SECONDS", notBeforeSkewSeconds);
+    }
+
+    public String generateToken(
+            UUID employeeId,
+            String username,
+            String roleName,
+            UUID userId,
+            boolean termsAccepted,
+            int tokenVersion
+    ) {
+        validateNonNegative(TOKEN_VERSION_CLAIM, tokenVersion);
+
+    }
+
+    private Key buildHmacKey(String settingName, String secret) {
+        String normalizedSecret = requireConfigured(settingName, secret);
         byte[] secretBytes;
         try {
             secretBytes = Base64.getDecoder().decode(normalizedSecret);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                    "Valor inválido para JWT_SECRET. Use uma chave Base64 válida (sem aspas).",
+                    "Valor inválido para " + settingName + ". Use uma chave Base64 válida (sem aspas).",
                     ex
             );
         }
-        this.key = Keys.hmacShaKeyFor(secretBytes);
-        this.expirationMs = expirationMs;
+        return Keys.hmacShaKeyFor(secretBytes);
     }
 
-    private String normalizeSecret(String secret) {
-        if (secret == null || secret.isBlank()) {
-            throw new IllegalArgumentException("JWT_SECRET não pode ser nulo ou vazio.");
+    private String requireConfigured(String settingName, String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(settingName + " não pode ser nulo ou vazio.");
         }
 
-        String normalized = secret.trim();
+        String normalized = value.trim();
         if (hasMatchingWrappingQuotes(normalized)) {
             normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        if (normalized.isBlank() || normalized.startsWith("${")) {
+            throw new IllegalArgumentException(settingName + " deve ser configurado explicitamente por ambiente.");
         }
         return normalized;
     }
@@ -58,33 +105,33 @@ public class JwtUtils {
 
     public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
         var now = new Date();
+        var notBefore = new Date(now.getTime() - (notBeforeSkewSeconds * 1000L));
         return Jwts.builder()
+                .setHeaderParam("kid", currentKeyId)
+                .setIssuer(issuer)
+                .setAudience(audience)
+                .setId(UUID.randomUUID().toString())
                 .setSubject(username)
                 .claim("userId", userId != null ? userId.toString() : null)
                 .claim("role", roleName)
                 .claim("employeeId", employeeId != null ? employeeId.toString() : null)
                 .claim("terms_accepted", termsAccepted)
+                .claim(TOKEN_VERSION_CLAIM, tokenVersion)
+                .setNotBefore(notBefore)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
-                .signWith(key, SignatureAlgorithm.HS256)
+                .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
     public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
+        return parseClaims(token)
                 .getBody()
                 .getSubject();
     }
 
     public UUID getEmployeeIdFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        var claims = parseClaims(token).getBody();
 
         String employeeIdStr = claims.get("employeeId", String.class);
         if (employeeIdStr == null || employeeIdStr.isBlank()) {
@@ -94,11 +141,7 @@ public class JwtUtils {
     }
 
     public UUID getUserIdFromToken(String token) {
-        var claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        var claims = parseClaims(token).getBody();
 
         String userIdStr = claims.get("userId", String.class);
         if (userIdStr == null || userIdStr.isBlank()) {
@@ -107,12 +150,162 @@ public class JwtUtils {
         return UUID.fromString(userIdStr);
     }
 
+    public int getTokenVersionFromToken(String token) {
+        var claims = parseClaims(token).getBody();
+        return extractTokenVersion(claims);
+    }
+
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            var claims = parseClaims(token).getBody();
+            if (claims.getId() == null || claims.getId().isBlank()) {
+                return false;
+            }
+            extractTokenVersion(claims);
             return true;
-        } catch (JwtException e) {
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    private Key buildHmacKey(String settingName, String secret) {
+        String normalizedSecret = requireConfigured(settingName, secret);
+        byte[] secretBytes;
+        try {
+            secretBytes = Base64.getDecoder().decode(normalizedSecret);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Valor invalido para " + settingName + ". Use uma chave Base64 valida (sem aspas).",
+                    ex
+            );
+        }
+        return Keys.hmacShaKeyFor(secretBytes);
+    }
+
+    private String requireConfigured(String settingName, String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(settingName + " nao pode ser nulo ou vazio.");
+        }
+
+        String normalized = value.trim();
+        if (hasMatchingWrappingQuotes(normalized)) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        if (normalized.isBlank() || normalized.startsWith("${")) {
+            throw new IllegalArgumentException(settingName + " deve ser configurado explicitamente por ambiente.");
+        }
+        return normalized;
+    }
+
+    private boolean hasMatchingWrappingQuotes(String value) {
+        if (value.length() < 2) {
+            parseClaims(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        return (first == '"' && last == '"') || (first == '\'' && last == '\'');
+    }
+
+    private Map<String, Key> buildVerificationKeys(String currentKeyId, Key signingKey, String previousSecrets) {
+        Map<String, Key> keys = new LinkedHashMap<>();
+        keys.put(currentKeyId, signingKey);
+
+        if (previousSecrets == null || previousSecrets.isBlank()) {
+            return Map.copyOf(keys);
+        }
+
+        for (String entry : previousSecrets.split(PREVIOUS_SECRET_SEPARATOR)) {
+            if (entry.isBlank()) {
+                continue;
+            }
+            String[] pair = entry.split(PREVIOUS_SECRET_PAIR_SEPARATOR, 2);
+            if (pair.length != 2) {
+                throw new IllegalArgumentException(
+                        "JWT_PREVIOUS_SECRETS deve usar o formato kid:secretBase64 separado por virgulas."
+                );
+            }
+            String previousKeyId = requireConfigured("JWT_PREVIOUS_SECRETS kid", pair[0]);
+            if (keys.containsKey(previousKeyId)) {
+                throw new IllegalArgumentException("JWT_PREVIOUS_SECRETS contem kid duplicado: " + previousKeyId);
+            }
+            keys.put(previousKeyId, buildHmacKey("JWT_PREVIOUS_SECRETS secret", pair[1]));
+        }
+
+        return Map.copyOf(keys);
+    }
+
+    private int extractTokenVersion(Claims claims) {
+        Object tokenVersion = claims.get(TOKEN_VERSION_CLAIM);
+        if (!(tokenVersion instanceof Number number)) {
+            throw new IllegalArgumentException("Token JWT sem token_version nao e aceito.");
+        }
+
+        int version = number.intValue();
+        validateNonNegative(TOKEN_VERSION_CLAIM, version);
+        return version;
+    }
+
+    private long validateNonNegative(String settingName, long value) {
+        if (value < 0) {
+            throw new IllegalArgumentException(settingName + " nao pode ser negativo.");
+        }
+        return value;
+    }
+
+    private Jws<Claims> parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKeyResolver(new SigningKeyResolverAdapter() {
+                    @Override
+                    public Key resolveSigningKey(JwsHeader header, Claims claims) {
+                        return resolveVerificationKey(header.getKeyId());
+                    }
+                })
+                .requireIssuer(issuer)
+                .requireAudience(audience)
+                .setAllowedClockSkewSeconds(allowedClockSkewSeconds)
+                .build()
+                .parseClaimsJws(token);
+    }
+
+    private Key resolveVerificationKey(String keyId) {
+        if (keyId == null || keyId.isBlank()) {
+            throw new JwtException("Token JWT sem kid nao e aceito.");
+        }
+
+        Key verificationKey = verificationKeys.get(keyId);
+        if (verificationKey == null) {
+            throw new JwtException("Token JWT assinado com kid desconhecido.");
+        }
+        return verificationKey;
+    }
+
+    private Jws<Claims> parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKeyResolver(new SigningKeyResolverAdapter() {
+                    @Override
+                    public Key resolveSigningKey(JwsHeader header, Claims claims) {
+                        return resolveVerificationKey(header.getKeyId());
+                    }
+                })
+                .requireIssuer(issuer)
+                .requireAudience(audience)
+                .setAllowedClockSkewSeconds(allowedClockSkewSeconds)
+                .build()
+                .parseClaimsJws(token);
+    }
+
+    private Key resolveVerificationKey(String keyId) {
+        if (keyId == null || keyId.isBlank()) {
+            throw new JwtException("Token JWT sem kid não é aceito.");
+        }
+
+        Key verificationKey = verificationKeys.get(keyId);
+        if (verificationKey == null) {
+            throw new JwtException("Token JWT assinado com kid desconhecido.");
+        }
+        return verificationKey;
     }
 }

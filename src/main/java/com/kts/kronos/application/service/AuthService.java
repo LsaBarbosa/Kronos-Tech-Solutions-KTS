@@ -10,7 +10,6 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
-import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +56,14 @@ public class AuthService implements AuthUseCase {
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
-        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId(), termsAccepted);
+        return jwtUtils.generateToken(
+                user.employeeId(),
+                username,
+                user.role().name(),
+                user.userId(),
+                termsAccepted,
+                user.tokenVersion()
+        );
     }
 
     @Override
@@ -96,7 +102,8 @@ public class AuthService implements AuthUseCase {
                     user.username(),
                     user.role().name(),
                     user.userId(),
-                    termsAccepted
+                    termsAccepted,
+                    user.tokenVersion()
             );
 
         } catch (IllegalArgumentException e) {
@@ -104,15 +111,16 @@ public class AuthService implements AuthUseCase {
                     faceImageBase64 == null ? 0 : faceImageBase64.length());
             throw new BadRequestException(INVALID_IMAGE);
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
-            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
+            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}",
                     e.getClass().getSimpleName(),
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e.getMessage());
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
+            log.debug("Detalhe da falha de autenticação facial.", e);
             throw e;
         } catch (RuntimeException e) {
-            log.error("Falha interna na autenticação facial. payloadLength={}",
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e);
+            log.error("Falha interna na autenticação facial. exceptionType={}, payloadLength={}",
+                    e.getClass().getSimpleName(),
+                    faceImageBase64 == null ? 0 : faceImageBase64.length());
+            log.debug("Detalhe da falha interna na autenticação facial.", e);
             throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
@@ -159,12 +167,14 @@ public class AuthService implements AuthUseCase {
             } catch (RuntimeException e) {
                 // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
                 log.error("Recuperação de senha processada sem envio de e-mail por falha interna. exceptionType={}",
-                        e.getClass().getSimpleName(), e);
+                        e.getClass().getSimpleName());
+                log.debug("Detalhe da falha interna no fluxo de recuperação de senha.", e);
             }
         } catch (RuntimeException e) {
             // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
             log.error("Recuperação de senha processada sem envio de e-mail por falha de validação. exceptionType={}",
-                    e.getClass().getSimpleName(), e);
+                    e.getClass().getSimpleName());
+            log.debug("Detalhe da falha de validação no fluxo de recuperação de senha.", e);
         }
     }
 
@@ -186,20 +196,12 @@ public class AuthService implements AuthUseCase {
 
         var hashed = passwordEncoder.encode(request.newPassword());
 
-        // Cria um novo objeto User com a senha atualizada
-        var updatedUser = new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        );
+        var updatedUser = user.withPassword(hashed).withIncrementedTokenVersion();
         userProvider.save(updatedUser);
 
         // 4. Limpa o token do Redis
         tokenProvider.deleteToken(request.token());
-        log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
+        log.info("Senha redefinida com sucesso.");
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha

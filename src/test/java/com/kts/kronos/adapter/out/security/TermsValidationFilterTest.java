@@ -191,6 +191,23 @@ class TermsValidationFilterTest {
     }
 
     @Test
+    @DisplayName("deve seguir fluxo sem validar termos quando token foi revogado")
+    void shouldContinueWhenTokenWasRevoked() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer revoked-token");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("revoked-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("revoked-token")).thenReturn(false);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verify(jwtUtils, never()).getTermsAcceptedFromToken(any());
+    }
+
+    @Test
     @DisplayName("deve permitir rota privada sem header Authorization")
     void shouldAllowProtectedRouteWhenAuthorizationHeaderIsMissing() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");

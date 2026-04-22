@@ -7,6 +7,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.security.TokenRevocationService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
@@ -56,6 +57,8 @@ class AcceptTermsServiceTest {
     private FaceStorageProvider faceStorageProvider;
     @Mock
     private FaceRecognitionProvider faceRecognitionProvider;
+    @Mock
+    private TokenRevocationService tokenRevocationService;
 
     @Test
     @DisplayName("aceite: deve encerrar fluxo quando termo já existe")
@@ -66,7 +69,7 @@ class AcceptTermsServiceTest {
 
         service.acceptBiometricTerms(employeeId, "10.0.0.1", "JUnit");
 
-        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditLogProvider);
+        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditLogProvider, tokenRevocationService);
     }
 
     @Test
@@ -111,6 +114,7 @@ class AcceptTermsServiceTest {
         ArgumentCaptor<com.kts.kronos.domain.model.AuditLog> auditCaptor =
                 ArgumentCaptor.forClass(com.kts.kronos.domain.model.AuditLog.class);
         verify(auditLogProvider).registerLog(auditCaptor.capture());
+        verify(tokenRevocationService).revokeTokensByEmployeeId(employeeId);
         assertTrue(auditCaptor.getValue().details().contains("legal/company/file.pdf"));
         assertTrue(auditCaptor.getValue().action().contains("ACEITE_TERMOS_BIOMETRIA"));
     }
@@ -158,6 +162,7 @@ class AcceptTermsServiceTest {
         verify(faceRecognitionProvider).deleteFacesByExternalImageId(employeeId);
         verify(employeeProvider).save(employee.withFaceS3ObjectKey(null));
         verify(documentProvider).delete(employeeId, documentId);
+        verify(tokenRevocationService).revokeTokensByEmployeeId(employeeId);
 
         ArgumentCaptor<com.kts.kronos.domain.model.AuditLog> auditCaptor =
                 ArgumentCaptor.forClass(com.kts.kronos.domain.model.AuditLog.class);
