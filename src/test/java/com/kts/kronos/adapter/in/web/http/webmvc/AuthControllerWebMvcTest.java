@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
@@ -65,9 +66,27 @@ class AuthControllerWebMvcTest {
                                   "username": "user",
                                   "password": "wrong-pass"
                                 }
+                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").value("Autenticação inválida ou ausente."));
+    }
+
+    @Test
+    void shouldSanitizeInactiveUserOnFaceLogin() throws Exception {
+        when(authUseCase.loginFace("base64-image", true))
+                .thenThrow(new DisabledException("Usuário inativo."));
+
+        mockMvc.perform(post("/auth/login-face")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "faceImageBase64": "base64-image",
+                                  "livenessPassed": true
+                                }
                                 """))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.detail").value("Usuário ou senha inválidos"));
+                .andExpect(jsonPath("$.detail").value("Autenticação inválida ou ausente."))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("inativo"))));
     }
 
     @Test

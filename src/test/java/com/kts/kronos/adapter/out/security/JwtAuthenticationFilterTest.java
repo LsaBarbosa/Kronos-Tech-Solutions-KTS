@@ -1,33 +1,32 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.security.TokenRevocationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.DisabledException;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.mock.web.MockFilterChain;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
-
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.when;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticationFilterTest {
 
@@ -37,11 +36,14 @@ class JwtAuthenticationFilterTest {
     @Mock
     private UserDetailsService userDetailsService;
 
+    @Mock
+    private TokenRevocationService tokenRevocationService;
+
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenRevocationService);
         SecurityContextHolder.clearContext();
     }
 
@@ -58,6 +60,7 @@ class JwtAuthenticationFilterTest {
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("valid-token")).thenReturn(true);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
 
         UserDetails userDetails = User.withUsername("manager.user")
@@ -75,19 +78,20 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void shouldBlockDisabledUserEvenWithValidToken() {
+    void shouldContinueWhenTokenWasRevoked() throws Exception {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer legacy-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
-        when(jwtUtils.getUsernameFromToken("legacy-token")).thenReturn("disabled.user");
-        when(userDetailsService.loadUserByUsername("disabled.user"))
-                .thenThrow(new DisabledException("Conta desativada"));
+        when(tokenRevocationService.isTokenCurrent("legacy-token")).thenReturn(false);
 
-        assertThrows(DisabledException.class, () -> filter.doFilter(request, response, chain));
+        filter.doFilter(request, response, chain);
+
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(jwtUtils, never()).getUsernameFromToken(anyString());
+        verifyNoInteractions(userDetailsService);
     }
 
     @Test
@@ -99,7 +103,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
-        verifyNoInteractions(jwtUtils, userDetailsService);
+        verifyNoInteractions(jwtUtils, tokenRevocationService, userDetailsService);
     }
 
     @Test
@@ -112,7 +116,7 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, chain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
-        verifyNoInteractions(jwtUtils, userDetailsService);
+        verifyNoInteractions(jwtUtils, tokenRevocationService, userDetailsService);
     }
 
     @Test
@@ -128,6 +132,7 @@ class JwtAuthenticationFilterTest {
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
         verify(jwtUtils).validateToken("invalid-token");
+        verifyNoInteractions(tokenRevocationService);
         verify(jwtUtils, never()).getUsernameFromToken(anyString());
         verifyNoInteractions(userDetailsService);
     }
@@ -147,6 +152,7 @@ class JwtAuthenticationFilterTest {
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
+        when(tokenRevocationService.isTokenCurrent("valid-token")).thenReturn(true);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
 
         filter.doFilter(request, response, chain);

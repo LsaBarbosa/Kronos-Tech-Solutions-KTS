@@ -1,10 +1,12 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
+import com.kts.kronos.adapter.in.web.exceptions.DelegatedAccessDeniedHandler;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.adapter.out.security.TermsValidationFilter;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,23 +43,32 @@ public class SecurityConfig {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
+    private final DocumentProvider documentProvider;
 
-    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds, DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint) {
+    public SecurityConfig(
+            JwtUtils jwtUtils,
+            CustomUserDetailsService uds,
+            DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
+            DocumentProvider documentProvider
+    ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
+        this.documentProvider = documentProvider;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        var termsFilter = new TermsValidationFilter(jwtUtils);
+        var termsFilter = new TermsValidationFilter(jwtUtils, documentProvider);
         var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
 
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
+                .exceptionHandling(customizer -> customizer
+                        .authenticationEntryPoint(delegatedAuthenticationEntryPoint)
+                        .accessDeniedHandler(new DelegatedAccessDeniedHandler()))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
 

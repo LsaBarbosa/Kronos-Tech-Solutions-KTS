@@ -1,18 +1,18 @@
 package com.kts.kronos.infrastructure;
 
+import com.kts.kronos.config.CertificateCryptoProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.*;
 import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
-import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
-import org.bouncycastle.util.Store;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.Security;
@@ -20,19 +20,16 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
-import org.bouncycastle.operator.OperatorCreationException;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 @Slf4j
 @Service
 public class DigitalSignatureService {
 
-    @Value("${kronos.security.certificate.path}")
-    private String certificatePath;
+    private final CertificateCryptoProperties certificateProperties;
 
-    @Value("${kronos.security.certificate.password}")
-    private String certificatePassword;
+    public DigitalSignatureService(CertificateCryptoProperties certificateProperties) {
+        this.certificateProperties = certificateProperties;
+    }
 
     static {
         // Registra o provider de segurança da Bouncy Castle
@@ -52,13 +49,13 @@ public class DigitalSignatureService {
             );
             // 1. Carregar KeyStore (Certificado .pfx)
             var keyStore = KeyStore.getInstance("PKCS12");
-            try (var is = new FileInputStream(certificatePath)) {
-                keyStore.load(is, certificatePassword.toCharArray());
+            try (var is = Files.newInputStream(certificateProperties.pathAsPath())) {
+                keyStore.load(is, certificateProperties.passwordAsChars());
             }
 
             // 2. Obter Alias (Nome interno do certificado)
             var alias = keyStore.aliases().nextElement();
-            var privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
+            var privateKey = (PrivateKey) keyStore.getKey(alias, certificateProperties.passwordAsChars());
             var certificate = (X509Certificate) keyStore.getCertificate(alias);
 
             // 3. Criar Cadeia de Certificação

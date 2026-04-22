@@ -37,6 +37,12 @@ app:
 jwt:
   secret: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
   expiration: 3600000
+  issuer: kronos-test-api
+  audience: kronos-test-clients
+  current-key-id: test-current
+  previous-secrets:
+  allowed-clock-skew-seconds: 30
+  not-before-skew-seconds: 0
 
 frontend:
   base-url-plataform: http://localhost:4200

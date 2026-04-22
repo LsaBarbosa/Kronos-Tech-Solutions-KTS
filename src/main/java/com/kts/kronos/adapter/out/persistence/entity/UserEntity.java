@@ -41,6 +41,10 @@ public class UserEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
+    @Builder.Default
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion = 0;
+
     public User toDomain() {
         return new User(
                 userId,
@@ -48,7 +52,8 @@ public class UserEntity {
                 password,
                 role,
                 active,
-                employeeId
+                employeeId,
+                tokenVersion
         );
     }
 
@@ -60,6 +65,7 @@ public class UserEntity {
                 .role(user.role())
                 .active(user.active())
                 .employeeId(user.employeeId())
+                .tokenVersion(user.tokenVersion())
                 .build();
     }
 

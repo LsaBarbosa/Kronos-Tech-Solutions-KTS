@@ -13,7 +13,7 @@ services:
       sizeGB: 10 # Ajuste este valor se precisar de mais espaço
 
     # =========================================================
-    # 2. VARIÁVEIS DE AMBIENTE INJETADAS (27 Chaves)
+    # 2. VARIÁVEIS DE AMBIENTE INJETADAS
     #    Chaves com 'sync: false' devem ter o valor configurado APENAS no Painel do Render.
     # =========================================================
     envVars:
@@ -38,6 +38,8 @@ services:
       - key: RABBITMQ_DEFAULT_PASS
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: JWT_PREVIOUS_SECRETS
         sync: false
       - key: MAIL_HOST
         sync: false
@@ -69,5 +71,15 @@ services:
         value: ${FRONTEND_BASE_URL_RECORD}
       - key: JWT_EXPIRATION
         value: ${JWT_EXPIRATION}
+      - key: JWT_ISSUER
+        value: kronos-api-prod
+      - key: JWT_AUDIENCE
+        value: kronos-clients-prod
+      - key: JWT_CURRENT_KEY_ID
+        value: prod-2026-04
+      - key: JWT_ALLOWED_CLOCK_SKEW_SECONDS
+        value: 30
+      - key: JWT_NOT_BEFORE_SKEW_SECONDS
+        value: 0
       - key: LOGPATTERN_CONSOLE
         value: ${LOGPATTERN_CONSOLE}
