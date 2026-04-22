@@ -4,7 +4,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
-import com.kts.kronos.application.security.TokenRevocationService;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -50,7 +50,7 @@ class SecurityConfigIntegrationTest {
     private JwtUtils jwtUtils;
 
     @MockitoBean
-    private TokenRevocationService tokenRevocationService;
+    private DocumentProvider documentProvider;
 
     @Test
     void shouldKeepLoginEndpointPublic() throws Exception {

@@ -3,7 +3,7 @@ package com.kts.kronos.config;
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
-import com.kts.kronos.application.security.TokenRevocationService;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +38,7 @@ class SecurityConfigTest {
     private DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
 
     @Mock
-    private TokenRevocationService tokenRevocationService;
+    private DocumentProvider documentProvider;
 
     @Mock
     private AuthenticationConfiguration authenticationConfiguration;
@@ -54,7 +54,7 @@ class SecurityConfigTest {
                 jwtUtils,
                 customUserDetailsService,
                 delegatedAuthenticationEntryPoint,
-                tokenRevocationService
+                documentProvider
         );
 
         ReflectionTestUtils.setField(securityConfig, "recordUrl", "http://record.local");

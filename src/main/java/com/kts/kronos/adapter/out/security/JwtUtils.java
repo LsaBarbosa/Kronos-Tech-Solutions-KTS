@@ -103,48 +103,7 @@ public class JwtUtils {
         return (first == '"' && last == '"') || (first == '\'' && last == '\'');
     }
 
-    private Map<String, Key> buildVerificationKeys(String currentKeyId, Key signingKey, String previousSecrets) {
-        Map<String, Key> keys = new LinkedHashMap<>();
-        keys.put(currentKeyId, signingKey);
-
-        if (previousSecrets == null || previousSecrets.isBlank()) {
-            return Map.copyOf(keys);
-        }
-
-        for (String entry : previousSecrets.split(PREVIOUS_SECRET_SEPARATOR)) {
-            if (entry.isBlank()) {
-                continue;
-            }
-            String[] pair = entry.split(PREVIOUS_SECRET_PAIR_SEPARATOR, 2);
-            if (pair.length != 2) {
-                throw new IllegalArgumentException(
-                        "JWT_PREVIOUS_SECRETS deve usar o formato kid:secretBase64 separado por vírgulas."
-                );
-            }
-            String previousKeyId = requireConfigured("JWT_PREVIOUS_SECRETS kid", pair[0]);
-            if (keys.containsKey(previousKeyId)) {
-                throw new IllegalArgumentException("JWT_PREVIOUS_SECRETS contém kid duplicado: " + previousKeyId);
-            }
-            keys.put(previousKeyId, buildHmacKey("JWT_PREVIOUS_SECRETS secret", pair[1]));
-        }
-
-        return Map.copyOf(keys);
-    }
-
-    private long validateNonNegative(String settingName, long value) {
-        if (value < 0) {
-            throw new IllegalArgumentException(settingName + " não pode ser negativo.");
-        }
-        return value;
-    }
-
-    public String generateToken(
-            UUID employeeId,
-            String username,
-            String roleName,
-            UUID userId,
-            boolean termsAccepted
-    ) {
+    public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
         var now = new Date();
         var notBefore = new Date(now.getTime() - (notBeforeSkewSeconds * 1000L));
         return Jwts.builder()
@@ -169,13 +128,6 @@ public class JwtUtils {
         return parseClaims(token)
                 .getBody()
                 .getSubject();
-    }
-
-    public boolean getTermsAcceptedFromToken(String token) {
-        var claims = parseClaims(token).getBody();
-
-        Object accepted = claims.get("terms_accepted");
-        return Boolean.TRUE.equals(accepted);
     }
 
     public UUID getEmployeeIdFromToken(String token) {

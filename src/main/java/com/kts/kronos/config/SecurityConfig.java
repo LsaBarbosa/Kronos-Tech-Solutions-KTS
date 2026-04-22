@@ -5,7 +5,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.adapter.out.security.TermsValidationFilter;
-import com.kts.kronos.application.security.TokenRevocationService;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,24 +42,24 @@ public class SecurityConfig {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
-    private final TokenRevocationService tokenRevocationService;
+    private final DocumentProvider documentProvider;
 
     public SecurityConfig(
             JwtUtils jwtUtils,
             CustomUserDetailsService uds,
             DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
-            TokenRevocationService tokenRevocationService
+            DocumentProvider documentProvider
     ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
-        this.tokenRevocationService = tokenRevocationService;
+        this.documentProvider = documentProvider;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        var termsFilter = new TermsValidationFilter(jwtUtils, tokenRevocationService);
-        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenRevocationService);
+        var termsFilter = new TermsValidationFilter(jwtUtils, documentProvider);
+        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
 
         http
                 .csrf(csrf -> csrf.disable())

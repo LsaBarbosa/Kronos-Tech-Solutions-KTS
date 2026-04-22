@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.security;
 
-import com.kts.kronos.application.security.TokenRevocationService;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.lang.reflect.Method;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,16 +30,18 @@ class TermsValidationFilterTest {
     private JwtUtils jwtUtils;
 
     @Mock
-    private TokenRevocationService tokenRevocationService;
+    private DocumentProvider documentProvider;
 
     @Mock
     private FilterChain filterChain;
 
     private TermsValidationFilter filter;
+    private UUID employeeId;
 
     @BeforeEach
     void setUp() {
-        filter = new TermsValidationFilter(jwtUtils, tokenRevocationService);
+        filter = new TermsValidationFilter(jwtUtils, documentProvider);
+        employeeId = UUID.randomUUID();
     }
 
     @Test
@@ -50,20 +54,22 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils, tokenRevocationService);
+        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(documentProvider);
     }
 
     @Test
-    @DisplayName("deve bloquear endpoint privado quando termos não foram aceitos")
-    void shouldBlockPrivateEndpointWhenTermsNotAccepted() throws Exception {
+    @DisplayName("deve bloquear endpoint privado quando fonte server-side indica termos não aceitos")
+    void shouldBlockPrivateEndpointWhenServerSideTermsAreNotAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
-        request.addHeader("Authorization", "Bearer legacy-token");
+        request.addHeader("Authorization", "Bearer stale-token");
         var response = new MockHttpServletResponse();
 
-        when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
-        when(tokenRevocationService.isTokenCurrent("legacy-token")).thenReturn(true);
-        when(jwtUtils.getTermsAcceptedFromToken("legacy-token")).thenReturn(false);
+        when(jwtUtils.validateToken("stale-token")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("stale-token")).thenReturn(employeeId);
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(false);
 
         filter.doFilter(request, response, filterChain);
 
@@ -74,16 +80,55 @@ class TermsValidationFilterTest {
     }
 
     @Test
-    @DisplayName("deve permitir endpoint privado quando termos foram aceitos")
-    void shouldAllowPrivateEndpointWhenTermsAccepted() throws Exception {
+    @DisplayName("deve permitir endpoint privado quando fonte server-side indica termos aceitos")
+    void shouldAllowPrivateEndpointWhenServerSideTermsAreAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         request.addHeader("Authorization", "Bearer fresh-token");
         var response = new MockHttpServletResponse();
 
         when(jwtUtils.validateToken("fresh-token")).thenReturn(true);
-        when(tokenRevocationService.isTokenCurrent("fresh-token")).thenReturn(true);
-        when(jwtUtils.getTermsAcceptedFromToken("fresh-token")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("fresh-token")).thenReturn(employeeId);
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(true);
+
+        filter.doFilter(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    @DisplayName("deve bloquear token antigo com aceite stale quando termo foi revogado")
+    void shouldBlockOldTokenWithStaleAcceptedClaimWhenTermsWereRevoked() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer token-issued-before-revoke");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("token-issued-before-revoke")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("token-issued-before-revoke")).thenReturn(employeeId);
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(false);
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("TERMS_NOT_ACCEPTED"));
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("deve permitir token antigo quando aceite foi registrado no servidor")
+    void shouldAllowOldTokenWhenTermsWereAcceptedServerSide() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer token-issued-before-acceptance");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("token-issued-before-acceptance")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("token-issued-before-acceptance")).thenReturn(employeeId);
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(true);
 
         filter.doFilter(request, response, filterChain);
 
@@ -103,7 +148,46 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verify(jwtUtils, never()).getTermsAcceptedFromToken(any());
+        verify(documentProvider, never()).existsByEmployeeIdAndType(any(), any());
+    }
+
+    @Test
+    @DisplayName("deve bloquear token válido sem employeeId")
+    void shouldBlockValidTokenWithoutEmployeeId() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer token-without-employee");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("token-without-employee")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("token-without-employee")).thenReturn(null);
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("TERMS_NOT_ACCEPTED"));
+        verify(documentProvider, never()).existsByEmployeeIdAndType(any(), any());
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
+    @DisplayName("deve falhar fechado quando consulta server-side de aceite falhar")
+    void shouldFailClosedWhenServerSideTermsLookupFails() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/documents");
+        request.setServletPath("/documents");
+        request.addHeader("Authorization", "Bearer lookup-error-token");
+        var response = new MockHttpServletResponse();
+
+        when(jwtUtils.validateToken("lookup-error-token")).thenReturn(true);
+        when(jwtUtils.getEmployeeIdFromToken("lookup-error-token")).thenReturn(employeeId);
+        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(403, response.getStatus());
+        assertTrue(response.getContentAsString().contains("TERMS_NOT_ACCEPTED"));
+        verify(filterChain, never()).doFilter(any(), any());
     }
 
     @Test
@@ -133,7 +217,8 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils, tokenRevocationService);
+        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(documentProvider);
     }
 
     @Test
@@ -147,7 +232,8 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils, tokenRevocationService);
+        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(documentProvider);
     }
 
     @Test
@@ -160,7 +246,8 @@ class TermsValidationFilterTest {
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils, tokenRevocationService);
+        verifyNoInteractions(jwtUtils);
+        verifyNoInteractions(documentProvider);
     }
 
     @Test

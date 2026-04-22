@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JwtUtilsTest {
@@ -35,18 +36,10 @@ class JwtUtilsTest {
                 .encodeToString(plainSecret.getBytes(StandardCharsets.UTF_8));
         String wrappedSecret = "\"" + base64Secret + "\"";
 
-        JwtUtils jwtUtils = new JwtUtils(
-                wrappedSecret,
-                60_000L,
-                ISSUER,
-                AUDIENCE,
-                CURRENT_KEY_ID,
-                "",
-                30L,
-                0L
-        );
+        JwtUtils jwtUtils = new JwtUtils(wrappedSecret, 60_000L);
+        UUID employeeId = UUID.randomUUID();
         String token = jwtUtils.generateToken(
-                UUID.randomUUID(),
+                employeeId,
                 "alice",
                 "MANAGER",
                 UUID.randomUUID(),
@@ -55,8 +48,7 @@ class JwtUtilsTest {
         );
 
         assertTrue(jwtUtils.validateToken(token));
-        assertTrue(jwtUtils.getTermsAcceptedFromToken(token));
-        assertEquals(3, jwtUtils.getTokenVersionFromToken(token));
+        assertEquals(employeeId, jwtUtils.getEmployeeIdFromToken(token));
     }
 
     @Test

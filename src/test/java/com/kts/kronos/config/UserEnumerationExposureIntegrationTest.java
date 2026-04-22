@@ -5,7 +5,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
-import com.kts.kronos.application.security.TokenRevocationService;
+import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,7 @@ class UserEnumerationExposureIntegrationTest {
     private JwtUtils jwtUtils;
 
     @MockitoBean
-    private TokenRevocationService tokenRevocationService;
+    private DocumentProvider documentProvider;
 
     @Test
     void shouldBlockPublicCnpjEnumerationEndpoint() throws Exception {
