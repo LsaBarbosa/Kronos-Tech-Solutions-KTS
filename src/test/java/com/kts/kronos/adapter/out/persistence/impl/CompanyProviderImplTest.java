@@ -104,6 +104,33 @@ class CompanyProviderImplTest {
     }
 
     @Test
+    void deveConverterDominioParaEntityPeloHelperLegado() throws Exception {
+        var company = new Company(
+                UUID.randomUUID(),
+                "KTS",
+                "12345678000199",
+                "contato@kts.com",
+                true,
+                new Address("Rua A", "10", "65000000", "São Luís", "MA"),
+                new Location(-2.53, -44.30),
+                0,
+                0
+        );
+        var method = CompanyProviderImpl.class.getDeclaredMethod("toEntity", Company.class);
+        method.setAccessible(true);
+
+        CompanyEntity entity = (CompanyEntity) method.invoke(provider, company);
+
+        assertEquals(company.companyId(), entity.getId());
+        assertEquals(company.name(), entity.getName());
+        assertEquals(company.cnpj(), entity.getCnpj());
+        assertEquals(company.email(), entity.getEmail());
+        assertEquals(company.location().latitude(), entity.getLatitude());
+        assertEquals(company.location().longitude(), entity.getLongitude());
+        assertEquals(company.address().street(), entity.getAddress().getStreet());
+    }
+
+    @Test
     void deveExcluirPorCnpjDelegandoParaRepository() {
         provider.deleteByCnpj("12345678000199");
 

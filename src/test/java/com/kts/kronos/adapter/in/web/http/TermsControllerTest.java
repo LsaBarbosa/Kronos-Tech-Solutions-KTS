@@ -105,6 +105,28 @@ class TermsControllerTest {
     }
 
     @Test
+    @DisplayName("revoke-biometric: deve usar fallbacks de IP e User-Agent")
+    void shouldUseFallbacksWhenRevokingBiometricTerms() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, false)).thenReturn("new-token");
+
+        MockHttpServletRequest request = new MockHttpServletRequest("DELETE", "/terms/revoke-biometric");
+        request.setRemoteAddr("");
+
+        var response = controller.revokeBiometricTerms(request);
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(acceptanceUseCase).revokeBiometricTerms(employeeId, "unknown", "Desconhecido");
+        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, false);
+    }
+
+    @Test
     @DisplayName("status: deve retornar resultado do caso de uso")
     void shouldReturnTermsStatusFromUseCase() {
         UUID employeeId = UUID.randomUUID();

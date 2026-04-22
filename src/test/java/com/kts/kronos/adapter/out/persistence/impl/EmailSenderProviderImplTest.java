@@ -70,6 +70,41 @@ class EmailSenderProviderImplTest {
     }
 
     @Test
+    @DisplayName("sendResetEmail: remove barras finais da URL do frontend")
+    void shouldTrimTrailingSlashFromFrontendUrl() throws Exception {
+        MimeMessage message = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        provider.sendResetEmail(
+                "destinatario@kts.com",
+                "token-123",
+                "alice",
+                "https://frontend.kronos.local///"
+        );
+
+        String body = extractBody(message);
+        assertTrue(body.contains("https://frontend.kronos.local/resetar-senha?token=token-123"));
+        assertFalse(body.contains("local///resetar-senha"));
+    }
+
+    @Test
+    @DisplayName("sendResetEmail: deve aceitar frontendUrl nula")
+    void shouldBuildResetLinkWithNullFrontendUrl() throws Exception {
+        MimeMessage message = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        provider.sendResetEmail(
+                "destinatario@kts.com",
+                "token-123",
+                "alice",
+                null
+        );
+
+        String body = extractBody(message);
+        assertTrue(body.contains("/resetar-senha?token=token-123"));
+    }
+
+    @Test
     @DisplayName("sendResetEmail: encapsula falha de envio com mensagem segura")
     void shouldWrapMailSenderFailure() {
         MimeMessage message = new MimeMessage(Session.getDefaultInstance(new Properties()));

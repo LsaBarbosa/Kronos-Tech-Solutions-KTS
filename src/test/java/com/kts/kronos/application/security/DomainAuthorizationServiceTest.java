@@ -2,6 +2,7 @@ package com.kts.kronos.application.security;
 
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
+import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
@@ -64,6 +65,41 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("employeeId: CTO acessa qualquer colaborador")
+    void shouldAllowCtoAccessAnyEmployee() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(otherTenantEmployee.employeeId())).thenReturn(Optional.of(otherTenantEmployee));
+
+        var result = service.authorizeEmployeeAccess(otherTenantEmployee.employeeId());
+
+        assertEquals(otherTenantEmployee.employeeId(), result.employeeId());
+    }
+
+    @Test
+    @DisplayName("employeeId: partner não acessa colaborador de terceiro")
+    void shouldDenyPartnerAccessOtherEmployee() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+
+        assertThrows(ForbiddenException.class, () -> service.authorizeEmployeeAccess(sameTenantEmployee.employeeId()));
+    }
+
+    @Test
+    @DisplayName("employeeId: falha quando colaborador alvo não existe")
+    void shouldFailWhenTargetEmployeeDoesNotExist() {
+        UUID targetEmployeeId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.authorizeEmployeeAccess(targetEmployeeId));
+    }
+
+    @Test
     @DisplayName("employeeId: partner acessa próprio colaborador")
     void shouldAllowPartnerOwnEmployeeAccess() {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
@@ -97,6 +133,57 @@ class DomainAuthorizationServiceTest {
         when(employeeProvider.findById(otherTenantEmployee.employeeId())).thenReturn(Optional.of(otherTenantEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.authorizeEmployeeAccess(otherTenantEmployee.employeeId()));
+    }
+
+    @Test
+    @DisplayName("userId: CTO acessa qualquer usuário")
+    void shouldAllowCtoAccessAnyUser() {
+        var targetUser = buildUser(UUID.randomUUID(), otherTenantEmployee.employeeId());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
+
+        assertEquals(targetUser.userId(), service.authorizeUserAccess(targetUser.userId()).userId());
+    }
+
+    @Test
+    @DisplayName("userId: falha quando usuário não existe")
+    void shouldFailWhenTargetUserDoesNotExist() {
+        UUID missingUserId = UUID.randomUUID();
+        when(userProvider.findById(missingUserId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.authorizeUserAccess(missingUserId));
+    }
+
+    @Test
+    @DisplayName("username: normaliza entrada e autoriza usuário resolvido")
+    void shouldAuthorizeUserByLowercaseUsername() {
+        var ownUser = buildUser(loggedUserId, loggedEmployeeId);
+        when(userProvider.findByUsername("user@example.com")).thenReturn(Optional.of(ownUser));
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(loggedUserId);
+
+        assertEquals(loggedUserId, service.authorizeUserAccessByUsername("USER@EXAMPLE.COM").userId());
+    }
+
+    @Test
+    @DisplayName("username: falha quando usuário não existe")
+    void shouldFailWhenUsernameDoesNotExist() {
+        when(userProvider.findByUsername("missing")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.authorizeUserAccessByUsername("MISSING"));
+    }
+
+    @Test
+    @DisplayName("userId: manager falha quando employee do usuário não existe")
+    void shouldFailManagerUserAccessWhenTargetEmployeeDoesNotExist() {
+        var targetUser = buildUser(UUID.randomUUID(), UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(userProvider.findById(targetUser.userId())).thenReturn(Optional.of(targetUser));
+        when(employeeProvider.findById(targetUser.employeeId())).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.authorizeUserAccess(targetUser.userId()));
     }
 
     @Test
@@ -152,6 +239,34 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("documentId: sem employeeId informado autoriza pelo dono do documento")
+    void shouldAuthorizeDocumentByDocumentOwnerWhenEmployeeIdIsMissing() {
+        var documentId = UUID.randomUUID();
+        var document = buildDocument(documentId, sameTenantEmployee.employeeId());
+        when(documentProvider.findById(documentId)).thenReturn(document);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+
+        assertEquals(documentId, service.authorizeDocumentAccess(documentId, null).documentId());
+    }
+
+    @Test
+    @DisplayName("documentId: falha quando documento do colaborador não existe")
+    void shouldFailWhenDocumentForEmployeeDoesNotExist() {
+        var documentId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, sameTenantEmployee.employeeId())).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.authorizeDocumentAccess(documentId, sameTenantEmployee.employeeId()));
+    }
+
+    @Test
     @DisplayName("documentId: manager acessa documento de colaborador do mesmo tenant")
     void shouldAllowManagerAccessSameTenantDocument() {
         var documentId = UUID.randomUUID();
@@ -183,6 +298,16 @@ class DomainAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("companyId: null usa empresa do autenticado")
+    void shouldUseAuthenticatedCompanyWhenCompanyIdIsNull() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+
+        assertEquals(companyAId, service.authorizeCompanyAccess(null));
+    }
+
+    @Test
     @DisplayName("companyId: manager acessa apenas própria empresa")
     void shouldAllowManagerOwnCompanyAccess() {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
@@ -202,6 +327,37 @@ class DomainAuthorizationServiceTest {
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
 
         assertThrows(ForbiddenException.class, () -> service.authorizeCompanyAccess(companyBId));
+    }
+
+    @Test
+    @DisplayName("requireEmployeeFromCompany: retorna colaborador quando pertence à empresa")
+    void shouldRequireEmployeeFromCompany() {
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+
+        assertEquals(sameTenantEmployee.employeeId(),
+                service.requireEmployeeFromCompany(sameTenantEmployee.employeeId(), companyAId, "not found", "forbidden").employeeId());
+    }
+
+    @Test
+    @DisplayName("requireEmployeeFromCompany: falha quando colaborador não existe ou pertence a outra empresa")
+    void shouldFailRequireEmployeeFromCompany() {
+        UUID missingEmployeeId = UUID.randomUUID();
+        when(employeeProvider.findById(missingEmployeeId)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.requireEmployeeFromCompany(missingEmployeeId, companyAId, "not found", "forbidden"));
+
+        when(employeeProvider.findById(otherTenantEmployee.employeeId())).thenReturn(Optional.of(otherTenantEmployee));
+        assertThrows(ForbiddenException.class,
+                () -> service.requireEmployeeFromCompany(otherTenantEmployee.employeeId(), companyAId, "not found", "forbidden"));
+    }
+
+    @Test
+    @DisplayName("authenticatedEmployee: falha quando colaborador autenticado não existe")
+    void shouldFailWhenAuthenticatedEmployeeDoesNotExist() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.authorizeCompanyAccess(null));
     }
 
     @Test

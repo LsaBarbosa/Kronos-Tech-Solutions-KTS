@@ -67,6 +67,16 @@ class DigitalSignatureServiceTest {
                 .hasMessageContaining("Falha ao assinar documento digitalmente");
     }
 
+    @Test
+    @DisplayName("signData: deve tratar payload nulo na falha de certificado")
+    void shouldWrapCertificateLoadingFailureWithNullPayload() {
+        DigitalSignatureService service = service(tempDir.resolve("missing.p12"), "secret");
+
+        assertThatThrownBy(() -> service.signData(null))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Falha ao assinar documento digitalmente");
+    }
+
     private DigitalSignatureService service(Path certificatePath, String password) {
         DigitalSignatureService service = new DigitalSignatureService();
         ReflectionTestUtils.setField(service, "certificatePath", certificatePath.toString());

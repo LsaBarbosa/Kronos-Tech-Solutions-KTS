@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
 import com.kts.kronos.adapter.out.persistence.entity.TimeRecordEntity;
+import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import org.junit.jupiter.api.DisplayName;
@@ -11,6 +12,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,10 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -132,7 +132,7 @@ class TimeRecordProviderImplTest {
         List<TimeRecord> result = provider.findByEmployeeIdAndActive(employeeId, true);
 
         assertEquals(1, result.size());
-        assertEquals(10L, result.get(0).timeRecordId());
+        assertEquals(10L, result.getFirst().timeRecordId());
     }
 
     @Test
@@ -146,7 +146,7 @@ class TimeRecordProviderImplTest {
         List<TimeRecord> result = provider.findByEmployeeId(employeeId);
 
         assertEquals(1, result.size());
-        assertEquals(11L, result.get(0).timeRecordId());
+        assertEquals(11L, result.getFirst().timeRecordId());
     }
 
     @Test
@@ -193,6 +193,66 @@ class TimeRecordProviderImplTest {
     }
 
     @Test
+    @DisplayName("findAllByIds: deve mapear Iterable retornado pelo repositório")
+    void shouldFindAllByIds() {
+        TimeRecordEntity entity = entity(timeRecord(), 70L, null);
+        when(jpa.findAllById(List.of(70L))).thenReturn(List.of(entity));
+
+        List<TimeRecord> result = provider.findAllByIds(List.of(70L));
+
+        assertEquals(List.of(70L), result.stream().map(TimeRecord::timeRecordId).toList());
+    }
+
+    @Test
+    @DisplayName("findTimeOffRequestsByCompanyId: normaliza filtro de nome")
+    void shouldFindTimeOffRequestsWithNormalizedEmployeeName() {
+        UUID companyId = UUID.randomUUID();
+        var pageable = PageRequest.of(0, 10);
+        TimeRecordEntity entity = entity(timeRecord(), 71L, null);
+
+        when(jpa.findTimeOffRequestsByCompanyId(
+                eq(pageable),
+                eq(companyId),
+                eq(List.of(StatusRecord.TIME_OFF_REQUEST)),
+                eq("%ana%")
+        )).thenReturn(new PageImpl<>(List.of(entity)));
+
+        var result = provider.findTimeOffRequestsByCompanyId(
+                pageable,
+                companyId,
+                List.of(StatusRecord.TIME_OFF_REQUEST),
+                "Ana"
+        );
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals(71L, result.getContent().getFirst().timeRecordId());
+    }
+
+    @Test
+    @DisplayName("findVacationRequestPeriodsByCompanyId: envia filtro nulo para nome em branco")
+    void shouldFindVacationRequestPeriodsWithBlankName() {
+        UUID companyId = UUID.randomUUID();
+        var pageable = PageRequest.of(0, 10);
+        VacationRequestPeriodProjection projection = vacationProjection();
+
+        when(jpa.findVacationRequestPeriodsByCompanyId(
+                eq(pageable),
+                eq(companyId),
+                eq(List.of("REQUEST_VACATION")),
+                eq(null)
+        )).thenReturn(new PageImpl<>(List.of(projection)));
+
+        var result = provider.findVacationRequestPeriodsByCompanyId(
+                pageable,
+                companyId,
+                List.of("REQUEST_VACATION"),
+                " "
+        );
+
+        assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
     @DisplayName("countWeekendDaysOffThisMonth: deve calcular range do mês corretamente")
     void shouldCountWeekendDaysOffThisMonth() {
         UUID employeeId = UUID.randomUUID();
@@ -214,6 +274,27 @@ class TimeRecordProviderImplTest {
     }
 
     @Test
+    @DisplayName("findByEmployeeIdsAndStatuses: evita consulta com filtros vazios e mapeia resultado válido")
+    void shouldFindByEmployeeIdsAndStatuses() {
+        UUID employeeId = UUID.randomUUID();
+        TimeRecordEntity entity = entity(timeRecord(employeeId), 80L, null);
+
+        assertEquals(List.of(), provider.findByEmployeeIdsAndStatuses(null, List.of(StatusRecord.CREATED)));
+        assertEquals(List.of(), provider.findByEmployeeIdsAndStatuses(List.of(), List.of(StatusRecord.CREATED)));
+        assertEquals(List.of(), provider.findByEmployeeIdsAndStatuses(List.of(employeeId), null));
+        assertEquals(List.of(), provider.findByEmployeeIdsAndStatuses(List.of(employeeId), List.of()));
+
+        when(jpa.findByEmployeeIdInAndStatusRecordInAndStartWorkIsNotNull(
+                List.of(employeeId),
+                List.of(StatusRecord.CREATED)
+        )).thenReturn(List.of(entity));
+
+        var result = provider.findByEmployeeIdsAndStatuses(List.of(employeeId), List.of(StatusRecord.CREATED));
+
+        assertEquals(List.of(80L), result.stream().map(TimeRecord::timeRecordId).toList());
+    }
+
+    @Test
     @DisplayName("findByRange: deve delegar e mapear")
     void shouldFindByRange() {
         UUID employeeId = UUID.randomUUID();
@@ -228,8 +309,50 @@ class TimeRecordProviderImplTest {
         List<TimeRecord> result = provider.findByRange(employeeId, start, end);
 
         assertEquals(1, result.size());
-        assertEquals(50L, result.get(0).timeRecordId());
+        assertEquals(50L, result.getFirst().timeRecordId());
         verify(jpa).findByEmployeeIdAndStartWorkBetween(employeeId, start, end);
+    }
+
+    @Test
+    @DisplayName("findByEmployeeIdsAndRange: evita consulta vazia e mapeia resultado")
+    void shouldFindByEmployeeIdsAndRange() {
+        UUID employeeId = UUID.randomUUID();
+        LocalDateTime start = LocalDateTime.of(2026, 4, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 4, 30, 23, 59);
+        TimeRecordEntity entity = entity(timeRecord(employeeId), 90L, null);
+
+        assertEquals(List.of(), provider.findByEmployeeIdsAndRange(null, start, end));
+        assertEquals(List.of(), provider.findByEmployeeIdsAndRange(List.of(), start, end));
+
+        when(jpa.findByEmployeeIdsAndStartWorkBetween(List.of(employeeId), start, end))
+                .thenReturn(List.of(entity));
+
+        var result = provider.findByEmployeeIdsAndRange(List.of(employeeId), start, end);
+
+        assertEquals(List.of(90L), result.stream().map(TimeRecord::timeRecordId).toList());
+    }
+
+    @Test
+    @DisplayName("findReportRecords: escolhe consulta conforme filtro active")
+    void shouldFindReportRecords() {
+        UUID employeeId = UUID.randomUUID();
+        LocalDateTime start = LocalDateTime.of(2026, 4, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 4, 30, 23, 59);
+        List<StatusRecord> statuses = List.of(StatusRecord.CREATED);
+        TimeRecordEntity entity = entity(timeRecord(employeeId), 91L, null);
+
+        assertEquals(List.of(), provider.findReportRecords(employeeId, start, end, null, true));
+        assertEquals(List.of(), provider.findReportRecords(employeeId, start, end, List.of(), true));
+
+        when(jpa.findByEmployeeIdAndStartWorkBetweenAndStatusRecordIn(employeeId, start, end, statuses))
+                .thenReturn(List.of(entity));
+        when(jpa.findByEmployeeIdAndActiveAndStartWorkBetweenAndStatusRecordIn(employeeId, true, start, end, statuses))
+                .thenReturn(List.of(entity));
+
+        assertEquals(List.of(91L), provider.findReportRecords(employeeId, start, end, statuses, null)
+                .stream().map(TimeRecord::timeRecordId).toList());
+        assertEquals(List.of(91L), provider.findReportRecords(employeeId, start, end, statuses, true)
+                .stream().map(TimeRecord::timeRecordId).toList());
     }
 
     private TimeRecordEntity entity(TimeRecord record, Long id, LocalDateTime endWork) {
@@ -261,5 +384,40 @@ class TimeRecordProviderImplTest {
                 LocalDateTime.of(2026, 4, 18, 8, 0),
                 LocalDateTime.of(2026, 4, 18, 17, 0)
         );
+    }
+
+    private VacationRequestPeriodProjection vacationProjection() {
+        UUID employeeId = UUID.randomUUID();
+        return new VacationRequestPeriodProjection() {
+            @Override
+            public UUID getEmployeeId() {
+                return employeeId;
+            }
+
+            @Override
+            public String getEmployeeName() {
+                return "Ana";
+            }
+
+            @Override
+            public LocalDate getStartDate() {
+                return LocalDate.of(2026, 5, 1);
+            }
+
+            @Override
+            public LocalDate getEndDate() {
+                return LocalDate.of(2026, 5, 5);
+            }
+
+            @Override
+            public String getStatus() {
+                return "REQUEST_VACATION";
+            }
+
+            @Override
+            public String getTimeRecordIdsCsv() {
+                return "1,2";
+            }
+        };
     }
 }

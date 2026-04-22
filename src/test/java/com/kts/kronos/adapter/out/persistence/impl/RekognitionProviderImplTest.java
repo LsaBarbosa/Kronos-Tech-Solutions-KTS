@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -195,6 +196,25 @@ class RekognitionProviderImplTest {
     }
 
     @Test
+    @DisplayName("searchFaceByImage: deve falhar quando ExternalImageId não é UUID")
+    void shouldFailWhenSearchReturnsInvalidExternalImageId() {
+        SearchFacesByImageResponse response = SearchFacesByImageResponse.builder()
+                .faceMatches(List.of(
+                        FaceMatch.builder()
+                                .face(Face.builder().externalImageId("not-a-uuid").build())
+                                .build()
+                ))
+                .build();
+
+        when(rekognitionClient.searchFacesByImage(any(SearchFacesByImageRequest.class))).thenReturn(response);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> provider.searchFaceByImage(InputStream.nullInputStream()));
+
+        assertEquals("Falha no serviço de reconhecimento facial.", ex.getMessage());
+    }
+
+    @Test
     @DisplayName("deleteFace: deve remover face com sucesso")
     void shouldDeleteFaceSuccessfully() {
         when(rekognitionClient.deleteFaces(any(DeleteFacesRequest.class)))
@@ -218,5 +238,53 @@ class RekognitionProviderImplTest {
 
         assertDoesNotThrow(() -> provider.deleteFace("face-123"));
         verify(rekognitionClient).deleteFaces(any(DeleteFacesRequest.class));
+    }
+
+    @Test
+    @DisplayName("deleteFacesByExternalImageId: retorna sem deletar quando não há faces")
+    void shouldReturnWhenNoFacesMatchExternalImageId() {
+        UUID employeeId = UUID.randomUUID();
+        when(rekognitionClient.listFaces(any(ListFacesRequest.class)))
+                .thenReturn(ListFacesResponse.builder()
+                        .faces(Face.builder().faceId("other").externalImageId(UUID.randomUUID().toString()).build())
+                        .build());
+
+        assertDoesNotThrow(() -> provider.deleteFacesByExternalImageId(employeeId));
+
+        verify(rekognitionClient, never()).deleteFaces(any(DeleteFacesRequest.class));
+    }
+
+    @Test
+    @DisplayName("deleteFacesByExternalImageId: pagina e remove faces do colaborador")
+    void shouldDeleteFacesByExternalImageIdAcrossPages() {
+        UUID employeeId = UUID.randomUUID();
+        ListFacesResponse firstPage = ListFacesResponse.builder()
+                .faces(
+                        Face.builder().faceId("face-1").externalImageId(employeeId.toString()).build(),
+                        Face.builder().faceId("other").externalImageId(UUID.randomUUID().toString()).build()
+                )
+                .nextToken("next")
+                .build();
+        ListFacesResponse secondPage = ListFacesResponse.builder()
+                .faces(Face.builder().faceId("face-2").externalImageId(employeeId.toString()).build())
+                .build();
+
+        when(rekognitionClient.listFaces(any(ListFacesRequest.class))).thenReturn(firstPage, secondPage);
+        when(rekognitionClient.deleteFaces(any(DeleteFacesRequest.class))).thenReturn(DeleteFacesResponse.builder().build());
+
+        provider.deleteFacesByExternalImageId(employeeId);
+
+        ArgumentCaptor<DeleteFacesRequest> captor = ArgumentCaptor.forClass(DeleteFacesRequest.class);
+        verify(rekognitionClient).deleteFaces(captor.capture());
+        assertEquals(List.of("face-1", "face-2"), captor.getValue().faceIds());
+    }
+
+    @Test
+    @DisplayName("deleteFacesByExternalImageId: absorve falha do SDK")
+    void shouldAbsorbDeleteFacesByExternalImageIdSdkFailure() {
+        when(rekognitionClient.listFaces(any(ListFacesRequest.class)))
+                .thenThrow(RekognitionException.builder().message("boom").build());
+
+        assertDoesNotThrow(() -> provider.deleteFacesByExternalImageId(UUID.randomUUID()));
     }
 }

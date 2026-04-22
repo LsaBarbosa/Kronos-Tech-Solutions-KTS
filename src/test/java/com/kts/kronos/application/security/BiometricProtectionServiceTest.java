@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BiometricProtectionServiceTest {
@@ -33,12 +34,65 @@ class BiometricProtectionServiceTest {
     }
 
     @Test
+    @DisplayName("protectPublicLogin: aceita payload nulo ou vazio e liveness válido")
+    void shouldAcceptNullAndBlankPayloads() {
+        assertDoesNotThrow(() -> service.protectPublicLogin(null, true));
+        assertDoesNotThrow(() -> service.protectPublicLogin("   ", true));
+    }
+
+    @Test
     @DisplayName("protectPublicLogin: deve aplicar rate limit por IP")
     void shouldRateLimitPublicLogin() {
         service.protectPublicLogin("abc", null);
         service.protectPublicLogin("abc", null);
 
         assertThrows(TooManyRequestsException.class, () -> service.protectPublicLogin("abc", null));
+    }
+
+    @Test
+    @DisplayName("protectPublicLogin: expira entradas antigas da janela")
+    void shouldExpireOldRateLimitEntries() {
+        ReflectionTestUtils.setField(service, "loginFaceWindowSeconds", 0);
+
+        assertDoesNotThrow(() -> service.protectPublicLogin("abc", null));
+        assertDoesNotThrow(() -> service.protectPublicLogin("abc", null));
+        assertDoesNotThrow(() -> service.protectPublicLogin("abc", null));
+    }
+
+    @Test
+    @DisplayName("protectPublicLogin: usa unknown quando IP não vem na request")
+    void shouldUseUnknownClientIpWhenRemoteAddrIsBlank() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("");
+        BiometricProtectionService blankIpService = new BiometricProtectionService(request);
+        ReflectionTestUtils.setField(blankIpService, "maxBase64Chars", 10);
+        ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
+        ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);
+        ReflectionTestUtils.setField(blankIpService, "loginFaceWindowSeconds", 60);
+
+        blankIpService.protectPublicLogin("abc", null);
+
+        assertThrows(TooManyRequestsException.class, () -> blankIpService.protectPublicLogin("abc", null));
+    }
+
+    @Test
+    @DisplayName("protectCheckIn: aplica rate limit por colaborador e IP")
+    void shouldRateLimitCheckIn() {
+        UUID employeeId = UUID.randomUUID();
+        service.protectCheckIn(employeeId, "abc", true);
+        service.protectCheckIn(employeeId, "abc", true);
+
+        assertThrows(TooManyRequestsException.class, () -> service.protectCheckIn(employeeId, "abc", true));
+    }
+
+    @Test
+    @DisplayName("protectEnrollment: aplica rate limit por colaborador e IP")
+    void shouldRateLimitEnrollment() {
+        UUID employeeId = UUID.randomUUID();
+        service.protectEnrollment(employeeId, "abc");
+        service.protectEnrollment(employeeId, "abc");
+
+        assertThrows(TooManyRequestsException.class, () -> service.protectEnrollment(employeeId, "abc"));
     }
 
     @Test

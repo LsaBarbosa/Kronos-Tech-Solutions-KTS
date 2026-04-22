@@ -14,10 +14,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
@@ -27,6 +29,7 @@ import java.util.stream.Stream;
 import static com.kts.kronos.constants.Messages.AFD_DATE_FMT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,6 +73,66 @@ class AfdServiceTest {
     }
 
     @Test
+    @DisplayName("logMarking: deve salvar registro sem hash anterior usando CPF fallback")
+    void shouldLogMarkingWithoutPreviousHashAndWithFallbackCpf() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        LocalDateTime date = LocalDateTime.of(2026, 4, 20, 8, 15);
+        Company company = company(companyId);
+        Employee employee = employee(employeeId, companyId, null);
+
+        when(afdProvider.findLastHashByCompanyId(companyId)).thenReturn(Optional.empty());
+
+        service.logMarking(company, employee, date, 4L);
+
+        ArgumentCaptor<AfdEntry> captor = ArgumentCaptor.forClass(AfdEntry.class);
+        verify(afdProvider).save(captor.capture());
+
+        AfdEntry saved = captor.getValue();
+        assertEquals(4L, saved.nsr());
+        assertEquals(null, saved.previousHash());
+        assertEquals(expectedHash("0000000047" + date.format(AFD_DATE_FMT) + "00000000000"), saved.currentHash());
+    }
+
+    @Test
+    @DisplayName("logMarking: deve propagar falha do provider")
+    void shouldPropagateProviderFailureWhenLoggingMarking() {
+        UUID companyId = UUID.randomUUID();
+        Company company = company(companyId);
+        Employee employee = employee(UUID.randomUUID(), companyId, "12345678901");
+        RuntimeException failure = new RuntimeException("database unavailable");
+        when(afdProvider.findLastHashByCompanyId(companyId)).thenThrow(failure);
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> service.logMarking(company, employee, LocalDateTime.of(2026, 4, 20, 8, 15), 5L)
+        );
+
+        assertEquals(failure, exception);
+    }
+
+    @Test
+    @DisplayName("logMarking: deve traduzir falha de SHA-256")
+    void shouldTranslateShaFailureWhenLoggingMarking() {
+        UUID companyId = UUID.randomUUID();
+        Company company = company(companyId);
+        Employee employee = employee(UUID.randomUUID(), companyId, "12345678901");
+        when(afdProvider.findLastHashByCompanyId(companyId)).thenReturn(Optional.empty());
+
+        try (var mockedDigest = mockStatic(MessageDigest.class)) {
+            mockedDigest.when(() -> MessageDigest.getInstance("SHA-256"))
+                    .thenThrow(new NoSuchAlgorithmException("missing"));
+
+            RuntimeException exception = assertThrows(
+                    RuntimeException.class,
+                    () -> service.logMarking(company, employee, LocalDateTime.of(2026, 4, 20, 8, 15), 6L)
+            );
+
+            assertEquals("Erro ao calcular Hash SHA-256", exception.getMessage());
+        }
+    }
+
+    @Test
     @DisplayName("writeAfdToStream: deve escrever cabecalho, registros tipo 7 e trailer")
     void shouldWriteAfdFileToStream() {
         UUID companyId = UUID.randomUUID();
@@ -95,6 +158,57 @@ class AfdServiceTest {
                 + "999999999000000002";
 
         assertEquals(expected, output.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("writeAfdToStream: deve truncar campos longos no cabecalho")
+    void shouldTruncateLongHeaderFields() {
+        UUID companyId = UUID.randomUUID();
+        Company company = new Company(
+                companyId,
+                "Empresa ".repeat(30),
+                "12345678901234567890",
+                "contato@kts.com",
+                true,
+                new Address("Rua A", "10", "65000000", "Sao Luis", "MA"),
+                null,
+                0,
+                0
+        );
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(afdProvider.streamByCompanyIdOrderByNsr(companyId)).thenReturn(Stream.empty());
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        service.writeAfdToStream(companyId, output);
+
+        String text = output.toString(StandardCharsets.UTF_8);
+        assertEquals(
+                "0000000011112345678901234" + "Empresa ".repeat(30).substring(0, 150) + "\r\n999999999000000000",
+                text
+        );
+    }
+
+    @Test
+    @DisplayName("writeAfdToStream: deve encapsular falha durante stream")
+    void shouldWrapStreamFailureWhenWritingAfd() {
+        UUID companyId = UUID.randomUUID();
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company(companyId)));
+        when(afdProvider.streamByCompanyIdOrderByNsr(companyId)).thenThrow(new IllegalStateException("stream failed"));
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> service.writeAfdToStream(companyId, new ByteArrayOutputStream())
+        );
+
+        assertEquals("Falha crítica na geração do arquivo AFD", exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("formatters privados: devem lidar com nulos e truncamento")
+    void shouldCoverPrivateFormattingBranches() {
+        assertEquals("00000", ReflectionTestUtils.invokeMethod(service, "formatNumeric", (String) null, 5));
+        assertEquals("12345", ReflectionTestUtils.invokeMethod(service, "formatNumeric", "123456789", 5));
+        assertEquals("   ", ReflectionTestUtils.invokeMethod(service, "formatString", (String) null, 3));
     }
 
     @Test

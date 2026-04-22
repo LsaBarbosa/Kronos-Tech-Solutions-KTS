@@ -4,11 +4,17 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.codec.DecodingException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Mono;
+
+import java.io.IOException;
+import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,6 +66,29 @@ class ViaCepClientImplTest {
         ViaCepClientImpl client = clientWithResponse(HttpStatus.OK, "{invalid-json");
 
         assertThrows(DecodingException.class, () -> client.lookup("01001000"));
+    }
+
+    @Test
+    @DisplayName("lookup: encapsula erro HTTP não-404 como erro interno")
+    void shouldWrapNonNotFoundHttpError() {
+        ViaCepClientImpl client = clientWithResponse(HttpStatus.INTERNAL_SERVER_ERROR, "{}");
+
+        assertThrows(IllegalStateException.class, () -> client.lookup("01001000"));
+    }
+
+    @Test
+    @DisplayName("lookup: encapsula falha de conexão como erro interno")
+    void shouldWrapRequestFailure() {
+        WebClient.Builder builder = WebClient.builder()
+                .exchangeFunction(request -> Mono.error(new WebClientRequestException(
+                        new IOException("network"),
+                        HttpMethod.GET,
+                        URI.create("https://viacep.invalid/01001000/json"),
+                        HttpHeaders.EMPTY
+                )));
+        ViaCepClientImpl client = new ViaCepClientImpl(builder);
+
+        assertThrows(IllegalStateException.class, () -> client.lookup("01001000"));
     }
 
     private static ViaCepClientImpl clientWithResponse(HttpStatus status, String body) {
