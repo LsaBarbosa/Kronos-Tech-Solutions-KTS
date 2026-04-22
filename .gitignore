@@ -35,3 +35,21 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Secrets / local environment ###
+.env
+.env.*
+.envrc
+secrets.*
+*.secret
+*.secrets
+local.properties
+
+### Certificates / private keys ###
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.pem
+*.key
+*.crt
