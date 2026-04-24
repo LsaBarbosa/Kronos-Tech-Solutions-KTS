@@ -52,6 +52,9 @@ public class Messages {
     public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
+    public static final String GEOLOCATION_NOT_FOUND = "Localização não encontrada para o endereço informado.";
+    public static final String GEOLOCATION_SERVICE_UNAVAILABLE = "Falha ao consultar o serviço de geolocalização.";
+    public static final String HERE_API_KEY_NOT_CONFIGURED = "Chave HERE não configurada no backend.";
     public static final String LOCATION_REQUIRED_ON_ADDRESS_CHANGE = "Location (latitude e longitude) é obrigatório se o endereço for alterado.";
     public static final String USER_ALREADY_LINKED_TO_EMPLOYEE = "Já existe um usuário vinculado a este colaborador.";
     public static final String EMPLOYEE_HAS_LINKED_USER = "Não é possível excluir o colaborador enquanto existir um usuário vinculado. Exclua o usuário primeiro.";

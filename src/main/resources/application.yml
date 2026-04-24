@@ -88,6 +88,11 @@ frontend:
   base-url-local: ${FRONTEND_BASE_URL_LOCAL}
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
 
+integration:
+  here:
+    base-url: ${HERE_BASE_URL:https://geocode.search.hereapi.com}
+    api-key: ${HERE_API_KEY:}
+
 aws:
   # ATENÇÃO: Removemos o valor de fallback para que a aplicação falhe se a variável de ambiente não estiver definida.
   # A região pode ter um valor de fallback se você souber que ela é fixa.
