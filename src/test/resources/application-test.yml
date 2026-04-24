@@ -44,6 +44,11 @@ frontend:
   base-url-local: http://localhost:3000
   base-url-local-2: http://127.0.0.1:3000
 
+integration:
+  here:
+    base-url: https://geocode.search.hereapi.com
+    api-key: test-here-key
+
 aws:
   region: us-east-1
   access-key-id: test-access-key
