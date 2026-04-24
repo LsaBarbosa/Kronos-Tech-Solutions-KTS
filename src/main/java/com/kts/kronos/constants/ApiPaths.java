@@ -72,5 +72,7 @@ public class ApiPaths {
 
     //Cep
     public static final String API_VIA_CEP = "https://viacep.com.br/ws";
+    public static final String GEOLOCATION = "/geolocation";
+    public static final String RESOLVE = "/resolve";
 
 }

@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.dto;
 import com.kts.kronos.adapter.in.web.dto.address.AddressRequest;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.Location;
+import com.kts.kronos.adapter.in.web.dto.geolocation.GeolocationResolveRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
@@ -136,5 +137,18 @@ class DtoValidationTest {
                 .collect(Collectors.toSet());
 
         assertTrue(fields.contains("faceImageBase64"));
+    }
+
+    @Test
+    @DisplayName("GeolocationResolveRequest: deve invalidar CEP e número")
+    void shouldInvalidateGeolocationResolveRequestWhenFieldsAreInvalid() {
+        GeolocationResolveRequest dto = new GeolocationResolveRequest("123", "");
+
+        Set<String> fields = VALIDATOR.validate(dto).stream()
+                .map(v -> v.getPropertyPath().toString())
+                .collect(Collectors.toSet());
+
+        assertTrue(fields.contains("postalCode"));
+        assertTrue(fields.contains("number"));
     }
 }
