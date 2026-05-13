@@ -8,6 +8,7 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,12 +32,13 @@ public class DocumentController {
     private final DocumentUseCase useCase;
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public void upload(
+    public ResponseEntity<Void> upload(
             @RequestParam(required = false) UUID employeeId,
             @RequestParam("type") DocumentType type,
             @RequestPart("file") MultipartFile file
     ) throws Exception {
         useCase.uploadDocument(type,employeeId, file);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -71,8 +73,9 @@ public class DocumentController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @DeleteMapping(DOCUMENT_ID)
-    public void deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
+    public ResponseEntity<Void> deleteDocument( @RequestParam(required = false) UUID employeeId,  @PathVariable UUID documentId) {
         useCase.deleteDocument(employeeId, documentId);
+        return ResponseEntity.noContent().build();
     }
 
 }
