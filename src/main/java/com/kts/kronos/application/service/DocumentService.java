@@ -41,13 +41,11 @@ import org.springframework.beans.factory.annotation.Value;
 public class DocumentService implements DocumentUseCase {
 
     private static final String FORBIDDEN_OTHER_EMPLOYEE_DELETE = "Você não pode apagar documentos de outro funcionário.";
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx");
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
     private static final Map<String, Set<String>> ALLOWED_EXTENSIONS_BY_MIME = Map.of(
             "application/pdf", Set.of("pdf"),
             "image/jpeg", Set.of("jpg", "jpeg"),
-            "image/png", Set.of("png"),
-            "application/msword", Set.of("doc"),
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Set.of("docx")
+            "image/png", Set.of("png")
     );
 
     private final DocumentProvider documentProvider;

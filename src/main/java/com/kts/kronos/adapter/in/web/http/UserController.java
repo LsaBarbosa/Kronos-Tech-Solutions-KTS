@@ -9,6 +9,7 @@ import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -26,8 +27,9 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
-    public void registerUser(@Valid @RequestBody CreateUserRequest dto) {
+    public ResponseEntity<Void> registerUser(@Valid @RequestBody CreateUserRequest dto) {
         useCase.createUser(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @GetMapping(USER_BY_USERNAME)
@@ -56,14 +58,16 @@ public class UserController {
 
     @PatchMapping(UPDATE_USER)
     @PreAuthorize(MANAGER)
-    public void updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
+    public ResponseEntity<Void> updateUser(@PathVariable UUID userId, @Valid @RequestBody UpdateUserRequest dto) {
         useCase.updateUser(userId, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping(TOGGLE_ACTIVATE_USER)
     @PreAuthorize(MANAGER)
-    public void activateUser(@PathVariable UUID userId) {
+    public ResponseEntity<Void> activateUser(@PathVariable UUID userId) {
         useCase.toggleActivate(userId);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping(DELETE_USER)
@@ -83,7 +87,7 @@ public class UserController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(PASSWORD)
-    public ResponseEntity<Void> changePassword(@RequestBody ChangePasswordRequest req) {
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
         useCase.changeOwnPassword(req);
         return ResponseEntity.noContent().build();
     }

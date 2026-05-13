@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.message.MessageResponse;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -27,8 +28,9 @@ public class MessageController {
 
     @PreAuthorize(MANAGER)
     @PostMapping
-    public void postMessage(@Valid @RequestBody CreateMessageRequest request) {
+    public ResponseEntity<Void> postMessage(@Valid @RequestBody CreateMessageRequest request) {
         useCase.postMessage(request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -46,7 +48,8 @@ public class MessageController {
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(MESSAGE_ID)
-     public void deleteMessage(@PathVariable UUID messageId) {
+    public ResponseEntity<Void> deleteMessage(@PathVariable UUID messageId) {
         useCase.deleteMessage(messageId);
+        return ResponseEntity.noContent().build();
     }
 }

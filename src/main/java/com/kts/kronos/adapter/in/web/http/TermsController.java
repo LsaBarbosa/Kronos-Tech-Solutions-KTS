@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
@@ -83,10 +85,10 @@ public class TermsController {
     @GetMapping("/status")
     @PreAuthorize(ANY_EMPLOYEE)
     @Operation(summary = "Verificar Status do Aceite", description = "Retorna true se o usuário já aceitou os termos.")
-    public ResponseEntity<Boolean> checkTermsStatus() {
+    public ResponseEntity<Map<String, Boolean>> checkTermsStatus() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         boolean hasAccepted = acceptanceUseCase.hasAcceptedBiometricTerm(employeeId);
 
-        return ResponseEntity.ok(hasAccepted);
+        return ResponseEntity.ok(Map.of("accepted", hasAccepted));
     }
 }

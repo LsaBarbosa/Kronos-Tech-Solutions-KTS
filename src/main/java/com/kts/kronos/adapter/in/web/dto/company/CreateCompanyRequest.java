@@ -5,7 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import org.hibernate.validator.constraints.br.CNPJ;
 
 import static com.kts.kronos.constants.Messages.MUST_HAVE_14_CHARACTERES;
 import static com.kts.kronos.constants.Messages.COMPANY_NAME_NOT_BLANK;
@@ -18,7 +18,7 @@ public record CreateCompanyRequest(
         String name,
 
         @NotBlank(message = CNPJ_NOT_BLANK)
-        @Pattern(regexp = "\\d{14}", message = MUST_HAVE_14_CHARACTERES)
+        @CNPJ(message = "CNPJ inválido")
         String cnpj,
 
         @NotBlank(message = EMAIL_NOT_BLANK)

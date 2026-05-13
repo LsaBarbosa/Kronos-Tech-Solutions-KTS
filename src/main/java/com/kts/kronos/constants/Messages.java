@@ -101,9 +101,7 @@ public class Messages {
     public static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "application/pdf",
             "image/jpeg",
-            "image/png",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
-            "application/msword");
+            "image/png");
 
     public static final String EXIT = "SAIDA";
     public static final String CHECKOUT = "CHECKOUT";
@@ -121,7 +119,7 @@ public class Messages {
 
     // Documents
     public static final String DOCUMENT_NOT_FOUND = "Documento não encontrado";
-    public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos de texto ou imagem são aceitos no sistema (.pdf, .jpg, .jpeg, .png, .docx, .doc).";
+    public static final String INVALID_DOCUMENT_TYPE = "Somente arquivos PDF ou imagem são aceitos no sistema (.pdf, .jpg, .jpeg, .png).";
     public static final String NOT_ABLE_TO_READ_FILE = "Não foi possível ler o arquivo: ";
     public static final String DOCUMENT_NOT_BELONGS_EMPLOYEE = "Documento não pertence ao Colaborador";
     public static final String IMAGE_DATA_NOT_BLANK = "A imagem da face é obrigatória para o registro de ponto";

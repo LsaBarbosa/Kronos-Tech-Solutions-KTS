@@ -6,7 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequ
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
- import jakarta.validation.Valid;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,26 +35,30 @@ public class TimeRecordController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PutMapping(UPDATE_TIME_RECORD)
-    public void updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
+    public ResponseEntity<Void> updateTimeRecord(@PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordRequest req) {
         useCase.updateTimeRecord(timeRecordId, req);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(UPDATE_STATUS)
-    public void updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
+    public ResponseEntity<Void> updateStatus(@PathVariable UUID employeeId, @PathVariable Long timeRecordId, @Valid @RequestBody UpdateTimeRecordStatusRequest req) {
         useCase.updateStatus(employeeId, timeRecordId, req);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PutMapping(TOGGLE_ACTIVATE_RECORD)
-    public void toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> toggleActivate(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.toggleActivate(employeeId, timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(DELETE_RECORD)
-    public void deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> deleteTimeRecord(@PathVariable UUID employeeId, @PathVariable Long timeRecordId) {
         useCase.deleteTimeRecord(employeeId, timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -65,14 +69,16 @@ public class TimeRecordController {
 
     @PreAuthorize(MANAGER)
     @PatchMapping(APPROVE_UPDATE)
-    public void approveChange(@PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> approveChange(@PathVariable Long timeRecordId) {
         useCase.approveTimeRecordChange(timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
     @PatchMapping(REJECT_UPDATE)
-    public void rejectChange(@PathVariable Long timeRecordId) {
+    public ResponseEntity<Void> rejectChange(@PathVariable Long timeRecordId) {
         useCase.rejectTimeRecordChange(timeRecordId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
@@ -124,12 +130,12 @@ public class TimeRecordController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(path = TIME_OFF_REQUEST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Long> requestTimeOff(
+    public ResponseEntity<TimeOffCreatedResponse> requestTimeOff(
             @RequestPart("request") @Valid RequestTimeOffRequest request,
             @RequestPart(value = "document", required = false) MultipartFile document
     ) {
         var createdId = useCase.requestTimeOff(request, document);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new TimeOffCreatedResponse(createdId));
     }
 
     @PreAuthorize(MANAGER)
