@@ -79,7 +79,7 @@ logging:
 jwt:
   # Variável para o segredo JWT
   secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:3600000}
+  expiration: ${JWT_EXPIRATION:900000}
 
 frontend:
   # Variável para a URL base do Frontend

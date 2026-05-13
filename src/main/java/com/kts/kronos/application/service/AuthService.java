@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
+import java.util.Date;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -47,6 +48,7 @@ public class AuthService implements AuthUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final DocumentProvider documentProvider;
     private final BiometricProtectionService biometricProtectionService;
+    private final TokenBlacklistProvider tokenBlacklistProvider;
 
     @Override
     public String login(String username, String password) {
@@ -200,6 +202,12 @@ public class AuthService implements AuthUseCase {
         // 4. Limpa o token do Redis
         tokenProvider.deleteToken(request.token());
         log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
+    }
+
+    @Override
+    public void logout(String rawToken) {
+        Date expiration = jwtUtils.getExpirationFromToken(rawToken);
+        tokenBlacklistProvider.addToBlacklist(rawToken, expiration);
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha
