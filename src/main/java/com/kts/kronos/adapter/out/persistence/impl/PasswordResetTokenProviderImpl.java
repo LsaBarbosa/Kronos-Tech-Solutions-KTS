@@ -7,18 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.UUID;
-
-import static com.kts.kronos.constants.Messages.SAO_PAULO;
-import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
-import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
-import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -28,6 +16,9 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
+
+import static com.kts.kronos.constants.Messages.SAO_PAULO;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor

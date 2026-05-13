@@ -125,8 +125,8 @@ tasks.withType(Test).configureEach {
     environment 'DOCKER_HOST', System.getenv('DOCKER_HOST') ?: 'unix:///var/run/docker.sock'
 
     testLogging {
-        events 'passed', 'skipped', 'failed'
-        exceptionFormat 'full'
+        events = ['passed', 'skipped', 'failed']
+        exceptionFormat = 'full'
         showStandardStreams = true
     }
 }
