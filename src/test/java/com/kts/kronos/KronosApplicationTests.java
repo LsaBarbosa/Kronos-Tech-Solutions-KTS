@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -56,6 +57,9 @@ class KronosApplicationTests {
 
     @MockitoBean
     private FaceRecognitionProvider faceRecognitionProvider;
+
+    @MockitoBean
+    private TokenBlacklistProvider tokenBlacklistProvider;
 
     @Test
     void contextLoads() {
