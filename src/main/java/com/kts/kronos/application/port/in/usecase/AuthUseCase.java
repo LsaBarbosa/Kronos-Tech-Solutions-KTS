@@ -8,4 +8,5 @@ public interface AuthUseCase {
     String loginFace(String faceImageBase64, Boolean livenessPassed);
     void recoverPassword(RecoverPasswordRequest request);
     void resetPassword(ResetPasswordRequest request);
+    void logout(String rawToken);
 }
