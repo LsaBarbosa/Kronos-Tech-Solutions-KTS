@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.ClientIpResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,7 @@ public class TermsController {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final JwtUtils jwtUtils;
     private final AuthCookieService authCookieService;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/accept-biometric")
     @PreAuthorize(ANY_EMPLOYEE)
@@ -38,10 +40,7 @@ public class TermsController {
         String username = jwtAuthenticatedUser.getUsername();
         String role = jwtAuthenticatedUser.getCurrentRole().name();
 
-        String ipAddress = request.getRemoteAddr();
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = "unknown";
-        }
+        String ipAddress = clientIpResolver.resolve(request);
 
         String userAgent = request.getHeader("User-Agent");
         if (userAgent == null || userAgent.isBlank()) {
@@ -66,10 +65,7 @@ public class TermsController {
         String username = jwtAuthenticatedUser.getUsername();
         String role = jwtAuthenticatedUser.getCurrentRole().name();
 
-        String ipAddress = request.getRemoteAddr();
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = "unknown";
-        }
+        String ipAddress = clientIpResolver.resolve(request);
 
         String userAgent = request.getHeader("User-Agent");
         if (userAgent == null || userAgent.isBlank()) {

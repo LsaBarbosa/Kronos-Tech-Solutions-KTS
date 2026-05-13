@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,6 +109,23 @@ class UserServiceTest {
         assertEquals("hashed-random", captor.getValue().password());
         assertEquals(Role.MANAGER, captor.getValue().role());
         assertEquals(employeeId, captor.getValue().employeeId());
+    }
+
+    @Test
+    @DisplayName("createUser: corrida de username duplicado deve virar 409")
+    void shouldTranslateDuplicateUsernameRaceToConflictOnCreate() {
+        UUID employeeId = UUID.randomUUID();
+        when(userProvider.existsByUsername("manager@kts.com")).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("hashed-random");
+        doThrow(new DataIntegrityViolationException("duplicate key"))
+                .when(userProvider).save(any(User.class));
+
+        assertThrows(
+                ConflictException.class,
+                () -> service.createUser(new CreateUserRequest("Manager@KTS.com", "MANAGER", employeeId))
+        );
     }
 
     @Test
@@ -198,6 +218,21 @@ class UserServiceTest {
         assertEquals(Role.PARTNER, saved.role());
         assertEquals(false, saved.active());
         assertEquals(employeeId, saved.employeeId());
+    }
+
+    @Test
+    @DisplayName("updateUser: corrida de username duplicado deve virar 409")
+    void shouldTranslateDuplicateUsernameRaceToConflictOnUpdate() {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user(userId, employeeId, Role.MANAGER, true));
+        doThrow(new DataIntegrityViolationException("duplicate key"))
+                .when(userProvider).save(any(User.class));
+
+        assertThrows(
+                ConflictException.class,
+                () -> service.updateUser(userId, new UpdateUserRequest("duplicado@kts.com", null, null, null))
+        );
     }
 
     @Test

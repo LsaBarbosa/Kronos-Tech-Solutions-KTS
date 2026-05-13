@@ -37,7 +37,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -256,8 +255,8 @@ class LegalControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("downloadTechnicalCertificate: deve propagar falha de assinatura")
-    void shouldPropagateTechnicalCertificateSignatureFailure() throws Exception {
+    @DisplayName("downloadTechnicalCertificate: deve retornar erro padronizado quando assinatura falhar")
+    void shouldReturnStandardErrorWhenTechnicalCertificateSignatureFails() throws Exception {
         UUID loggedEmployeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         var employee = employee(loggedEmployeeId, companyId);
@@ -270,8 +269,13 @@ class LegalControllerWebMvcTest {
         when(certificateService.generateCertificate(company)).thenReturn(pdfBytes);
         when(signatureService.signData(pdfBytes)).thenThrow(new RuntimeException("sign failed"));
 
-        assertThrows(jakarta.servlet.ServletException.class,
-                () -> mockMvc.perform(get("/legal/technical-certificate")));
+        mockMvc.perform(get("/legal/technical-certificate"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code")
+                        .value("INTERNAL_ERROR"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message")
+                        .value("Erro inesperado"));
     }
 
     @Test

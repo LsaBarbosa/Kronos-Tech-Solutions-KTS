@@ -7,7 +7,9 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.domain.model.enuns.Role;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -19,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import jakarta.annotation.Resource;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,6 +50,9 @@ class TermsControllerWebMvcTest {
     @MockitoBean
     private JwtUtils jwtUtils;
 
+    @MockitoBean
+    private ClientIpResolver clientIpResolver;
+
     @Test
     void shouldAcceptBiometricTermsAndReturnRenewedToken() throws Exception {
         UUID employeeId = UUID.randomUUID();
@@ -58,6 +64,7 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, true))
                 .thenReturn("renewed-token");
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(post("/terms/accept-biometric")
                 .header("Authorization", "Bearer token")
@@ -97,6 +104,7 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, false))
                 .thenReturn("revoked-token");
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(delete("/terms/revoke-biometric")
                 .header("Authorization", "Bearer token")
@@ -122,6 +130,7 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
         doThrow(new BadRequestException("Termo já aceito"))
                 .when(acceptTermsUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit");
 

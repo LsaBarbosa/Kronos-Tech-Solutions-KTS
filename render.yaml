@@ -17,6 +17,9 @@ services:
     #    Chaves com 'sync: false' devem ter o valor configurado APENAS no Painel do Render.
     # =========================================================
     envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
       # --- NOVAS VARIÁVEIS DE INFRAESTRUTURA ---
       - key: FILE_STORAGE_ROOT_PATH # Usado pelo código para salvar no disco
         value: /mnt/data/documents
@@ -57,6 +60,10 @@ services:
         sync: false # Ex: minha-app-rekognition-imagens (o nome real do seu bucket)
       - key: AWS_REKOGNITION_COLLECTION_ID
         value: kronos_render
+      - key: DIGITAL_CERTIFICATE_PATH
+        sync: false
+      - key: DIGITAL_CERTIFICATE_PASSWORD
+        sync: false
 
       # --- VARIÁVEIS DE CONFIGURAÇÃO (Valores Simples) ---
       - key: FRONTEND_BASE_URL_LOCAL

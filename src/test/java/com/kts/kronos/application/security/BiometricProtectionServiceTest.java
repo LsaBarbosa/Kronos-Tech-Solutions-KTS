@@ -22,7 +22,7 @@ class BiometricProtectionServiceTest {
     void setUp() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("198.51.100.42");
-        service = new BiometricProtectionService(request);
+        service = new BiometricProtectionService(request, new ClientIpResolver());
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", false);
         ReflectionTestUtils.setField(service, "loginFaceLimit", 2);
@@ -64,7 +64,7 @@ class BiometricProtectionServiceTest {
     void shouldUseUnknownClientIpWhenRemoteAddrIsBlank() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("");
-        BiometricProtectionService blankIpService = new BiometricProtectionService(request);
+        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver());
         ReflectionTestUtils.setField(blankIpService, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
         ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);
@@ -109,5 +109,13 @@ class BiometricProtectionServiceTest {
 
         assertThrows(ForbiddenException.class,
                 () -> service.protectCheckIn(UUID.randomUUID(), "abc", false));
+    }
+
+    @Test
+    @DisplayName("protectPublicLogin: deve exigir liveness quando configurado para produção")
+    void shouldRequireLivenessForPublicLoginWhenEnabled() {
+        ReflectionTestUtils.setField(service, "livenessRequired", true);
+
+        assertThrows(ForbiddenException.class, () -> service.protectPublicLogin("abc", false));
     }
 }

@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -30,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -123,6 +125,19 @@ class EmployeeServiceTest {
         assertEquals(LocalTime.of(13, 0), created.breakEndTime());
         assertEquals("10", created.address().number());
         verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("createEmployee: corrida de CPF duplicado deve virar 409")
+    void shouldTranslateDuplicateCpfRaceToConflict() {
+        CreateEmployeeRequest request = createRequest("Maria Silva", "12345678901", companyId, null);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
+        when(employeeProvider.save(any(Employee.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThrows(ConflictException.class, () -> service.createEmployee(request));
     }
 
     @Test

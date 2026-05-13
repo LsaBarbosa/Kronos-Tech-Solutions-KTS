@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
@@ -19,6 +20,7 @@ import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -65,7 +67,11 @@ public class UserService implements UserUseCase {
                 Role.valueOf(req.role()),
                 req.employeeId()
         );
-        userProvider.save(user);
+        try {
+            userProvider.save(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(USERNAME_ALREADY_EXIST);
+        }
     }
 
     @Override
@@ -126,7 +132,11 @@ public class UserService implements UserUseCase {
         boolean active = req.enabled() != null ? req.enabled() : existing.active();
         var updated = new User(userId, username, password, role, active, existing.employeeId());
 
-        userProvider.save(updated);
+        try {
+            userProvider.save(updated);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(USERNAME_ALREADY_EXIST);
+        }
     }
 
     @Override

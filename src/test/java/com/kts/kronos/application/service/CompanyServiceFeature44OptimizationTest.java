@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -98,6 +101,26 @@ class CompanyServiceFeature44OptimizationTest {
 
         assertThrows(BadRequestException.class, () -> service.createCompany(request));
         verify(companyProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createCompany: corrida de CNPJ duplicado deve virar 409")
+    void shouldTranslateDuplicateCnpjRaceToConflict() {
+        CreateCompanyRequest request = new CreateCompanyRequest(
+                "KTS",
+                "12345678000199",
+                "contato@kts.com",
+                new AddressRequest("01001000", "123"),
+                null,
+                new Location(-23.55, -46.63)
+        );
+
+        when(companyProvider.existsByCnpj(request.cnpj())).thenReturn(false);
+        when(viaCep.lookup("01001000")).thenReturn(new Address("Rua A", "0", "01001000", "Sao Paulo", "SP"));
+        doThrow(new DataIntegrityViolationException("duplicate key"))
+                .when(companyProvider).save(any(Company.class));
+
+        assertThrows(ConflictException.class, () -> service.createCompany(request));
     }
 
     @Test
