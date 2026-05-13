@@ -55,7 +55,7 @@ class UserControllerWebMvcTest {
                                   "employeeId": "%s"
                                 }
                                 """.formatted(employeeId)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         verify(useCase).createUser(any());
     }
@@ -173,7 +173,7 @@ class UserControllerWebMvcTest {
                                   "enabled": true
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).updateUser(eq(userId), any());
     }
@@ -215,7 +215,7 @@ class UserControllerWebMvcTest {
         UUID userId = UUID.randomUUID();
 
         mockMvc.perform(patch("/users/toggle-activate/{userId}", userId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).toggleActivate(userId);
     }
@@ -261,9 +261,9 @@ class UserControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "currentPassword": "old",
-                                  "newPassword": "new",
-                                  "confirmPassword": "new"
+                                  "currentPassword": "oldPassword123",
+                                  "newPassword": "newPassword123",
+                                  "confirmPassword": "newPassword123"
                                 }
                                 """))
                 .andExpect(status().isNoContent());
@@ -281,9 +281,9 @@ class UserControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "currentPassword": "old",
-                                  "newPassword": "new",
-                                  "confirmPassword": "new"
+                                  "currentPassword": "oldPassword123",
+                                  "newPassword": "newPassword123",
+                                  "confirmPassword": "newPassword123"
                                 }
                                 """))
                 .andExpect(status().isBadRequest())

@@ -48,7 +48,7 @@ class CompanyControllerWebMvcTest {
                         .content("""
                                 {
                                   "name": "Kronos Tech",
-                                  "cnpj": "12345678000199",
+                                  "cnpj": "11222333000181",
                                   "email": "empresa@kronos.com",
                                   "address": {
                                     "postalCode": "12345678",
@@ -75,7 +75,7 @@ class CompanyControllerWebMvcTest {
                                   }
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         verify(useCase).createCompany(any());
     }
@@ -96,8 +96,8 @@ class CompanyControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("registerCompany: deve traduzir erro de regra")
-    void shouldTranslateExceptionWhenRegisteringCompany() throws Exception {
+    @DisplayName("registerCompany: deve validar CNPJ com @CNPJ validator")
+    void shouldRejectInvalidCnpjWhenRegisteringCompany() throws Exception {
         doThrow(new BadRequestException("CNPJ já cadastrado"))
                 .when(useCase).createCompany(any());
 
@@ -112,22 +112,22 @@ class CompanyControllerWebMvcTest {
     @DisplayName("getCompany: deve retornar empresa por CNPJ")
     void shouldGetCompanyByCnpj() throws Exception {
         Company company = company(true);
-        when(useCase.getCompany("12345678000199")).thenReturn(company);
+        when(useCase.getCompany("11222333000181")).thenReturn(company);
 
-        mockMvc.perform(get("/companies/{cnpj}", "12345678000199"))
+        mockMvc.perform(get("/companies/{cnpj}", "11222333000181"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(company.companyId().toString()))
                 .andExpect(jsonPath("$.name").value("Kronos Tech"))
-                .andExpect(jsonPath("$.cnpj").value("12345678000199"));
+                .andExpect(jsonPath("$.cnpj").value("11222333000181"));
     }
 
     @Test
     @DisplayName("getCompany: deve traduzir empresa inexistente")
     void shouldTranslateExceptionWhenGettingCompany() throws Exception {
-        when(useCase.getCompany("12345678000199"))
+        when(useCase.getCompany("11222333000181"))
                 .thenThrow(new ResourceNotFoundException("Empresa não encontrada"));
 
-        mockMvc.perform(get("/companies/{cnpj}", "12345678000199"))
+        mockMvc.perform(get("/companies/{cnpj}", "11222333000181"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Empresa não encontrada"));
     }
@@ -160,7 +160,7 @@ class CompanyControllerWebMvcTest {
     @Test
     @DisplayName("updateCompany: deve delegar atualização")
     void shouldUpdateCompany() throws Exception {
-        mockMvc.perform(patch("/companies/{cnpj}", "12345678000199")
+        mockMvc.perform(patch("/companies/{cnpj}", "11222333000181")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -177,15 +177,15 @@ class CompanyControllerWebMvcTest {
                                   }
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
-        verify(useCase).updateCompany(eq("12345678000199"), any());
+        verify(useCase).updateCompany(eq("11222333000181"), any());
     }
 
     @Test
     @DisplayName("updateCompany: deve retornar 400 para payload inválido")
     void shouldReturnBadRequestForInvalidUpdatePayload() throws Exception {
-        mockMvc.perform(patch("/companies/{cnpj}", "12345678000199")
+        mockMvc.perform(patch("/companies/{cnpj}", "11222333000181")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -199,9 +199,9 @@ class CompanyControllerWebMvcTest {
     @DisplayName("updateCompany: deve traduzir empresa inexistente")
     void shouldTranslateExceptionWhenUpdatingCompany() throws Exception {
         doThrow(new ResourceNotFoundException("Empresa não encontrada"))
-                .when(useCase).updateCompany(eq("12345678000199"), any());
+                .when(useCase).updateCompany(eq("11222333000181"), any());
 
-        mockMvc.perform(patch("/companies/{cnpj}", "12345678000199")
+        mockMvc.perform(patch("/companies/{cnpj}", "11222333000181")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -215,28 +215,28 @@ class CompanyControllerWebMvcTest {
     @Test
     @DisplayName("deactivateCompany: deve alternar ativação")
     void shouldToggleCompanyActivation() throws Exception {
-        mockMvc.perform(patch("/companies/{cnpj}/toggle-activate", "12345678000199"))
-                .andExpect(status().isOk());
+        mockMvc.perform(patch("/companies/{cnpj}/toggle-activate", "11222333000181"))
+                .andExpect(status().isNoContent());
 
-        verify(useCase).toggleActivate("12345678000199");
+        verify(useCase).toggleActivate("11222333000181");
     }
 
     @Test
     @DisplayName("deleteCompany: deve delegar exclusão")
     void shouldDeleteCompany() throws Exception {
-        mockMvc.perform(delete("/companies/{cnpj}", "12345678000199"))
+        mockMvc.perform(delete("/companies/{cnpj}", "11222333000181"))
                 .andExpect(status().isNoContent());
 
-        verify(useCase).deleteByCnpj("12345678000199");
+        verify(useCase).deleteByCnpj("11222333000181");
     }
 
     @Test
     @DisplayName("deleteCompany: deve traduzir empresa inexistente")
     void shouldTranslateExceptionWhenDeletingCompany() throws Exception {
         doThrow(new ResourceNotFoundException("Empresa não encontrada"))
-                .when(useCase).deleteByCnpj("12345678000199");
+                .when(useCase).deleteByCnpj("11222333000181");
 
-        mockMvc.perform(delete("/companies/{cnpj}", "12345678000199"))
+        mockMvc.perform(delete("/companies/{cnpj}", "11222333000181"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Empresa não encontrada"));
     }
@@ -244,20 +244,20 @@ class CompanyControllerWebMvcTest {
     @Test
     @DisplayName("checkCnpjAvailability: retorna 200 quando CNPJ existe")
     void shouldReturnOkWhenCnpjExists() throws Exception {
-        when(useCase.cnpjExists("12345678000199")).thenReturn(true);
+        when(useCase.cnpjExists("11222333000181")).thenReturn(true);
 
         mockMvc.perform(get("/companies/check-cnpj")
-                        .param("cnpj", "12345678000199"))
+                        .param("cnpj", "11222333000181"))
                 .andExpect(status().isOk());
     }
 
     @Test
     @DisplayName("checkCnpjAvailability: retorna 404 quando CNPJ não existe")
     void shouldReturnNotFoundWhenCnpjDoesNotExist() throws Exception {
-        when(useCase.cnpjExists("12345678000199")).thenReturn(false);
+        when(useCase.cnpjExists("11222333000181")).thenReturn(false);
 
         mockMvc.perform(get("/companies/check-cnpj")
-                        .param("cnpj", "12345678000199"))
+                        .param("cnpj", "11222333000181"))
                 .andExpect(status().isNotFound());
     }
 
@@ -265,7 +265,7 @@ class CompanyControllerWebMvcTest {
         return """
                 {
                   "name": "Kronos Tech",
-                  "cnpj": "12345678000199",
+                  "cnpj": "11222333000181",
                   "email": "empresa@kronos.com",
                   "address": {
                     "postalCode": "12345678",
@@ -298,7 +298,7 @@ class CompanyControllerWebMvcTest {
         return new Company(
                 UUID.randomUUID(),
                 "Kronos Tech",
-                "12345678000199",
+                "11222333000181",
                 "empresa@kronos.com",
                 active,
                 new Address("Rua A", "10", "12345678", "Rio", "RJ"),

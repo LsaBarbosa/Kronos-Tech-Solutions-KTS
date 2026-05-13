@@ -273,16 +273,7 @@ class DocumentServiceSecurityTest {
                 new MockMultipartFile("file", "imagem.png", "image/png", new byte[]{
                         (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
                 }),
-                new MockMultipartFile("file", "contrato.doc", "application/msword", new byte[]{
-                        (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
-                        (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1
-                }),
-                new MockMultipartFile(
-                        "file",
-                        "contrato.docx",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        docxBytes(true)
-                )
+                new MockMultipartFile("file", "documento.pdf", "application/pdf", new byte[]{(byte) 0x25, 0x50, 0x44, 0x46})
         );
 
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
@@ -301,8 +292,7 @@ class DocumentServiceSecurityTest {
         assertEquals(List.of(
                 "image/jpeg",
                 "image/png",
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                "application/pdf"
         ), contentTypes);
     }
 

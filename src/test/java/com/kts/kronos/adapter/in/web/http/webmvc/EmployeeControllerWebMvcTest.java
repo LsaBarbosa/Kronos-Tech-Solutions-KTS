@@ -208,7 +208,7 @@ class EmployeeControllerWebMvcTest {
                                   "homeOffice": true
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).updateEmployee(eq(employeeId), any());
     }
@@ -263,7 +263,7 @@ class EmployeeControllerWebMvcTest {
                                   }
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).updateOwnProfile(any());
     }
@@ -313,7 +313,7 @@ class EmployeeControllerWebMvcTest {
     @DisplayName("markMessagesAsSeen: deve delegar marcação de mensagens vistas")
     void shouldMarkMessagesAsSeen() throws Exception {
         mockMvc.perform(post("/employee/mark-messages-seen"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).markMessagesAsSeen();
     }
