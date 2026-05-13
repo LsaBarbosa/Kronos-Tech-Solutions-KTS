@@ -90,7 +90,7 @@ class TermsControllerWebMvcTest {
 
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("true"));
+                .andExpect(jsonPath("$.accepted").value(true));
     }
 
     @Test

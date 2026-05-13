@@ -62,7 +62,7 @@ class DocumentControllerWebMvcTest {
                         .file(file)
                         .param("type", "PAYSLIP")
                         .param("employeeId", employeeId.toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         verify(documentUseCase).uploadDocument(eq(DocumentType.PAYSLIP), eq(employeeId), any(MultipartFile.class));
     }
@@ -213,7 +213,7 @@ class DocumentControllerWebMvcTest {
 
         mockMvc.perform(delete("/documents/{documentId}", documentId)
                         .param("employeeId", employeeId.toString()))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(documentUseCase).deleteDocument(employeeId, documentId);
     }
@@ -223,7 +223,7 @@ class DocumentControllerWebMvcTest {
         UUID documentId = UUID.randomUUID();
 
         mockMvc.perform(delete("/documents/{documentId}", documentId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(documentUseCase).deleteDocument(null, documentId);
     }

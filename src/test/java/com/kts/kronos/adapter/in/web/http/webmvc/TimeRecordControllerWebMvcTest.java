@@ -112,7 +112,7 @@ class TimeRecordControllerWebMvcTest {
         mockMvc.perform(put("/records/update/time-record/{timeRecordId}", 10L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validUpdateTimeRecordJson()))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).updateTimeRecord(eq(10L), any());
     }
@@ -159,7 +159,7 @@ class TimeRecordControllerWebMvcTest {
                                   "statusRecord": "UPDATED"
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).updateStatus(eq(employeeId), eq(11L), any());
     }
@@ -179,7 +179,7 @@ class TimeRecordControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
 
         mockMvc.perform(put("/records/toggle-activate/{employeeId}/{timeRecordId}", employeeId, 12L))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).toggleActivate(employeeId, 12L);
     }
@@ -190,7 +190,7 @@ class TimeRecordControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
 
         mockMvc.perform(delete("/records/{employeeId}/{timeRecordId}", employeeId, 13L))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteTimeRecord(employeeId, 13L);
     }
@@ -242,6 +242,7 @@ class TimeRecordControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "reference": "08:00",
                                   "dates": ["30-04-2026", "01-04-2026"]
                                 }
                                 """))
@@ -253,10 +254,10 @@ class TimeRecordControllerWebMvcTest {
     @DisplayName("approveChange/rejectChange: devem delegar decisões de ajuste")
     void shouldApproveAndRejectTimeRecordChange() throws Exception {
         mockMvc.perform(patch("/records/approve/{timeRecordId}", 14L))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         mockMvc.perform(patch("/records/reject/{timeRecordId}", 15L))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).approveTimeRecordChange(14L);
         verify(useCase).rejectTimeRecordChange(15L);
@@ -415,7 +416,7 @@ class TimeRecordControllerWebMvcTest {
                         .file(request)
                         .file(document))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value(30L));
+                .andExpect(jsonPath("$.timeRecordId").value(30L));
     }
 
     @Test
