@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -230,19 +231,36 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("deleteUser: deve revogar termos e remover dados dependentes")
-    void shouldDeleteUserAndDependentData() {
+    @DisplayName("deleteUser: deve inativar usuario e colaborador preservando dados legais")
+    void shouldDeactivateUserAndPreserveDependentData() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user(userId, employeeId, Role.MANAGER, true));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorId);
 
         service.deleteUser(userId);
 
-        verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "system", "USER_DELETE");
-        verify(documentProvider).deleteByEmployeeId(employeeId);
-        verify(timeRecordProvider).deleteByEmployeeId(employeeId);
-        verify(userProvider).deleteById(userId);
-        verify(employeeProvider).deleteById(employeeId);
+        verify(userProvider).save(argThat(saved ->
+                saved.userId().equals(userId)
+                        && !saved.active()
+                        && actorId.equals(saved.deletedBy())
+                        && "USER_DELETE".equals(saved.deactivationReason())
+                        && saved.deletedAt() != null
+        ));
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(employeeId)
+                        && !saved.active()
+                        && actorId.equals(saved.deletedBy())
+                        && "USER_DELETE".equals(saved.deactivationReason())
+                        && saved.deletedAt() != null
+        ));
+        verify(acceptTermsUseCase, never()).revokeBiometricTerms(any(), any(), any());
+        verify(documentProvider, never()).deleteByEmployeeId(any());
+        verify(timeRecordProvider, never()).deleteByEmployeeId(any());
+        verify(userProvider, never()).deleteById(any());
+        verify(employeeProvider, never()).deleteById(any());
     }
 
     @Test

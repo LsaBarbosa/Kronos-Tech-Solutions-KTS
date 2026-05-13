@@ -63,8 +63,9 @@ public class CompanyController {
 
     @PreAuthorize(KRONOS)
     @DeleteMapping(BY_CNPJ)
-    public void deleteCompany(@PathVariable String cnpj) {
+    public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping(CHECK_CNPJ)

@@ -1,4 +1,5 @@
 package com.kts.kronos.adapter.in.web.dto.security;
 
-public record LoginResponse(String token) {
+@Deprecated(forRemoval = true)
+public record LoginResponse(boolean authenticated) {
 }

@@ -225,7 +225,7 @@ class CompanyControllerWebMvcTest {
     @DisplayName("deleteCompany: deve delegar exclusão")
     void shouldDeleteCompany() throws Exception {
         mockMvc.perform(delete("/companies/{cnpj}", "12345678000199"))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteByCnpj("12345678000199");
     }

@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
@@ -33,6 +34,7 @@ public class CompanyService implements CompanyUseCase {
     private final EmployeeProvider employeeProvider;
     private final UserProvider userProvider;
     private final UserUseCase userUseCase;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -141,8 +143,26 @@ public class CompanyService implements CompanyUseCase {
 
     @Override
     public void deleteByCnpj(String cnpj) {
-        getCompany(cnpj);
-        companyProvider.deleteByCnpj(cnpj);
+        var company = getCompany(cnpj);
+        var deletedBy = currentUserIdOrNull();
+        companyProvider.save(company.deactivate(deletedBy, "COMPANY_DELETE"));
+
+        var employees = employeeProvider.findByCompanyId(company.companyId());
+        var employeeIds = employees.stream()
+                .map(Employee::employeeId)
+                .collect(Collectors.toSet());
+
+        employees.stream()
+                .map(employee -> employee.deactivate(deletedBy, "COMPANY_DELETE"))
+                .forEach(employeeProvider::save);
+
+        if (employeeIds.isEmpty()) {
+            return;
+        }
+
+        userProvider.findByEmployeeIds(employeeIds).stream()
+                .map(user -> user.deactivate(deletedBy, "COMPANY_DELETE"))
+                .forEach(userProvider::save);
     }
 
     public boolean cnpjExists(String cnpj) {
@@ -171,5 +191,13 @@ public class CompanyService implements CompanyUseCase {
     private Company applyEmployeeCounts(Company company, Map<UUID, long[]> countsByCompanyId) {
         long[] counts = countsByCompanyId.getOrDefault(company.companyId(), new long[]{0L, 0L});
         return company.withEmployeeCounts(counts[0], counts[1]);
+    }
+
+    private UUID currentUserIdOrNull() {
+        try {
+            return jwtAuthenticatedUser.getuserId();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 }

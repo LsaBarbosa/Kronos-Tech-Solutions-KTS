@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        var controller = new AuthController(authUseCase);
+        var controller = new AuthController(authUseCase, authCookieService());
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -50,5 +51,9 @@ class AuthControllerTest {
         assertEquals("12345678901", requestCaptor.getValue().cpf());
         assertEquals("user@kts.com", requestCaptor.getValue().email());
         verifyNoMoreInteractions(authUseCase);
+    }
+
+    private AuthCookieService authCookieService() {
+        return new AuthCookieService("KRONOS_ACCESS_TOKEN", true, "Lax", "/", "", 900);
     }
 }

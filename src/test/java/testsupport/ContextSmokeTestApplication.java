@@ -1,6 +1,8 @@
 package testsupport;
 
 import com.kts.kronos.RekognitionSetup;
+import com.kts.kronos.adapter.in.web.exceptions.JsonAccessDeniedHandler;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.persistence.impl.EmailSenderProviderImpl;
 import com.kts.kronos.config.SecurityConfig;
 import org.springframework.boot.SpringBootConfiguration;
@@ -18,9 +20,11 @@ import org.springframework.context.annotation.Import;
         JpaRepositoriesAutoConfiguration.class,
         MailSenderAutoConfiguration.class
 })
-@Import({
-        SecurityConfig.class,
-        EmailSenderProviderImpl.class,
+	@Import({
+	        SecurityConfig.class,
+	        JsonAccessDeniedHandler.class,
+	        AuthCookieService.class,
+	        EmailSenderProviderImpl.class,
         RekognitionSetup.class
 })
 public class ContextSmokeTestApplication {

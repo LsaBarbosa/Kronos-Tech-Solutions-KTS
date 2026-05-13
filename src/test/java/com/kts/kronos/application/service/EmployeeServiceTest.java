@@ -595,16 +595,23 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("deleteEmployee: remove colaborador sem user e revoga termo biométrico")
-    void shouldDeleteEmployeeAndRevokeBiometricTerms() {
+    @DisplayName("deleteEmployee: inativa colaborador sem apagar documentos ou historico")
+    void shouldDeactivateEmployeeWithoutDeletingLegalHistory() {
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
         when(userProvider.existsByEmployeeId(loggedEmployeeId)).thenReturn(false);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
 
         service.deleteEmployee(loggedEmployeeId);
 
-        verify(acceptTermsUseCase).revokeBiometricTerms(loggedEmployeeId, "system", "EMPLOYEE_DELETE");
-        verify(employeeProvider).deleteById(loggedEmployeeId);
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(loggedEmployeeId)
+                        && !saved.active()
+                        && "EMPLOYEE_DELETE".equals(saved.deactivationReason())
+                        && saved.deletedAt() != null
+        ));
+        verify(acceptTermsUseCase, never()).revokeBiometricTerms(any(), any(), any());
+        verify(employeeProvider, never()).deleteById(loggedEmployeeId);
     }
 
     @Test

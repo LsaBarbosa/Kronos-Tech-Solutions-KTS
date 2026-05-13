@@ -5,16 +5,20 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -64,14 +68,89 @@ class SecurityConfigIntegrationTest {
                                   "password": "pass"
                                 }
                                 """))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=jwt-token"),
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("Secure"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax")
+                )));
+    }
+
+    @Test
+    void shouldExposeCsrfTokenWithExpectedHeaderAndCookie() throws Exception {
+        mockMvc.perform(get("/auth/csrf"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("jwt-token"));
+                .andExpect(jsonPath("$.headerName").value("X-CSRF-TOKEN"))
+                .andExpect(jsonPath("$.parameterName").value("_csrf"))
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("KRONOS_CSRF_TOKEN=")));
+    }
+
+    @Test
+    void shouldRejectAuthenticatedMutationWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/companies")
+                        .with(user("cto").roles("CTO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Token CSRF ausente ou inválido."));
+
+        verifyNoInteractions(companyUseCase);
+    }
+
+    @Test
+    void shouldAllowAuthenticatedMutationWithCsrfToken() throws Exception {
+        mockMvc.perform(post("/companies")
+                        .with(user("cto").roles("CTO"))
+                        .with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Kronos",
+                                  "cnpj": "12345678000199",
+                                  "email": "ops@kronos.com",
+                                  "address": {
+                                    "postalCode": "01001000",
+                                    "number": "100"
+                                  },
+                                  "location": {
+                                    "latitude": -23.5,
+                                    "longitude": -46.6
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(companyUseCase).createCompany(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldLogoutWithoutBearerAndExpireAuthCookie() throws Exception {
+        mockMvc.perform(post("/auth/logout"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN="),
+                        org.hamcrest.Matchers.containsString("Max-Age=0"),
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax")
+                )));
     }
 
     @Test
     void shouldBlockEndpointThatWasPreviouslyPublicByAccident() throws Exception {
         mockMvc.perform(get("/companies/check-cnpj")
                         .param("cnpj", "12345678000199"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(companyUseCase);
+    }
+
+    @Test
+    void shouldRejectProtectedEndpointWithInvalidAuthCookie() throws Exception {
+        mockMvc.perform(get("/companies/check-cnpj")
+                        .param("cnpj", "12345678000199")
+                        .cookie(new Cookie("KRONOS_ACCESS_TOKEN", "invalid-or-expired-token")))
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(companyUseCase);

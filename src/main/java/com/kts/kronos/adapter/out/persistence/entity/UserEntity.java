@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -41,6 +42,16 @@ public class UserEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID deletedBy;
+
+    @Column(name = "deactivation_reason", length = 255)
+    private String deactivationReason;
+
     public User toDomain() {
         return new User(
                 userId,
@@ -48,7 +59,10 @@ public class UserEntity {
                 password,
                 role,
                 active,
-                employeeId
+                employeeId,
+                deletedAt,
+                deletedBy,
+                deactivationReason
         );
     }
 
@@ -60,6 +74,9 @@ public class UserEntity {
                 .role(user.role())
                 .active(user.active())
                 .employeeId(user.employeeId())
+                .deletedAt(user.deletedAt())
+                .deletedBy(user.deletedBy())
+                .deactivationReason(user.deactivationReason())
                 .build();
     }
 

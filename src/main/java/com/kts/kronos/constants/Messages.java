@@ -134,7 +134,7 @@ public class Messages {
     // Security / Headers
     public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
     public static final String JWT_EMPLOYEE_ID_NOT_FOUND = "JWT sem employeeId.";
-    public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no header Authorization.";
+    public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no cookie de autenticação.";
 
     // Messages (Chat/Avisos)
     public static final String MESSAGE_NOT_FOUND = "Mensagem não encontrada";

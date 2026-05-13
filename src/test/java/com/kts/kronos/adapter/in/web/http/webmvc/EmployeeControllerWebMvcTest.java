@@ -292,7 +292,7 @@ class EmployeeControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
 
         mockMvc.perform(delete("/employee/{employeeId}", employeeId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteEmployee(employeeId);
     }

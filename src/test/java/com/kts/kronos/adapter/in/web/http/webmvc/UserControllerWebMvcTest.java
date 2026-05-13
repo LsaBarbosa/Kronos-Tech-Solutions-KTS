@@ -226,7 +226,7 @@ class UserControllerWebMvcTest {
         UUID userId = UUID.randomUUID();
 
         mockMvc.perform(delete("/users/{userId}", userId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteUser(userId);
     }

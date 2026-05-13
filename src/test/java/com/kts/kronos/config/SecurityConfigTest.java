@@ -1,6 +1,8 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
+import com.kts.kronos.adapter.in.web.exceptions.JsonAccessDeniedHandler;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
@@ -41,6 +43,12 @@ class SecurityConfigTest {
     private TokenBlacklistProvider tokenBlacklistProvider;
 
     @Mock
+    private AuthCookieService authCookieService;
+
+    @Mock
+    private JsonAccessDeniedHandler jsonAccessDeniedHandler;
+
+    @Mock
     private AuthenticationConfiguration authenticationConfiguration;
 
     @Mock
@@ -50,7 +58,14 @@ class SecurityConfigTest {
 
     @BeforeEach
     void setUp() {
-        securityConfig = new SecurityConfig(jwtUtils, customUserDetailsService, delegatedAuthenticationEntryPoint, tokenBlacklistProvider);
+        securityConfig = new SecurityConfig(
+                jwtUtils,
+                customUserDetailsService,
+                delegatedAuthenticationEntryPoint,
+                tokenBlacklistProvider,
+                authCookieService,
+                jsonAccessDeniedHandler
+        );
 
         ReflectionTestUtils.setField(securityConfig, "recordUrl", "http://record.local");
         ReflectionTestUtils.setField(securityConfig, "plataformUrl", "http://platform.local");
