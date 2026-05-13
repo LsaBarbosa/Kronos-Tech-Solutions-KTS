@@ -102,6 +102,16 @@ public class EmployeeEntity {
     @Column(name = "fixed_work_days")
     private String fixedWorkDays;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID deletedBy;
+
+    @Column(name = "deactivation_reason", length = 255)
+    private String deactivationReason;
+
     // --- MÉTODOS DE CONVERSÃO ---
 
     public Employee toDomain() {
@@ -114,7 +124,8 @@ public class EmployeeEntity {
                 faceS3ObjectKey,
                 workStartTime, workEndTime, breakStartTime, breakEndTime,
                 scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex,
-                convertStringToSet(this.fixedWorkDays) // Converte String -> Set<DayOfWeek>
+                convertStringToSet(this.fixedWorkDays), // Converte String -> Set<DayOfWeek>
+                deletedAt, deletedBy, deactivationReason
         );
     }
 
@@ -144,6 +155,9 @@ public class EmployeeEntity {
                 .preferredDayOff(domain.preferredDayOff())
                 .weekendOffIndex(domain.weekendOffIndex())
                 .fixedWorkDays(convertSetToString(domain.fixedWorkDays())) // Converte Set<DayOfWeek> -> String
+                .deletedAt(domain.deletedAt())
+                .deletedBy(domain.deletedBy())
+                .deactivationReason(domain.deactivationReason())
                 .build();
     }
 

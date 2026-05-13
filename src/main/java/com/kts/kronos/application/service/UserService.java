@@ -133,11 +133,12 @@ public class UserService implements UserUseCase {
     public void deleteUser(UUID userId) {
         var existing = getUserId(userId);
         var employeeId = existing.employeeId();
-        acceptTermsUseCase.revokeBiometricTerms(employeeId, "system", "USER_DELETE");
-        documentProvider.deleteByEmployeeId(employeeId);
-        timeRecordProvider.deleteByEmployeeId(employeeId);
-        userProvider.deleteById(userId);
-        employeeProvider.deleteById(employeeId);
+        var deletedBy = currentUserIdOrNull();
+
+        userProvider.save(existing.deactivate(deletedBy, "USER_DELETE"));
+        employeeProvider.findById(employeeId)
+                .map(employee -> employee.deactivate(deletedBy, "USER_DELETE"))
+                .ifPresent(employeeProvider::save);
     }
 
     @Override
@@ -196,5 +197,13 @@ public class UserService implements UserUseCase {
 
     private User getUserId(UUID userId) {
         return domainAuthorizationService.authorizeUserAccess(userId);
+    }
+
+    private UUID currentUserIdOrNull() {
+        try {
+            return jwtAuthenticatedUser.getuserId();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 }

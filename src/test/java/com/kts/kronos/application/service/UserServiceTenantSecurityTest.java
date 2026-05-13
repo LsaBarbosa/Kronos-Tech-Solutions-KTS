@@ -22,11 +22,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,20 +87,62 @@ class UserServiceTenantSecurityTest {
     }
 
     @Test
-    @DisplayName("deleteUser: remove recursos vinculados do usuário autorizado")
-    void shouldDeleteUserAndLinkedEmployeeData() {
+    @DisplayName("deleteUser: inativa recursos vinculados sem apagar historico legal")
+    void shouldDeactivateUserAndLinkedEmployeeWithoutDeletingLegalHistory() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
         var existing = new User(userId, "john", "hashed", Role.PARTNER, true, employeeId);
 
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId)));
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorId);
         service.deleteUser(userId);
 
-        var inOrder = inOrder(acceptTermsUseCase, documentProvider, timeRecordProvider, userProvider, employeeProvider);
-        inOrder.verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "system", "USER_DELETE");
-        inOrder.verify(documentProvider).deleteByEmployeeId(employeeId);
-        inOrder.verify(timeRecordProvider).deleteByEmployeeId(employeeId);
-        inOrder.verify(userProvider).deleteById(userId);
-        inOrder.verify(employeeProvider).deleteById(employeeId);
+        verify(userProvider).save(argThat(saved ->
+                saved.userId().equals(userId)
+                        && !saved.active()
+                        && actorId.equals(saved.deletedBy())
+                        && "USER_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(employeeId)
+                        && !saved.active()
+                        && actorId.equals(saved.deletedBy())
+                        && "USER_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(acceptTermsUseCase, never()).revokeBiometricTerms(any(), any(), any());
+        verify(documentProvider, never()).deleteByEmployeeId(any());
+        verify(timeRecordProvider, never()).deleteByEmployeeId(any());
+        verify(userProvider, never()).deleteById(any());
+        verify(employeeProvider, never()).deleteById(any());
+    }
+
+    private static com.kts.kronos.domain.model.Employee employee(UUID employeeId) {
+        return new com.kts.kronos.domain.model.Employee(
+                employeeId,
+                "John Doe",
+                "12345678901",
+                "12345678901",
+                "Analista",
+                "john@kts.com",
+                1000.0,
+                "11999999999",
+                true,
+                null,
+                UUID.randomUUID(),
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 }

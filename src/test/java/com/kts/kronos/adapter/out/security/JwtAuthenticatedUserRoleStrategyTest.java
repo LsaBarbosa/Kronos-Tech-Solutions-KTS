@@ -14,6 +14,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,11 +33,14 @@ class JwtAuthenticatedUserRoleStrategyTest {
     @Mock
     private HttpServletRequest request;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
     private JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @BeforeEach
     void setUp() {
-        jwtAuthenticatedUser = new JwtAuthenticatedUser(jwtUtils, request);
+        jwtAuthenticatedUser = new JwtAuthenticatedUser(jwtUtils, request, authCookieService);
         SecurityContextHolder.clearContext();
     }
 
@@ -63,9 +67,9 @@ class JwtAuthenticatedUserRoleStrategyTest {
     }
 
     @Test
-    void shouldExtractEmployeeIdFromBearerToken() {
+    void shouldExtractEmployeeIdFromAuthCookie() {
         UUID employeeId = UUID.randomUUID();
-        when(request.getHeader("Authorization")).thenReturn("Bearer jwt-token");
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
         when(jwtUtils.getEmployeeIdFromToken("jwt-token")).thenReturn(employeeId);
 
         assertEquals(employeeId, jwtAuthenticatedUser.getEmployeeId());
@@ -73,16 +77,16 @@ class JwtAuthenticatedUserRoleStrategyTest {
 
     @Test
     void shouldFailWhenEmployeeIdClaimIsMissing() {
-        when(request.getHeader("Authorization")).thenReturn("Bearer jwt-token");
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
         when(jwtUtils.getEmployeeIdFromToken("jwt-token")).thenReturn(null);
 
         assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getEmployeeId());
     }
 
     @Test
-    void shouldExtractUserIdFromBearerToken() {
+    void shouldExtractUserIdFromAuthCookie() {
         UUID userId = UUID.randomUUID();
-        when(request.getHeader("Authorization")).thenReturn("Bearer jwt-token");
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
         when(jwtUtils.getUserIdFromToken("jwt-token")).thenReturn(userId);
 
         assertEquals(userId, jwtAuthenticatedUser.getuserId());
@@ -90,30 +94,30 @@ class JwtAuthenticatedUserRoleStrategyTest {
 
     @Test
     void shouldFailWhenUserIdClaimIsMissing() {
-        when(request.getHeader("Authorization")).thenReturn("Bearer jwt-token");
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
         when(jwtUtils.getUserIdFromToken("jwt-token")).thenReturn(null);
 
         assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getuserId());
     }
 
     @Test
-    void shouldExtractUsernameFromBearerToken() {
-        when(request.getHeader("Authorization")).thenReturn("Bearer jwt-token");
+    void shouldExtractUsernameFromAuthCookie() {
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
         when(jwtUtils.getUsernameFromToken("jwt-token")).thenReturn("alice");
 
         assertEquals("alice", jwtAuthenticatedUser.getUsername());
     }
 
     @Test
-    void shouldFailWhenAuthorizationHeaderIsMissing() {
-        when(request.getHeader("Authorization")).thenReturn(null);
+    void shouldFailWhenAuthCookieIsMissing() {
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getUsername());
     }
 
     @Test
-    void shouldFailWhenAuthorizationHeaderIsNotBearer() {
-        when(request.getHeader("Authorization")).thenReturn("Basic abc");
+    void shouldIgnoreAuthorizationHeaderWhenCookieIsMissing() {
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getUsername());
     }

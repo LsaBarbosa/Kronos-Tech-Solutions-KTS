@@ -328,16 +328,53 @@ class CompanyServiceFeature44OptimizationTest {
     }
 
     @Test
-    @DisplayName("deleteByCnpj/cnpjExists: delegam ao provider")
-    void shouldDeleteAndCheckCnpj() {
+    @DisplayName("deleteByCnpj/cnpjExists: inativa empresa e preserva historico legal")
+    void shouldDeactivateCompanyEmployeesAndUsers() {
         Company company = company(UUID.randomUUID(), "KTS", true);
+        UUID employeeAId = UUID.randomUUID();
+        UUID employeeBId = UUID.randomUUID();
+        UUID userAId = UUID.randomUUID();
+        UUID userBId = UUID.randomUUID();
+        var employeeA = employee(employeeAId, company.companyId(), "Ana");
+        var employeeB = employee(employeeBId, company.companyId(), "Bruno");
+        var userA = new User(userAId, "ana", "x", Role.PARTNER, true, employeeAId);
+        var userB = new User(userBId, "bruno", "x", Role.MANAGER, true, employeeBId);
+
         when(companyProvider.findByCnpj(company.cnpj())).thenReturn(Optional.of(company));
         when(employeeProvider.countByCompanyIds(Set.of(company.companyId()))).thenReturn(List.of());
+        when(employeeProvider.findByCompanyId(company.companyId())).thenReturn(List.of(employeeA, employeeB));
+        when(userProvider.findByEmployeeIds(Set.of(employeeAId, employeeBId))).thenReturn(List.of(userA, userB));
         when(companyProvider.existsByCnpj(company.cnpj())).thenReturn(true);
 
         service.deleteByCnpj(company.cnpj());
 
-        verify(companyProvider).deleteByCnpj(company.cnpj());
+        verify(companyProvider).save(argThat(saved ->
+                saved.companyId().equals(company.companyId())
+                        && !saved.active()
+                        && "COMPANY_DELETE".equals(saved.deactivationReason())
+                        && saved.deletedAt() != null
+        ));
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(employeeAId)
+                        && !saved.active()
+                        && "COMPANY_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(employeeProvider).save(argThat(saved ->
+                saved.employeeId().equals(employeeBId)
+                        && !saved.active()
+                        && "COMPANY_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(userProvider).save(argThat(saved ->
+                saved.userId().equals(userAId)
+                        && !saved.active()
+                        && "COMPANY_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(userProvider).save(argThat(saved ->
+                saved.userId().equals(userBId)
+                        && !saved.active()
+                        && "COMPANY_DELETE".equals(saved.deactivationReason())
+        ));
+        verify(companyProvider, never()).deleteByCnpj(company.cnpj());
         assertEquals(true, service.cnpjExists(company.cnpj()));
     }
 

@@ -11,6 +11,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.lang.reflect.Method;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,11 +30,14 @@ class TermsValidationFilterTest {
     @Mock
     private FilterChain filterChain;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
     private TermsValidationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new TermsValidationFilter(jwtUtils);
+        filter = new TermsValidationFilter(jwtUtils, authCookieService);
     }
 
     @Test
@@ -54,9 +58,9 @@ class TermsValidationFilterTest {
     void shouldBlockPrivateEndpointWhenTermsNotAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
-        request.addHeader("Authorization", "Bearer legacy-token");
         var response = new MockHttpServletResponse();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("legacy-token"));
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
         when(jwtUtils.getTermsAcceptedFromToken("legacy-token")).thenReturn(false);
 
@@ -73,9 +77,9 @@ class TermsValidationFilterTest {
     void shouldAllowPrivateEndpointWhenTermsAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
-        request.addHeader("Authorization", "Bearer fresh-token");
         var response = new MockHttpServletResponse();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("fresh-token"));
         when(jwtUtils.validateToken("fresh-token")).thenReturn(true);
         when(jwtUtils.getTermsAcceptedFromToken("fresh-token")).thenReturn(true);
 
@@ -89,9 +93,9 @@ class TermsValidationFilterTest {
     void shouldContinueWhenTokenIsInvalid() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
-        request.addHeader("Authorization", "Bearer invalid-token");
         var response = new MockHttpServletResponse();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("invalid-token"));
         when(jwtUtils.validateToken("invalid-token")).thenReturn(false);
 
         filter.doFilter(request, response, filterChain);
@@ -107,6 +111,7 @@ class TermsValidationFilterTest {
         request.setServletPath("/documents");
         var response = new MockHttpServletResponse();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
@@ -114,13 +119,14 @@ class TermsValidationFilterTest {
     }
 
     @Test
-    @DisplayName("deve permitir rota privada com header não Bearer")
+    @DisplayName("deve ignorar header Authorization quando cookie não existe")
     void shouldAllowProtectedRouteWhenAuthorizationHeaderIsNotBearer() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         request.addHeader("Authorization", "Basic abc123");
         var response = new MockHttpServletResponse();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);

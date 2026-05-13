@@ -224,8 +224,7 @@ public class EmployeeService implements EmployeeUseCase {
         if (userProvider.existsByEmployeeId(employee.employeeId())) {
             throw new BadRequestException(EMPLOYEE_HAS_LINKED_USER);
         }
-        acceptTermsUseCase.revokeBiometricTerms(employee.employeeId(), "system", "EMPLOYEE_DELETE");
-        employeeProvider.deleteById(employee.employeeId());
+        employeeProvider.save(employee.deactivate(currentUserIdOrNull(), "EMPLOYEE_DELETE"));
     }
     // PARTNER
 
@@ -331,6 +330,14 @@ public class EmployeeService implements EmployeeUseCase {
         var manager = employeeProvider.findById(managerId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         return manager.companyId();
+    }
+
+    private UUID currentUserIdOrNull() {
+        try {
+            return jwtAuthenticatedUser.getuserId();
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     private Employee updateOrphanEmployee(Employee existing, CreateEmployeeRequest req, UUID companyId) {
