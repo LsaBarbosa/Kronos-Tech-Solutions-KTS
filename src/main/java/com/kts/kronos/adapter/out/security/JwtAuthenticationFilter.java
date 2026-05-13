@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,10 +17,12 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final TokenBlacklistProvider tokenBlacklistProvider;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService, TokenBlacklistProvider tokenBlacklistProvider) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.tokenBlacklistProvider = tokenBlacklistProvider;
     }
 
     @Override
@@ -35,7 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
-         if (!jwtUtils.validateToken(token)) {
+        if (!jwtUtils.validateToken(token)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        if (tokenBlacklistProvider.isBlacklisted(token)) {
             chain.doFilter(request, response);
             return;
         }
