@@ -272,6 +272,8 @@ class TimeRecordServiceLineCoverageTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         TimeRecord adjacent = record(11L, employeeId, StatusRecord.CREATED, day.atTime(10, 0), day.atTime(11, 0));
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(record, adjacent));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(record, adjacent));
+        when(userProvider.findById(managerUserId)).thenReturn(Optional.of(managerUser));
         assertThrows(BadRequestException.class, () ->
                 service.updateTimeRecord(10L, new UpdateTimeRecordRequest(day, day, "09:30", "10:30", managerUserId)));
     }
@@ -319,6 +321,8 @@ class TimeRecordServiceLineCoverageTest {
         when(recordRepository.findById(10L)).thenReturn(Optional.of(pending));
         when(approvalProvider.findByTimeRecordId(10L)).thenReturn(Optional.of(approval));
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(precedingBreak, pending, succeedingBreak));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(precedingBreak, pending, succeedingBreak));
 
         service.approveTimeRecordChange(10L);
 
@@ -636,12 +640,15 @@ class TimeRecordServiceLineCoverageTest {
         adjust.setAccessible(true);
 
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of());
         adjust.invoke(service, employeeId, target, day.atTime(9, 0), day.atTime(17, 0));
 
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(precedingBreak));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(precedingBreak));
         adjust.invoke(service, employeeId, target, day.atTime(9, 0), day.atTime(17, 0));
 
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(precedingBreak, target, succeedingBreak));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(precedingBreak, target, succeedingBreak));
         adjust.invoke(service, employeeId, target, day.atTime(8, 30), day.atTime(17, 30));
 
         verify(recordRepository).deleteTimeRecord(precedingBreak);
@@ -664,10 +671,16 @@ class TimeRecordServiceLineCoverageTest {
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(
                 record(30L, employeeId, StatusRecord.CREATED, day.atTime(10, 0), day.atTime(11, 0))
         ));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
+                record(30L, employeeId, StatusRecord.CREATED, day.atTime(10, 0), day.atTime(11, 0))
+        ));
         assertThrows(Exception.class, () ->
                 validateOverlap.invoke(service, employeeId, 10L, day.atTime(10, 30), day.atTime(12, 0)));
 
         when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(
+                record(31L, employeeId, StatusRecord.CREATED, day.atTime(7, 0), day.atTime(8, 0))
+        ));
+        when(recordRepository.findByRange(eq(employeeId), any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(List.of(
                 record(31L, employeeId, StatusRecord.CREATED, day.atTime(7, 0), day.atTime(8, 0))
         ));
         validateOverlap.invoke(service, employeeId, 10L, day.atTime(9, 0), day.atTime(10, 0));

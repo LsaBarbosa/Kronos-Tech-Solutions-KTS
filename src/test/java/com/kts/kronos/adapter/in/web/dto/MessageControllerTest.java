@@ -49,7 +49,7 @@ class MessageControllerWebMvcTest {
                                   "recipientEmployeeIds": ["%s"]
                                 }
                                 """.formatted(recipientId)))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         verify(useCase).postMessage(org.mockito.ArgumentMatchers.any());
     }
@@ -90,7 +90,7 @@ class MessageControllerWebMvcTest {
         UUID messageId = UUID.randomUUID();
 
         mockMvc.perform(delete("/messages/{messageId}", messageId))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         verify(useCase).deleteMessage(messageId);
     }
@@ -110,7 +110,7 @@ class MessageControllerWebMvcTest {
                                   "recipientEmployeeIds": ["%s"]
                                 }
                                 """.formatted(recipientEmployeeId)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isCreated());
 
             verify(useCase).postMessage(any());
         }
@@ -163,7 +163,7 @@ class MessageControllerWebMvcTest {
             UUID messageId = UUID.randomUUID();
 
             mockMvc.perform(delete("/messages/{messageId}", messageId))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isNoContent());
 
             verify(useCase).deleteMessage(messageId);
         }

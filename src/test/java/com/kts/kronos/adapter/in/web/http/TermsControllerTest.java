@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -144,7 +145,7 @@ class TermsControllerTest {
         var response = controller.checkTermsStatus();
 
         assertEquals(200, response.getStatusCode().value());
-        assertEquals(Boolean.TRUE, response.getBody());
+        assertEquals(Map.of("accepted", true), response.getBody());
         verify(acceptanceUseCase).hasAcceptedBiometricTerm(employeeId);
     }
 
