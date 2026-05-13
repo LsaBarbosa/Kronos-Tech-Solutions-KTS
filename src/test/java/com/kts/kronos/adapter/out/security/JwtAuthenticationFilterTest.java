@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,11 +38,14 @@ class JwtAuthenticationFilterTest {
     @Mock
     private UserDetailsService userDetailsService;
 
+    @Mock
+    private TokenBlacklistProvider tokenBlacklistProvider;
+
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService);
+        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider);
         SecurityContextHolder.clearContext();
     }
 
@@ -58,6 +62,7 @@ class JwtAuthenticationFilterTest {
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
 
         UserDetails userDetails = User.withUsername("manager.user")
@@ -82,6 +87,7 @@ class JwtAuthenticationFilterTest {
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("legacy-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("legacy-token")).thenReturn("disabled.user");
         when(userDetailsService.loadUserByUsername("disabled.user"))
                 .thenThrow(new DisabledException("Conta desativada"));
@@ -147,11 +153,31 @@ class JwtAuthenticationFilterTest {
         var chain = new MockFilterChain();
 
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
 
         filter.doFilter(request, response, chain);
 
         assertEquals("existing-user", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
         verify(userDetailsService, never()).loadUserByUsername(anyString());
+    }
+
+    @Test
+    void shouldContinueWithoutAuthenticationWhenTokenIsBlacklisted() throws Exception {
+        var request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer revoked-token");
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        when(jwtUtils.validateToken("revoked-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("revoked-token")).thenReturn(true);
+
+        filter.doFilter(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(jwtUtils).validateToken("revoked-token");
+        verify(tokenBlacklistProvider).isBlacklisted("revoked-token");
+        verify(jwtUtils, never()).getUsernameFromToken(anyString());
+        verifyNoInteractions(userDetailsService);
     }
 }
