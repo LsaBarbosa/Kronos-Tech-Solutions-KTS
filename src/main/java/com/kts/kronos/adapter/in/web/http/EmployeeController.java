@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import java.io.IOException;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -63,10 +64,11 @@ public class EmployeeController {
 
     @PreAuthorize(MANAGER)
     @PatchMapping(UPDATE_EMPLOYEE)
-    public void updateEmployee(@PathVariable UUID employeeId,
+    public ResponseEntity<Void> updateEmployee(@PathVariable UUID employeeId,
                                @Valid @RequestBody UpdateEmployeeManagerRequest dto
     ) {
         useCase.updateEmployee(employeeId, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -80,9 +82,10 @@ public class EmployeeController {
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
-    public void updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
+    public ResponseEntity<Void> updateOwnProfile(@Valid @RequestBody UpdateEmployeePartnerRequest dto
     ) {
         useCase.updateOwnProfile(dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(MANAGER)
@@ -92,10 +95,10 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
     @PostMapping(MESSAGES_SEEN)
-    @ResponseStatus(HttpStatus.OK)
     @PreAuthorize(ANY_EMPLOYEE)
-    public void markMessagesAsSeen() {
+    public ResponseEntity<Void> markMessagesAsSeen() {
         useCase.markMessagesAsSeen();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping(CHECK_CPF)

@@ -7,6 +7,7 @@ import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -23,9 +24,9 @@ public class CompanyController {
 
     @PostMapping
     @PreAuthorize(KRONOS)
-    public void registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
-
+    public ResponseEntity<Void> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
         useCase.createCompany(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @PreAuthorize(KRONOS)
@@ -48,17 +49,19 @@ public class CompanyController {
 
     @PreAuthorize(KRONOS)
     @PatchMapping(BY_CNPJ)
-    public void updateCompany(
+    public ResponseEntity<Void> updateCompany(
             @PathVariable String cnpj,
             @Valid @RequestBody UpdateCompanyRequest dto
     ) {
         useCase.updateCompany(cnpj, dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(KRONOS)
     @PatchMapping(TOGGLE_ACTIVATE)
-    public void deactivateCompany(@PathVariable String cnpj) {
+    public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(KRONOS)
