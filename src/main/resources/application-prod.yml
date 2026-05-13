@@ -65,4 +65,4 @@ kronos:
       password: ${DIGITAL_CERTIFICATE_PASSWORD}
 
 biometric:
-  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:true}
+  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}
