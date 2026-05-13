@@ -8,6 +8,8 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -61,6 +63,8 @@ class AuthServiceRecoverPasswordTest {
     private FaceRecognitionProvider faceRecognitionProvider;
     @Mock
     private DocumentProvider documentProvider;
+    @Mock
+    private AuthenticationRateLimitService authenticationRateLimitService;
 
     private UUID employeeId;
     private UUID userId;
@@ -121,6 +125,17 @@ class AuthServiceRecoverPasswordTest {
         assertThatCode(() -> authService.recoverPassword(request)).doesNotThrowAnyException();
 
         verifyNoInteractions(userProvider, tokenProvider, emailSenderProvider);
+    }
+
+    @Test
+    void shouldKeepNeutralBehaviorAndNotSendEmailWhenRateLimited() {
+        doThrow(new TooManyRequestsException("limitado"))
+                .when(authenticationRateLimitService)
+                .checkPasswordRecoveryAllowed(request.cpf(), request.email());
+
+        assertThatCode(() -> authService.recoverPassword(request)).doesNotThrowAnyException();
+
+        verifyNoInteractions(employeeProvider, userProvider, tokenProvider, emailSenderProvider);
     }
 
     @Test

@@ -29,6 +29,7 @@ public class BiometricProtectionService {
     private static final String ENROLLMENT_RATE_LIMIT = "Muitas tentativas de cadastro/atualização biométrica. Tente novamente em instantes.";
 
     private final HttpServletRequest request;
+    private final ClientIpResolver clientIpResolver;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
 
     @Value("${app.biometric.max-base64-chars:${biometric.max-base64-chars:1500000}}")
@@ -124,7 +125,6 @@ public class BiometricProtectionService {
     }
 
     private String clientIp() {
-        String ip = request.getRemoteAddr();
-        return (ip == null || ip.isBlank()) ? "unknown" : ip;
+        return clientIpResolver.resolve(request);
     }
 }

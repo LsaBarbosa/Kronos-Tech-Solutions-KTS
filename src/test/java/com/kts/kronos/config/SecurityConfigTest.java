@@ -17,6 +17,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.util.List;
 
@@ -49,6 +50,9 @@ class SecurityConfigTest {
     private JsonAccessDeniedHandler jsonAccessDeniedHandler;
 
     @Mock
+    private HandlerExceptionResolver handlerExceptionResolver;
+
+    @Mock
     private AuthenticationConfiguration authenticationConfiguration;
 
     @Mock
@@ -64,7 +68,8 @@ class SecurityConfigTest {
                 delegatedAuthenticationEntryPoint,
                 tokenBlacklistProvider,
                 authCookieService,
-                jsonAccessDeniedHandler
+                jsonAccessDeniedHandler,
+                handlerExceptionResolver
         );
 
         ReflectionTestUtils.setField(securityConfig, "recordUrl", "http://record.local");

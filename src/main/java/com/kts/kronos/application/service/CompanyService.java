@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
@@ -14,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +51,11 @@ public class CompanyService implements CompanyUseCase {
         var company = new Company(
                 request.name(), request.cnpj(), request.email(), address, request.location()
         );
-        companyProvider.save(company);
+        try {
+            companyProvider.save(company);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(COMPANY_ALREADY_EXIST);
+        }
     }
 
     @Override

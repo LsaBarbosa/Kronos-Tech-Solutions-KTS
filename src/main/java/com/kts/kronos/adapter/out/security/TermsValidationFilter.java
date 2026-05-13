@@ -1,18 +1,15 @@
 package com.kts.kronos.adapter.out.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kts.kronos.adapter.in.web.exceptions.ProblemDetail;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -21,6 +18,7 @@ public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final AuthCookieService authCookieService;
+    private final HandlerExceptionResolver handlerExceptionResolver;
     private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
     // Lista de endpoints permitidos mesmo sem aceite dos termos
     private static final List<String> WHITELIST = Arrays.asList(
@@ -54,44 +52,17 @@ public class TermsValidationFilter extends OncePerRequestFilter {
                 boolean accepted = jwtUtils.getTermsAcceptedFromToken(token);
 
                 if (!accepted) {
-                    sendRedirectInstruction(response);
+                    handlerExceptionResolver.resolveException(
+                            request,
+                            response,
+                            null,
+                            new TermsNotAcceptedException("Aceite os termos para continuar.", TERMS_SYSTEM_URL)
+                    );
                     return;
                 }
             }
         }
 
-
-
         chain.doFilter(request, response);
-    }
-
-    private void blockRequest(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpStatus.FORBIDDEN.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-
-        ProblemDetail problem = ProblemDetail.builder()
-                .title("Termos de Uso Obrigatórios")
-                .status(HttpStatus.FORBIDDEN.value())
-                .detail("Você deve aceitar o Termo de Consentimento Biométrico para acessar este recurso.")
-                .build();
-
-        new ObjectMapper()
-                .findAndRegisterModules()
-                .writeValue(response.getWriter(), problem);
-    }
-
-    private void sendRedirectInstruction(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpStatus.FORBIDDEN.value()); // 403
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-
-        // Retornamos um JSON instruindo o redirecionamento
-        String jsonResponse = String.format(
-                "{\"type\": \"TERMS_NOT_ACCEPTED\", \"redirect_url\": \"%s\", \"detail\": \"Aceite os termos para continuar.\"}",
-                TERMS_SYSTEM_URL
-        );
-
-        response.getWriter().write(jsonResponse);
     }
 }

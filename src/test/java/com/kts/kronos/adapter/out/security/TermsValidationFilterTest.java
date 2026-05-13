@@ -1,6 +1,9 @@
 package com.kts.kronos.adapter.out.security;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,13 +12,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
-import java.lang.reflect.Method;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -33,11 +35,14 @@ class TermsValidationFilterTest {
     @Mock
     private AuthCookieService authCookieService;
 
+    @Mock
+    private HandlerExceptionResolver handlerExceptionResolver;
+
     private TermsValidationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new TermsValidationFilter(jwtUtils, authCookieService);
+        filter = new TermsValidationFilter(jwtUtils, authCookieService, handlerExceptionResolver);
     }
 
     @Test
@@ -66,9 +71,12 @@ class TermsValidationFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertEquals(403, response.getStatus());
-        assertTrue(response.getContentAsString().contains("TERMS_NOT_ACCEPTED"));
-        assertTrue(response.getContentAsString().contains("https://termo.kronossolutions.tech/"));
+        verify(handlerExceptionResolver).resolveException(
+                any(HttpServletRequest.class),
+                any(HttpServletResponse.class),
+                isNull(),
+                any(TermsNotAcceptedException.class)
+        );
         verify(filterChain, never()).doFilter(any(), any());
     }
 
@@ -146,18 +154,4 @@ class TermsValidationFilterTest {
         verifyNoInteractions(jwtUtils);
     }
 
-    @Test
-    @DisplayName("blockRequest deve retornar 403 com payload ProblemDetail")
-    void shouldBuildProblemDetailPayloadWhenBlockRequestIsCalled() throws Exception {
-        var response = new MockHttpServletResponse();
-        Method blockRequest = TermsValidationFilter.class.getDeclaredMethod("blockRequest", jakarta.servlet.http.HttpServletResponse.class);
-        blockRequest.setAccessible(true);
-
-        blockRequest.invoke(filter, response);
-
-        assertEquals(403, response.getStatus());
-        assertTrue(response.getContentType().startsWith("application/json"));
-        assertTrue(response.getContentAsString().contains("Termos de Uso Obrigatórios"));
-        assertTrue(response.getContentAsString().contains("Você deve aceitar o Termo de Consentimento Biométrico"));
-    }
 }

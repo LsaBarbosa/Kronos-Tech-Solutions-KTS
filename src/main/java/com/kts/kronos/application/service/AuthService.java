@@ -7,8 +7,10 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -49,17 +52,25 @@ public class AuthService implements AuthUseCase {
     private final DocumentProvider documentProvider;
     private final BiometricProtectionService biometricProtectionService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
+    private final AuthenticationRateLimitService authenticationRateLimitService;
 
     @Override
     public String login(String username, String password) {
         var normalizedUsername = username.toLowerCase();
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+        authenticationRateLimitService.checkLoginAllowed(normalizedUsername);
+        try {
+            authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+        } catch (AuthenticationException ex) {
+            authenticationRateLimitService.onLoginFailure(normalizedUsername);
+            throw ex;
+        }
         var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         var termsAccepted = documentProvider.existsByEmployeeIdAndType(
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
+        authenticationRateLimitService.onLoginSuccess(normalizedUsername);
         return jwtUtils.generateToken(user.employeeId(), user.username(),  user.role().name(),user.userId(), termsAccepted);
     }
 
@@ -129,6 +140,13 @@ public class AuthService implements AuthUseCase {
         log.info("Iniciando recuperação de senha para cpf={} e email={}.", maskedCpf, maskedEmail);
 
         try {
+            try {
+                authenticationRateLimitService.checkPasswordRecoveryAllowed(normalizedCpf, normalizedEmail);
+            } catch (TooManyRequestsException ex) {
+                log.warn("Recuperação de senha limitada por abuso para cpf={} e email={}.", maskedCpf, maskedEmail);
+                return;
+            }
+
             // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
             var employee = employeeProvider.findByCpf(normalizedCpf)
                     .filter(emp -> emp.email() != null && emp.email().equalsIgnoreCase(normalizedEmail))
