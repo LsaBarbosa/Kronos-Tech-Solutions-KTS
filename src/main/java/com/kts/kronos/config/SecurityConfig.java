@@ -23,6 +23,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -49,6 +50,7 @@ public class SecurityConfig {
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthCookieService authCookieService;
     private final JsonAccessDeniedHandler jsonAccessDeniedHandler;
+    private final HandlerExceptionResolver handlerExceptionResolver;
 
     public SecurityConfig(
             JwtUtils jwtUtils,
@@ -56,7 +58,8 @@ public class SecurityConfig {
             DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
             TokenBlacklistProvider tokenBlacklistProvider,
             AuthCookieService authCookieService,
-            JsonAccessDeniedHandler jsonAccessDeniedHandler
+            JsonAccessDeniedHandler jsonAccessDeniedHandler,
+            HandlerExceptionResolver handlerExceptionResolver
     ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
@@ -64,11 +67,12 @@ public class SecurityConfig {
         this.tokenBlacklistProvider = tokenBlacklistProvider;
         this.authCookieService = authCookieService;
         this.jsonAccessDeniedHandler = jsonAccessDeniedHandler;
+        this.handlerExceptionResolver = handlerExceptionResolver;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        var termsFilter = new TermsValidationFilter(jwtUtils, authCookieService);
+        var termsFilter = new TermsValidationFilter(jwtUtils, authCookieService, handlerExceptionResolver);
         var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider, authCookieService);
 
         http

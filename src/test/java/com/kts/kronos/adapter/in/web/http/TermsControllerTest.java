@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,12 +34,18 @@ class TermsControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils, authCookieService());
+        controller = new TermsController(
+                acceptanceUseCase,
+                jwtAuthenticatedUser,
+                jwtUtils,
+                authCookieService(),
+                new ClientIpResolver()
+        );
     }
 
     @Test
-    @DisplayName("accept-biometric: deve ignorar X-Forwarded-For e usar remoteAddr")
-    void shouldIgnoreForwardedHeaderAndUseRemoteAddress() {
+    @DisplayName("accept-biometric: deve usar X-Forwarded-For para IP real em proxy")
+    void shouldUseForwardedHeaderForRealClientIp() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
@@ -55,7 +62,7 @@ class TermsControllerTest {
         var response = controller.acceptBiometricTerms(request);
 
         assertEquals(204, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "198.51.100.7", "Desconhecido");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "203.0.113.10", "Desconhecido");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
     }
 

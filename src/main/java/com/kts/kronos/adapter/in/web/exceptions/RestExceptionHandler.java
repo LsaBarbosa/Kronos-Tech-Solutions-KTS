@@ -1,80 +1,177 @@
 package com.kts.kronos.adapter.in.web.exceptions;
+
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.kts.kronos.constants.Messages.INTERNAL_SERVER_ERROR;
+
+@Slf4j
 @RestControllerAdvice
 public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<Object> handleBadRequestException(BadRequestException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, request, null);
+        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "BAD_REQUEST", ex.getMessage(), request, null, null);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Object> handleResourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.NOT_FOUND, request, null);
+        return buildResponseEntity(ex, HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage(), request, null, null);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Object> handleConflictException(ConflictException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), request, null, null);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Object> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
+        log.warn("Conflito de integridade de dados tratado como 409. path={}", path(request), ex);
+        return buildResponseEntity(
+                ex,
+                HttpStatus.CONFLICT,
+                "DATA_INTEGRITY_CONFLICT",
+                "Registro duplicado ou conflito de integridade.",
+                request,
+                null,
+                null
+        );
+    }
 
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
         List<ProblemDetail.Error> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(fieldError -> ProblemDetail.Error.builder()
+                        .field(fieldError.getField())
+                        .message(fieldError.getDefaultMessage())
                         .name(fieldError.getField())
                         .userMessage(fieldError.getDefaultMessage())
                         .build())
                 .collect(Collectors.toList());
 
-        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, request, errors);
+        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Dados inválidos.", request, errors, null);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request
+    ) {
+        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "JSON inválido ou malformado.", request, null, null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Object> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "INVALID_PARAMETER", "Parâmetro inválido.", request, null, null);
     }
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Object> handleForbiddenException(ForbiddenException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, request, null);
+        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage(), request, null, null);
     }
 
-    // NOVO HANDLER PARA USUÁRIO DESABILITADO
+    @ExceptionHandler(TermsNotAcceptedException.class)
+    public ResponseEntity<Object> handleTermsNotAccepted(TermsNotAcceptedException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "TERMS_NOT_ACCEPTED", ex.getMessage(), request, null, ex.getRedirectUrl());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Acesso negado.", request, null, null);
+    }
+
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<Object> handleDisabledException(DisabledException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, request, null);
+        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "USER_DISABLED", ex.getMessage(), request, null, null);
     }
 
-    // NOVO HANDLER PARA CREDENCIAIS INVÁLIDAS
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Object> handleBadCredentialsException(BadCredentialsException ex, WebRequest request) {
-        // Usamos uma mensagem customizada para não expor detalhes
-        var customException = new BadCredentialsException("Usuário ou senha inválidos");
-        return buildResponseEntity(customException, HttpStatus.UNAUTHORIZED, request, null);
-    }
-    @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<Object> handleTooManyRequestsException(TooManyRequestsException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.TOO_MANY_REQUESTS, request, null);
+        return buildResponseEntity(ex, HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED", "Usuário ou senha inválidos", request, null, null);
     }
 
-    private ResponseEntity<Object> buildResponseEntity(Exception ex, HttpStatus status, WebRequest request, List<ProblemDetail.Error> errors) {
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Object> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Autenticação requerida ou inválida.", request, null, null);
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Object> handleTooManyRequestsException(TooManyRequestsException ex, WebRequest request) {
+        return buildResponseEntity(ex, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", ex.getMessage(), request, null, null);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Object> handleUnexpectedException(Exception ex, WebRequest request) {
+        log.error("Erro inesperado não tratado. path={}", path(request), ex);
+        return buildResponseEntity(ex, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", INTERNAL_SERVER_ERROR, request, null, null);
+    }
+
+    private ResponseEntity<Object> buildResponseEntity(
+            Exception ex,
+            HttpStatus status,
+            String code,
+            String message,
+            WebRequest request,
+            List<ProblemDetail.Error> errors,
+            String redirectUrl
+    ) {
         ProblemDetail problemDetail = ProblemDetail.builder()
+                .code(code)
+                .message(message)
                 .status(status.value())
+                .path(path(request))
+                .validationErrors(errors)
+                .redirectUrl(redirectUrl)
                 .title(status.getReasonPhrase())
-                .detail(ex.getMessage())
+                .detail(message)
                 .errors(errors)
                 .build();
 
         return handleExceptionInternal(ex, problemDetail, new HttpHeaders(), status, request);
+    }
+
+    private String path(WebRequest request) {
+        if (request instanceof ServletWebRequest servletWebRequest) {
+            HttpServletRequest servletRequest = servletWebRequest.getRequest();
+            return servletRequest.getRequestURI();
+        }
+        String description = request == null ? null : request.getDescription(false);
+        if (description != null && description.startsWith("uri=")) {
+            return description.substring("uri=".length());
+        }
+        return "unknown";
     }
 }

@@ -5,12 +5,14 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -42,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,6 +75,8 @@ class AuthServiceAuthenticationAndResetTest {
     private DocumentProvider documentProvider;
     @Mock
     private BiometricProtectionService biometricProtectionService;
+    @Mock
+    private AuthenticationRateLimitService authenticationRateLimitService;
 
     private UUID employeeId;
     private UUID userId;
@@ -99,6 +104,18 @@ class AuthServiceAuthenticationAndResetTest {
         assertEquals("alice", authCaptor.getValue().getPrincipal());
         assertEquals("secret", authCaptor.getValue().getCredentials());
         assertEquals("jwt-token", token);
+    }
+
+    @Test
+    @DisplayName("login: deve bloquear antes de autenticar quando rate limit foi atingido")
+    void shouldBlockLoginBeforeAuthenticationWhenRateLimited() {
+        doThrow(new TooManyRequestsException("limitado"))
+                .when(authenticationRateLimitService).checkLoginAllowed("alice");
+
+        assertThrows(TooManyRequestsException.class, () -> authService.login("Alice", "secret"));
+
+        verify(authManager, never()).authenticate(any());
+        verify(userProvider, never()).findByUsername(any());
     }
 
     @Test

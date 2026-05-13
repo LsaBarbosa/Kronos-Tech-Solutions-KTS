@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
@@ -15,6 +16,7 @@ import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -109,7 +111,12 @@ public class EmployeeService implements EmployeeUseCase {
                 req.fixedWorkDays()
         );
 
-        var savedEmployee = employeeProvider.save(newEmployee);
+        Employee savedEmployee;
+        try {
+            savedEmployee = employeeProvider.save(newEmployee);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(CPF_ALREADY_EXIST);
+        }
 
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
             biometricProtectionService.protectEnrollment(
@@ -375,7 +382,12 @@ public class EmployeeService implements EmployeeUseCase {
         );
 
         // Salva os dados cadastrais atualizados
-        var savedEmployee = employeeProvider.save(updatedEmployee);
+        Employee savedEmployee;
+        try {
+            savedEmployee = employeeProvider.save(updatedEmployee);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(CPF_ALREADY_EXIST);
+        }
 
         // Processa a imagem facial novamente
         // Se houver nova foto, o handleFaceRegistration cuidará de deletar a antiga do S3/Rekognition

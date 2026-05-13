@@ -1,0 +1,68 @@
+server:
+  forward-headers-strategy: framework
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
+  mail:
+    properties:
+      mail:
+        smtp:
+          debug: ${MAIL_SMTP_DEBUG:false}
+
+logging:
+  level:
+    org.springframework:
+      security: ${SPRING_SECURITY_LOG_LEVEL:INFO}
+    org.hibernate.SQL: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+kronos:
+  security:
+    auth-cookie:
+      secure: ${AUTH_COOKIE_SECURE:true}
+      same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+      path: ${AUTH_COOKIE_PATH:/}
+      max-age-seconds: ${AUTH_COOKIE_MAX_AGE_SECONDS:900}
+    rate-limit:
+      login:
+        ip:
+          limit: ${LOGIN_RATE_LIMIT_IP_LIMIT:10}
+          window-seconds: ${LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS:60}
+        username:
+          limit: ${LOGIN_RATE_LIMIT_USERNAME_LIMIT:5}
+          window-seconds: ${LOGIN_RATE_LIMIT_USERNAME_WINDOW_SECONDS:300}
+        cooldown-minutes: ${LOGIN_RATE_LIMIT_COOLDOWN_MINUTES:5,15,30}
+      recovery:
+        cpf:
+          limit: ${RECOVERY_RATE_LIMIT_CPF_LIMIT:3}
+        email:
+          limit: ${RECOVERY_RATE_LIMIT_EMAIL_LIMIT:3}
+        ip:
+          limit: ${RECOVERY_RATE_LIMIT_IP_LIMIT:10}
+        window-seconds: ${RECOVERY_RATE_LIMIT_WINDOW_SECONDS:3600}
+    certificate:
+      path: ${DIGITAL_CERTIFICATE_PATH}
+      password: ${DIGITAL_CERTIFICATE_PASSWORD}
+
+biometric:
+  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:true}
