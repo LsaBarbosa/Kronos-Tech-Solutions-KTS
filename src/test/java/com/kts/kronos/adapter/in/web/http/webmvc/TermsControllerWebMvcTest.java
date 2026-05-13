@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.TermsController;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,12 +26,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TermsController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(RestExceptionHandler.class)
+@Import({RestExceptionHandler.class, AuthCookieService.class})
 class TermsControllerWebMvcTest {
 
     @Resource
@@ -57,10 +60,16 @@ class TermsControllerWebMvcTest {
                 .thenReturn("renewed-token");
 
         mockMvc.perform(post("/terms/accept-biometric")
-                        .header("Authorization", "Bearer token")
-                        .header("User-Agent", "JUnit"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("renewed-token"));
+                .header("Authorization", "Bearer token")
+                .header("User-Agent", "JUnit"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=renewed-token"),
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("Secure"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax")
+                )));
 
         verify(acceptTermsUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit");
     }
@@ -90,10 +99,16 @@ class TermsControllerWebMvcTest {
                 .thenReturn("revoked-token");
 
         mockMvc.perform(delete("/terms/revoke-biometric")
-                        .header("Authorization", "Bearer token")
-                        .header("User-Agent", "JUnit"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("revoked-token"));
+                .header("Authorization", "Bearer token")
+                .header("User-Agent", "JUnit"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=revoked-token"),
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("Secure"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax")
+                )));
 
         verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit");
     }

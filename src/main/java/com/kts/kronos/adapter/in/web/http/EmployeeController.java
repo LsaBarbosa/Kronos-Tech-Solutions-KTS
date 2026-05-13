@@ -87,8 +87,9 @@ public class EmployeeController {
 
     @PreAuthorize(MANAGER)
     @DeleteMapping(EMPLOYEE_ID)
-    public void deleteEmployee(@PathVariable UUID employeeId) {
+    public ResponseEntity<Void> deleteEmployee(@PathVariable UUID employeeId) {
         useCase.deleteEmployee(employeeId);
+        return ResponseEntity.noContent().build();
     }
     @PostMapping(MESSAGES_SEEN)
     @ResponseStatus(HttpStatus.OK)

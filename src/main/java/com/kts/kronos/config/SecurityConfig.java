@@ -1,6 +1,8 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
+import com.kts.kronos.adapter.in.web.exceptions.JsonAccessDeniedHandler;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
@@ -19,6 +21,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -43,24 +47,47 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
     private final TokenBlacklistProvider tokenBlacklistProvider;
+    private final AuthCookieService authCookieService;
+    private final JsonAccessDeniedHandler jsonAccessDeniedHandler;
 
-    public SecurityConfig(JwtUtils jwtUtils, CustomUserDetailsService uds, DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint, TokenBlacklistProvider tokenBlacklistProvider) {
+    public SecurityConfig(
+            JwtUtils jwtUtils,
+            CustomUserDetailsService uds,
+            DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
+            TokenBlacklistProvider tokenBlacklistProvider,
+            AuthCookieService authCookieService,
+            JsonAccessDeniedHandler jsonAccessDeniedHandler
+    ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
         this.tokenBlacklistProvider = tokenBlacklistProvider;
+        this.authCookieService = authCookieService;
+        this.jsonAccessDeniedHandler = jsonAccessDeniedHandler;
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        var termsFilter = new TermsValidationFilter(jwtUtils);
-        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider);
+        var termsFilter = new TermsValidationFilter(jwtUtils, authCookieService);
+        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider, authCookieService);
 
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository())
+                        .ignoringRequestMatchers(
+                                post("/auth/login"),
+                                post("/auth/login-face"),
+                                post("/auth/recover-password"),
+                                post("/auth/reset-password"),
+                                post("/auth/logout")
+                        )
+                )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .exceptionHandling(customizer -> customizer.authenticationEntryPoint(delegatedAuthenticationEntryPoint))
+                .exceptionHandling(customizer -> customizer
+                        .authenticationEntryPoint(delegatedAuthenticationEntryPoint)
+                        .accessDeniedHandler(jsonAccessDeniedHandler)
+                )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(termsFilter, JwtAuthenticationFilter.class);
 
@@ -73,6 +100,10 @@ public class SecurityConfig {
                     "/auth/recover-password",
                     "/auth/reset-password",
                     "/auth/logout"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/auth/csrf"
             ).permitAll();
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.GET,
@@ -117,5 +148,22 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private CookieCsrfTokenRepository csrfTokenRepository() {
+        var repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieName("KRONOS_CSRF_TOKEN");
+        repository.setCookiePath("/");
+        repository.setHeaderName("X-CSRF-TOKEN");
+        return repository;
+    }
+
+    private RequestMatcher post(String path) {
+        return request -> {
+            if (!"POST".equalsIgnoreCase(request.getMethod())) {
+                return false;
+            }
+            return path.equals(request.getServletPath()) || path.equals(request.getRequestURI());
+        };
     }
 }

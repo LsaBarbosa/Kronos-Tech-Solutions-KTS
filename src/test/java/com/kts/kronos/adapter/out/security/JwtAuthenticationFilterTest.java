@@ -24,6 +24,8 @@ import static org.mockito.Mockito.when;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -41,11 +43,14 @@ class JwtAuthenticationFilterTest {
     @Mock
     private TokenBlacklistProvider tokenBlacklistProvider;
 
+    @Mock
+    private AuthCookieService authCookieService;
+
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider);
+        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider, authCookieService);
         SecurityContextHolder.clearContext();
     }
 
@@ -57,10 +62,10 @@ class JwtAuthenticationFilterTest {
     @Test
     void shouldPopulateSecurityContextWithCurrentAuthorities() throws Exception {
         var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer valid-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("valid-token"));
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
@@ -82,10 +87,10 @@ class JwtAuthenticationFilterTest {
     @Test
     void shouldBlockDisabledUserEvenWithValidToken() {
         var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer legacy-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("legacy-token"));
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("legacy-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("legacy-token")).thenReturn("disabled.user");
@@ -102,6 +107,7 @@ class JwtAuthenticationFilterTest {
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, chain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
@@ -109,12 +115,13 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void shouldContinueWhenAuthorizationHeaderIsNotBearer() throws Exception {
+    void shouldIgnoreAuthorizationHeaderWhenCookieIsMissing() throws Exception {
         var request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Basic abc123");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, chain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
@@ -124,10 +131,10 @@ class JwtAuthenticationFilterTest {
     @Test
     void shouldContinueWhenTokenIsInvalid() throws Exception {
         var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer invalid-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("invalid-token"));
         when(jwtUtils.validateToken("invalid-token")).thenReturn(false);
 
         filter.doFilter(request, response, chain);
@@ -148,10 +155,10 @@ class JwtAuthenticationFilterTest {
         SecurityContextHolder.getContext().setAuthentication(existingAuthentication);
 
         var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer valid-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("valid-token"));
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
@@ -165,10 +172,10 @@ class JwtAuthenticationFilterTest {
     @Test
     void shouldContinueWithoutAuthenticationWhenTokenIsBlacklisted() throws Exception {
         var request = new MockHttpServletRequest();
-        request.addHeader("Authorization", "Bearer revoked-token");
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("revoked-token"));
         when(jwtUtils.validateToken("revoked-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("revoked-token")).thenReturn(true);
 

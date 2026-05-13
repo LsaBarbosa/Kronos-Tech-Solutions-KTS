@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 @Entity
 @Table(name = "tb_company")
@@ -43,6 +44,16 @@ public class CompanyEntity {
     @Column(name = "longitude")
     private Double longitude;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID deletedBy;
+
+    @Column(name = "deactivation_reason", length = 255)
+    private String deactivationReason;
+
     public Company toDomain(){
         return new Company(
                 id,
@@ -53,7 +64,10 @@ public class CompanyEntity {
                 address.toDomain(),
                 new Location(latitude, longitude),
                 0L,
-                0L
+                0L,
+                deletedAt,
+                deletedBy,
+                deactivationReason
         );
     }
     public static CompanyEntity fromDomain(Company company) {
@@ -66,6 +80,9 @@ public class CompanyEntity {
                 .address(AddressEmbeddable.fromDomain(company.address()))
                 .latitude(company.location().latitude())
                 .longitude(company.location().longitude())
+                .deletedAt(company.deletedAt())
+                .deletedBy(company.deletedBy())
+                .deactivationReason(company.deactivationReason())
                 .build();
     }
 }

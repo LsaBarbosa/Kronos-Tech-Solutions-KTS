@@ -76,7 +76,7 @@ class AuthServiceTest {
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
         when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "Manager@KTS.com", "MANAGER", userId, true)).thenReturn("jwt");
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true)).thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
 

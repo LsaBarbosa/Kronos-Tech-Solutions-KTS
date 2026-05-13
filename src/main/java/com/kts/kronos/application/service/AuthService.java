@@ -52,14 +52,15 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public String login(String username, String password) {
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(username.toLowerCase(), password));
-        var user = userProvider.findByUsername(username.toLowerCase())
+        var normalizedUsername = username.toLowerCase();
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
+        var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
         var termsAccepted = documentProvider.existsByEmployeeIdAndType(
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
-        return jwtUtils.generateToken(user.employeeId(), username,  user.role().name(),user.userId(), termsAccepted);
+        return jwtUtils.generateToken(user.employeeId(), user.username(),  user.role().name(),user.userId(), termsAccepted);
     }
 
     @Override
@@ -206,6 +207,9 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public void logout(String rawToken) {
+        if (rawToken == null || rawToken.isBlank() || !jwtUtils.validateToken(rawToken)) {
+            return;
+        }
         Date expiration = jwtUtils.getExpirationFromToken(rawToken);
         tokenBlacklistProvider.addToBlacklist(rawToken, expiration);
     }

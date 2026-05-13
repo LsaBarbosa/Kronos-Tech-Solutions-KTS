@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
@@ -32,7 +33,7 @@ class TermsControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils);
+        controller = new TermsController(acceptanceUseCase, jwtAuthenticatedUser, jwtUtils, authCookieService());
     }
 
     @Test
@@ -53,7 +54,7 @@ class TermsControllerTest {
 
         var response = controller.acceptBiometricTerms(request);
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(204, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "198.51.100.7", "Desconhecido");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
     }
@@ -76,7 +77,7 @@ class TermsControllerTest {
 
         var response = controller.acceptBiometricTerms(request);
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(204, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit-Agent");
         verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, true);
     }
@@ -100,7 +101,7 @@ class TermsControllerTest {
 
         var response = controller.acceptBiometricTerms(request);
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(204, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "unknown", "JUnit-Agent");
     }
 
@@ -121,7 +122,7 @@ class TermsControllerTest {
 
         var response = controller.revokeBiometricTerms(request);
 
-        assertEquals(200, response.getStatusCode().value());
+        assertEquals(204, response.getStatusCode().value());
         verify(acceptanceUseCase).revokeBiometricTerms(employeeId, "unknown", "Desconhecido");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, false);
     }
@@ -138,5 +139,9 @@ class TermsControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertEquals(Boolean.TRUE, response.getBody());
         verify(acceptanceUseCase).hasAcceptedBiometricTerm(employeeId);
+    }
+
+    private AuthCookieService authCookieService() {
+        return new AuthCookieService("KRONOS_ACCESS_TOKEN", true, "Lax", "/", "", 900);
     }
 }

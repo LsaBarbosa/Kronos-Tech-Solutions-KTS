@@ -33,7 +33,7 @@ spring:
       mail:
         smtp:
           auth: true
-          debug: true
+          debug: ${MAIL_SMTP_DEBUG:false}
           connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
           timeout: ${MAIL_SMTP_TIMEOUT:5000}
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
@@ -74,7 +74,7 @@ logging:
     console: "${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}"
   level:
     org.springframework:
-      security: DEBUG
+      security: ${SPRING_SECURITY_LOG_LEVEL:INFO}
 
 jwt:
   # Variável para o segredo JWT
@@ -111,9 +111,16 @@ aws:
 
 kronos:
   security:
+    auth-cookie:
+      name: ${AUTH_COOKIE_NAME:KRONOS_ACCESS_TOKEN}
+      secure: ${AUTH_COOKIE_SECURE:true}
+      same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+      path: ${AUTH_COOKIE_PATH:/}
+      domain: ${AUTH_COOKIE_DOMAIN:}
+      max-age-seconds: ${AUTH_COOKIE_MAX_AGE_SECONDS:900}
     certificate:
-      path: "caminho/para/certificado.pfx"
-      password: "sua_senha_secreta"
+      path: ${DIGITAL_CERTIFICATE_PATH:}
+      password: ${DIGITAL_CERTIFICATE_PASSWORD:}
     biometric-term-salt: ${SECRET_TERM}
     upload:
       max-bytes: ${UPLOAD_MAX_BYTES:5242880}

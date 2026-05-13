@@ -1,9 +1,11 @@
 package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
+import com.kts.kronos.adapter.in.web.exceptions.JsonAccessDeniedHandler;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.AuthController;
 import com.kts.kronos.adapter.in.web.http.CompanyController;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
@@ -21,9 +23,11 @@ import org.springframework.context.annotation.Import;
 })
 @Import({
         SecurityConfig.class,
-        DelegatedAuthenticationEntryPoint.class,
-        RestExceptionHandler.class,
-        AuthController.class,
+	        DelegatedAuthenticationEntryPoint.class,
+	        JsonAccessDeniedHandler.class,
+	        RestExceptionHandler.class,
+	        AuthCookieService.class,
+	        AuthController.class,
         CompanyController.class
 })
 class SecurityTestApplication {

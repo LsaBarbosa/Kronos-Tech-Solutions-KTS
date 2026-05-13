@@ -89,7 +89,7 @@ class AuthServiceAuthenticationAndResetTest {
     void shouldLoginAndGenerateToken() {
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
         when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "Alice", "MANAGER", userId, true)).thenReturn("jwt-token");
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
 

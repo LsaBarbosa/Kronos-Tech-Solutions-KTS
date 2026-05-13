@@ -69,8 +69,9 @@ public class UserController {
     @DeleteMapping(DELETE_USER)
 
     @PreAuthorize(MANAGER)
-    public void deleteUser(@PathVariable UUID userId) {
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
         useCase.deleteUser(userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize(ANY_EMPLOYEE)

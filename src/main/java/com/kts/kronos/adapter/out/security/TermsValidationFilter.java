@@ -20,6 +20,7 @@ import java.util.List;
 public class TermsValidationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
+    private final AuthCookieService authCookieService;
     private static final String TERMS_SYSTEM_URL = "https://termo.kronossolutions.tech/";
     // Lista de endpoints permitidos mesmo sem aceite dos termos
     private static final List<String> WHITELIST = Arrays.asList(
@@ -43,10 +44,10 @@ public class TermsValidationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 2. Extrai o token (assumindo que o JwtAuthenticationFilter já validou a assinatura antes)
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        // 2. Extrai o token do cookie HttpOnly usado pelo JwtAuthenticationFilter.
+        var cookieToken = authCookieService.extractToken(request);
+        if (cookieToken.isPresent()) {
+            String token = cookieToken.get();
 
             // 3. Verifica a claim de aceite
             if (jwtUtils.validateToken(token)) {

@@ -18,25 +18,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
+    private final AuthCookieService authCookieService;
 
-    public JwtAuthenticationFilter(JwtUtils jwtUtils, UserDetailsService userDetailsService, TokenBlacklistProvider tokenBlacklistProvider) {
+    public JwtAuthenticationFilter(
+            JwtUtils jwtUtils,
+            UserDetailsService userDetailsService,
+            TokenBlacklistProvider tokenBlacklistProvider,
+            AuthCookieService authCookieService
+    ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
         this.tokenBlacklistProvider = tokenBlacklistProvider;
+        this.authCookieService = authCookieService;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws IOException, ServletException {
 
-        String authHeader = request.getHeader("Authorization");
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        var token = authCookieService.extractToken(request).orElse(null);
+        if (token == null) {
             chain.doFilter(request, response);
             return;
         }
-
-        String token = authHeader.substring(7);
 
         if (!jwtUtils.validateToken(token)) {
             chain.doFilter(request, response);
