@@ -24,7 +24,7 @@ class ApplicationProdProfileConfigTest {
         assertEquals("false", properties.getProperty("springdoc.api-docs.enabled"));
         assertEquals("health", properties.getProperty("management.endpoints.web.exposure.include"));
         assertEquals("never", properties.getProperty("management.endpoint.health.show-details"));
-        assertEquals("${BIOMETRIC_LIVENESS_REQUIRED:true}", properties.getProperty("biometric.liveness-required"));
+        assertEquals("${BIOMETRIC_LIVENESS_REQUIRED:false}", properties.getProperty("biometric.liveness-required"));
         assertEquals("${DIGITAL_CERTIFICATE_PATH}", properties.getProperty("kronos.security.certificate.path"));
         assertEquals("${DIGITAL_CERTIFICATE_PASSWORD}", properties.getProperty("kronos.security.certificate.password"));
     }
