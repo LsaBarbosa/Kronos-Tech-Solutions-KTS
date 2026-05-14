@@ -108,7 +108,7 @@ class SecurityConfigIntegrationTest {
                         .content("""
                                 {
                                   "name": "Kronos",
-                                  "cnpj": "12345678000199",
+                                  "cnpj": "60077790000135",
                                   "email": "ops@kronos.com",
                                   "address": {
                                     "postalCode": "01001000",
@@ -120,7 +120,7 @@ class SecurityConfigIntegrationTest {
                                   }
                                 }
                                 """))
-                .andExpect(status().isOk());
+                .andExpect(status().isCreated());
 
         verify(companyUseCase).createCompany(org.mockito.ArgumentMatchers.any());
     }
