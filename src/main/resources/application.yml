@@ -94,6 +94,7 @@ frontend:
   base-url-record: ${FRONTEND_BASE_URL_RECORD}
   base-url-local: ${FRONTEND_BASE_URL_LOCAL}
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
+  allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:}
 
 integration:
   here:

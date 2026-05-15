@@ -32,7 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "frontend.base-url-record=http://record.local",
                 "frontend.base-url-plataform=http://platform.local",
                 "frontend.base-url-local=http://local.test",
-                "frontend.base-url-local-2=http://local2.test"
+                "frontend.base-url-local-2=http://local2.test",
+                "frontend.allowed-origins=http://localhost:5173,http://localhost:5174,http://localhost:5175,http://platform.local,http://record.local"
         }
 )
 @AutoConfigureMockMvc
@@ -179,9 +180,10 @@ class SecurityConfigIntegrationTest {
     @Test
     void shouldAllowCorsPreflightWithoutAuthentication() throws Exception {
         mockMvc.perform(options("/companies/check-cnpj")
-                        .header("Origin", "http://local.test")
+                        .header("Origin", "http://localhost:5175")
                         .header("Access-Control-Request-Method", "GET"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://local.test"));
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5175"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
     }
 }
