@@ -39,10 +39,12 @@ class FlywayMigrationTest {
         var jdbcTemplate = new JdbcTemplate(dataSource);
 
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'tb_company'"));
-        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_company_company_cnpj'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_company_cnpj'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_employee_cpf'"));
-        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_user_username_lower'"));
-        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_password_reset_token_user_id'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uix_tb_user_username_lower'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uk_tb_password_reset_token_user'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'tb_blacklisted_token'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_tb_blacklisted_token_expires_at'"));
         assertEquals(1, count(jdbcTemplate, """
                 SELECT COUNT(*)
                   FROM information_schema.table_constraints
