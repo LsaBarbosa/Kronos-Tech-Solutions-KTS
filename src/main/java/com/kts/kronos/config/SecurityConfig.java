@@ -29,6 +29,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -41,6 +42,8 @@ public class SecurityConfig {
     private String local;
     @Value("${frontend.base-url-local-2}")
     private String local_2;
+    @Value("${frontend.allowed-origins:}")
+    private String allowedOriginsRaw;
     @Value("${app.security.public-docs-enabled:false}")
     private boolean publicDocsEnabled;
 
@@ -135,13 +138,29 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(recordUrl,plataformUrl,local,local_2));
+        configuration.setAllowedOrigins(resolveAllowedOrigins());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> resolveAllowedOrigins() {
+        if (allowedOriginsRaw != null && !allowedOriginsRaw.isBlank()) {
+            return Arrays.stream(allowedOriginsRaw.split(","))
+                    .map(String::trim)
+                    .filter(origin -> !origin.isBlank())
+                    .distinct()
+                    .toList();
+        }
+
+        return Arrays.asList(recordUrl, plataformUrl, local, local_2).stream()
+                .filter(origin -> origin != null && !origin.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     @Bean
