@@ -121,7 +121,7 @@ A aplicação **NÃO INICIA** em produção sem estas variáveis:
 - `DB_HOST`
 - `DB_PORT`
 - `DB_NAME`
-- `DB_USER`
+- `DB_USERNAME`
 - `DB_PASSWORD`
 
 ### Segurança
@@ -227,7 +227,12 @@ echo "JWT_SECRET (primeiros 10 chars): ${JWT_SECRET:0:10}..."
 echo "AWS_REGION: $AWS_REGION"
 
 # Testar que o banco é acessível
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;"
+PGPASSWORD="$DB_PASSWORD" psql \
+  -h "$DB_HOST" \
+  -p "${DB_PORT:-5432}" \
+  -U "$DB_USERNAME" \
+  -d "$DB_NAME" \
+  -c "SELECT 1;"
 
 # Iniciar aplicação
 java -jar /opt/kronos/backend/kronos-backend.jar
@@ -317,7 +322,7 @@ Test Summary:
 - `DB_HOST` ⚠️ (obrigatório)
 - `DB_PORT` ⚠️ (obrigatório)
 - `DB_NAME` ⚠️ (obrigatório)
-- `DB_USER` ⚠️ (obrigatório)
+- `DB_USERNAME` ⚠️ (obrigatório)
 - `DB_PASSWORD` ⚠️ (obrigatório)
 - `DB_CONNECTION_TIMEOUT_MS` (default: 10000)
 - `DB_VALIDATION_TIMEOUT_MS` (default: 5000)
