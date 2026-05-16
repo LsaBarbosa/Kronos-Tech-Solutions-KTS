@@ -30,6 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
         "DB_PASSWORD=kronos_test",
         // JWT
         "JWT_SECRET=test-jwt-secret-with-at-least-64-characters-1234567890123456",
+        // Biometric
+        "SECRET_TERM=test-secret-term-with-at-least-32-characters-1234567890",
         // Frontend
         "frontend.base-url-record=https://record.kronos.example",
         "frontend.base-url-plataform=https://app.kronos.example",

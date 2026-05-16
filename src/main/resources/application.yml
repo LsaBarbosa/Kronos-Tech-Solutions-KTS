@@ -48,7 +48,7 @@ spring:
 
 file:
   storage:
-    root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
+    root-path: ${FILE_STORAGE_ROOT_PATH:/opt/kronos/documents}
 
 management:
   endpoints:
@@ -115,7 +115,7 @@ aws:
     bucket-name: ${AWS_S3_BUCKET_NAME}
     bucket-name-doc: ${AWS_S3_BUCKET_NAME_DOCS:kronos-docs-legal-prod}
   rekognition:
-    collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_render}
+    collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_prod}
 
 kronos:
   security:
