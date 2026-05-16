@@ -17,7 +17,7 @@ import java.util.UUID;
 public class BucketStorageProviderImpl implements BucketStorageProvider {
     private static final String INVALID_STORAGE_PATH = "Caminho de storage inválido.";
 
-    @Value("${file.storage.root-path:/mnt/data/documents}")
+    @Value("${file.storage.root-path:/opt/kronos/documents}")
     private String rootPath;
 
     @Override

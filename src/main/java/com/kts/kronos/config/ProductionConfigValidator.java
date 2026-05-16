@@ -38,9 +38,11 @@ public class ProductionConfigValidator {
 		validateRequiredVariable("JWT_SECRET");
 		validateJwtSecretLength();
 
+		validateSecretTerm();
+
 		validateRequiredVariable("FRONTEND_BASE_URL_PLATAFORM");
 		validateRequiredVariable("FRONTEND_BASE_URL_RECORD");
-		validateRequiredVariable("FRONTEND_ALLOWED_ORIGINS");
+		validateCorsConfiguration();
 
 		validateRequiredVariable("AWS_REGION");
 		validateRequiredVariable("AWS_ACCESS_KEY_ID");
@@ -114,6 +116,55 @@ public class ProductionConfigValidator {
 			throw new IllegalStateException(
 				"PRODUCTION SECURITY: AUTH_COOKIE_SECURE must be 'true' in production. "
 				+ "Cookies must be transmitted over HTTPS only."
+			);
+		}
+	}
+
+	private void validateSecretTerm() {
+		String secretTerm = env.getProperty("SECRET_TERM");
+
+		if (secretTerm == null || secretTerm.isBlank()) {
+			throw new IllegalStateException(
+				"PRODUCTION: SECRET_TERM is required (used for biometric term salt). "
+				+ "Use 'openssl rand -base64 48' to generate a strong value."
+			);
+		}
+
+		if (secretTerm.length() < 32) {
+			throw new IllegalStateException(
+				"PRODUCTION: SECRET_TERM must be at least 32 characters. "
+				+ "Use 'openssl rand -base64 48' to generate a strong value."
+			);
+		}
+
+		String lowerTerm = secretTerm.toLowerCase();
+		if ("change-me".equals(lowerTerm)
+			|| "change-me-use-a-strong-random-value".equals(lowerTerm)
+			|| "change-me-biometric-term-salt".equals(lowerTerm)
+			|| "secret".equals(lowerTerm)
+			|| "teste".equals(lowerTerm)
+			|| "123456".equals(secretTerm)) {
+			throw new IllegalStateException(
+				"PRODUCTION: SECRET_TERM must be a strong random value, not a placeholder. "
+				+ "Use 'openssl rand -base64 48' to generate a unique value."
+			);
+		}
+	}
+
+	private void validateCorsConfiguration() {
+		String allowedOrigins = env.getProperty("FRONTEND_ALLOWED_ORIGINS");
+
+		if (allowedOrigins == null || allowedOrigins.isBlank()) {
+			throw new IllegalStateException(
+				"PRODUCTION: FRONTEND_ALLOWED_ORIGINS is required and cannot be empty. "
+				+ "Specify your frontend domains (e.g., https://example.com,https://www.example.com)"
+			);
+		}
+
+		if (allowedOrigins.contains("*")) {
+			throw new IllegalStateException(
+				"PRODUCTION SECURITY: FRONTEND_ALLOWED_ORIGINS cannot contain '*' in production. "
+				+ "Specify exact domains only (e.g., https://example.com,https://www.example.com)"
 			);
 		}
 	}

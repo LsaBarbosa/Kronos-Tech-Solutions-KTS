@@ -122,7 +122,7 @@ frontend:
 
 file:
   storage:
-    root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
+    root-path: ${FILE_STORAGE_ROOT_PATH:/opt/kronos/documents}
 
 integration:
   here:

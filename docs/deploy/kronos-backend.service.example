@@ -48,7 +48,7 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 NoNewPrivileges=true
-ReadWritePaths=/mnt/data/documents
+# ReadWritePaths=/opt/kronos/documents (uncomment if using local file storage instead of S3)
 
 # Logging
 StandardOutput=journal
