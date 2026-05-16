@@ -36,7 +36,7 @@ services:
         sync: false
       - key: DB_PORT
         sync: false
-      - key: DB_USER
+      - key: DB_USERNAME
         sync: false
       - key: RABBITMQ_DEFAULT_PASS
         sync: false
