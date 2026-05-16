@@ -1,40 +1,29 @@
 server:
-  forward-headers-strategy: framework
   port: ${SERVER_PORT:8080}
-  compression:
-    enabled: true
-    min-response-size: 1024
+  forward-headers-strategy: framework
 
 spring:
   application:
     name: ${APP_NAME:kronos-backend}
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:kronos_local}
+    username: ${DB_USERNAME:kronos_local}
+    password: ${DB_PASSWORD:kronos_local}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: 10
+      minimum-idle: 2
       connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
-      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:5000}
-      initialization-fail-timeout: ${DB_INITIALIZATION_FAIL_TIMEOUT_MS:10000}
-      auto-commit: true
-      leak-detection-threshold: 60000
 
   jpa:
     hibernate:
       ddl-auto: validate
-    open-in-view: false
     show-sql: false
+    open-in-view: false
     properties:
-      jakarta.persistence.query.timeout: ${JPA_QUERY_TIMEOUT_MS:10000}
       hibernate:
         format_sql: false
-        generate_statistics: false
-        jdbc:
-          time_zone: America/Sao_Paulo
 
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
@@ -48,81 +37,65 @@ spring:
       max-request-size: 6MB
 
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:2525}
+    username: ${MAIL_USERNAME:local}
+    password: ${MAIL_PASSWORD:local}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: false
           starttls:
-            enable: true
-          connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
-          timeout: ${MAIL_SMTP_TIMEOUT:5000}
-          writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
-          debug: ${MAIL_SMTP_DEBUG:false}
+            enable: false
 
 logging:
   level:
-    root: ${LOG_LEVEL_ROOT:WARN}
-    org.springframework: ${SPRING_SECURITY_LOG_LEVEL:INFO}
-    org.springframework.security: INFO
-    org.springframework.web: WARN
-    org.hibernate: WARN
+    root: WARN
+    org.springframework: INFO
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
     org.hibernate.SQL: WARN
-    br.com: INFO
+    br.com: DEBUG
   pattern:
-    console: ${LOGPATTERN_CONSOLE:%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n}
+    console: "%green(%d{HH:mm:ss.SSS}) %blue(%-5level) %red([%thread]) %yellow(%logger{15}) - %msg%n"
 
 springdoc:
   api-docs:
-    enabled: false
+    enabled: true
   swagger-ui:
-    enabled: false
+    enabled: true
+    path: /swagger-ui.html
 
 management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE:health,prometheus}
+        include: health,info,prometheus,metrics,env,configprops
   endpoint:
     health:
-      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:never}
-      livenessState:
-        enabled: true
-      readinessState:
-        enabled: true
+      show-details: always
   health:
-    livenessState:
-      enabled: true
-    readinessState:
-      enabled: true
     mail:
-      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:true}
-  metrics:
-    export:
-      prometheus:
-        enabled: true
+      enabled: false
 
 app:
   security:
-    public-docs-enabled: ${APP_SECURITY_PUBLIC_DOCS_ENABLED:false}
+    public-docs-enabled: true
 
 jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:900000}
+  secret: ${JWT_SECRET:local-dev-secret-with-at-least-32-characters-kronos}
+  expiration: ${JWT_EXPIRATION:3600000}
 
 frontend:
-  base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM}
-  base-url-record: ${FRONTEND_BASE_URL_RECORD}
-  base-url-local: ${FRONTEND_BASE_URL_LOCAL}
-  base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
-  allowed-origins: ${FRONTEND_ALLOWED_ORIGINS}
+  base-url-plataform: ${FRONTEND_BASE_URL_PLATAFORM:http://localhost:5173}
+  base-url-record: ${FRONTEND_BASE_URL_RECORD:http://localhost:5173}
+  base-url-local: ${FRONTEND_BASE_URL_LOCAL:http://localhost:5173}
+  base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2:http://127.0.0.1:5173}
+  allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173}
 
 file:
   storage:
-    root-path: ${FILE_STORAGE_ROOT_PATH:/mnt/data/documents}
+    root-path: ${FILE_STORAGE_ROOT_PATH:./storage/documents}
 
 integration:
   here:
@@ -131,23 +104,23 @@ integration:
 
 aws:
   region: ${AWS_REGION:us-east-1}
-  access-key-id: ${AWS_ACCESS_KEY_ID}
-  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  access-key-id: ${AWS_ACCESS_KEY_ID:local}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:local}
   s3:
-    bucket-name: ${AWS_S3_BUCKET_NAME}
-    bucket-name-doc: ${AWS_S3_BUCKET_NAME_DOCS}
+    bucket-name: ${AWS_S3_BUCKET_NAME:kronos-local}
+    bucket-name-doc: ${AWS_S3_BUCKET_NAME_DOCS:kronos-local-docs}
   rekognition:
-    collection-id: ${AWS_REKOGNITION_COLLECTION_ID}
+    collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos-local}
 
 kronos:
   security:
     auth-cookie:
       name: ${AUTH_COOKIE_NAME:KRONOS_ACCESS_TOKEN}
-      secure: ${AUTH_COOKIE_SECURE:true}
+      secure: ${AUTH_COOKIE_SECURE:false}
       same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
       path: ${AUTH_COOKIE_PATH:/}
       domain: ${AUTH_COOKIE_DOMAIN:}
-      max-age-seconds: ${AUTH_COOKIE_MAX_AGE_SECONDS:900}
+      max-age-seconds: ${AUTH_COOKIE_MAX_AGE_SECONDS:3600}
     rate-limit:
       login:
         ip:
@@ -166,8 +139,8 @@ kronos:
           limit: ${RECOVERY_RATE_LIMIT_IP_LIMIT:10}
         window-seconds: ${RECOVERY_RATE_LIMIT_WINDOW_SECONDS:3600}
     certificate:
-      path: ${DIGITAL_CERTIFICATE_PATH}
-      password: ${DIGITAL_CERTIFICATE_PASSWORD}
+      path: ${DIGITAL_CERTIFICATE_PATH:}
+      password: ${DIGITAL_CERTIFICATE_PASSWORD:}
     upload:
       max-bytes: ${UPLOAD_MAX_BYTES:5242880}
       antivirus:
@@ -175,7 +148,7 @@ kronos:
         host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
-    biometric-term-salt: ${SECRET_TERM}
+    biometric-term-salt: ${SECRET_TERM:local-biometric-term-salt}
 
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}

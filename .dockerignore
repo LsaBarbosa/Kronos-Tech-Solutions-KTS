@@ -1,0 +1,73 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# Certificates & Keys
+*.pem
+*.key
+*.p12
+*.jks
+*.p8
+*.crt
+*.cer
+*.pfx
+*.keystore
+*.truststore
+
+# Credentials
+credentials.json
+service-account.json
+aws-credentials.json
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Build
+target/
+build/
+out/
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+*.jar
+*.class
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+README.md
+HELP.md
+
+# Testing
+src/test/
+*.test
+*.spec
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Local development
+docker-compose*.yml
+docker-compose*.yaml
+env.local
+.env.local
