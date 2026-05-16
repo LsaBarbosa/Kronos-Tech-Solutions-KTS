@@ -22,12 +22,33 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @SpringBootTest(classes = ContextSmokeTestApplication.class)
 @ActiveProfiles("prod")
 @TestPropertySource(properties = {
-        "spring.mail.username=test@kronos.local",
-        "management.health.mail.enabled=false",
+        // Database
+        "DB_HOST=localhost",
+        "DB_PORT=5432",
+        "DB_NAME=kronos_test",
+        "DB_USERNAME=kronos_test",
+        "DB_PASSWORD=kronos_test",
+        // JWT
+        "JWT_SECRET=test-jwt-secret-with-at-least-64-characters-1234567890123456",
+        // Frontend
         "frontend.base-url-record=https://record.kronos.example",
         "frontend.base-url-plataform=https://app.kronos.example",
         "frontend.base-url-local=https://local.kronos.example",
         "frontend.base-url-local-2=https://local2.kronos.example",
+        "FRONTEND_ALLOWED_ORIGINS=https://kronos.example",
+        // Mail
+        "MAIL_HOST=localhost",
+        "MAIL_PORT=2525",
+        "MAIL_USERNAME=test@kronos.local",
+        "MAIL_PASSWORD=test",
+        "management.health.mail.enabled=false",
+        // AWS
+        "AWS_REGION=us-east-1",
+        "AWS_ACCESS_KEY_ID=test-key",
+        "AWS_SECRET_ACCESS_KEY=test-secret",
+        "AWS_S3_BUCKET_NAME=test-bucket",
+        "AWS_REKOGNITION_COLLECTION_ID=test-collection",
+        // Certificate
         "DIGITAL_CERTIFICATE_PATH=/tmp/certificado.pfx",
         "DIGITAL_CERTIFICATE_PASSWORD=change-me"
 })
