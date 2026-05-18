@@ -179,6 +179,11 @@ public class SecurityConfig {
         repository.setCookieName("KRONOS_CSRF_TOKEN");
         repository.setCookiePath("/");
         repository.setHeaderName("X-CSRF-TOKEN");
+        repository.setCookieCustomizer(cookie -> cookie
+                .secure(true)
+                .sameSite("None")
+                .path("/")
+        );
         return repository;
     }
 
