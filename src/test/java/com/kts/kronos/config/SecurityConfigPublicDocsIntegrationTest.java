@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -45,6 +46,9 @@ class SecurityConfigPublicDocsIntegrationTest {
 
     @MockitoBean
     private TokenBlacklistProvider tokenBlacklistProvider;
+
+    @MockitoBean
+    private ObservabilityStatusUseCase observabilityStatusUseCase;
 
     @Test
     void shouldPermitPublicDocsWhenExplicitlyEnabled() throws Exception {

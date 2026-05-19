@@ -1,5 +1,6 @@
 package com.kts.kronos.application.scheduler;
 import com.kts.kronos.adapter.out.persistence.TimeRecordApprovalRepository;
+import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,20 +15,41 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 @Component
 @RequiredArgsConstructor
 public class TimeRecordApprovalCleanupScheduler {
+    private static final String SCHEDULER_NAME = "approval_cleanup";
+
     private final TimeRecordApprovalRepository repository;
+    private final KronosMetrics kronosMetrics;
     private static final int DAYS_TO_KEEP = 31;
+
+    public TimeRecordApprovalCleanupScheduler(TimeRecordApprovalRepository repository) {
+        this(repository, new KronosMetrics());
+    }
 
     @Scheduled(cron = "0 30 2 * * ?", zone = "America/Sao_Paulo")
     @Transactional
     public void cleanupOldApprovals() {
-        log.info("Iniciando tarefa agendada de limpeza de solicitações de aprovação de ponto não resolvidas.");
+        long startedAt = System.nanoTime();
         var threshold = LocalDateTime.now(SAO_PAULO).minusDays(DAYS_TO_KEEP);
 
         try {
             repository.deleteByCreatedAtBefore(threshold);
-            log.info("Limpeza de solicitações de aprovação concluída. Registros anteriores a {} foram removidos.", threshold);
+            kronosMetrics.schedulerSuccess(SCHEDULER_NAME);
+            kronosMetrics.recordSchedulerDuration(
+                    SCHEDULER_NAME,
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt),
+                    "success"
+            );
+            log.info("event=scheduler_execution result=success scheduler={}", SCHEDULER_NAME);
         } catch (RuntimeException e) {
-            log.error("Erro durante a limpeza de solicitações de aprovação agendada: {}", e.getMessage(), e);
+            kronosMetrics.schedulerFailure(SCHEDULER_NAME);
+            kronosMetrics.recordSchedulerDuration(
+                    SCHEDULER_NAME,
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt),
+                    "failure"
+            );
+            log.error("event=scheduler_execution result=failure scheduler={} reason=unknown exception_type={}",
+                    SCHEDULER_NAME,
+                    e.getClass().getSimpleName());
         }
     }
 }

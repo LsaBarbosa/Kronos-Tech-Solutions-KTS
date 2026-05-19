@@ -12,6 +12,8 @@ import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,7 @@ import java.util.zip.ZipInputStream;
 import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -53,6 +56,10 @@ public class DocumentService implements DocumentUseCase {
     private final BucketStorageProvider bucketStorageProvider;
     private final DomainAuthorizationService domainAuthorizationService;
     private final FileScanningProvider fileScanningProvider;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     @Value("${kronos.security.upload.max-bytes:5242880}")
     private long maxUploadBytes;
@@ -65,9 +72,12 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
         var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
+        var documentType = normalizeDocumentType(doc.type());
 
         try {
             byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
+            kronosMetrics.documentDownloadSuccess(documentType);
+            log.info("event=document_download result=success document_type={}", documentType);
 
             return new DocumentWithData(
                     doc.documentId(),
@@ -80,12 +90,14 @@ public class DocumentService implements DocumentUseCase {
             );
 
         } catch (ResourceNotFoundException e) {
-            log.warn("Documento não encontrado durante download. documentId={}, requestedEmployeeId={}",
-                    documentId, employeeId);
+            kronosMetrics.documentDownloadFailure(documentType, "not_found");
+            log.warn("event=document_download result=failure document_type={} reason=not_found", documentType);
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
-            log.error("Falha interna no download do documento. documentId={}, requestedEmployeeId={}, storagePath={}",
-                    documentId, employeeId, doc.storagePath(), e);
+            kronosMetrics.documentDownloadFailure(documentType, "unknown");
+            log.error("event=document_download result=failure document_type={} reason=unknown exception_type={}",
+                    documentType,
+                    e.getClass().getSimpleName());
             throw new BadRequestException(ERROR_GET_FILE);
         }
     }
@@ -113,35 +125,50 @@ public class DocumentService implements DocumentUseCase {
 
     @Override
     public void deleteDocument(UUID employeeId, UUID documentId) {
-        var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
-        var currentUserId = jwtAuthenticatedUser.getEmployeeId();
-        var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
+        var documentType = "unknown";
+        try {
+            var currentUserRole = jwtAuthenticatedUser.getCurrentRole();
+            var currentUserId = jwtAuthenticatedUser.getEmployeeId();
+            var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
+            documentType = normalizeDocumentType(doc.type());
 
-        var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+            var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
 
-        if (doc.type() == DocumentType.TIME_OFF) {
-            if (!doc.employeeId().equals(loggedInEmployeeId)) {
+            if (doc.type() == DocumentType.TIME_OFF && !doc.employeeId().equals(loggedInEmployeeId)) {
                 throw new ForbiddenException(ONLY_OWNER_DELETE_TIME_OFF_DOCS);
             }
-        }
 
-        Document updatedDoc;
-        boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
+            Document updatedDoc;
+            boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
 
-        if (isManager) {
-            updatedDoc = doc.markDeletedByManager();
-        } else {
-            if (!doc.employeeId().equals(currentUserId)) {
-                throw new ForbiddenException(FORBIDDEN_OTHER_EMPLOYEE_DELETE);
+            if (isManager) {
+                updatedDoc = doc.markDeletedByManager();
+            } else {
+                if (!doc.employeeId().equals(currentUserId)) {
+                    throw new ForbiddenException(FORBIDDEN_OTHER_EMPLOYEE_DELETE);
+                }
+                updatedDoc = doc.markDeletedByEmployee();
             }
-            updatedDoc = doc.markDeletedByEmployee();
-        }
 
-        if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
-            bucketStorageProvider.deleteFile(doc.storagePath());
-            documentProvider.delete(doc.employeeId(), doc.documentId());
-        } else {
-            documentProvider.save(updatedDoc);
+            if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
+                bucketStorageProvider.deleteFile(doc.storagePath());
+                documentProvider.delete(doc.employeeId(), doc.documentId());
+            } else {
+                documentProvider.save(updatedDoc);
+            }
+
+            kronosMetrics.documentDeleteSuccess(documentType);
+            log.info("event=document_delete result=success document_type={}", documentType);
+        } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
+            kronosMetrics.documentDeleteFailure(documentType, "validation");
+            log.warn("event=document_delete result=failure document_type={} reason=validation", documentType);
+            throw e;
+        } catch (RuntimeException e) {
+            kronosMetrics.documentDeleteFailure(documentType, "unknown");
+            log.error("event=document_delete result=failure document_type={} reason=unknown exception_type={}",
+                    documentType,
+                    e.getClass().getSimpleName());
+            throw e;
         }
     }
 
@@ -152,44 +179,40 @@ public class DocumentService implements DocumentUseCase {
     private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
         try {
             var uploadData = validateAndPrepareUpload(file);
-            var employee = getAuthorizedEmployee(employeeId);
-            var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + uploadData.fileName();
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, uploadData.data(), uploadData.contentType());
-            var doc = new Document(
-                    employee.employeeId(),
-                    type,
-                    uploadData.fileName(),
-                    uploadData.contentType(),
-                    storagePath, // USANDO O CAMINHO DO GCS
-                    TIME_ZONE_BRAZIL,
-                    timeRecordId,
-                    false,false
-            );
-            documentProvider.save(doc);
+            kronosTracing.observe("kronos.document.upload", () -> {
+                var employee = getAuthorizedEmployee(employeeId);
+                var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + uploadData.fileName();
+                var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, uploadData.data(), uploadData.contentType());
+                var doc = new Document(
+                        employee.employeeId(),
+                        type,
+                        uploadData.fileName(),
+                        uploadData.contentType(),
+                        storagePath,
+                        TIME_ZONE_BRAZIL,
+                        timeRecordId,
+                        false,
+                        false
+                );
+                documentProvider.save(doc);
+            });
+            kronosMetrics.documentUploadSuccess(normalizeDocumentType(type));
+            log.info("event=document_upload result=success document_type={}", normalizeDocumentType(type));
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
-            log.warn("Upload de documento rejeitado. type={}, employeeId={}, timeRecordId={}, originalFilename={}, exceptionType={}, message={}",
-                    type,
-                    employeeId,
-                    timeRecordId,
-                    file != null ? file.getOriginalFilename() : null,
-                    e.getClass().getSimpleName(),
-                    e.getMessage());
+            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "validation");
+            log.warn("event=document_upload result=failure document_type={} reason=validation",
+                    normalizeDocumentType(type));
             throw e;
         } catch (IOException e) {
-            log.warn("Falha ao ler arquivo para upload. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
-                    type,
-                    employeeId,
-                    timeRecordId,
-                    file != null ? file.getOriginalFilename() : null,
-                    e);
+            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "io");
+            log.warn("event=document_upload result=failure document_type={} reason=io",
+                    normalizeDocumentType(type));
             throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
         } catch (RuntimeException e) {
-            log.error("Falha interna no upload do documento. type={}, employeeId={}, timeRecordId={}, originalFilename={}",
-                    type,
-                    employeeId,
-                    timeRecordId,
-                    file != null ? file.getOriginalFilename() : null,
-                    e);
+            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "unknown");
+            log.error("event=document_upload result=failure document_type={} reason=unknown exception_type={}",
+                    normalizeDocumentType(type),
+                    e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -221,21 +244,13 @@ public class DocumentService implements DocumentUseCase {
             documentProvider.save(doc);
 
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
-            log.warn("Persistência de documento gerado rejeitada. type={}, employeeId={}, timeRecordId={}, fileName={}, exceptionType={}, message={}",
-                    type,
-                    employeeId,
-                    timeRecordId,
-                    fileName,
-                    e.getClass().getSimpleName(),
-                    e.getMessage());
+            log.warn("event=document_upload result=failure document_type={} reason=validation",
+                    normalizeDocumentType(type));
             throw e;
         } catch (RuntimeException e) {
-            log.error("Falha interna ao persistir documento gerado. type={}, employeeId={}, timeRecordId={}, fileName={}",
-                    type,
-                    employeeId,
-                    timeRecordId,
-                    fileName,
-                    e);
+            log.error("event=document_upload result=failure document_type={} reason=unknown exception_type={}",
+                    normalizeDocumentType(type),
+                    e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -374,6 +389,10 @@ public class DocumentService implements DocumentUseCase {
             }
         }
         return true;
+    }
+
+    private String normalizeDocumentType(DocumentType type) {
+        return type == null ? "unknown" : type.name().toLowerCase(Locale.ROOT);
     }
 
     private record UploadData(byte[] data, String fileName, String contentType) {}

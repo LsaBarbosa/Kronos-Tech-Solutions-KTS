@@ -10,9 +10,12 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +41,10 @@ public class AejService implements AejUseCase {
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider recordRepository;
     private final DigitalSignatureService signatureService;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     @Value("${kronos.legal.inpi-number:999999999}")
     private String inpiNumber;
@@ -51,111 +58,96 @@ public class AejService implements AejUseCase {
     @Override
     @Transactional(readOnly = true)
     public void generateAej(UUID companyId, LocalDate startDate, LocalDate endDate, OutputStream outputStream) {
+        long startedAt = System.nanoTime();
+        final boolean[] signatureFailure = {false};
         long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
 
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        log.info("Iniciando geração de AEJ para empresa {} de {} a {} ({} dias)", companyId, startDate, endDate, totalDays);
-
         // Buffer em memória para montar o texto antes de assinar
-        try (var textBuffer = new ByteArrayOutputStream();
-             var writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
+        try {
+            kronosTracing.observe("kronos.legal.aej.generate", () -> {
+                try (var textBuffer = new ByteArrayOutputStream();
+                     var writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
 
-            // --- GERAÇÃO DO CONTEÚDO TEXTUAL (LAYOUT PORTARIA 671) ---
+                    writeLine(writer, generateType01(company, startDate, endDate));
+                    writeLine(writer, generateType02());
 
-            // 1. REGISTRO 01: CABEÇALHO
-            writeLine(writer, generateType01(company, startDate, endDate));
+                    List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
 
-            // 2. REGISTRO 02: IDENTIFICAÇÃO DO REP-P
-            writeLine(writer, generateType02());
+                    var employeeIds = employees.stream()
+                            .map(Employee::employeeId)
+                            .toList();
 
-            // 3. LOOP DE FUNCIONÁRIOS
-            List<Employee> employees = employeeProvider.findByCompanyId(company.companyId());
+                    var recordsByEmployeeId = recordRepository.findByEmployeeIdsAndRange(
+                                    employeeIds,
+                                    startDate.atStartOfDay(),
+                                    endDate.atTime(23, 59, 59)
+                            ).stream()
+                            .collect(Collectors.groupingBy(
+                                    TimeRecord::employeeId,
+                                    LinkedHashMap::new,
+                                    Collectors.toList()
+                            ));
 
-            var employeeIds = employees.stream()
-                    .map(Employee::employeeId)
-                    .toList();
+                    int sequenceId = 1;
 
-            var recordsByEmployeeId = recordRepository.findByEmployeeIdsAndRange(
-                            employeeIds,
-                            startDate.atStartOfDay(),
-                            endDate.atTime(23, 59, 59)
-                    ).stream()
-                    .collect(Collectors.groupingBy(
-                            TimeRecord::employeeId,
-                            LinkedHashMap::new,
-                            Collectors.toList()
-                    ));
+                    for (var employee : employees) {
+                        var bondId = String.format("%09d", sequenceId++);
+                        writeLine(writer, generateType03(bondId, employee));
 
-            int sequenceId = 1;
+                        var scheduleId = "H" + bondId;
+                        writeLine(writer, generateType04(scheduleId, employee));
 
-            for (var employee : employees) {
-                // ID de Vínculo Sequencial no arquivo
-                var bondId = String.format("%09d", sequenceId++);
+                        List<TimeRecord> records = recordsByEmployeeId.getOrDefault(employee.employeeId(), List.of());
 
-                // REGISTRO 03: VÍNCULO
-                writeLine(writer, generateType03(bondId, employee));
+                        for (var record : records) {
+                            generateType05Lines(bondId, scheduleId, record)
+                                    .forEach(line -> writeLine(writer, line));
+                        }
 
-                // REGISTRO 04: HORÁRIO CONTRATUAL
-                var scheduleId = "H" + bondId;
-                writeLine(writer, generateType04(scheduleId, employee));
-
-                List<TimeRecord> records = recordsByEmployeeId.getOrDefault(employee.employeeId(), List.of());
-
-                // REGISTRO 05: MARCAÇÕES
-                for (var record : records) {
-                    generateType05Lines(bondId, scheduleId, record)
-                            .forEach(line -> writeLine(writer, line));
-                }
-
-                // REGISTRO 07: AUSÊNCIAS E FÉRIAS
-                for (var record : records) {
-                    if (isAbsence(record)) {
-                        writeLine(writer, generateType07(bondId, record));
+                        for (var record : records) {
+                            if (isAbsence(record)) {
+                                writeLine(writer, generateType07(bondId, record));
+                            }
+                        }
                     }
+
+                    writeLine(writer, generateType08());
+                    writeLine(writer, "99|");
+                    writer.flush();
+
+                    byte[] originalContent = textBuffer.toByteArray();
+
+                    byte[] signedContent;
+                    try {
+                        signedContent = signatureService.signData(originalContent);
+                    } catch (RuntimeException ex) {
+                        signatureFailure[0] = true;
+                        kronosMetrics.legalFailure("aej", "digital_signature");
+                        kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                        log.error("event=legal_aej_generation result=failure reason=digital_signature exception_type={}",
+                                ex.getClass().getSimpleName());
+                        throw ex;
+                    }
+
+                    outputStream.write(signedContent);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
                 }
+            });
+
+            kronosMetrics.legalSuccess("aej");
+            kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            log.info("event=legal_aej_generation result=success");
+        } catch (RuntimeException e) {
+            if (!signatureFailure[0]) {
+                kronosMetrics.legalFailure("aej", "generation");
+                kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                log.error("event=legal_aej_generation result=failure reason=generation exception_type={}",
+                        e.getClass().getSimpleName());
             }
-
-            // 4. REGISTRO 08: IDENTIFICAÇÃO DO DESENVOLVEDOR (PTRP)
-            writeLine(writer, generateType08());
-
-            // 5. REGISTRO 99: TRAILER
-            writeLine(writer, "99|");
-
-            // Força a escrita no buffer
-            writer.flush();
-
-            // --- PROCESSO DE ASSINATURA DIGITAL ---
-
-            byte[] originalContent = textBuffer.toByteArray();
-            log.info(
-                    "Layout AEJ gerado. companyId={}, startDate={}, endDate={}, originalSize={}. Iniciando assinatura digital.",
-                    companyId,
-                    startDate,
-                    endDate,
-                    originalContent.length
-            );
-
-            byte[] signedContent = signatureService.signData(originalContent);
-            outputStream.write(signedContent);
-
-            log.info(
-                    "AEJ assinado e enviado com sucesso. companyId={}, startDate={}, endDate={}, signedSize={}",
-                    companyId,
-                    startDate,
-                    endDate,
-                    signedContent.length
-            );
-
-        } catch (RuntimeException | IOException e) {
-            log.error(
-                    "Falha na geração do AEJ. companyId={}, startDate={}, endDate={}",
-                    companyId,
-                    startDate,
-                    endDate,
-                    e
-            );
             throw new RuntimeException(FAILURE_TO_GENERAT_AEJ, e);
         }
     }

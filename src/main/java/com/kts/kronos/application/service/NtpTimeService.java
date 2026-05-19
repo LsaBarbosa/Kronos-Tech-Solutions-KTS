@@ -1,5 +1,7 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,44 +16,53 @@ import static com.kts.kronos.constants.Messages.INTERNAL_CLOCK_OUT_OF_SYNC;
 @Service
 public class NtpTimeService {
 
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
+
     @Value("${kronos.ntp.server:a.st1.ntp.br}")
     private String ntpServer;
 
     @Value("${kronos.ntp.timeout:5000}")
     private int timeout;
 
+    public NtpTimeService(KronosMetrics kronosMetrics, KronosTracing kronosTracing) {
+        this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
+    }
+
+    protected NtpTimeService() {
+        this(new KronosMetrics(), new KronosTracing());
+    }
+
     /**
      * Consulta o servidor NTP e retorna o "offset" (diferença) em milissegundos.
      * Retorna null se falhar (para não travar a aplicação).
      */
     public Long getNetworkTimeOffset() {
-        // Usa o método protegido para permitir Mock nos testes
-        var client = createClient();
-        client.setDefaultTimeout(timeout);
+        return kronosTracing.observe("kronos.ntp.check", () -> {
+            var client = createClient();
+            client.setDefaultTimeout(timeout);
 
-        try {
-            client.open();
-            var hostAddr = InetAddress.getByName(ntpServer);
+            try {
+                client.open();
+                var hostAddr = InetAddress.getByName(ntpServer);
+                var info = client.getTime(hostAddr);
+                info.computeDetails();
 
-            // Faz a consulta
-            var info = client.getTime(hostAddr);
-            info.computeDetails(); // Essencial para calcular o offset
-
-            // Offset: Diferença entre (NTP) e (Sistema Local)
-            var offset = info.getOffset();
-
-            log.debug("Sincronismo NTP realizado com sucesso. Server: {}, Offset: {}ms", ntpServer, offset);
-            return offset;
-
-        } catch (IOException e) {
-            log.warn("Falha ao consultar servidor NTP ({}): {}. O sistema continuará operando com o relógio local.", ntpServer, e.getMessage());
-            return null;
-        } finally {
-            // Garante o fechamento da porta UDP
-            if (client.isOpen()) {
-                client.close();
+                var offset = info.getOffset();
+                kronosMetrics.setNtpDriftMillis(offset);
+                log.info("event=ntp_check result=success");
+                return offset;
+            } catch (IOException e) {
+                kronosMetrics.setNtpDriftMillis(null);
+                log.warn("event=ntp_check result=failure reason=io");
+                return null;
+            } finally {
+                if (client.isOpen()) {
+                    client.close();
+                }
             }
-        }
+        });
     }
 
     /**
@@ -63,8 +74,7 @@ public class NtpTimeService {
         var offset = getNetworkTimeOffset();
 
         if (offset != null && Math.abs(offset) > (maxDriftSeconds * 1000L)) {
-            var msg = String.format("ALERTA CRÍTICO: RELÓGIO DO SERVIDOR DESSINCRONIZADO! Diferença de %d ms detectada. O limite é %d ms.", offset, maxDriftSeconds * 1000);
-            log.error(msg);
+            log.error("event=ntp_check result=failure reason=drift_limit_exceeded");
 
             throw new IllegalStateException(INTERNAL_CLOCK_OUT_OF_SYNC);
         }

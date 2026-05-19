@@ -1,0 +1,56 @@
+groups:
+  - name: kronos-observability
+    rules:
+      - alert: KronosBackendDown
+        expr: up{job="kronos-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: KRONOS backend indisponivel
+          description: O target kronos-backend deixou de responder ao Prometheus.
+
+      - alert: KronosBackendHttp5xx
+        expr: sum(rate(http_server_requests_seconds_count{job="kronos-backend",status=~"5.."}[5m])) > 0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: KRONOS com erros HTTP 5xx
+          description: A API principal esta retornando erro 5xx.
+
+      - alert: KronosBackendLatencyP95High
+        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="kronos-backend"}[5m])) by (le, uri)) > 2
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: KRONOS com latencia p95 elevada
+          description: Um ou mais endpoints excederam 2s no p95.
+
+      - alert: KronosTimeRecordFailureSpike
+        expr: increase(kronos_time_record_failure_total[10m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Falhas de registro de ponto acima do limite
+          description: O contador de falhas de ponto aumentou mais de 5 vezes em 10 minutos.
+
+      - alert: KronosSchedulerFailure
+        expr: increase(kronos_scheduler_execution_failure_total[30m]) > 0
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: Scheduler KRONOS falhou
+          description: Pelo menos um scheduler falhou nos ultimos 30 minutos.
+
+      - alert: KronosNtpDriftHigh
+        expr: abs(kronos_ntp_drift_seconds) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Drift NTP acima do limite
+          description: O desvio entre o horario local e o NTP excedeu 5 segundos.

@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: kronos-observability
+    orgId: 1
+    folder: KRONOS
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

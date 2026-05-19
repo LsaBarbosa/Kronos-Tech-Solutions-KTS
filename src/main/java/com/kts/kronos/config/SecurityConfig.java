@@ -115,9 +115,7 @@ public class SecurityConfig {
             ).permitAll();
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.GET,
-                    "/actuator/health",
-                    "/actuator/health/**",
-                    "/actuator/prometheus"
+                    "/observability/status"
             ).permitAll();
 
             if (publicDocsEnabled) {

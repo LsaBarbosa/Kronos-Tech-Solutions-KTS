@@ -20,9 +20,12 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -62,208 +65,198 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final NtpTimeService ntpTimeService; // Validação de Relógio
     private final DomainAuthorizationService domainAuthorizationService;
     private final BiometricProtectionService biometricProtectionService;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
+        long startedAt = System.nanoTime();
+        final StatusRecord[] convertedFromStatus = new StatusRecord[1];
+        final boolean[] implicitBreakCreated = {false};
 
-        // 0. BLINDAGEM CONTRA FRAUDE DE RELÓGIO (NTP)
-        ntpTimeService.validateSystemTime(10); //
+        try {
+            ActionResponse response = kronosTracing.observe("kronos.time_record.register", () -> {
+                ntpTimeService.validateSystemTime(10);
 
-        var employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = getEmployee(employeeId);
+                var employeeId = jwtAuthenticatedUser.getEmployeeId();
+                var employee = getEmployee(employeeId);
 
-        biometricProtectionService.protectCheckIn(
-                employeeId,
-                request.faceImageBase64(),
-                request.livenessPassed()
-        );
-
-        // 1. Validações Prévias (Biometria e Geolocalização)
-        validateFaceRecognition(employeeId, request.faceImageBase64());
-        isHomeOffice(request, employee, employeeId);
-
-        // 2. Preparação de Dados
-        var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
-        var currentTime = LocalDateTime.now(SAO_PAULO);
-        var currentTimeParsed = currentTime.format(TIME_FORMATTER);
-        var todayDate = currentTime.toLocalDate();
-
-        var company = companyProvider.findById(employee.companyId())
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
-
-        // ---------------------------------------------------------------------
-        // CENÁRIO A: CHECKOUT (Saída)
-        // ---------------------------------------------------------------------
-        if (openRecordOpt.isPresent()) {
-            var open = openRecordOpt.get();
-            var openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
-
-            // Só permite checkout se o registro aberto for do MESMO DIA
-            if (openRecordDate.isEqual(todayDate)) {
-                if (open.statusRecord() != PENDING) {
-                    throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
-                }
-
-                // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Saída)
-                var nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
-
-                // B. Cria o registro atualizado (Fechamento)
-                var updated = new TimeRecord(
-                        open.timeRecordId(),
-                        open.startWork(),
-                        currentTime, // endWork
-                        open.statusRecord().onCheckout(),
-                        open.edited(),
-                        open.active(),
-                        open.employeeId(),
-                        open.latitude(),
-                        open.longitude(),
-                        request.latitude(),  // endLatitude
-                        request.longitude(), // endLongitude
-                        open.nsrCheckin(),   // Mantém NSR da Entrada
-                        nsrCheckout,         // Novo NSR da Saída
-                        open.originalStartWork(),
-                        currentTime          // Define o original da saída
+                biometricProtectionService.protectCheckIn(
+                        employeeId,
+                        request.faceImageBase64(),
+                        request.livenessPassed()
                 );
 
-                recordRepository.save(updated);
+                validateFaceRecognition(employeeId, request.faceImageBase64());
+                isHomeOffice(request, employee, employeeId);
 
-                // C. Auditoria Fiscal (AFD) - Grava linha tipo 7
-                adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
+                var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
+                var currentTime = LocalDateTime.now(SAO_PAULO);
+                var currentTimeParsed = currentTime.format(TIME_FORMATTER);
+                var todayDate = currentTime.toLocalDate();
 
-                // D. Comprovante (PDF) - Gera e salva no S3
-                generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, EXIT);
+                var company = companyProvider.findById(employee.companyId())
+                        .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-                log.info("Checkout realizado com sucesso. NSR: {}", nsrCheckout);
-                return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", CHECKOUT);
+                if (openRecordOpt.isPresent()) {
+                    var open = openRecordOpt.get();
+                    var openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
 
-            } else {
-                log.info("Registro anterior (ID: {}) ignorado pois pertence a data passada.", open.timeRecordId());
-                // Continua para criar um novo Check-in
-            }
-        }
+                    if (openRecordDate.isEqual(todayDate)) {
+                        if (open.statusRecord() != PENDING) {
+                            throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
+                        }
 
-        // ---------------------------------------------------------------------
-        // CENÁRIO B: CHECKIN (Entrada) - Com lógica de suporte a DIA DE FOLGA
-        // ---------------------------------------------------------------------
+                        var nsrCheckout = nsrProvider.generateNextNsr(employee.companyId());
+                        var updated = new TimeRecord(
+                                open.timeRecordId(),
+                                open.startWork(),
+                                currentTime,
+                                open.statusRecord().onCheckout(),
+                                open.edited(),
+                                open.active(),
+                                open.employeeId(),
+                                open.latitude(),
+                                open.longitude(),
+                                request.latitude(),
+                                request.longitude(),
+                                open.nsrCheckin(),
+                                nsrCheckout,
+                                open.originalStartWork(),
+                                currentTime
+                        );
 
-        // A. GERA NSR ATÔMICO (Sequencial Fiscal Único para Entrada)
-        var nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
-        var actionType = CHECKIN; // Default
+                        recordRepository.save(updated);
+                        adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
+                        generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, EXIT);
 
-        // >>> NOVA LÓGICA: Verifica se já existe um registro de FOLGA ou FALTA para hoje <<<
-        // Isso permite que o funcionário trabalhe no dia que o sistema achava que era folga.
-        // Necessário buscar qualquer registro do dia, independente de estar "open"
-        var startOfDay = todayDate.atStartOfDay();
-        var endOfDay = todayDate.atTime(23, 59, 59);
+                        return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", CHECKOUT);
+                    }
+                }
 
-        // Estamos usando o método findByEmployeeIdAndStartWorkBetween que retorna uma lista.
-        // Pegamos o primeiro se existir.
-        List<TimeRecord> recordsToday = recordRepository.findByRange(
-                employee.employeeId(), startOfDay, endOfDay); //
+                var nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
+                var actionType = CHECKIN;
 
-        Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
-                .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
-                .findFirst();
+                var startOfDay = todayDate.atStartOfDay();
+                var endOfDay = todayDate.atTime(23, 59, 59);
 
-        TimeRecord recordToSave;
+                List<TimeRecord> recordsToday = recordRepository.findByRange(
+                        employee.employeeId(), startOfDay, endOfDay);
 
-        if (dayOffOrAbsenceRecord.isPresent()) {
-            // CENÁRIO: Transformar FOLGA/FALTA em TRABALHO
-            var existing = dayOffOrAbsenceRecord.get();
-            log.info("Convertendo registro {} (Status: {}) para PENDING (Trabalho) devido a Check-in manual.",
-                    existing.timeRecordId(), existing.statusRecord());
+                Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
+                        .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
+                        .findFirst();
 
-            // Reaproveita o ID e atualiza os dados para um check-in válido
-            recordToSave = new TimeRecord(
-                    existing.timeRecordId(), // Mantém o ID
-                    currentTime,             // Novo StartWork (agora)
-                    null,                    // EndWork nulo (está trabalhando)
-                    PENDING,    // Novo Status
-                    false,                   // Não é editado (é um registro original de ponto)
-                    true,
-                    employee.employeeId(),
-                    request.latitude(),
-                    request.longitude(),
-                    null, null,
-                    nsrCheckin,              // Atribui o NSR gerado
-                    null,
-                    currentTime,             // Original Start
-                    null
-            );
+                TimeRecord recordToSave;
 
-            actionType = CHECKIN_ON_DAY_OFF;
-
-        } else {
-            // CENÁRIO PADRÃO: Criar novo registro
-
-            // Lógica de Pausa Implícita (Gap)
-            var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
-
-            if (latestRecordOpt.isPresent()) {
-                var latest = latestRecordOpt.get();
-                var latestEndWork = latest.endWork();
-                var currentStartDay = currentTime.toLocalDate();
-                var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
-
-                // Se o último registro fechado foi HOJE, cria o registro de intervalo (gap)
-                if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
-                    var breakRecord = new TimeRecord(
+                if (dayOffOrAbsenceRecord.isPresent()) {
+                    var existing = dayOffOrAbsenceRecord.get();
+                    convertedFromStatus[0] = existing.statusRecord();
+                    recordToSave = new TimeRecord(
+                            existing.timeRecordId(),
+                            currentTime,
                             null,
-                            latestEndWork, // Início da Pausa
-                            currentTime,   // Fim da Pausa
-                            StatusRecord.IMPLICIT_BREAK,
+                            PENDING,
                             false,
                             true,
                             employee.employeeId(),
-                            null, null, null, null,
+                            request.latitude(),
+                            request.longitude(),
                             null, null,
-                            latestEndWork, currentTime
+                            nsrCheckin,
+                            null,
+                            currentTime,
+                            null
                     );
-                    recordRepository.save(breakRecord);
-                    actionType = CHECKIN_AFTER_BREAK;
-                    log.info("Pausa implícita registrada entre {} e {}", latestEndWork, currentTime);
+                    actionType = CHECKIN_ON_DAY_OFF;
+                } else {
+                    var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+
+                    if (latestRecordOpt.isPresent()) {
+                        var latest = latestRecordOpt.get();
+                        var latestEndWork = latest.endWork();
+                        var currentStartDay = currentTime.toLocalDate();
+                        var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+
+                        if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+                            var breakRecord = new TimeRecord(
+                                    null,
+                                    latestEndWork,
+                                    currentTime,
+                                    StatusRecord.IMPLICIT_BREAK,
+                                    false,
+                                    true,
+                                    employee.employeeId(),
+                                    null, null, null, null,
+                                    null, null,
+                                    latestEndWork, currentTime
+                            );
+                            recordRepository.save(breakRecord);
+                            actionType = CHECKIN_AFTER_BREAK;
+                            implicitBreakCreated[0] = true;
+                        }
+                    }
+
+                    recordToSave = new TimeRecord(
+                            null,
+                            currentTime,
+                            null,
+                            PENDING,
+                            false,
+                            true,
+                            employee.employeeId(),
+                            request.latitude(),
+                            request.longitude(),
+                            null, null,
+                            nsrCheckin,
+                            null,
+                            currentTime,
+                            null
+                    );
                 }
+
+                var savedRecord = recordRepository.save(recordToSave);
+                adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
+                generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
+
+                var message = switch (actionType) {
+                    case CHECKIN_AFTER_BREAK -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                    case CHECKIN_ON_DAY_OFF ->
+                            "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                    default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                };
+
+                return new ActionResponse(message, actionType);
+            });
+
+            if (CHECKOUT.equals(response.actionType())) {
+                kronosMetrics.timeRecordCheckoutSuccess();
+                kronosMetrics.recordTimeRecordDuration("checkout", Duration.ofNanos(System.nanoTime() - startedAt));
+                log.info("event=time_record_register result=success action=checkout");
+            } else {
+                kronosMetrics.timeRecordCheckinSuccess();
+                kronosMetrics.recordTimeRecordDuration("checkin", Duration.ofNanos(System.nanoTime() - startedAt));
+                if (implicitBreakCreated[0]) {
+                    kronosMetrics.timeRecordImplicitBreak();
+                }
+                if (convertedFromStatus[0] == StatusRecord.DAY_OFF) {
+                    kronosMetrics.timeRecordDayOffConverted();
+                }
+                if (convertedFromStatus[0] == StatusRecord.ABSENCE) {
+                    kronosMetrics.timeRecordAbsenceConverted();
+                }
+                log.info("event=time_record_register result=success action=checkin");
             }
 
-            // Cria o objeto novo
-            recordToSave = new TimeRecord(
-                    null,
-                    currentTime,
-                    null,
-                    PENDING,
-                    false,
-                    true,
-                    employee.employeeId(),
-                    request.latitude(),
-                    request.longitude(),
-                    null, null,
-                    nsrCheckin,
-                    null,
-                    currentTime,
-                    null
-            );
+            return response;
+        } catch (RuntimeException e) {
+            String reason = resolveTimeRecordFailureReason(e);
+            kronosMetrics.timeRecordFailure(reason);
+            log.warn("event=time_record_register result=failure reason={}", reason);
+            throw e;
         }
-
-        // C. Salva (Create ou Update)
-        var savedRecord = recordRepository.save(recordToSave);
-
-        // D. Auditoria Fiscal (AFD)
-        adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
-
-        // E. Comprovante (PDF)
-        generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
-
-        log.info("Checkin realizado com sucesso. NSR: {}", nsrCheckin);
-
-        var message = switch (actionType) {
-            case CHECKIN_AFTER_BREAK -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-            case CHECKIN_ON_DAY_OFF ->
-                    "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-            default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-        };
-
-        return new ActionResponse(message, actionType);
     }
 
     @Override
@@ -805,11 +798,8 @@ public class TimeRecordService implements TimeRecordUseCase {
                         // --------------------------------------------------
 
                     } catch (IOException e) {
-                        log.warn("Falha ao ler documento de abono. timeRecordId={}, employeeId={}, originalFilename={}",
-                                savedRecord.timeRecordId(),
-                                employeeId,
-                                document.getOriginalFilename(),
-                                e);
+                        log.warn("event=time_record_time_off_document result=failure reason=document_read exception_type={}",
+                                e.getClass().getSimpleName());
                         throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
                     }
                 } else if (uploadedStoragePath != null) {
@@ -1058,23 +1048,30 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
-        var employee = getEmployee(employeeId);
+        kronosTracing.observe("kronos.time_record.validate_geolocation", () -> {
+            var employee = getEmployee(employeeId);
 
-        var company = companyProvider.findById(employee.companyId()).orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND_FOR_THE_EMPLOYEE));
+            var company = companyProvider.findById(employee.companyId())
+                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND_FOR_THE_EMPLOYEE));
 
-        final double ALLOWED_DISTANCE_METERS = 80.0;
-        var companyLocation = company.location();
+            final double allowedDistanceMeters = 80.0;
+            var companyLocation = company.location();
 
-        if (companyLocation == null) {
-            throw new BadRequestException(ADDRESS_COMPANY_IS_NOT_REGISTERED);
-        }
+            if (companyLocation == null) {
+                throw new BadRequestException(ADDRESS_COMPANY_IS_NOT_REGISTERED);
+            }
 
-        // Você precisará de uma função para calcular a distância entre os pontos
-        double distance = calculateDistanceInMeters(companyLocation.latitude(), companyLocation.longitude(), requestLatitude, requestLongitude);
+            double distance = calculateDistanceInMeters(
+                    companyLocation.latitude(),
+                    companyLocation.longitude(),
+                    requestLatitude,
+                    requestLongitude
+            );
 
-        if (distance > ALLOWED_DISTANCE_METERS) {
-            throw new BadRequestException(GEOLOCATION_OUT_OF_RANGE);
-        }
+            if (distance > allowedDistanceMeters) {
+                throw new BadRequestException(GEOLOCATION_OUT_OF_RANGE);
+            }
+        });
     }
 
     /**
@@ -1259,44 +1256,38 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
         try {
-            // 1. Decodifica a string Base64 para um array de bytes
-            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+            kronosTracing.observe("kronos.time_record.validate_face", () -> {
+                byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+                UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
 
-            // 2. Cria um InputStream a partir dos bytes
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
+                if (recognizedEmployeeId == null) {
+                    throw new BadRequestException(FACE_NOT_RECOGNIZED);
+                }
 
-            // 3. Executa a busca facial no Rekognition
-            UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
-
-            if (recognizedEmployeeId == null) {
-                throw new BadRequestException(FACE_NOT_RECOGNIZED);
-            }
-
-            // 4. Compara o ID retornado pelo Rekognition com o ID do usuário autenticado
-            if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
-                log.warn("Tentativa de registro de ponto com face inválida. Autenticado: {}, Reconhecido: {}", expectedEmployeeId, recognizedEmployeeId);
-                throw new BadRequestException(FACE_MISMATCH);
-            }
-
-            log.info("✅ Validação facial concluída com sucesso para o colaborador: {}", expectedEmployeeId);
-
+                if (!expectedEmployeeId.equals(recognizedEmployeeId)) {
+                    throw new BadRequestException(FACE_MISMATCH);
+                }
+            });
+            log.info("event=time_record_face_validation result=success");
         } catch (IllegalArgumentException e) {
-            // Ocorre se a string Base64 for malformada
+            log.warn("event=time_record_face_validation result=failure reason=invalid_image");
             throw new BadRequestException(INVALID_BASE64_IMAGE);
+        } catch (BadRequestException e) {
+            log.warn("event=time_record_face_validation result=failure reason=face");
+            throw e;
         } catch (RuntimeException e) {
-            // Captura falhas de serviço do Rekognition (lançadas pelo provider)
-            log.error("Erro no serviço de reconhecimento facial: {}", e.getMessage(), e);
+            log.error("event=time_record_face_validation result=failure reason=provider exception_type={}",
+                    e.getClass().getSimpleName());
             throw new BadRequestException(INVALID_BASE64_IMAGE);
         }
     }
 
     private void isHomeOffice(GeolocationRequest request, Employee employee, UUID employeeId) {
         if (!employee.homeOffice()) {
-            // Se NÃO estiver em home office, a validação de geolocalização é obrigatória
             checkGeolocation(employeeId, request.latitude(), request.longitude());
         } else {
-            // Log para indicar que a validação foi pulada
-            log.info("Funcionário {} está em Home Office. Validação de geolocalização ignorada.", employeeId);
+            log.info("event=time_record_geolocation result=skipped reason=home_office");
         }
     }
 
@@ -1325,12 +1316,25 @@ public class TimeRecordService implements TimeRecordUseCase {
             );
 
         } catch (RuntimeException e) {
-            log.error("Falha ao gerar comprovante de ponto. nsr={}, timeRecordId={}, employeeId={}, typeSuffix={}",
-                    nsr,
-                    timeRecordId,
-                    employee.employeeId(),
-                    typeSuffix,
-                    e);
+            log.error("event=time_record_receipt result=failure reason=receipt_generation exception_type={}",
+                    e.getClass().getSimpleName());
         }
+    }
+
+    private String resolveTimeRecordFailureReason(RuntimeException exception) {
+        String message = exception.getMessage();
+        if (INTERNAL_CLOCK_OUT_OF_SYNC.equals(message)) {
+            return "ntp";
+        }
+        if (INVALID_BASE64_IMAGE.equals(message) || FACE_NOT_RECOGNIZED.equals(message) || FACE_MISMATCH.equals(message)) {
+            return "face";
+        }
+        if (GEOLOCATION_OUT_OF_RANGE.equals(message) || ADDRESS_COMPANY_IS_NOT_REGISTERED.equals(message)) {
+            return "geolocation";
+        }
+        if (message != null && message.startsWith(STATUS_CHECKOUT)) {
+            return "status";
+        }
+        return "unknown";
     }
 }

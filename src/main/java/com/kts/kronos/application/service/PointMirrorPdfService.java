@@ -18,8 +18,11 @@ import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,121 +50,100 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final CompanyProvider companyProvider;
     private final TimeRecordProvider recordRepository;
     private final DomainAuthorizationService domainAuthorizationService;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
 
 
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        long startedAt = System.nanoTime();
         long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
-        log.info(
-                "Gerando espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}, totalDays={}",
-                company.companyId(),
-                employee.employeeId(),
-                startDate,
-                endDate,
-                totalDays
-        );
+        try {
+            byte[] pdfBytes = kronosTracing.observe("kronos.legal.point_mirror.generate", () -> {
+                try (var baos = new ByteArrayOutputStream()) {
+                    var writer = new PdfWriter(baos);
+                    var pdf = new PdfDocument(writer);
+                    var document = new Document(pdf);
+                    document.setMargins(20, 20, 20, 20);
 
-        try (var baos = new ByteArrayOutputStream()) {
-            var writer = new PdfWriter(baos);
-            var pdf = new PdfDocument(writer);
-            var document = new Document(pdf);
-            document.setMargins(20, 20, 20, 20);
+                    document.add(new Paragraph("ESPELHO DE PONTO ELETRÔNICO")
+                            .setBold().setFontSize(16).setTextAlignment(TextAlignment.CENTER));
+                    document.add(new Paragraph("Período: " + startDate.format(DATE_FMT_BR) + " a " + endDate.format(DATE_FMT_BR))
+                            .setFontSize(10).setTextAlignment(TextAlignment.CENTER));
 
-            // 1. TÍTULO
-            document.add(new Paragraph("ESPELHO DE PONTO ELETRÔNICO")
-                    .setBold().setFontSize(16).setTextAlignment(TextAlignment.CENTER));
-            document.add(new Paragraph("Período: " + startDate.format(DATE_FMT_BR) + " a " + endDate.format(DATE_FMT_BR))
-                    .setFontSize(10).setTextAlignment(TextAlignment.CENTER));
+                    addEmployeeHeader(document, company, employee);
 
-            // 2. DADOS CADASTRAIS
-            addEmployeeHeader(document, company, employee);
+                    var table = new Table(UnitValue.createPercentArray(new float[]{3, 3, 5, 5, 3, 3}));
+                    table.setWidth(UnitValue.createPercentValue(100));
 
-            // 3. TABELA DE PONTO
-            var table = new Table(UnitValue.createPercentArray(new float[]{3, 3, 5, 5, 3, 3}));
-            table.setWidth(UnitValue.createPercentValue(100));
+                    addCellHeader(table, "DATA");
+                    addCellHeader(table, "JORNADA");
+                    addCellHeader(table, "MARC. ORIGINAIS");
+                    addCellHeader(table, "MARC. TRATADAS");
+                    addCellHeader(table, "TRABALHADO");
+                    addCellHeader(table, "SALDO");
 
-            // Cabeçalho da Tabela
-            addCellHeader(table, "DATA");
-            addCellHeader(table, "JORNADA");
-            addCellHeader(table, "MARC. ORIGINAIS");
-            addCellHeader(table, "MARC. TRATADAS");
-            addCellHeader(table, "TRABALHADO");
-            addCellHeader(table, "SALDO");
+                    var totalBalance = Duration.ZERO;
+                    var totalWorked = Duration.ZERO;
 
-            var totalBalance = Duration.ZERO;
-            var totalWorked = Duration.ZERO;
+                    var recordsByDay = recordRepository.findByRange(
+                                    employee.employeeId(),
+                                    startDate.atStartOfDay(),
+                                    endDate.atTime(23, 59, 59)
+                            ).stream()
+                            .filter(r -> r.startWork() != null)
+                            .sorted(Comparator.comparing(TimeRecord::startWork))
+                            .collect(Collectors.groupingBy(
+                                    r -> r.startWork().toLocalDate(),
+                                    TreeMap::new,
+                                    Collectors.toList()
+                            ));
 
-            var recordsByDay = recordRepository.findByRange(
-                            employee.employeeId(),
-                            startDate.atStartOfDay(),
-                            endDate.atTime(23, 59, 59)
-                    ).stream()
-                    .filter(r -> r.startWork() != null)
-                    .sorted(Comparator.comparing(TimeRecord::startWork))
-                    .collect(Collectors.groupingBy(
-                            r -> r.startWork().toLocalDate(),
-                            TreeMap::new,
-                            Collectors.toList()
-                    ));
+                    for (var date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                        List<TimeRecord> dailyRecords = recordsByDay.getOrDefault(date, List.of());
+                        var dayData = processDay(date, dailyRecords, employee);
 
-            for (var date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                        totalWorked = totalWorked.plus(dayData.worked);
+                        totalBalance = totalBalance.plus(dayData.balance);
 
-                List<TimeRecord> dailyRecords = recordsByDay.getOrDefault(date, List.of());
+                        addCell(table, date.format(DateTimeFormatter.ofPattern("dd/MM (EEE)")));
+                        addCell(table, dayData.jornadaDisplay);
+                        addCell(table, dayData.originalMarks);
+                        addCell(table, dayData.treatedMarks);
+                        addCell(table, formatDuration(dayData.worked));
+                        addCell(table, formatBalance(dayData.balance));
+                    }
 
-                // --- CÁLCULO REAL ---
-                var dayData = processDay(date, dailyRecords, employee);
+                    document.add(table);
+                    document.add(new Paragraph("\nRESUMO DO PERÍODO").setBold());
+                    document.add(new Paragraph("Total Trabalhado: " + formatDuration(totalWorked)));
+                    document.add(new Paragraph("Saldo do Período: " + formatBalance(totalBalance)));
+                    addSignatures(document, employee.fullName());
 
-                totalWorked = totalWorked.plus(dayData.worked);
-                totalBalance = totalBalance.plus(dayData.balance);
+                    document.close();
+                    return baos.toByteArray();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
 
-                // Montagem da Linha
-                addCell(table, date.format(DateTimeFormatter.ofPattern("dd/MM (EEE)")));
-                addCell(table, dayData.jornadaDisplay);
-                addCell(table, dayData.originalMarks);
-                addCell(table, dayData.treatedMarks);
-                addCell(table, formatDuration(dayData.worked));
-                addCell(table, formatBalance(dayData.balance));
-            }
-
-            document.add(table);
-
-            // 4. RESUMO
-            document.add(new Paragraph("\nRESUMO DO PERÍODO").setBold());
-            document.add(new Paragraph("Total Trabalhado: " + formatDuration(totalWorked)));
-            document.add(new Paragraph("Saldo do Período: " + formatBalance(totalBalance)));
-
-            // 5. ASSINATURAS
-            addSignatures(document, employee.fullName());
-
-            document.close();
-            byte[] pdfBytes = baos.toByteArray();
-
-            log.info(
-                    "Espelho de ponto gerado com sucesso. companyId={}, employeeId={}, startDate={}, endDate={}, pdfSize={}",
-                    company.companyId(),
-                    employee.employeeId(),
-                    startDate,
-                    endDate,
-                    pdfBytes.length
-            );
-
+            kronosMetrics.legalSuccess("point_mirror");
+            kronosMetrics.recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            log.info("event=legal_point_mirror_generation result=success");
             return pdfBytes;
-
-        } catch (RuntimeException | IOException e) {
-            log.error(
-                    "Erro ao gerar espelho de ponto. companyId={}, employeeId={}, startDate={}, endDate={}",
-                    company.companyId(),
-                    employee.employeeId(),
-                    startDate,
-                    endDate,
-                    e
-            );
+        } catch (RuntimeException e) {
+            kronosMetrics.legalFailure("point_mirror", "generation");
+            kronosMetrics.recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=legal_point_mirror_generation result=failure reason=generation exception_type={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException("Erro na geração do PDF", e);
         }
     }

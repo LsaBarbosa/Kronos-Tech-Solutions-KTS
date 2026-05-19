@@ -1,0 +1,45 @@
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8081}
+    address: ${MANAGEMENT_SERVER_ADDRESS:127.0.0.1}
+
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,metrics,prometheus
+
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+  health:
+    db:
+      enabled: true
+
+  metrics:
+    tags:
+      application: ${spring.application.name:kronos-backend}
+      environment: ${APP_ENV:local}
+
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+  tracing:
+    enabled: ${TRACING_ENABLED:true}
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
+
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  file:
+    name: ${LOG_FILE_NAME:./logs/kronos-backend.log}
+  pattern:
+    console: "${LOGPATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss.SSS} level=%-5level correlation_id=%X{correlationId:-na} logger=%logger{36} - %msg%n}"

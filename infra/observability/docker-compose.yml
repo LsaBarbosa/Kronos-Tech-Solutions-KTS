@@ -1,0 +1,93 @@
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
+    container_name: kronos-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+    networks:
+      - observability
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:latest}
+    container_name: kronos-loki
+    command:
+      - -config.file=/etc/loki/config.yml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+    networks:
+      - observability
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:latest}
+    container_name: kronos-promtail
+    command:
+      - -config.expand-env=true
+      - -config.file=/etc/promtail/config.yml
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+    volumes:
+      - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - ${KRONOS_LOG_DIR:-/var/log/kronos}:/var/log/kronos:ro
+      - promtail-data:/tmp/promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    networks:
+      - observability
+
+  tempo:
+    image: ${TEMPO_IMAGE:-grafana/tempo:latest}
+    container_name: kronos-tempo
+    command:
+      - -config.file=/etc/tempo/config.yml
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+    networks:
+      - observability
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
+    container_name: kronos-grafana
+    user: "472"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: https://observability.kronostechsolutions.com
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - observability
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  loki-data:
+  promtail-data:
+  tempo-data:
+  grafana-data:

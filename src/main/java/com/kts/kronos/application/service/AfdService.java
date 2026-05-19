@@ -7,9 +7,12 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.domain.model.AfdEntry;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +21,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,6 +37,10 @@ public class AfdService implements AdfUseCase {
 
     private final AfdEntryProvider afdProvider;
     private final CompanyProvider companyProvider;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     // Removemos dados hardcoded e usamos configuração
     @Value("${kronos.legal.inpi-number:999999999}")
@@ -60,22 +68,10 @@ public class AfdService implements AdfUseCase {
 
             afdProvider.save(entry);
 
-            log.info(
-                    "AFD registrado com sucesso. companyId={}, employeeId={}, nsr={}, recordDate={}",
-                    company.companyId(),
-                    employee.employeeId(),
-                    nsr,
-                    date
-            );
+            log.info("event=legal_afd_marking result=success");
         } catch (RuntimeException e) {
-            log.error(
-                    "Falha ao registrar AFD. companyId={}, employeeId={}, nsr={}, recordDate={}",
-                    company.companyId(),
-                    employee.employeeId(),
-                    nsr,
-                    date,
-                    e
-            );
+            log.error("event=legal_afd_marking result=failure reason=persistence exception_type={}",
+                    e.getClass().getSimpleName());
             throw e;
         }
     }
@@ -83,49 +79,44 @@ public class AfdService implements AdfUseCase {
     @Override
     @Transactional(readOnly = true) // ReadOnly true é vital para performance do Stream no Postgres
     public void writeAfdToStream(UUID companyId, OutputStream outputStream) {
+        long startedAt = System.nanoTime();
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        try {
+            kronosTracing.observe("kronos.legal.afd.generate", () -> {
+                try (var writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
+                    var header = String.format("0000000011%s%s%s",
+                            "1",
+                            formatString(company.cnpj(), 14),
+                            formatString(company.name(), 150)
+                    );
+                    writer.print(header + "\r\n");
 
-        log.info("Iniciando exportação de AFD. companyId={}", companyId);
+                    var recordCounter = new AtomicLong(0);
 
-        try (var writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
+                    try (Stream<AfdEntry> stream = afdProvider.streamByCompanyIdOrderByNsr(companyId)) {
+                        stream.forEach(entry -> {
+                            var line = formatType7(entry);
+                            writer.print(line + "\r\n");
+                            recordCounter.incrementAndGet();
+                        });
+                    }
 
-            // 1. Cabeçalho (Registro Tipo 1)
-            // Identifica a empresa e o REP-P
-            var header = String.format("0000000011%s%s%s",
-                    "1", // 1=CNPJ
-                    formatString(company.cnpj(), 14),
-                    formatString(company.name(), 150)
-            );
-            writer.print(header + "\r\n"); // \r\n é o padrão Windows exigido por muitos validadores fiscais
+                    long totalRegistros = recordCounter.get();
+                    var trailer = String.format("999999999%09d", totalRegistros);
+                    writer.print(trailer);
+                    writer.flush();
+                }
+            });
 
-            // 2. Registros (Stream do banco)
-            // Usamos AtomicLong para contar os registros dentro do Stream (lambda)
-            var recordCounter = new AtomicLong(0);
-
-            try (Stream<AfdEntry> stream = afdProvider.streamByCompanyIdOrderByNsr(companyId)) {
-                stream.forEach(entry -> {
-                    var line = formatType7(entry);
-                    writer.print(line + "\r\n");
-                    recordCounter.incrementAndGet(); // Contabiliza +1
-                });
-            }
-
-            // 3. Trailer (Registro Tipo 9)
-            // Deve conter o total de registros do arquivo (Cabeçalho + Registros + Trailer não conta)
-            // O padrão geralmente pede a quantidade de registros de dados (Tipo 7).
-            long totalRegistros = recordCounter.get();
-
-            // Formato: "999999999" + Quantidade (9 dígitos)
-            var trailer = String.format("999999999%09d", totalRegistros);
-            writer.print(trailer);
-            // Trailer é a última linha, alguns validadores não exigem \r\n no final, mas é bom garantir flush.
-
-            writer.flush();
-            log.info("AFD exportado com sucesso. companyId={}, totalRegistros={}", companyId, totalRegistros);
-
+            kronosMetrics.legalSuccess("afd");
+            kronosMetrics.recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            log.info("event=legal_afd_generation result=success");
         } catch (RuntimeException e) {
-            log.error("Erro ao gerar arquivo AFD. companyId={}", companyId, e);
+            kronosMetrics.legalFailure("afd", "generation");
+            kronosMetrics.recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=legal_afd_generation result=failure reason=generation exception_type={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException(FAILURE_TO_GENERATE_AFD, e);
         }
     }

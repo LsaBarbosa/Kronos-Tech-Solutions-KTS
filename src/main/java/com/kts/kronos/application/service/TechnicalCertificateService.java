@@ -89,7 +89,8 @@ public class TechnicalCertificateService implements TechnicalCertificateUseCase 
             return baos.toByteArray();
 
         } catch (RuntimeException e) {
-            log.error("Erro ao gerar Atestado Técnico. companyId={}", companyId, e);
+            log.error("event=legal_technical_certificate_pdf result=failure reason=generation exception_type={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException(ERROR_GENERATING_TECHNICAL_CERTIFICATE, e);
         } catch (IOException e) {
             throw new RuntimeException(e);
