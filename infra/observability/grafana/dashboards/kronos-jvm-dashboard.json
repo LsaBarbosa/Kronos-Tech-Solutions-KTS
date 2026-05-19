@@ -1,0 +1,78 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\",application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "heap" },
+        { "expr": "jvm_memory_used_bytes{area=\"nonheap\",application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "non-heap" }
+      ],
+      "title": "Uso de memoria JVM",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        { "expr": "jvm_threads_live_threads{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "threads" }
+      ],
+      "title": "Threads ativas",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        { "expr": "rate(jvm_gc_pause_seconds_count{application=~\"$application\",environment=~\"$environment\"}[5m])", "legendFormat": "GC pause count" }
+      ],
+      "title": "GC",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        { "expr": "process_cpu_usage{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "process" },
+        { "expr": "system_cpu_usage{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "system" }
+      ],
+      "title": "CPU",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 5,
+      "targets": [
+        { "expr": "process_uptime_seconds{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "uptime" }
+      ],
+      "title": "Uptime",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "kronos-backend", "value": "kronos-backend" },
+        "name": "application",
+        "query": "label_values(jvm_memory_used_bytes, application)",
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "production", "value": "production" },
+        "name": "environment",
+        "query": "label_values(jvm_memory_used_bytes, environment)",
+        "type": "query"
+      }
+    ]
+  },
+  "title": "KRONOS JVM",
+  "uid": "kronos-jvm"
+}

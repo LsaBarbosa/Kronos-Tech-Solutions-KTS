@@ -1,0 +1,67 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        { "expr": "hikaricp_connections_active{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "ativas" },
+        { "expr": "hikaricp_connections_idle{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "ociosas" }
+      ],
+      "title": "Conexoes Hikari",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        { "expr": "hikaricp_connections_pending{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "pendentes" }
+      ],
+      "title": "Fila de conexoes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        { "expr": "increase(hikaricp_connections_timeout_total{application=~\"$application\",environment=~\"$environment\"}[15m])", "legendFormat": "timeouts" }
+      ],
+      "title": "Timeouts de conexao",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        { "expr": "max(hikaricp_connections{application=~\"$application\",environment=~\"$environment\"})", "legendFormat": "max pool" }
+      ],
+      "title": "Uso maximo observado do pool",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "kronos-backend", "value": "kronos-backend" },
+        "name": "application",
+        "query": "label_values(hikaricp_connections_active, application)",
+        "type": "query"
+      },
+      {
+        "current": { "selected": true, "text": "production", "value": "production" },
+        "name": "environment",
+        "query": "label_values(hikaricp_connections_active, environment)",
+        "type": "query"
+      }
+    ]
+  },
+  "title": "KRONOS Hikari/PostgreSQL",
+  "uid": "kronos-hikari"
+}

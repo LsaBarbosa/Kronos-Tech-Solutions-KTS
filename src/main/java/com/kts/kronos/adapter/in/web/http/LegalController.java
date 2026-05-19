@@ -12,11 +12,14 @@ import com.kts.kronos.application.service.TechnicalCertificatePdfService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -46,42 +50,45 @@ public class LegalController {
     private final DomainAuthorizationService domainAuthorizationService;
     private final TechnicalCertificatePdfService certificateService;
     private final DigitalSignatureService signatureService;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     @GetMapping("/technical-certificate")
     @PreAuthorize("hasAnyRole('MANAGER', 'CTO')")
     @Operation(summary = "Baixar Atestado Técnico (Portaria 671)", description = "Gera o atestado de conformidade técnica assinado digitalmente pelo desenvolvedor.")
     public void downloadTechnicalCertificate(HttpServletResponse response) throws IOException {
+        long startedAt = System.nanoTime();
 
-        // 1. Identifica a empresa
-        UUID companyId = getCompanyIdFromLoggedUser();
-        var company = companyProvider.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
-
-        // 2. Gera PDF e Assina
-        byte[] pdfBytes = certificateService.generateCertificate(company);
-
-        log.info("Iniciando assinatura digital do atestado técnico. companyId={}", companyId);
-
-        byte[] signedBytes;
         try {
-            signedBytes = signatureService.signData(pdfBytes);
-            log.info(
-                    "Atestado técnico assinado com sucesso. companyId={}, signedSize={}",
-                    companyId,
-                    signedBytes.length
-            );
+            UUID companyId = getCompanyIdFromLoggedUser();
+            var company = companyProvider.findById(companyId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
+
+            byte[] signedBytes = kronosTracing.observe("kronos.legal.technical_certificate.generate", () -> {
+                byte[] pdfBytes = certificateService.generateCertificate(company);
+                return signatureService.signData(pdfBytes);
+            });
+
+            String filename = "Atestado_Tecnico_Kronos_" + LocalDate.now().getYear() + ".p7s";
+            response.setContentType("application/pkcs7-signature");
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
+            response.getOutputStream().write(signedBytes);
+            response.flushBuffer();
+
+            kronosMetrics.legalSuccess("technical_certificate");
+            kronosMetrics.recordLegalDuration("technical_certificate", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            log.info("event=legal_technical_certificate_generation result=success");
         } catch (RuntimeException e) {
-            log.error("Falha na assinatura digital do atestado técnico. companyId={}", companyId, e);
+            String reason = e.getMessage() != null && e.getMessage().contains("assinar") ? "digital_signature" : "generation";
+            kronosMetrics.legalFailure("technical_certificate", reason);
+            kronosMetrics.recordLegalDuration("technical_certificate", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=legal_technical_certificate_generation result=failure reason={} exception_type={}",
+                    reason,
+                    e.getClass().getSimpleName());
             throw e;
         }
-
-        // 3. Download .p7s
-        String filename = "Atestado_Tecnico_Kronos_" + LocalDate.now().getYear() + ".p7s";
-        response.setContentType("application/pkcs7-signature");
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"");
-
-        response.getOutputStream().write(signedBytes);
-        response.flushBuffer();
     }
 
     @GetMapping("/afd")

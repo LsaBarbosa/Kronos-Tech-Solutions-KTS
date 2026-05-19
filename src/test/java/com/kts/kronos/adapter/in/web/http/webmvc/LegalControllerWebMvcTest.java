@@ -14,6 +14,10 @@ import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
+import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +34,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,6 +80,29 @@ class LegalControllerWebMvcTest {
 
     @MockitoBean
     private DigitalSignatureService signatureService;
+
+    @MockitoBean
+    private ObservabilityStatusUseCase observabilityStatusUseCase;
+
+    @MockitoBean
+    private KronosMetrics kronosMetrics;
+
+    @MockitoBean
+    private KronosTracing kronosTracing;
+
+    @BeforeEach
+    void setUpTracing() {
+        doAnswer(invocation -> {
+            Runnable action = invocation.getArgument(1);
+            action.run();
+            return null;
+        }).when(kronosTracing).observe(any(String.class), any(Runnable.class));
+
+        doAnswer(invocation -> {
+            Supplier<?> action = invocation.getArgument(1);
+            return action.get();
+        }).when(kronosTracing).observe(any(String.class), any(Supplier.class));
+    }
 
     @Test
     @DisplayName("downloadTechnicalCertificate: deve retornar .p7s com header correto")

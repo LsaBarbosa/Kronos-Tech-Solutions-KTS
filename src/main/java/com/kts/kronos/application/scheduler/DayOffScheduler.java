@@ -8,6 +8,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
+import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +30,17 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 @Component
 @RequiredArgsConstructor
 public class DayOffScheduler {
+    private static final String DAY_OFF_SCHEDULER = "day_off";
+    private static final String WEEKLY_SWAP_SCHEDULER = "weekly_swap";
+
     private final EmployeeProvider empRepo;
     private final TimeRecordProvider trRepo;
     private final CompanyProvider companyProvider;
+    private final KronosMetrics kronosMetrics;
+
+    public DayOffScheduler(EmployeeProvider empRepo, TimeRecordProvider trRepo, CompanyProvider companyProvider) {
+        this(empRepo, trRepo, companyProvider, new KronosMetrics());
+    }
 
     record DailyRunStats(
             int companiesProcessed,
@@ -59,22 +68,30 @@ public class DayOffScheduler {
     @Scheduled(cron = "0 59 23 * * *", zone = "America/Sao_Paulo")
     @Transactional
     public void ensureDayOffRecords() {
-        log.info("Iniciando rotina diária de fechamento de folgas/ausências.");
         var today = LocalDate.now(SAO_PAULO);
         long startedAt = System.nanoTime();
-        DailyRunStats stats = ensureDayOffRecords(today);
-        long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
-
-        log.info(
-                "Rotina diária concluída em {} ms. empresas={}, colaboradores={}, já-com-registro={}, ausências-criadas={}, folgas-criadas={}, total-criados={}",
-                elapsedMs,
-                stats.companiesProcessed(),
-                stats.employeesProcessed(),
-                stats.existingRecordsSkipped(),
-                stats.absencesCreated(),
-                stats.dayOffsCreated(),
-                stats.totalCreated()
-        );
+        try {
+            DailyRunStats stats = ensureDayOffRecords(today);
+            kronosMetrics.schedulerSuccess(DAY_OFF_SCHEDULER);
+            kronosMetrics.schedulerRecordsProcessed(DAY_OFF_SCHEDULER, stats.totalCreated());
+            kronosMetrics.recordSchedulerDuration(
+                    DAY_OFF_SCHEDULER,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    "success"
+            );
+            log.info("event=scheduler_execution result=success scheduler={}", DAY_OFF_SCHEDULER);
+        } catch (RuntimeException e) {
+            kronosMetrics.schedulerFailure(DAY_OFF_SCHEDULER);
+            kronosMetrics.recordSchedulerDuration(
+                    DAY_OFF_SCHEDULER,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    "failure"
+            );
+            log.error("event=scheduler_execution result=failure scheduler={} reason=unknown exception_type={}",
+                    DAY_OFF_SCHEDULER,
+                    e.getClass().getSimpleName());
+            throw e;
+        }
     }
 
     DailyRunStats ensureDayOffRecords(LocalDate today) {
@@ -139,20 +156,30 @@ public class DayOffScheduler {
     @Scheduled(cron = "0 0 2 * * MON", zone = "America/Sao_Paulo")
     @Transactional
     public void reconcileWeeklySwaps() {
-        log.info("Iniciando reconciliação semanal de trocas de folga...");
         var today = LocalDate.now(SAO_PAULO);
         long startedAt = System.nanoTime();
-        WeeklyRunStats stats = reconcileWeeklySwaps(today);
-        long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
-
-        log.info(
-                "Reconciliação semanal concluída em {} ms. empresas={}, colaboradores={}, elegíveis={}, trocas-aplicadas={}",
-                elapsedMs,
-                stats.companiesProcessed(),
-                stats.employeesProcessed(),
-                stats.employeesEligibleForSwap(),
-                stats.swapsApplied()
-        );
+        try {
+            WeeklyRunStats stats = reconcileWeeklySwaps(today);
+            kronosMetrics.schedulerSuccess(WEEKLY_SWAP_SCHEDULER);
+            kronosMetrics.schedulerRecordsProcessed(WEEKLY_SWAP_SCHEDULER, stats.swapsApplied());
+            kronosMetrics.recordSchedulerDuration(
+                    WEEKLY_SWAP_SCHEDULER,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    "success"
+            );
+            log.info("event=scheduler_execution result=success scheduler={}", WEEKLY_SWAP_SCHEDULER);
+        } catch (RuntimeException e) {
+            kronosMetrics.schedulerFailure(WEEKLY_SWAP_SCHEDULER);
+            kronosMetrics.recordSchedulerDuration(
+                    WEEKLY_SWAP_SCHEDULER,
+                    Duration.ofNanos(System.nanoTime() - startedAt),
+                    "failure"
+            );
+            log.error("event=scheduler_execution result=failure scheduler={} reason=unknown exception_type={}",
+                    WEEKLY_SWAP_SCHEDULER,
+                    e.getClass().getSimpleName());
+            throw e;
+        }
     }
 
     WeeklyRunStats reconcileWeeklySwaps(LocalDate today) {

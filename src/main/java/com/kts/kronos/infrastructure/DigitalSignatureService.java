@@ -1,5 +1,6 @@
 package com.kts.kronos.infrastructure;
 
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.*;
@@ -28,6 +29,8 @@ import java.security.GeneralSecurityException;
 @Service
 public class DigitalSignatureService {
 
+    private final KronosTracing kronosTracing;
+
     @Value("${kronos.security.certificate.path}")
     private String certificatePath;
 
@@ -39,6 +42,14 @@ public class DigitalSignatureService {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
     }
 
+    public DigitalSignatureService(KronosTracing kronosTracing) {
+        this.kronosTracing = kronosTracing;
+    }
+
+    public DigitalSignatureService() {
+        this(new KronosTracing());
+    }
+
     /**
      * Gera uma assinatura digital PKCS#7 (CMS) padrão ICP-Brasil.
      * @param dataToSign Dados originais (ex: conteúdo do arquivo AEJ)
@@ -46,56 +57,45 @@ public class DigitalSignatureService {
      */
     public byte[] signData(byte[] dataToSign) {
         try {
-            log.info(
-                    "Iniciando processo de assinatura digital. payloadSize={}",
-                    dataToSign != null ? dataToSign.length : 0
-            );
-            // 1. Carregar KeyStore (Certificado .pfx)
-            var keyStore = KeyStore.getInstance("PKCS12");
-            try (var is = new FileInputStream(certificatePath)) {
-                keyStore.load(is, certificatePassword.toCharArray());
-            }
+            byte[] signedBytes = kronosTracing.observe("kronos.legal.digital_signature", () -> {
+                try {
+                    var keyStore = KeyStore.getInstance("PKCS12");
+                    try (InputStream is = new FileInputStream(certificatePath)) {
+                        keyStore.load(is, certificatePassword.toCharArray());
+                    }
 
-            // 2. Obter Alias (Nome interno do certificado)
-            var alias = keyStore.aliases().nextElement();
-            var privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
-            var certificate = (X509Certificate) keyStore.getCertificate(alias);
+                    var alias = keyStore.aliases().nextElement();
+                    var privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
+                    var certificate = (X509Certificate) keyStore.getCertificate(alias);
 
-            // 3. Criar Cadeia de Certificação
-            List<Certificate> certList = new ArrayList<>();
-            certList.add(certificate);
-            var certs = new JcaCertStore(certList);
+                    List<Certificate> certList = new ArrayList<>();
+                    certList.add(certificate);
+                    Store<?> certs = new JcaCertStore(certList);
 
-            // 4. Configurar Assinador (SHA256 com RSA)
-            var sha256Signer = new JcaContentSignerBuilder("SHA256withRSA")
-                    .setProvider("BC")
-                    .build(privateKey);
+                    ContentSigner sha256Signer = new JcaContentSignerBuilder("SHA256withRSA")
+                            .setProvider("BC")
+                            .build(privateKey);
 
-            var generator = new CMSSignedDataGenerator();
-            generator.addSignerInfoGenerator(
-                    new JcaSignerInfoGeneratorBuilder(
-                            new JcaDigestCalculatorProviderBuilder().setProvider("BC").build())
-                            .build(sha256Signer, certificate));
+                    var generator = new CMSSignedDataGenerator();
+                    generator.addSignerInfoGenerator(
+                            new JcaSignerInfoGeneratorBuilder(
+                                    new JcaDigestCalculatorProviderBuilder().setProvider("BC").build())
+                                    .build(sha256Signer, certificate));
 
-            generator.addCertificates(certs);
+                    generator.addCertificates(certs);
+                    var msg = new CMSProcessableByteArray(dataToSign);
+                    var signedData = generator.generate(msg, true);
+                    return signedData.getEncoded();
+                } catch (IOException | GeneralSecurityException | CMSException | OperatorCreationException ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
 
-            // 5. Assinar o Conteúdo
-            var msg = new CMSProcessableByteArray(dataToSign);
-            
-            // true = Encapsulated (O arquivo .p7s contém o original + assinatura)
-            // false = Detached (O arquivo .p7s contém só a assinatura, precisa do .txt junto)
-            // Para AEJ, geralmente usamos Detached (false) ou conforme especificação do layout.
-            // Vamos usar TRUE (Attached) para garantir que o arquivo seja autocontido se baixado.
-            var signedData = generator.generate(msg, true);
-
-            return signedData.getEncoded();
-
-        } catch (IOException | GeneralSecurityException | CMSException | OperatorCreationException e) {
-            log.error(
-                    "Erro crítico na assinatura digital. payloadSize={}",
-                    dataToSign != null ? dataToSign.length : 0,
-                    e
-            );
+            log.info("event=legal_digital_signature result=success");
+            return signedBytes;
+        } catch (RuntimeException e) {
+            log.error("event=legal_digital_signature result=failure reason=digital_signature exception_type={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException("Falha ao assinar documento digitalmente", e);
         }
     }

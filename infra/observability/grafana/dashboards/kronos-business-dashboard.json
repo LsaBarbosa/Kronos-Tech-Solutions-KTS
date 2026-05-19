@@ -1,0 +1,81 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        { "expr": "increase(kronos_auth_login_success_total[15m])", "legendFormat": "login senha sucesso" },
+        { "expr": "increase(kronos_auth_login_failure_total[15m])", "legendFormat": "login senha falha" },
+        { "expr": "increase(kronos_auth_face_login_success_total[15m])", "legendFormat": "login facial sucesso" },
+        { "expr": "increase(kronos_auth_face_login_failure_total[15m])", "legendFormat": "login facial falha" }
+      ],
+      "title": "Autenticacao",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "targets": [
+        { "expr": "increase(kronos_time_record_checkin_success_total[15m])", "legendFormat": "check-in" },
+        { "expr": "increase(kronos_time_record_checkout_success_total[15m])", "legendFormat": "check-out" },
+        { "expr": "increase(kronos_time_record_failure_total[15m])", "legendFormat": "falhas" }
+      ],
+      "title": "Registro de ponto",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "targets": [
+        { "expr": "increase(kronos_document_upload_success_total[15m])", "legendFormat": "upload" },
+        { "expr": "increase(kronos_document_download_success_total[15m])", "legendFormat": "download" },
+        { "expr": "increase(kronos_document_delete_success_total[15m])", "legendFormat": "delete" }
+      ],
+      "title": "Documentos",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "targets": [
+        { "expr": "increase(kronos_legal_afd_generation_success_total[15m])", "legendFormat": "AFD" },
+        { "expr": "increase(kronos_legal_aej_generation_success_total[15m])", "legendFormat": "AEJ" },
+        { "expr": "increase(kronos_legal_point_mirror_generation_success_total[15m])", "legendFormat": "Espelho" },
+        { "expr": "increase(kronos_legal_technical_certificate_success_total[15m])", "legendFormat": "Atestado" }
+      ],
+      "title": "Legal/Fiscal",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 5,
+      "targets": [
+        { "expr": "increase(kronos_scheduler_execution_success_total[30m])", "legendFormat": "sucesso" },
+        { "expr": "increase(kronos_scheduler_execution_failure_total[30m])", "legendFormat": "falha" }
+      ],
+      "title": "Schedulers",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "targets": [
+        { "expr": "kronos_ntp_drift_seconds", "legendFormat": "drift NTP" }
+      ],
+      "title": "Drift NTP",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "title": "KRONOS Negocio",
+  "uid": "kronos-business"
+}

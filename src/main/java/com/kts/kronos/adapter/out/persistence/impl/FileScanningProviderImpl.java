@@ -38,7 +38,7 @@ public class FileScanningProviderImpl implements FileScanningProvider {
     @Override
     public void scanOrThrow(String fileName, String contentType, byte[] content) {
         if (!enabled) {
-            log.debug("Varredura antivírus desabilitada para o upload {}", fileName);
+            log.debug("event=document_upload_scan result=skipped reason=disabled");
             return;
         }
 
@@ -65,19 +65,20 @@ public class FileScanningProviderImpl implements FileScanningProvider {
                 String response = new String(input.readNBytes(512), StandardCharsets.US_ASCII).trim();
 
                 if (response.contains("FOUND")) {
-                    log.warn("Arquivo infectado detectado no upload {} ({}) -> {}", fileName, contentType, response);
+                    log.warn("event=document_upload_scan result=failure reason=malicious_file");
                     throw new BadRequestException(MALICIOUS_FILE_DETECTED);
                 }
 
                 if (!response.contains("OK")) {
-                    log.error("Resposta inesperada do antivírus no upload {} ({}) -> {}", fileName, contentType, response);
+                    log.error("event=document_upload_scan result=failure reason=unexpected_response");
                     throw new RuntimeException(FILE_SCAN_FAILED);
                 }
             }
         } catch (BadRequestException e) {
             throw e;
         } catch (IOException e) {
-            log.error("Falha ao executar varredura antivírus no upload {} ({})", fileName, contentType, e);
+            log.error("event=document_upload_scan result=failure reason=io exception_type={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException(FILE_SCAN_FAILED, e);
         }
     }
