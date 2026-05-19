@@ -1,0 +1,20 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/promtail/positions.yml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: kronos-backend
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kronos-backend
+          application: kronos-backend
+          environment: ${APP_ENV}
+          __path__: /var/log/kronos/*.log

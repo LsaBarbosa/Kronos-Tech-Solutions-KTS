@@ -52,7 +52,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
-        log.warn("Conflito de integridade de dados tratado como 409. path={}", path(request), ex);
+        log.warn("event=http_error result=failure reason=data_integrity_conflict path={}", path(request));
         return buildResponseEntity(
                 ex,
                 HttpStatus.CONFLICT,
@@ -135,7 +135,9 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception ex, WebRequest request) {
-        log.error("Erro inesperado não tratado. path={}", path(request), ex);
+        log.error("event=http_error result=failure reason=unexpected path={} exception_type={}",
+                path(request),
+                ex.getClass().getSimpleName());
         return buildResponseEntity(ex, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", INTERNAL_SERVER_ERROR, request, null, null);
     }
 

@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
+import com.kts.kronos.observability.domain.ObservabilityStatus;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -56,6 +59,9 @@ class SecurityConfigIntegrationTest {
 
     @MockitoBean
     private TokenBlacklistProvider tokenBlacklistProvider;
+
+    @MockitoBean
+    private ObservabilityStatusUseCase observabilityStatusUseCase;
 
     @Test
     void shouldKeepLoginEndpointPublic() throws Exception {
@@ -158,10 +164,51 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldKeepHealthEndpointPublic() throws Exception {
-        mockMvc.perform(get("/actuator/health"))
+    void shouldExposeObservabilityStatusPublic() throws Exception {
+        when(observabilityStatusUseCase.getStatus()).thenReturn(new ObservabilityStatus(
+                "kronos-backend",
+                "UP",
+                "local",
+                java.time.OffsetDateTime.parse("2026-05-19T14:00:00-03:00")
+        ));
+
+        mockMvc.perform(get("/observability/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.application").value("kronos-backend"))
+                .andExpect(jsonPath("$.environment").value("local"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
+    }
+
+    @Test
+    void shouldKeepActuatorHealthProtectedOnMainPort() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldKeepUsersOwnProfileProtectedWithoutToken() throws Exception {
+        mockMvc.perform(get("/users/own-profile"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldKeepTimeRecordCheckinProtectedWithoutToken() throws Exception {
+        mockMvc.perform(post("/records/checkin"))
+                .andExpect(result -> assertTrue(result.getResponse().getStatus() == 401
+                        || result.getResponse().getStatus() == 403));
+    }
+
+    @Test
+    void shouldKeepDocumentsProtectedWithoutToken() throws Exception {
+        mockMvc.perform(get("/documents"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldKeepLegalAfdProtectedWithoutToken() throws Exception {
+        mockMvc.perform(get("/legal/afd"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -169,6 +216,35 @@ class SecurityConfigIntegrationTest {
         mockMvc.perform(get("/actuator/prometheus")
                         .with(user("manager").roles("MANAGER")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldGenerateCorrelationIdHeaderWhenMissing() throws Exception {
+        when(observabilityStatusUseCase.getStatus()).thenReturn(new ObservabilityStatus(
+                "kronos-backend",
+                "UP",
+                "local",
+                java.time.OffsetDateTime.parse("2026-05-19T14:00:00-03:00")
+        ));
+
+        mockMvc.perform(get("/observability/status"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Correlation-Id"));
+    }
+
+    @Test
+    void shouldPreserveIncomingCorrelationIdHeader() throws Exception {
+        when(observabilityStatusUseCase.getStatus()).thenReturn(new ObservabilityStatus(
+                "kronos-backend",
+                "UP",
+                "local",
+                java.time.OffsetDateTime.parse("2026-05-19T14:00:00-03:00")
+        ));
+
+        mockMvc.perform(get("/observability/status")
+                        .header("X-Correlation-Id", "corr-123"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Correlation-Id", "corr-123"));
     }
 
     @Test

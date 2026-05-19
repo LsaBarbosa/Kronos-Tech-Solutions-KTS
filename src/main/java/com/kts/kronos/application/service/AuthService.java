@@ -14,9 +14,12 @@ import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -53,6 +56,10 @@ public class AuthService implements AuthUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthenticationRateLimitService authenticationRateLimitService;
+    @Autowired
+    private KronosMetrics kronosMetrics = new KronosMetrics();
+    @Autowired
+    private KronosTracing kronosTracing = new KronosTracing();
 
     @Override
     public String login(String username, String password) {
@@ -62,16 +69,24 @@ public class AuthService implements AuthUseCase {
             authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
         } catch (AuthenticationException ex) {
             authenticationRateLimitService.onLoginFailure(normalizedUsername);
+            kronosMetrics.authLoginFailure("invalid_credentials");
+            log.warn("event=auth_login result=failure reason=invalid_credentials");
             throw ex;
         }
         var user = userProvider.findByUsername(normalizedUsername)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+                .orElseThrow(() -> {
+                    kronosMetrics.authLoginFailure("user_not_found");
+                    log.warn("event=auth_login result=failure reason=user_not_found");
+                    return new ResourceNotFoundException(USER_NOT_FOUND);
+                });
         var termsAccepted = documentProvider.existsByEmployeeIdAndType(
                 user.employeeId(),
                 DocumentType.BIOMETRIC_CONSENT_TERM
         );
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
-        return jwtUtils.generateToken(user.employeeId(), user.username(),  user.role().name(),user.userId(), termsAccepted);
+        kronosMetrics.authLoginSuccess();
+        log.info("event=auth_login result=success");
+        return jwtUtils.generateToken(user.employeeId(), user.username(), user.role().name(), user.userId(), termsAccepted);
     }
 
     @Override
@@ -79,94 +94,91 @@ public class AuthService implements AuthUseCase {
         biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
 
         try {
-            // 1. Decodifica a imagem Base64
-            byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
-            var inputStream = new ByteArrayInputStream(imageBytes);
+            String token = kronosTracing.observe("kronos.auth.face_login", () -> {
+                byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+                var inputStream = new ByteArrayInputStream(imageBytes);
 
-            // 2. Busca a face na AWS Rekognition
-            // O provider já retorna o UUID do Employee se houver Match > 90%
-            var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
+                var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
 
-            if (employeeId == null) {
-                throw new ForbiddenException(FACE_NOT_RECOGNIZE);
-            }
+                if (employeeId == null) {
+                    throw new ForbiddenException(FACE_NOT_RECOGNIZE);
+                }
 
-            // 3. Busca o Usuário vinculado ao EmployeeId encontrado
-            var user = userProvider.findByEmployeeId(employeeId)
-                    .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
+                var user = userProvider.findByEmployeeId(employeeId)
+                        .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
 
-            if (!user.active()) {
-                throw new BadRequestException(INACTIVE_USER);
-            }
+                if (!user.active()) {
+                    throw new BadRequestException(INACTIVE_USER);
+                }
 
-            var termsAccepted = documentProvider.existsByEmployeeIdAndType(
-                    user.employeeId(),
-                    DocumentType.BIOMETRIC_CONSENT_TERM
-            );
+                var termsAccepted = documentProvider.existsByEmployeeIdAndType(
+                        user.employeeId(),
+                        DocumentType.BIOMETRIC_CONSENT_TERM
+                );
 
-            // 4. Gera o Token JWT (mesma lógica do login tradicional)
-            return jwtUtils.generateToken(
-                    user.employeeId(),
-                    user.username(),
-                    user.role().name(),
-                    user.userId(),
-                    termsAccepted
-            );
+                return jwtUtils.generateToken(
+                        user.employeeId(),
+                        user.username(),
+                        user.role().name(),
+                        user.userId(),
+                        termsAccepted
+                );
+            });
 
+            kronosMetrics.authFaceLoginSuccess();
+            log.info("event=auth_face_login result=success");
+            return token;
         } catch (IllegalArgumentException e) {
-            log.warn("Imagem inválida recebida no login facial. payloadLength={}",
-                    faceImageBase64 == null ? 0 : faceImageBase64.length());
+            kronosMetrics.authFaceLoginFailure("invalid_image");
+            log.warn("event=auth_face_login result=failure reason=invalid_image");
             throw new BadRequestException(INVALID_IMAGE);
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
-            log.warn("Falha de autenticação facial. exceptionType={}, payloadLength={}, message={}",
-                    e.getClass().getSimpleName(),
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e.getMessage());
+            String reason = resolveFaceLoginFailureReason(e);
+            kronosMetrics.authFaceLoginFailure(reason);
+            log.warn("event=auth_face_login result=failure reason={}", reason);
             throw e;
         } catch (RuntimeException e) {
-            log.error("Falha interna na autenticação facial. payloadLength={}",
-                    faceImageBase64 == null ? 0 : faceImageBase64.length(),
-                    e);
+            kronosMetrics.authFaceLoginFailure("unknown");
+            log.error("event=auth_face_login result=failure reason=unknown exception_type={}",
+                    e.getClass().getSimpleName());
             throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
+
     @Override
     public void recoverPassword(RecoverPasswordRequest request) {
         String normalizedCpf = request.cpf() == null ? null : request.cpf().trim();
         String normalizedEmail = request.email() == null ? null : request.email().trim();
-
-        String maskedCpf = maskCpf(normalizedCpf);
-        String maskedEmail = maskEmail(normalizedEmail);
-        log.info("Iniciando recuperação de senha para cpf={} e email={}.", maskedCpf, maskedEmail);
+        kronosMetrics.passwordRecoveryRequested();
+        log.info("event=password_recovery result=accepted");
 
         try {
             try {
                 authenticationRateLimitService.checkPasswordRecoveryAllowed(normalizedCpf, normalizedEmail);
             } catch (TooManyRequestsException ex) {
-                log.warn("Recuperação de senha limitada por abuso para cpf={} e email={}.", maskedCpf, maskedEmail);
+                kronosMetrics.passwordRecoveryFailure("rate_limited");
+                log.warn("event=password_recovery result=failure reason=rate_limited");
                 return;
             }
 
-            // 1. Encontra e valida o Employee pelo CPF e Email (validação de identidade)
             var employee = employeeProvider.findByCpf(normalizedCpf)
                     .filter(emp -> emp.email() != null && emp.email().equalsIgnoreCase(normalizedEmail))
                     .orElse(null);
 
-            // Retorna sucesso (No Content) para evitar ataques de enumeração.
             if (employee == null) {
-                log.info("Recuperação de senha processada sem envio de e-mail.");
+                kronosMetrics.passwordRecoveryFailure("identity_not_matched");
+                log.info("event=password_recovery result=accepted reason=identity_not_matched");
                 return;
             }
 
-            // 2. Encontra o User associado
             var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
 
             if (user == null) {
-                log.info("Recuperação de senha processada sem envio de e-mail.");
+                kronosMetrics.passwordRecoveryFailure("user_not_found");
+                log.info("event=password_recovery result=accepted reason=user_not_found");
                 return;
             }
 
-            // 3. Gera e salva o token no Redis
             var resetToken = tokenProvider.generateAndSaveToken(user.userId());
 
             try {
@@ -176,51 +188,63 @@ public class AuthService implements AuthUseCase {
                         user.username(),
                         defaultFrontendBaseUrl
                 );
-                log.info("Recuperação de senha processada com disparo assíncrono de e-mail.");
+                kronosMetrics.passwordRecoveryEmailSent();
+                log.info("event=password_recovery result=success reason=email_sent");
             } catch (RuntimeException e) {
-                // Mantém resposta neutra (204) mesmo quando o executor assíncrono recusa a tarefa.
-                log.error("Recuperação de senha processada sem envio de e-mail por falha interna. exceptionType={}",
-                        e.getClass().getSimpleName(), e);
+                kronosMetrics.passwordRecoveryFailure("email_dispatch");
+                log.error("event=password_recovery result=failure reason=email_dispatch exception_type={}",
+                        e.getClass().getSimpleName());
             }
         } catch (RuntimeException e) {
-            // Em falhas de infraestrutura (ex.: bloqueio de query), mantém resposta neutra.
-            log.error("Recuperação de senha processada sem envio de e-mail por falha de validação. exceptionType={}",
-                    e.getClass().getSimpleName(), e);
+            kronosMetrics.passwordRecoveryFailure("unknown");
+            log.error("event=password_recovery result=failure reason=unknown exception_type={}",
+                    e.getClass().getSimpleName());
         }
     }
 
     @Override
     public void resetPassword(ResetPasswordRequest request) {
-        // 1. Valida e obtém o userId do Redis
-        var userId = tokenProvider.validateToken(request.token())
-                .orElseThrow(() -> new ResourceNotFoundException(INVALID_PASSWORD_RESET_TOKEN));
+        try {
+            var userId = tokenProvider.validateToken(request.token())
+                    .orElseThrow(() -> new ResourceNotFoundException(INVALID_PASSWORD_RESET_TOKEN));
 
-        // 2. Valida a nova senha e a confirmação
-        if (!request.newPassword().equals(request.confirmPassword())) {
-            throw new BadRequestException(INVALID_CONFIRM_PASSWORD);
+            if (!request.newPassword().equals(request.confirmPassword())) {
+                throw new BadRequestException(INVALID_CONFIRM_PASSWORD);
+            }
+            validatePasswordPolicy(request.newPassword());
+
+            var user = userProvider.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
+            var hashed = passwordEncoder.encode(request.newPassword());
+
+            var updatedUser = new User(
+                    user.userId(),
+                    user.username(),
+                    hashed,
+                    user.role(),
+                    user.active(),
+                    user.employeeId()
+            );
+            userProvider.save(updatedUser);
+
+            tokenProvider.deleteToken(request.token());
+            kronosMetrics.passwordResetSuccess();
+            log.info("event=password_reset result=success");
+        } catch (BadRequestException e) {
+            kronosMetrics.passwordResetFailure("validation");
+            log.warn("event=password_reset result=failure reason=validation");
+            throw e;
+        } catch (ResourceNotFoundException e) {
+            kronosMetrics.passwordResetFailure("token_or_user_not_found");
+            log.warn("event=password_reset result=failure reason=token_or_user_not_found");
+            throw e;
+        } catch (RuntimeException e) {
+            kronosMetrics.passwordResetFailure("unknown");
+            log.error("event=password_reset result=failure reason=unknown exception_type={}",
+                    e.getClass().getSimpleName());
+            throw e;
         }
-        validatePasswordPolicy(request.newPassword());
-
-        // 3. Atualiza a senha
-        var user = userProvider.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND)); // Usuário deveria existir
-
-        var hashed = passwordEncoder.encode(request.newPassword());
-
-        // Cria um novo objeto User com a senha atualizada
-        var updatedUser = new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        );
-        userProvider.save(updatedUser);
-
-        // 4. Limpa o token do Redis
-        tokenProvider.deleteToken(request.token());
-        log.info("Senha redefinida com sucesso para o usuário: {}", user.username());
     }
 
     @Override
@@ -239,26 +263,20 @@ public class AuthService implements AuthUseCase {
         }
     }
 
-    private String maskCpf(String cpf) {
-        if (cpf == null) {
-            return "null";
+    private String resolveFaceLoginFailureReason(RuntimeException exception) {
+        String message = exception.getMessage();
+        if (INVALID_IMAGE.equals(message)) {
+            return "invalid_image";
         }
-        String digits = cpf.replaceAll("\\D", "");
-        if (digits.isEmpty()) {
-            return "***";
+        if (FACE_NOT_RECOGNIZE.equals(message)) {
+            return "face_not_recognized";
         }
-        String suffix = digits.length() <= 4 ? digits : digits.substring(digits.length() - 4);
-        return "***" + suffix;
-    }
-
-    private String maskEmail(String email) {
-        if (email == null || email.isBlank()) {
-            return "***";
+        if (NO_USER_LINKED_TO_THIS_EMPLOYEE.equals(message)) {
+            return "user_not_found";
         }
-        int atIndex = email.indexOf('@');
-        if (atIndex <= 1 || atIndex == email.length() - 1) {
-            return "***";
+        if (INACTIVE_USER.equals(message)) {
+            return "inactive_user";
         }
-        return email.charAt(0) + "***" + email.substring(atIndex);
+        return "unknown";
     }
 }

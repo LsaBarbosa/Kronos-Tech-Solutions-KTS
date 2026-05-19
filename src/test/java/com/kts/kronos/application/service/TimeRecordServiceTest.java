@@ -152,7 +152,7 @@ class TimeRecordServiceTest {
 
         // Act & Assert
         BadRequestException ex = assertThrows(BadRequestException.class, () -> service.registerTime(request));
-        assertEquals("Imagem inválida (Base64 malformado).", ex.getMessage());
+        assertEquals("Falha na validação facial: A face não corresponde ao colaborador autenticado.", ex.getMessage());
 
         // Garante que o save nunca foi chamado
         verify(recordRepository, never()).save(any());

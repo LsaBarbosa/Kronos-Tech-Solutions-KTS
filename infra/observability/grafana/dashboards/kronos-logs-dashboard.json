@@ -1,0 +1,49 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "targets": [
+        {
+          "expr": "{job=\"kronos-backend\",application=\"kronos-backend\"} |= `event=`",
+          "queryType": "range"
+        }
+      ],
+      "title": "Logs estruturados recentes",
+      "type": "logs"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "sum by (event) (count_over_time({job=\"kronos-backend\"} | logfmt | event!=\"\" [15m]))",
+          "queryType": "range"
+        }
+      ],
+      "title": "Logs por event",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum by (reason) (count_over_time({job=\"kronos-backend\"} | logfmt | result=\"failure\" [15m]))",
+          "queryType": "range"
+        }
+      ],
+      "title": "Falhas por reason",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 39,
+  "title": "KRONOS Logs",
+  "uid": "kronos-logs"
+}
