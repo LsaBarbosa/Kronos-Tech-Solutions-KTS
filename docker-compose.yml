@@ -1,0 +1,17 @@
+  services:
+    kronos-postgres-local:
+      image: postgres:16
+      container_name: kronos-postgres-local
+      restart: unless-stopped
+      environment:
+        POSTGRES_DB: db_kronos_tech_local
+        POSTGRES_USER: kronos_local
+        POSTGRES_PASSWORD: kronos_local_123
+        TZ: America/Sao_Paulo
+      ports:
+        - "5433:5432"
+      volumes:
+        - kronos_postgres_local_data:/var/lib/postgresql/data
+
+  volumes:
+    kronos_postgres_local_data:
