@@ -1,6 +1,7 @@
 package com.kts.kronos.application.scheduler;
 
 import com.kts.kronos.adapter.out.persistence.TimeRecordApprovalRepository;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,7 +26,7 @@ class TimeRecordApprovalCleanupSchedulerTest {
     @Test
     @DisplayName("cleanupOldApprovals: remove aprovações com threshold de 31 dias")
     void shouldDeleteApprovalsOlderThanThirtyOneDays() {
-        TimeRecordApprovalCleanupScheduler scheduler = new TimeRecordApprovalCleanupScheduler(repository);
+        TimeRecordApprovalCleanupScheduler scheduler = new TimeRecordApprovalCleanupScheduler(repository, mock(KronosMetrics.class));
 
         LocalDateTime lowerBound = LocalDateTime.now(com.kts.kronos.constants.Messages.SAO_PAULO).minusDays(31).minusSeconds(2);
         scheduler.cleanupOldApprovals();
@@ -40,7 +42,7 @@ class TimeRecordApprovalCleanupSchedulerTest {
     @Test
     @DisplayName("cleanupOldApprovals: absorve exceção do repository")
     void shouldSwallowRepositoryException() {
-        TimeRecordApprovalCleanupScheduler scheduler = new TimeRecordApprovalCleanupScheduler(repository);
+        TimeRecordApprovalCleanupScheduler scheduler = new TimeRecordApprovalCleanupScheduler(repository, mock(KronosMetrics.class));
         doThrow(new RuntimeException("db error"))
                 .when(repository).deleteByCreatedAtBefore(org.mockito.ArgumentMatchers.any());
 

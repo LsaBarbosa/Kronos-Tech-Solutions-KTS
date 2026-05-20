@@ -1,26 +1,29 @@
 package com.kts.kronos.application.scheduler;
 import com.kts.kronos.application.port.out.provider.MessageProvider;
 import com.kts.kronos.observability.application.KronosMetrics;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class MessageCleanupScheduler {
     private static final String SCHEDULER_NAME = "message_cleanup";
 
     private final MessageProvider messageProvider;
     private final KronosMetrics kronosMetrics;
 
-    public MessageCleanupScheduler(MessageProvider messageProvider) {
-        this(messageProvider, new KronosMetrics());
+    @Autowired
+    public MessageCleanupScheduler(
+            MessageProvider messageProvider,
+            KronosMetrics kronosMetrics
+    ) {
+        this.messageProvider = messageProvider;
+        this.kronosMetrics = kronosMetrics;
     }
 
     /**

@@ -10,6 +10,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,11 +39,13 @@ class DayOffSchedulerTest {
     private TimeRecordProvider timeRecordProvider;
     @Mock
     private CompanyProvider companyProvider;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("ensureDayOffRecords scheduled: executa rotina sem empresas ativas")
     void shouldRunScheduledDailyEntrypointWithNoCompanies() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         when(companyProvider.findByActive(true)).thenReturn(List.of());
 
         scheduler.ensureDayOffRecords();
@@ -54,7 +57,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps scheduled: executa rotina sem empresas ativas")
     void shouldRunScheduledWeeklyEntrypointWithNoCompanies() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         when(companyProvider.findByActive(true)).thenReturn(List.of());
 
         scheduler.reconcileWeeklySwaps();
@@ -66,7 +69,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria ABSENCE para 5x2 em dia útil")
     void shouldCreateAbsenceForTraditionalScheduleOnBusinessDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
         LocalDate monday = LocalDate.of(2026, 4, 13);
@@ -87,7 +90,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para 5x2 em domingo")
     void shouldCreateDayOffForTraditionalScheduleOnWeekend() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
         LocalDate sunday = LocalDate.of(2026, 4, 12);
@@ -108,7 +111,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: ignora colaborador que já possui registro no dia")
     void shouldSkipEmployeeWhenRecordAlreadyExists() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
         LocalDate date = LocalDate.of(2026, 4, 13);
@@ -126,7 +129,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: schedule nulo usa dia de trabalho")
     void shouldDefaultNullScheduleToWorkDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(null, null, null, null);
         LocalDate sunday = LocalDate.of(2026, 4, 12);
@@ -145,7 +148,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: default defensivo do switch trata escala desconhecida como trabalho")
     void shouldUseDefensiveDefaultBranchWhenScheduleMappingIsUnknown() throws Exception {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
         LocalDate sunday = LocalDate.of(2026, 4, 12);
@@ -176,7 +179,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para 6x1 no dia fixo de folga")
     void shouldCreateDayOffForSixByOneFixedOnPreferredDayOff() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.THURSDAY, null);
         LocalDate thursday = LocalDate.of(2026, 4, 16);
@@ -195,7 +198,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: 6x1 fixo trabalha em dia diferente da folga")
     void shouldCreateAbsenceForSixByOneFixedOnRegularDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.THURSDAY, null);
         LocalDate friday = LocalDate.of(2026, 4, 17);
@@ -214,7 +217,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para 24x72 em dia de folga")
     void shouldCreateDayOffForRotating24x72OnOffDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate date = LocalDate.of(2026, 4, 14);
         Employee employee = buildEmployee(WorkScheduleType.ROTATING_24X72, date.minusDays(1), null, null);
@@ -233,7 +236,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: escala rotativa sem data inicial usa dia de trabalho")
     void shouldDefaultRotatingWithoutStartDateToWorkDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.ROTATING_24X72, null, null, null);
         LocalDate saturday = LocalDate.of(2026, 4, 18);
@@ -252,7 +255,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria ABSENCE para 12x36 em dia de trabalho")
     void shouldCreateAbsenceForRotating12x36OnWorkDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate date = LocalDate.of(2026, 4, 14);
         Employee employee = buildEmployee(WorkScheduleType.ROTATING_12X36, date, null, null);
@@ -271,7 +274,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 5 cria DAY_OFF no dia fixo")
     void shouldCreateDayOffForTypeFivePreferredDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate monday = LocalDate.of(2026, 4, 13);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
@@ -291,7 +294,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para tipo 5 quando ainda não atingiu quota de fins de semana")
     void shouldCreateDayOffForTypeFiveWeekendQuota() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate saturday = LocalDate.of(2026, 4, 18);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, saturday.minusDays(5), DayOfWeek.MONDAY, null);
@@ -311,7 +314,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 5 trabalha quando quota de fim de semana foi atingida")
     void shouldCreateAbsenceForTypeFiveWhenWeekendQuotaIsReached() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate sunday = LocalDate.of(2026, 4, 19);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
@@ -331,7 +334,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 5 trabalha em dia útil comum")
     void shouldCreateAbsenceForTypeFiveRegularWeekday() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate tuesday = LocalDate.of(2026, 4, 14);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_TWO_WEEKENDS, null, DayOfWeek.MONDAY, null);
@@ -351,7 +354,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 6 cria DAY_OFF no dia fixo")
     void shouldCreateDayOffForTypeSixPreferredDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate monday = LocalDate.of(2026, 4, 13);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
@@ -370,7 +373,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: cria DAY_OFF para tipo 6 no fim de semana configurado")
     void shouldCreateDayOffForTypeSixConfiguredWeekendIndex() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate saturdayOfSecondWeek = LocalDate.of(2026, 4, 11);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, saturdayOfSecondWeek.minusDays(5), DayOfWeek.MONDAY, 2);
@@ -389,7 +392,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 6 trabalha em fim de semana não configurado")
     void shouldCreateAbsenceForTypeSixNonConfiguredWeekend() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate saturdayOfThirdWeek = LocalDate.of(2026, 4, 18);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
@@ -408,7 +411,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("ensureDayOffRecords: tipo 6 trabalha em dia útil comum")
     void shouldCreateAbsenceForTypeSixRegularWeekday() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         LocalDate tuesday = LocalDate.of(2026, 4, 14);
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_ONE_WEEKEND, null, DayOfWeek.MONDAY, 2);
@@ -427,7 +430,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: converte ausência em DAY_OFF quando trabalhou na folga fixa")
     void shouldReconcileWeeklySwap() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
         LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
@@ -490,7 +493,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: ignora escalas não elegíveis")
     void shouldSkipNonEligibleSchedulesForWeeklySwap() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.ROTATING_12X36, LocalDate.of(2026, 4, 13), null, null);
 
@@ -508,7 +511,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: ignora colaborador sem tipo de escala")
     void shouldSkipNullScheduleForWeeklySwap() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(null, null, DayOfWeek.WEDNESDAY, null);
 
@@ -524,7 +527,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: colaborador sem folga preferida não gera troca")
     void shouldNotSwapWhenPreferredDayIsMissing() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.TRADITIONAL_5X2, null, null, null);
         LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
@@ -543,7 +546,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: não troca quando não trabalhou na folga fixa")
     void shouldNotSwapWhenPreferredDayWasNotWorked() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
         LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
@@ -562,7 +565,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: não troca quando não há falta para abonar")
     void shouldNotSwapWhenThereIsNoAbsence() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
         LocalDate mondayAfterWeek = LocalDate.of(2026, 4, 20);
@@ -581,7 +584,7 @@ class DayOffSchedulerTest {
     @Test
     @DisplayName("reconcileWeeklySwaps: não abona ausência no próprio dia de folga")
     void shouldNotSwapAbsenceOnPreferredDay() {
-        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider);
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider,kronosMetrics);
         Company company = buildCompany();
         Employee employee = buildEmployee(WorkScheduleType.SIX_BY_ONE_FIXED, null, DayOfWeek.WEDNESDAY, null);
         TimeRecord worked = record(1L, LocalDate.of(2026, 4, 15), StatusRecord.UPDATED);

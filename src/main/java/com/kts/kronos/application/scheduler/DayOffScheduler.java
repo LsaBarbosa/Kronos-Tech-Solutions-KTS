@@ -10,8 +10,8 @@ import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +28,6 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DayOffScheduler {
     private static final String DAY_OFF_SCHEDULER = "day_off";
     private static final String WEEKLY_SWAP_SCHEDULER = "weekly_swap";
@@ -38,9 +37,14 @@ public class DayOffScheduler {
     private final CompanyProvider companyProvider;
     private final KronosMetrics kronosMetrics;
 
-    public DayOffScheduler(EmployeeProvider empRepo, TimeRecordProvider trRepo, CompanyProvider companyProvider) {
-        this(empRepo, trRepo, companyProvider, new KronosMetrics());
+    @Autowired
+    public DayOffScheduler(EmployeeProvider empRepo, TimeRecordProvider trRepo, CompanyProvider companyProvider, KronosMetrics kronosMetrics) {
+        this.empRepo = empRepo;
+        this.trRepo = trRepo;
+        this.companyProvider = companyProvider;
+        this.kronosMetrics = kronosMetrics;
     }
+
 
     record DailyRunStats(
             int companiesProcessed,
