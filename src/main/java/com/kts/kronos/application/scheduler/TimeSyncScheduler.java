@@ -2,23 +2,27 @@ package com.kts.kronos.application.scheduler;
 
 import com.kts.kronos.application.service.NtpTimeService;
 import com.kts.kronos.observability.application.KronosMetrics;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TimeSyncScheduler {
     private static final String SCHEDULER_NAME = "time_sync";
 
     private final NtpTimeService ntpService;
     private final KronosMetrics kronosMetrics;
 
-    public TimeSyncScheduler(NtpTimeService ntpService) {
-        this(ntpService, new KronosMetrics());
+    @Autowired
+    public TimeSyncScheduler(
+            NtpTimeService ntpService,
+            KronosMetrics kronosMetrics
+    ) {
+        this.ntpService = ntpService;
+        this.kronosMetrics = kronosMetrics;
     }
 
     @Value("${kronos.ntp.max-drift-seconds:5}")
