@@ -90,6 +90,11 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request
     ) {
+        log.warn(
+            "event=http_error result=failure reason=invalid_request_body path={} detail={}",
+            path(request),
+            ex.getMostSpecificCause().getMessage()
+        );
         return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "JSON inválido ou malformado.", request, null, null);
     }
 
