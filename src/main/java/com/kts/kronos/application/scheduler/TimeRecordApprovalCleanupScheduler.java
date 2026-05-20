@@ -1,8 +1,8 @@
 package com.kts.kronos.application.scheduler;
 import com.kts.kronos.adapter.out.persistence.TimeRecordApprovalRepository;
 import com.kts.kronos.observability.application.KronosMetrics;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,7 +13,6 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class TimeRecordApprovalCleanupScheduler {
     private static final String SCHEDULER_NAME = "approval_cleanup";
 
@@ -21,8 +20,13 @@ public class TimeRecordApprovalCleanupScheduler {
     private final KronosMetrics kronosMetrics;
     private static final int DAYS_TO_KEEP = 31;
 
-    public TimeRecordApprovalCleanupScheduler(TimeRecordApprovalRepository repository) {
-        this(repository, new KronosMetrics());
+    @Autowired
+    public TimeRecordApprovalCleanupScheduler(
+            TimeRecordApprovalRepository repository,
+            KronosMetrics kronosMetrics
+    ) {
+        this.repository = repository;
+        this.kronosMetrics = kronosMetrics;
     }
 
     @Scheduled(cron = "0 30 2 * * ?", zone = "America/Sao_Paulo")

@@ -3,8 +3,8 @@ package com.kts.kronos.application.scheduler;
 
 import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
 import com.kts.kronos.observability.application.KronosMetrics;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,15 +15,19 @@ import static com.kts.kronos.constants.Messages.SAO_PAULO;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class PasswordTokenCleanupScheduler {
     private static final String SCHEDULER_NAME = "password_token_cleanup";
 
     private final PasswordResetTokenRepository repository;
     private final KronosMetrics kronosMetrics;
 
-    public PasswordTokenCleanupScheduler(PasswordResetTokenRepository repository) {
-        this(repository, new KronosMetrics());
+    @Autowired
+    public PasswordTokenCleanupScheduler(
+            PasswordResetTokenRepository repository,
+            KronosMetrics kronosMetrics
+    ) {
+        this.repository = repository;
+        this.kronosMetrics = kronosMetrics;
     }
 
     @Scheduled(cron = "0 0 2 * * ?", zone = "America/Sao_Paulo")
