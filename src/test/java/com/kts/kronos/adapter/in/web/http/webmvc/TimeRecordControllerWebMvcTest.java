@@ -294,7 +294,7 @@ class TimeRecordControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("requestVacation: deve criar solicitações de férias")
+    @DisplayName("requestVacation: deve criar solicitações de férias com datas ISO")
     void shouldRequestVacation() throws Exception {
         UUID managerId = UUID.randomUUID();
         when(useCase.requestVacation(any())).thenReturn(List.of(20L, 21L));
@@ -303,8 +303,8 @@ class TimeRecordControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "startDate": "01-12-2026",
-                                  "endDate": "05-12-2026",
+                                  "startDate": "2026-12-01",
+                                  "endDate": "2026-12-05",
                                   "managerId": "%s"
                                 }
                                 """.formatted(managerId)))
