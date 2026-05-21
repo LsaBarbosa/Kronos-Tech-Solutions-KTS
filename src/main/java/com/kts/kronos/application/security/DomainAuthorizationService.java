@@ -64,13 +64,30 @@ public class DomainAuthorizationService {
     public Document authorizeDocumentAccess(UUID documentId, UUID requestedEmployeeId) {
         if (requestedEmployeeId != null) {
             var targetEmployee = authorizeEmployeeAccess(requestedEmployeeId);
-            return documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
+            var document = documentProvider.findByIdAndEmployeeId(documentId, targetEmployee.employeeId())
                     .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+            validateDocumentVisibility(document);
+            return document;
         }
 
         var document = documentProvider.findById(documentId);
         authorizeEmployeeAccess(document.employeeId());
+        validateDocumentVisibility(document);
         return document;
+    }
+
+    private void validateDocumentVisibility(Document document) {
+        var role = jwtAuthenticatedUser.getCurrentRole();
+
+        if (isCto(role) || isManager(role)) {
+            if (document.deletedByManager()) {
+                throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
+            }
+        } else {
+            if (document.deletedByEmployee()) {
+                throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
+            }
+        }
     }
 
     public UUID authorizeCompanyAccess(UUID requestedCompanyId) {

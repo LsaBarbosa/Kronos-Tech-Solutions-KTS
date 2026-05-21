@@ -23,9 +23,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
     @Override
     public String uploadFile(String originalFileName, byte[] fileData, String contentType) {
         try {
-            // Cria um nome de objeto único
-            String uniqueObjectName = UUID.randomUUID() + "-" + originalFileName;
-            Path filePath = resolveWithinRoot(uniqueObjectName);
+            Path filePath = resolveWithinRoot(originalFileName);
 
             // Garante que o diretório exista
             Files.createDirectories(filePath.getParent());
@@ -34,7 +32,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
             Files.write(filePath, fileData);
 
             log.info("Upload para disco local concluído: {}", filePath);
-            return uniqueObjectName; // Retorna apenas o nome do objeto (para ser salvo no DB)
+            return originalFileName;
         } catch (IOException e) {
             log.error("Erro no upload do arquivo para o disco local: {}", e.getMessage(), e);
             throw new RuntimeException("Falha ao salvar o arquivo no disco.", e);
