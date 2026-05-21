@@ -75,9 +75,17 @@ public class DocumentService implements DocumentUseCase {
         var documentType = normalizeDocumentType(doc.type());
 
         try {
+            if (doc.storagePath() == null || doc.storagePath().isBlank()) {
+                kronosMetrics.documentDownloadFailure(documentType, "invalid_storage_path");
+                log.warn("event=document_download result=failure document_type={} reason=invalid_storage_path document_id={}",
+                        documentType, documentId);
+                throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
+            }
+
             byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
             kronosMetrics.documentDownloadSuccess(documentType);
-            log.info("event=document_download result=success document_type={}", documentType);
+            log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
+                    documentType, documentId, fileData.length);
 
             return new DocumentWithData(
                     doc.documentId(),
@@ -90,14 +98,23 @@ public class DocumentService implements DocumentUseCase {
             );
 
         } catch (ResourceNotFoundException e) {
-            kronosMetrics.documentDownloadFailure(documentType, "not_found");
-            log.warn("event=document_download result=failure document_type={} reason=not_found", documentType);
+            if (e.getMessage().contains("Arquivo não encontrado")) {
+                kronosMetrics.documentDownloadFailure(documentType, "storage_object_not_found");
+                log.warn("event=document_download result=failure document_type={} reason=storage_object_not_found document_id={} storage_path={}",
+                        documentType, documentId, doc.storagePath());
+            } else {
+                kronosMetrics.documentDownloadFailure(documentType, "metadata_not_found");
+                log.warn("event=document_download result=failure document_type={} reason=metadata_not_found document_id={}",
+                        documentType, documentId);
+            }
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
-            kronosMetrics.documentDownloadFailure(documentType, "unknown");
-            log.error("event=document_download result=failure document_type={} reason=unknown exception_type={}",
+            kronosMetrics.documentDownloadFailure(documentType, "storage_error");
+            log.error("event=document_download result=failure document_type={} reason=storage_error exception_type={} message={}",
                     documentType,
-                    e.getClass().getSimpleName());
+                    e.getClass().getSimpleName(),
+                    e.getMessage(),
+                    e);
             throw new BadRequestException(ERROR_GET_FILE);
         }
     }
