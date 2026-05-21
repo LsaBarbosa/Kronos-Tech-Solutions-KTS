@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,12 +35,12 @@ class BucketStorageProviderImplTest {
     void shouldKeepWrittenFileInsideRoot() throws Exception {
         byte[] payload = "conteudo".getBytes();
         String objectName = "doc123/UUID-file.pdf";
-        String result = provider.uploadFile(objectName, payload, "application/pdf");
+        String result = provider.uploadFile(DocumentType.DOCUMENTS, objectName, payload, "application/pdf");
 
         Path expected = tempDir.resolve(Paths.get(result).normalize()).normalize();
         assertTrue(expected.startsWith(tempDir));
         assertTrue(Files.exists(expected));
-        assertArrayEquals(payload, provider.downloadFile(result));
+        assertArrayEquals(payload, provider.downloadFile(DocumentType.DOCUMENTS, result));
         assertEquals(objectName, result);
     }
 
@@ -49,22 +50,22 @@ class BucketStorageProviderImplTest {
         byte[] payload = "conteudo".getBytes();
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> provider.uploadFile("../../escape.pdf", payload, "application/pdf"));
+                () -> provider.uploadFile(DocumentType.DOCUMENTS, "../../escape.pdf", payload, "application/pdf"));
         assertEquals("Caminho de storage inválido.", exception.getMessage());
     }
 
     @Test
     @DisplayName("download: falha quando arquivo não existe")
     void shouldFailWhenFileDoesNotExist() {
-        assertThrows(ResourceNotFoundException.class, () -> provider.downloadFile("missing.pdf"));
+        assertThrows(ResourceNotFoundException.class, () -> provider.downloadFile(DocumentType.DOCUMENTS, "missing.pdf"));
     }
 
     @Test
     @DisplayName("delete: remove arquivo existente dentro da raiz")
     void shouldDeleteExistingFile() throws Exception {
-        String objectName = provider.uploadFile("delete.pdf", "x".getBytes(), "application/pdf");
+        String objectName = provider.uploadFile(DocumentType.DOCUMENTS, "delete.pdf", "x".getBytes(), "application/pdf");
 
-        provider.deleteFile(objectName);
+        provider.deleteFile(DocumentType.DOCUMENTS, objectName);
 
         assertFalse(Files.exists(tempDir.resolve(objectName)));
     }
@@ -77,7 +78,7 @@ class BucketStorageProviderImplTest {
         ReflectionTestUtils.setField(provider, "rootPath", fileRoot.toString());
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> provider.uploadFile("file.pdf", "x".getBytes(), "application/pdf"));
+                () -> provider.uploadFile(DocumentType.DOCUMENTS, "file.pdf", "x".getBytes(), "application/pdf"));
 
         assertEquals("Falha ao salvar o arquivo no disco.", exception.getMessage());
     }
@@ -88,7 +89,7 @@ class BucketStorageProviderImplTest {
         ReflectionTestUtils.setField(provider, "rootPath", "\0");
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> provider.uploadFile("file.pdf", "x".getBytes(), "application/pdf"));
+                () -> provider.uploadFile(DocumentType.DOCUMENTS, "file.pdf", "x".getBytes(), "application/pdf"));
 
         assertEquals("Caminho de storage inválido.", exception.getMessage());
     }
@@ -96,7 +97,7 @@ class BucketStorageProviderImplTest {
     @Test
     @DisplayName("download: bloqueia leitura fora da raiz")
     void shouldBlockReadOutsideRoot() {
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.downloadFile("../../etc/passwd"));
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.downloadFile(DocumentType.DOCUMENTS, "../../etc/passwd"));
         assertEquals("Caminho de storage inválido.", exception.getMessage());
         assertFalse(exception.getMessage().contains(tempDir.toString()));
     }
@@ -123,7 +124,7 @@ class BucketStorageProviderImplTest {
             when(finalPath.normalize()).thenReturn(finalPath);
             when(finalPath.startsWith(root)).thenReturn(false);
 
-            RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.downloadFile("safe.pdf"));
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.downloadFile(DocumentType.DOCUMENTS, "safe.pdf"));
 
             assertEquals("Caminho de storage inválido.", exception.getMessage());
         }
@@ -136,7 +137,7 @@ class BucketStorageProviderImplTest {
         Files.createDirectory(directoryObject);
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> provider.downloadFile("directory-object"));
+                () -> provider.downloadFile(DocumentType.DOCUMENTS, "directory-object"));
 
         assertEquals("Falha ao ler o arquivo do disco.", exception.getMessage());
     }
@@ -144,7 +145,7 @@ class BucketStorageProviderImplTest {
     @Test
     @DisplayName("delete: bloqueia deleção fora da raiz")
     void shouldBlockDeleteOutsideRoot() {
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.deleteFile("../outside.txt"));
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> provider.deleteFile(DocumentType.DOCUMENTS, "../outside.txt"));
         assertEquals("Caminho de storage inválido.", exception.getMessage());
         assertFalse(exception.getMessage().contains(tempDir.toString()));
     }
@@ -157,7 +158,7 @@ class BucketStorageProviderImplTest {
         Files.writeString(directoryObject.resolve("child.txt"), "x");
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-                () -> provider.deleteFile("non-empty-directory"));
+                () -> provider.deleteFile(DocumentType.DOCUMENTS, "non-empty-directory"));
 
         assertEquals("Falha ao excluir o arquivo do disco.", exception.getMessage());
     }
@@ -165,8 +166,8 @@ class BucketStorageProviderImplTest {
     @Test
     @DisplayName("storage: rejeita nomes nulos ou em branco")
     void shouldRejectNullOrBlankObjectNames() {
-        RuntimeException blankDownload = assertThrows(RuntimeException.class, () -> provider.downloadFile(" "));
-        RuntimeException nullDelete = assertThrows(RuntimeException.class, () -> provider.deleteFile(null));
+        RuntimeException blankDownload = assertThrows(RuntimeException.class, () -> provider.downloadFile(DocumentType.DOCUMENTS, " "));
+        RuntimeException nullDelete = assertThrows(RuntimeException.class, () -> provider.deleteFile(DocumentType.DOCUMENTS, null));
 
         assertEquals("Caminho de storage inválido.", blankDownload.getMessage());
         assertEquals("Caminho de storage inválido.", nullDelete.getMessage());
