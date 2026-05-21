@@ -33,13 +33,24 @@ class BucketStorageProviderImplTest {
     @DisplayName("upload/download: mantém arquivos dentro da raiz configurada")
     void shouldKeepWrittenFileInsideRoot() throws Exception {
         byte[] payload = "conteudo".getBytes();
-        String objectName = provider.uploadFile("../../escape.pdf", payload, "application/pdf");
+        String objectName = "doc123/UUID-file.pdf";
+        String result = provider.uploadFile(objectName, payload, "application/pdf");
 
-        Path expected = tempDir.resolve(Paths.get(objectName).normalize()).normalize();
+        Path expected = tempDir.resolve(Paths.get(result).normalize()).normalize();
         assertTrue(expected.startsWith(tempDir));
         assertTrue(Files.exists(expected));
-        assertArrayEquals(payload, provider.downloadFile(objectName));
-        assertArrayEquals(payload, provider.downloadFile("/" + objectName.replace('/', '\\')));
+        assertArrayEquals(payload, provider.downloadFile(result));
+        assertEquals(objectName, result);
+    }
+
+    @Test
+    @DisplayName("upload: rejeita paths inseguros com escape characters")
+    void shouldRejectUnsafePaths() {
+        byte[] payload = "conteudo".getBytes();
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> provider.uploadFile("../../escape.pdf", payload, "application/pdf"));
+        assertEquals("Caminho de storage inválido.", exception.getMessage());
     }
 
     @Test
