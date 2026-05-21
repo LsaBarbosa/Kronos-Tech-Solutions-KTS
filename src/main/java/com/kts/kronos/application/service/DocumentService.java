@@ -82,7 +82,10 @@ public class DocumentService implements DocumentUseCase {
                 throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
             }
 
-            byte[] fileData = bucketStorageProvider.downloadFile(doc.storagePath());
+            byte[] fileData = bucketStorageProvider.downloadFile(
+                    doc.type(),
+                    doc.storagePath()
+            );
             kronosMetrics.documentDownloadSuccess(documentType);
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
@@ -168,7 +171,10 @@ public class DocumentService implements DocumentUseCase {
             }
 
             if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
-                bucketStorageProvider.deleteFile(doc.storagePath());
+                bucketStorageProvider.deleteFile(
+                        doc.type(),
+                        doc.storagePath()
+                );
                 documentProvider.delete(doc.employeeId(), doc.documentId());
             } else {
                 documentProvider.save(updatedDoc);
@@ -198,8 +204,13 @@ public class DocumentService implements DocumentUseCase {
             var uploadData = validateAndPrepareUpload(file);
             kronosTracing.observe("kronos.document.upload", () -> {
                 var employee = getAuthorizedEmployee(employeeId);
-                var uniqueObjectName = employee.employeeId() + "/" + UUID.randomUUID() + "-" + uploadData.fileName();
-                var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, uploadData.data(), uploadData.contentType());
+                var uniqueObjectName = buildStorageKey(employee, type, uploadData.fileName());
+                var storagePath = bucketStorageProvider.uploadFile(
+                        type,
+                        uniqueObjectName,
+                        uploadData.data(),
+                        uploadData.contentType()
+                );
                 var doc = new Document(
                         employee.employeeId(),
                         type,
@@ -243,10 +254,15 @@ public class DocumentService implements DocumentUseCase {
 
             var employee = getAuthorizedEmployee(employeeId);
             // Define o caminho no Bucket
-            var uniqueObjectName = employee.employeeId() + "/receipts/" + UUID.randomUUID() + "-" + safeFileName;
+            var uniqueObjectName = buildStorageKey(employee, type, safeFileName);
 
             // Upload Físico
-            var storagePath = bucketStorageProvider.uploadFile(uniqueObjectName, content,contentType);
+            var storagePath = bucketStorageProvider.uploadFile(
+                    type,
+                    uniqueObjectName,
+                    content,
+                    contentType
+            );
 
             // Salva Metadados no Banco
             var doc = new Document(
@@ -406,6 +422,20 @@ public class DocumentService implements DocumentUseCase {
             }
         }
         return true;
+    }
+
+    private String buildStorageKey(Employee employee, DocumentType type, String fileName) {
+        var now = LocalDate.now();
+        return String.format(
+                "company/%s/employee/%s/%s/%d/%02d/%s-%s",
+                employee.companyId(),
+                employee.employeeId(),
+                type.name(),
+                now.getYear(),
+                now.getMonthValue(),
+                UUID.randomUUID(),
+                fileName
+        );
     }
 
     private String normalizeDocumentType(DocumentType type) {
