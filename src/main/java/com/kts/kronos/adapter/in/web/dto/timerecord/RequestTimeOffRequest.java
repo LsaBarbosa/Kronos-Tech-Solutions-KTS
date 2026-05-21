@@ -1,6 +1,5 @@
 package com.kts.kronos.adapter.in.web.dto.timerecord;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,11 +13,9 @@ import static com.kts.kronos.constants.Messages.*;
 public record RequestTimeOffRequest(
 
         @NotNull(message = DATE_NOT_NULL)
-        @JsonFormat(pattern = DATE_PATTERN)
         LocalDate startDate,
 
         @NotNull(message = DATE_NOT_NULL)
-        @JsonFormat(pattern = DATE_PATTERN)
         LocalDate endDate,
 
         @NotBlank(message = TIME_NOT_NULL)
