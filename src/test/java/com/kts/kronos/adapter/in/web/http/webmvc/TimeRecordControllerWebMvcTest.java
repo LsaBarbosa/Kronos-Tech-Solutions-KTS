@@ -125,7 +125,7 @@ class TimeRecordControllerWebMvcTest {
                         .content("""
                                 {
                                   "startDate": null,
-                                  "endDate": "20-04-2026",
+                                  "endDate": "2026-04-20",
                                   "startHour": "8h",
                                   "endHour": "",
                                   "managerId": null
@@ -397,8 +397,8 @@ class TimeRecordControllerWebMvcTest {
         when(useCase.requestTimeOff(any(), any())).thenReturn(30L);
         MockMultipartFile request = jsonPart("request", """
                 {
-                  "startDate": "20-04-2026",
-                  "endDate": "20-04-2026",
+                  "startDate": "2026-04-20",
+                  "endDate": "2026-04-20",
                   "startHour": "09:00",
                   "endHour": "12:00",
                   "managerId": "%s",
@@ -425,7 +425,7 @@ class TimeRecordControllerWebMvcTest {
         MockMultipartFile request = jsonPart("request", """
                 {
                   "startDate": null,
-                  "endDate": "20-04-2026",
+                  "endDate": "2026-04-20",
                   "startHour": "",
                   "endHour": "12h",
                   "managerId": null
@@ -488,8 +488,8 @@ class TimeRecordControllerWebMvcTest {
     private static String validUpdateTimeRecordJson() {
         return """
                 {
-                  "startDate": "20-04-2026",
-                  "endDate": "20-04-2026",
+                  "startDate": "2026-04-20",
+                  "endDate": "2026-04-20",
                   "startHour": "08:00",
                   "endHour": "17:00",
                   "managerId": "%s"
