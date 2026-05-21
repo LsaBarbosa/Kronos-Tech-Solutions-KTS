@@ -84,7 +84,7 @@ class DocumentServiceSecurityTest {
         byte[] fileBytes = "payload".getBytes(StandardCharsets.UTF_8);
 
         when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
-        when(bucketStorageProvider.downloadFile(document.storagePath())).thenReturn(fileBytes);
+        when(bucketStorageProvider.downloadFile(document.type(), document.storagePath())).thenReturn(fileBytes);
 
         DocumentWithData response = service.downloadDocument(null, documentId);
 
@@ -101,7 +101,7 @@ class DocumentServiceSecurityTest {
                 .thenThrow(new ForbiddenException("Acesso negado"));
 
         assertThrows(ForbiddenException.class, () -> service.downloadDocument(otherTenantEmployeeId, documentId));
-        verify(bucketStorageProvider, never()).downloadFile(anyString());
+        verify(bucketStorageProvider, never()).downloadFile(any(DocumentType.class), anyString());
     }
 
     @Test
@@ -111,7 +111,7 @@ class DocumentServiceSecurityTest {
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
         when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
-        when(bucketStorageProvider.downloadFile(document.storagePath()))
+        when(bucketStorageProvider.downloadFile(document.type(), document.storagePath()))
                 .thenThrow(new ResourceNotFoundException("bucket object missing"));
 
         ResourceNotFoundException exception = assertThrows(
@@ -138,7 +138,7 @@ class DocumentServiceSecurityTest {
         verify(documentProvider).save(captor.capture());
         assertTrue(captor.getValue().deletedByEmployee());
         assertFalse(captor.getValue().deletedByManager());
-        verify(bucketStorageProvider, never()).deleteFile(anyString());
+        verify(bucketStorageProvider, never()).deleteFile(any(DocumentType.class), anyString());
     }
 
     @Test
@@ -229,12 +229,12 @@ class DocumentServiceSecurityTest {
         );
 
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
 
         service.uploadDocument(DocumentType.PAYSLIP, null, file);
 
         ArgumentCaptor<String> objectNameCaptor = ArgumentCaptor.forClass(String.class);
-        verify(bucketStorageProvider).uploadFile(objectNameCaptor.capture(), any(byte[].class), anyString());
+        verify(bucketStorageProvider).uploadFile(any(DocumentType.class), objectNameCaptor.capture(), any(byte[].class), anyString());
         String objectName = objectNameCaptor.getValue();
 
         assertFalse(objectName.contains(".."));
@@ -261,7 +261,7 @@ class DocumentServiceSecurityTest {
         );
 
         assertEquals(INVALID_DOCUMENT_TYPE, exception.getMessage());
-        verify(bucketStorageProvider, never()).uploadFile(anyString(), any(byte[].class), anyString());
+        verify(bucketStorageProvider, never()).uploadFile(any(DocumentType.class), anyString(), any(byte[].class), anyString());
     }
 
     @Test
@@ -277,7 +277,7 @@ class DocumentServiceSecurityTest {
         );
 
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
 
         for (MockMultipartFile file : files) {
             service.uploadDocument(DocumentType.PAYSLIP, null, file);
@@ -427,7 +427,7 @@ class DocumentServiceSecurityTest {
         RuntimeException storageFailure = new RuntimeException("storage down");
 
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), eq("application/pdf")))
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenThrow(storageFailure);
 
         RuntimeException exception = assertThrows(
@@ -537,7 +537,7 @@ class DocumentServiceSecurityTest {
         Document document = buildDocument(documentId, loggedEmployeeId, "safe/object.pdf");
 
         when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
-        when(bucketStorageProvider.downloadFile(anyString()))
+        when(bucketStorageProvider.downloadFile(any(DocumentType.class), anyString()))
                 .thenThrow(new RuntimeException("falha em /mnt/data/documents/secret.pdf"));
 
         BadRequestException exception = assertThrows(
@@ -609,7 +609,7 @@ class DocumentServiceSecurityTest {
         String longBaseName = "a".repeat(120);
 
         when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), eq("application/pdf")))
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("safe/storage/path");
 
         service.uploadGeneratedDocument(
@@ -644,7 +644,7 @@ class DocumentServiceSecurityTest {
         RuntimeException storageFailure = new RuntimeException("storage down");
 
         when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), eq("application/pdf")))
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenThrow(storageFailure);
 
         RuntimeException exception = assertThrows(

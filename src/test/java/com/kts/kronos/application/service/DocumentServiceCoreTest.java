@@ -99,7 +99,7 @@ class DocumentServiceCoreTest {
         Employee employee = buildEmployee(employeeId);
 
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), eq("application/pdf")))
+        when(bucketStorageProvider.uploadFile(eq(DocumentType.PAYSLIP), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("bucket/path/file.pdf");
 
         service.uploadGeneratedDocument(
@@ -133,7 +133,7 @@ class DocumentServiceCoreTest {
         );
 
         when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
-        when(bucketStorageProvider.uploadFile(anyString(), any(byte[].class), eq("application/pdf")))
+        when(bucketStorageProvider.uploadFile(eq(DocumentType.TIME_OFF), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("bucket/path/recibo.pdf");
 
         service.uploadDocumentForTimeRecord(DocumentType.TIME_OFF, null, 55L, file);
@@ -172,7 +172,7 @@ class DocumentServiceCoreTest {
 
         service.deleteDocument(null, documentId);
 
-        verify(bucketStorageProvider).deleteFile("bucket/path/holerite.pdf");
+        verify(bucketStorageProvider).deleteFile(DocumentType.PAYSLIP, "bucket/path/holerite.pdf");
         verify(documentProvider).delete(employeeId, documentId);
         verify(documentProvider, never()).save(any());
     }
