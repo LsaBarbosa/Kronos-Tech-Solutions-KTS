@@ -16,6 +16,7 @@ import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class EmployeeService implements EmployeeUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final AuthenticationRateLimitService authenticationRateLimitService;
+    private final KronosMetrics kronosMetrics;
 
     // MANAGER
     @Override
@@ -136,6 +138,7 @@ public class EmployeeService implements EmployeeUseCase {
             employeeProvider.save(savedEmployee);
         }
 
+        kronosMetrics.employeeCreated();
         return savedEmployee;
     }
 
@@ -223,6 +226,7 @@ public class EmployeeService implements EmployeeUseCase {
         updatedEmployee = updatedEmployee.withFaceS3ObjectKey(newS3ObjectKey);
 
         employeeProvider.save(updatedEmployee);
+        kronosMetrics.employeeUpdated();
     }
 
 

@@ -10,6 +10,7 @@ import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.LegalBasis;
+import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private static final HexFormat HEX = HexFormat.of();
     private static final String BIOMETRIC_CONSENT_PURPOSE =
             "Biometric authentication and identity validation in authorized Kronos flows.";
+    private final KronosMetrics kronosMetrics;
 
     @Override
     public LegalText getCurrentBiometricTerm() {
@@ -142,6 +144,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
+        kronosMetrics.consentAccepted();
     }
 
     @Override
@@ -181,6 +184,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 )
         );
         log.info("Revogação biométrica concluída com sucesso para o colaborador {}", employeeId);
+        kronosMetrics.consentRevoked();
     }
 
     @Override

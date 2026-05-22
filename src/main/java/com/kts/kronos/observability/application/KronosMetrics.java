@@ -1,5 +1,6 @@
 package com.kts.kronos.observability.application;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
@@ -36,6 +37,27 @@ public class KronosMetrics {
         Gauge.builder("kronos_ntp_drift_seconds", ntpDriftSeconds, AtomicReference::get)
                 .description("Current NTP drift in seconds")
                 .register(meterRegistry);
+        preRegisterCounters();
+    }
+
+    private void preRegisterCounters() {
+        String[] names = {
+            "kronos_company_created_total", "kronos_company_updated_total",
+            "kronos_employee_created_total", "kronos_employee_updated_total",
+            "kronos_user_created_total", "kronos_user_updated_total",
+            "kronos_consent_accepted_total", "kronos_consent_revoked_total",
+            "kronos_geolocation_lookup_success_total",
+            "kronos_biometric_enrollment_success_total",
+            "kronos_time_adjustment_requested_total", "kronos_time_adjustment_approved_total",
+            "kronos_time_adjustment_rejected_total",
+            "kronos_vacation_requested_total", "kronos_vacation_approved_total",
+            "kronos_vacation_rejected_total",
+            "kronos_time_off_requested_total", "kronos_time_off_approved_total",
+            "kronos_time_off_rejected_total"
+        };
+        for (String name : names) {
+            Counter.builder(name).register(meterRegistry);
+        }
     }
 
     public void authLoginSuccess() {
@@ -161,6 +183,55 @@ public class KronosMetrics {
         double drift = offsetMillis == null ? 0.0d : offsetMillis / 1000.0d;
         ntpDriftSeconds.set(drift);
     }
+
+    // --- Company ---
+    public void companyCreated() { increment("kronos_company_created_total"); }
+    public void companyUpdated() { increment("kronos_company_updated_total"); }
+
+    // --- Employee ---
+    public void employeeCreated() { increment("kronos_employee_created_total"); }
+    public void employeeUpdated() { increment("kronos_employee_updated_total"); }
+
+    // --- Biometric enrollment ---
+    public void biometricEnrollmentSuccess() { increment("kronos_biometric_enrollment_success_total"); }
+    public void biometricEnrollmentFailure(String reason) {
+        increment("kronos_biometric_enrollment_failure_total", "reason", reason);
+    }
+    public void recordBiometricEnrollmentDuration(Duration duration) {
+        record("kronos_biometric_enrollment_duration_seconds", duration);
+    }
+
+    // --- User ---
+    public void userCreated() { increment("kronos_user_created_total"); }
+    public void userUpdated() { increment("kronos_user_updated_total"); }
+
+    // --- Consent/LGPD ---
+    public void consentAccepted() { increment("kronos_consent_accepted_total"); }
+    public void consentRevoked()  { increment("kronos_consent_revoked_total"); }
+
+    // --- Geolocation ---
+    public void geolocationLookupSuccess() { increment("kronos_geolocation_lookup_success_total"); }
+    public void geolocationLookupFailure(String reason) {
+        increment("kronos_geolocation_lookup_failure_total", "reason", reason);
+    }
+    public void recordGeolocationDuration(Duration duration) {
+        record("kronos_geolocation_lookup_duration_seconds", duration);
+    }
+
+    // --- Time adjustments ---
+    public void timeAdjustmentRequested() { increment("kronos_time_adjustment_requested_total"); }
+    public void timeAdjustmentApproved()  { increment("kronos_time_adjustment_approved_total"); }
+    public void timeAdjustmentRejected()  { increment("kronos_time_adjustment_rejected_total"); }
+
+    // --- Vacation ---
+    public void vacationRequested() { increment("kronos_vacation_requested_total"); }
+    public void vacationApproved()  { increment("kronos_vacation_approved_total"); }
+    public void vacationRejected()  { increment("kronos_vacation_rejected_total"); }
+
+    // --- Time off ---
+    public void timeOffRequested() { increment("kronos_time_off_requested_total"); }
+    public void timeOffApproved()  { increment("kronos_time_off_approved_total"); }
+    public void timeOffRejected()  { increment("kronos_time_off_rejected_total"); }
 
     private void increment(String name, String... tagKeyValues) {
         meterRegistry.counter(name, tags(tagKeyValues)).increment();

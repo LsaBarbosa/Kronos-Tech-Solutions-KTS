@@ -47,6 +47,31 @@ class KronosMetricsTest {
         metrics.schedulerRecordsProcessed("time_sync", 4);
         metrics.setNtpDriftMillis(5_000L);
 
+        // New metrics
+        metrics.companyCreated();
+        metrics.companyUpdated();
+        metrics.employeeCreated();
+        metrics.employeeUpdated();
+        metrics.biometricEnrollmentSuccess();
+        metrics.biometricEnrollmentFailure("storage_error");
+        metrics.recordBiometricEnrollmentDuration(Duration.ofMillis(300));
+        metrics.userCreated();
+        metrics.userUpdated();
+        metrics.consentAccepted();
+        metrics.consentRevoked();
+        metrics.geolocationLookupSuccess();
+        metrics.geolocationLookupFailure("provider_error");
+        metrics.recordGeolocationDuration(Duration.ofMillis(150));
+        metrics.timeAdjustmentRequested();
+        metrics.timeAdjustmentApproved();
+        metrics.timeAdjustmentRejected();
+        metrics.vacationRequested();
+        metrics.vacationApproved();
+        metrics.vacationRejected();
+        metrics.timeOffRequested();
+        metrics.timeOffApproved();
+        metrics.timeOffRejected();
+
         assertEquals(1.0d, registry.get("kronos_auth_login_success_total").counter().count());
         assertEquals(1.0d, registry.get("kronos_auth_login_failure_total").tag("reason", "invalid_credentials").counter().count());
         assertEquals(1.0d, registry.get("kronos_auth_face_login_success_total").counter().count());
@@ -77,6 +102,31 @@ class KronosMetricsTest {
         assertEquals(1L, registry.get("kronos_scheduler_execution_duration_seconds").tag("scheduler", "time_sync").tag("result", "failure").timer().count());
         assertEquals(4.0d, registry.get("kronos_scheduler_records_processed_total").tag("scheduler", "time_sync").counter().count());
         assertEquals(5.0d, registry.get("kronos_ntp_drift_seconds").gauge().value());
+
+        // New metric assertions
+        assertEquals(1.0d, registry.get("kronos_company_created_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_company_updated_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_employee_created_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_employee_updated_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_biometric_enrollment_success_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_biometric_enrollment_failure_total").tag("reason", "storage_error").counter().count());
+        assertEquals(1L,   registry.get("kronos_biometric_enrollment_duration_seconds").timer().count());
+        assertEquals(1.0d, registry.get("kronos_user_created_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_user_updated_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_consent_accepted_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_consent_revoked_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_geolocation_lookup_success_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_geolocation_lookup_failure_total").tag("reason", "provider_error").counter().count());
+        assertEquals(1L,   registry.get("kronos_geolocation_lookup_duration_seconds").timer().count());
+        assertEquals(1.0d, registry.get("kronos_time_adjustment_requested_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_adjustment_approved_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_adjustment_rejected_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_vacation_requested_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_vacation_approved_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_vacation_rejected_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_off_requested_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_off_approved_total").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_off_rejected_total").counter().count());
     }
 
     @Test
@@ -87,5 +137,16 @@ class KronosMetricsTest {
                 IllegalArgumentException.class,
                 () -> ReflectionTestUtils.invokeMethod(metrics, "increment", "kronos_test_total", new String[]{"employeeId", "123"})
         );
+    }
+
+    @Test
+    void preRegisteredCountersShouldExistWithZeroCountBeforeAnyEvent() {
+        var registry = new SimpleMeterRegistry();
+        new KronosMetrics(registry);
+
+        assertEquals(0.0d, registry.get("kronos_company_created_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_consent_accepted_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_vacation_requested_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_time_off_approved_total").counter().count());
     }
 }
