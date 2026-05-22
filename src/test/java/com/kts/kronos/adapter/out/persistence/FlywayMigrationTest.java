@@ -61,7 +61,7 @@ class FlywayMigrationTest {
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'tb_retention_policy'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'uix_retention_policy_code'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_retention_policy_enabled'"));
-        assertEquals(2, count(jdbcTemplate, "SELECT COUNT(*) FROM tb_retention_policy WHERE enabled = true"));
+        assertEquals(9, count(jdbcTemplate, "SELECT COUNT(*) FROM tb_retention_policy WHERE enabled = true"));
         assertEquals(100, count(jdbcTemplate, """
                 SELECT character_maximum_length
                   FROM information_schema.columns
@@ -98,6 +98,14 @@ class FlywayMigrationTest {
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_security_incident' AND column_name = 'status'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_security_incident_status'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_security_incident_detected_at'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'tb_data_processing_inventory'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'description'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'risk_level'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'ripd_required'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'version'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'operators'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_inventory_risk_level'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_inventory_ripd_required'"));
     }
 
     private Integer count(JdbcTemplate jdbcTemplate, String sql) {

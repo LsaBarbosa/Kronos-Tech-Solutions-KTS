@@ -37,6 +37,9 @@ public class DataProcessingInventoryEntity {
     @Column(name = "process_name", nullable = false, length = 200)
     private String processName;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "data_category", nullable = false, length = 100)
     private String dataCategory;
 
@@ -75,6 +78,18 @@ public class DataProcessingInventoryEntity {
 
     @Column(name = "active", nullable = false)
     private Boolean active = true;
+
+    @Column(name = "risk_level", length = 50)
+    private String riskLevel;
+
+    @Column(name = "ripd_required", nullable = false)
+    private Boolean ripdRequired = false;
+
+    @Column(name = "version", length = 20)
+    private String version;
+
+    @Column(name = "operators", columnDefinition = "TEXT")
+    private String operators;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

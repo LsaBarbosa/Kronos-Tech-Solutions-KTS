@@ -25,6 +25,7 @@ public class DataProcessingInventoryService {
                 null,
                 request.processCode(),
                 request.processName(),
+                request.description(),
                 request.dataCategory(),
                 request.dataFields(),
                 request.dataSubjectCategory(),
@@ -38,6 +39,10 @@ public class DataProcessingInventoryService {
                 request.internationalTransfer(),
                 request.securityMeasures(),
                 request.active(),
+                request.riskLevel(),
+                request.ripdRequired(),
+                request.version(),
+                request.operators(),
                 now,
                 now
         );
@@ -52,6 +57,7 @@ public class DataProcessingInventoryService {
                 existing.inventoryId(),
                 request.processCode(),
                 request.processName(),
+                request.description(),
                 request.dataCategory(),
                 request.dataFields(),
                 request.dataSubjectCategory(),
@@ -65,6 +71,10 @@ public class DataProcessingInventoryService {
                 request.internationalTransfer(),
                 request.securityMeasures(),
                 request.active(),
+                request.riskLevel(),
+                request.ripdRequired(),
+                request.version(),
+                request.operators(),
                 existing.createdAt(),
                 Instant.now()
         );
