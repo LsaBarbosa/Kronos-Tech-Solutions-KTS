@@ -12,4 +12,9 @@ public record GeolocationRequest(double latitude,
                                  String faceImageBase64,
                                  Boolean livenessPassed
 ) {
+    @Override
+    public String toString() {
+        return "GeolocationRequest[latitude=" + latitude + ", longitude=" + longitude
+                + ", faceImageBase64=***MASKED***, livenessPassed=" + livenessPassed + "]";
+    }
 }

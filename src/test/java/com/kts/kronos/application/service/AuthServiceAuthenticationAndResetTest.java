@@ -6,16 +6,16 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
-import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
-import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -72,7 +72,7 @@ class AuthServiceAuthenticationAndResetTest {
     @Mock
     private FaceRecognitionProvider faceRecognitionProvider;
     @Mock
-    private DocumentProvider documentProvider;
+    private LegalConsentProvider legalConsentProvider;
     @Mock
     private BiometricProtectionService biometricProtectionService;
     @Mock
@@ -93,7 +93,7 @@ class AuthServiceAuthenticationAndResetTest {
     @DisplayName("login: autentica, verifica aceite e gera token")
     void shouldLoginAndGenerateToken() {
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
-        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(true);
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
         when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
@@ -127,7 +127,7 @@ class AuthServiceAuthenticationAndResetTest {
                 assertThrows(ResourceNotFoundException.class, () -> authService.login("Alice", "secret"));
 
         assertEquals(USER_NOT_FOUND, exception.getMessage());
-        verify(documentProvider, never()).existsByEmployeeIdAndType(any(), any());
+        verify(legalConsentProvider, never()).existsActive(any(), any());
         verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class));
     }
 
@@ -137,7 +137,7 @@ class AuthServiceAuthenticationAndResetTest {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
-        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(false);
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
         when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, false)).thenReturn("face-jwt");
 
         String token = authService.loginFace(imageBase64, true);

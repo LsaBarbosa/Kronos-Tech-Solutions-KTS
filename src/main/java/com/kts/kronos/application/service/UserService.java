@@ -14,6 +14,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
@@ -44,6 +45,7 @@ public class UserService implements UserUseCase {
     private final EmployeeUseCase employeeUseCase;
     private final DomainAuthorizationService domainAuthorizationService;
     private final AcceptTermsUseCase acceptTermsUseCase;
+    private final AuthenticationRateLimitService authenticationRateLimitService;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -191,6 +193,7 @@ public class UserService implements UserUseCase {
 
     @Override
     public boolean usernameExists(String username) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
         return userProvider.existsByUsername(username.toLowerCase());
     }
 

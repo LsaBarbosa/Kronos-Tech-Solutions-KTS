@@ -6,12 +6,15 @@ import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.LegalText;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -32,10 +35,11 @@ class PdfGenerationServicesTest {
         Employee employee = employee("Ana Paula", "12345678901");
         String longUserAgent = "Mozilla/5.0 ".repeat(12);
 
-        byte[] pdf = service.generateConsentTerm(employee, company, "192.0.2.10", longUserAgent);
+        byte[] pdf = service.generateConsentTerm(employee, company, "192.0.2.10", longUserAgent, legalText());
 
         String text = extractText(pdf);
-        assertTrue(text.contains("TERMO DE CONSENTIMENTO"));
+        assertTrue(text.contains("Termo de Consentimento Biométrico"));
+        assertTrue(text.contains("Versão do termo: 2026.05.21"));
         assertTrue(text.contains("Kronos Cliente"));
         assertTrue(text.contains("Ana Paula"));
         assertTrue(text.contains("192.0.2.10"));
@@ -48,7 +52,13 @@ class PdfGenerationServicesTest {
         BiometricTermPdfService service = new BiometricTermPdfService();
         ReflectionTestUtils.setField(service, "secretSalt", "test-salt");
 
-        byte[] pdf = service.generateConsentTerm(employee("Bruno Lima", "98765432100"), company("Empresa Sem IP", "11222333000144"), null, "");
+        byte[] pdf = service.generateConsentTerm(
+                employee("Bruno Lima", "98765432100"),
+                company("Empresa Sem IP", "11222333000144"),
+                null,
+                "",
+                legalText()
+        );
 
         String text = extractText(pdf);
         assertTrue(text.contains("IP Não Identificado"));
@@ -168,5 +178,19 @@ class PdfGenerationServicesTest {
             }
             return text.toString();
         }
+    }
+
+    private static LegalText legalText() {
+        return new LegalText(
+                UUID.randomUUID(),
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                "2026.05.21",
+                "Termo de Consentimento Biométrico",
+                "Parágrafo inicial.\n\n- Item 1\n- Item 2",
+                "current-hash",
+                true,
+                Instant.parse("2026-05-21T09:00:00Z"),
+                Instant.parse("2026-05-21T09:05:00Z")
+        );
     }
 }

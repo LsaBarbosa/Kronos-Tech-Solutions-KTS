@@ -49,6 +49,7 @@ public class Messages {
     // Employee / Company
     public static final String EMPLOYEE_NOT_FOUND = "Colaborador não encontrado";
     public static final String COMPANY_NOT_FOUND = "Empresa não encontrada: ";
+    public static final String LGPD_REQUEST_NOT_FOUND = "Solicitação LGPD não encontrada.";
     public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";
     public static final String CPF_ALREADY_EXIST = "CPF já cadastrado";
     public static final String ZIPCODE_NOT_FOUND = "CEP não encontrado:";
@@ -171,6 +172,8 @@ public class Messages {
     public static final String ERROR_TO_GENERATE_PDF = "Falha na geração do Termo PDF: ";
     public static final String END_DATE_BEFORE_START_DATE = "A data final não pode ser anterior à data inicial.";
     public static final String EXPORT_PERIOD_TOO_LARGE = "O período informado excede o limite permitido para exportação de %d dias.";
+    public static final String CURRENT_BIOMETRIC_TERM_NOT_FOUND = "Termo biométrico ativo não encontrado.";
+    public static final String INVALID_BIOMETRIC_TERM_VERSION_OR_HASH = "A versão ou o hash do termo biométrico não correspondem ao termo ativo.";
 
 
     // Enums de Status (Mantidos)

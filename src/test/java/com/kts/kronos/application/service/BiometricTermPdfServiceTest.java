@@ -5,12 +5,15 @@ import com.itextpdf.kernel.font.PdfFontFactory;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.LegalText;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -36,7 +39,8 @@ class BiometricTermPdfServiceTest {
                 employee(UUID.randomUUID(), UUID.randomUUID()),
                 company(UUID.randomUUID()),
                 "",
-                ""
+                "",
+                legalText()
         );
 
         assertTrue(pdf.length > 0);
@@ -49,7 +53,8 @@ class BiometricTermPdfServiceTest {
                 employee(UUID.randomUUID(), UUID.randomUUID()),
                 company(UUID.randomUUID()),
                 "198.51.100.42",
-                "Mozilla/5.0 ".repeat(20)
+                "Mozilla/5.0 ".repeat(20),
+                legalText()
         );
 
         assertTrue(pdf.length > 0);
@@ -81,7 +86,7 @@ class BiometricTermPdfServiceTest {
     @DisplayName("generateConsentTerm: deve encapsular falha de geração")
     void shouldWrapRuntimeFailureDuringGeneration() {
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                service.generateConsentTerm(null, company(UUID.randomUUID()), "198.51.100.42", "JUnit"));
+                service.generateConsentTerm(null, company(UUID.randomUUID()), "198.51.100.42", "JUnit", legalText()));
 
         assertEquals("Falha na geração do Termo PDF: ", exception.getMessage());
     }
@@ -97,7 +102,7 @@ class BiometricTermPdfServiceTest {
                     .thenThrow(new IOException("font failed"));
 
             RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                    service.generateConsentTerm(employee, company, "198.51.100.42", "JUnit"));
+                    service.generateConsentTerm(employee, company, "198.51.100.42", "JUnit", legalText()));
 
             assertEquals("Falha na geração do Termo PDF: ", exception.getMessage());
             assertEquals(IOException.class, exception.getCause().getClass());
@@ -143,6 +148,20 @@ class BiometricTermPdfServiceTest {
                 null,
                 null,
                 null
+        );
+    }
+
+    private static LegalText legalText() {
+        return new LegalText(
+                UUID.randomUUID(),
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                "2026.05.21",
+                "Termo de Consentimento Biométrico",
+                "Parágrafo inicial.\n\n- Item 1\n- Item 2",
+                "current-hash",
+                true,
+                Instant.parse("2026-05-21T09:00:00Z"),
+                Instant.parse("2026-05-21T09:05:00Z")
         );
     }
 }

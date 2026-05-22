@@ -143,7 +143,8 @@ class EntityConversionTest {
                 LocalDateTime.of(2026, 4, 17, 9, 0),
                 10L,
                 true,
-                false
+                false,
+                "checksum"
         );
 
         DocumentEntity entity = DocumentEntity.fromDomain(document);
@@ -154,6 +155,7 @@ class EntityConversionTest {
         assertEquals(document.type(), converted.type());
         assertEquals(document.deletedByEmployee(), converted.deletedByEmployee());
         assertEquals(document.deletedByManager(), converted.deletedByManager());
+        assertEquals("checksum", converted.checksumSha256());
     }
 
     @Test

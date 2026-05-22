@@ -25,8 +25,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.UUID;
+import java.util.HexFormat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +37,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentServiceCoreTest {
+
+    private static final HexFormat HEX = HexFormat.of();
 
     @InjectMocks
     private DocumentService service;
@@ -49,6 +53,8 @@ class DocumentServiceCoreTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private FileScanningProvider fileScanningProvider;
+    @Mock
+    private AuditService auditService;
 
     @BeforeEach
      void configureUploadLimit() {
@@ -117,6 +123,7 @@ class DocumentServiceCoreTest {
         assertEquals("Comprovante_Final.pdf", saved.fileName());
         assertEquals(77L, saved.timeRecordId());
         assertEquals("application/pdf", saved.contentType());
+        assertEquals(sha256(pdf), saved.checksumSha256());
     }
 
     @Test
@@ -145,6 +152,7 @@ class DocumentServiceCoreTest {
         assertEquals(employeeId, saved.employeeId());
         assertEquals(55L, saved.timeRecordId());
         assertEquals(DocumentType.TIME_OFF, saved.type());
+        assertEquals(sha256("%PDF-1.7 valid".getBytes()), saved.checksumSha256());
     }
 
     @Test
@@ -218,5 +226,13 @@ class DocumentServiceCoreTest {
                 deletedByEmployee,
                 deletedByManager
         );
+    }
+
+    private String sha256(byte[] payload) {
+        try {
+            return HEX.formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

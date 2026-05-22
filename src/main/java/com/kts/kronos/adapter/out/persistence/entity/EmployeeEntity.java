@@ -43,7 +43,7 @@ public class EmployeeEntity {
     @Column(name = "job_position", length = 50, nullable = false)
     private String jobPosition;
 
-    @Column(name = "email", length = 50, nullable = false)
+    @Column(name = "email", length = 100, nullable = false)
     private String email;
 
     @Column(name = "salary", nullable = false)

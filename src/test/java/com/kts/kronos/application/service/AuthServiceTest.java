@@ -6,10 +6,10 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
-import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
@@ -17,7 +17,7 @@ import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
-import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,7 +65,7 @@ class AuthServiceTest {
     @Mock
     private FaceRecognitionProvider faceRecognitionProvider;
     @Mock
-    private DocumentProvider documentProvider;
+    private LegalConsentProvider legalConsentProvider;
     @Mock
     private BiometricProtectionService biometricProtectionService;
     @Mock
@@ -78,7 +78,7 @@ class AuthServiceTest {
         UUID employeeId = UUID.randomUUID();
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
-        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(true);
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
         when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true)).thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
@@ -150,7 +150,7 @@ class AuthServiceTest {
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
-        when(documentProvider.existsByEmployeeIdAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM)).thenReturn(false);
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
         when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, false)).thenReturn("face-jwt");
 
         assertEquals("face-jwt", service.loginFace(image, true));

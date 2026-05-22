@@ -1,5 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.legal.AcceptBiometricTermsRequest;
+import com.kts.kronos.adapter.in.web.dto.legal.CurrentLegalTextResponse;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
@@ -7,6 +9,7 @@ import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -36,7 +39,10 @@ public class TermsController {
     @PreAuthorize(ANY_EMPLOYEE)
     @Operation(summary = "Registrar Aceite do Termo de Biometria",
             description = "Gera um PDF assinado com IP e data, e salva nos documentos do usuário.")
-    public ResponseEntity<Void> acceptBiometricTerms(HttpServletRequest request) {
+    public ResponseEntity<Void> acceptBiometricTerms(
+            @Valid @RequestBody AcceptBiometricTermsRequest payload,
+            HttpServletRequest request
+    ) {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         UUID userId = jwtAuthenticatedUser.getuserId();
         String username = jwtAuthenticatedUser.getUsername();
@@ -49,7 +55,14 @@ public class TermsController {
             userAgent = "Desconhecido";
         }
 
-        acceptanceUseCase.acceptBiometricTerms(employeeId, ipAddress, userAgent);
+        acceptanceUseCase.acceptBiometricTerms(
+                employeeId,
+                userId,
+                ipAddress,
+                userAgent,
+                payload.version(),
+                payload.contentHashSha256()
+        );
 
         String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true);
         return ResponseEntity.noContent()
@@ -90,5 +103,20 @@ public class TermsController {
         boolean hasAccepted = acceptanceUseCase.hasAcceptedBiometricTerm(employeeId);
 
         return ResponseEntity.ok(Map.of("accepted", hasAccepted));
+    }
+
+    @GetMapping("/biometric/current")
+    @PreAuthorize(ANY_EMPLOYEE)
+    @Operation(summary = "Consultar termo biométrico atual", description = "Retorna a versão ativa do termo de consentimento biométrico.")
+    public ResponseEntity<CurrentLegalTextResponse> getCurrentBiometricTerm() {
+        var legalText = acceptanceUseCase.getCurrentBiometricTerm();
+        return ResponseEntity.ok(new CurrentLegalTextResponse(
+                legalText.documentType(),
+                legalText.version(),
+                legalText.title(),
+                legalText.content(),
+                legalText.contentHashSha256(),
+                legalText.active()
+        ));
     }
 }

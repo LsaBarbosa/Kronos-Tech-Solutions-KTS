@@ -64,4 +64,9 @@ public record CreateEmployeeRequest(
 
         Set<DayOfWeek> fixedWorkDays         // Lista de dias fixos (Para escala tradicional)
 ) {
+    @Override
+    public String toString() {
+        return "CreateEmployeeRequest[fullName=" + fullName + ", cpf=***.***.***-**, email=" + email
+                + ", faceImageBase64=***MASKED***, companyId=" + companyId + "]";
+    }
 }

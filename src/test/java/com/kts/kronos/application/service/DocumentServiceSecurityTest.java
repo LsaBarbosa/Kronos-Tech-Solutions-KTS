@@ -59,6 +59,8 @@ class DocumentServiceSecurityTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private FileScanningProvider fileScanningProvider;
+    @Mock
+    private AuditService auditService;
 
     private UUID loggedEmployeeId;
     private UUID managerEmployeeId;

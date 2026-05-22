@@ -52,4 +52,9 @@ public record UpdateEmployeeManagerRequest(
         Integer weekendOffIndex,
         Set<DayOfWeek> fixedWorkDays
 ) {
+    @Override
+    public String toString() {
+        return "UpdateEmployeeManagerRequest[fullName=" + fullName + ", cpf=***.***.***-**, email=" + email
+                + ", faceImageBase64=***MASKED**]";
+    }
 }

@@ -90,7 +90,8 @@ class DomainModelLogicTest {
                 LocalDateTime.of(2026, 4, 17, 9, 0),
                 10L,
                 false,
-                false
+                false,
+                "checksum"
         );
 
         Document deletedByEmployee = document.markDeletedByEmployee();
@@ -101,9 +102,11 @@ class DomainModelLogicTest {
 
         assertTrue(deletedByEmployee.deletedByEmployee());
         assertFalse(deletedByEmployee.deletedByManager());
+        assertEquals("checksum", deletedByEmployee.checksumSha256());
 
         assertFalse(deletedByManager.deletedByEmployee());
         assertTrue(deletedByManager.deletedByManager());
+        assertEquals("checksum", deletedByManager.checksumSha256());
     }
 
     @Test

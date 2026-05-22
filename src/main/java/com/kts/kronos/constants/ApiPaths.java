@@ -75,4 +75,17 @@ public class ApiPaths {
     public static final String GEOLOCATION = "/geolocation";
     public static final String RESOLVE = "/resolve";
 
+    // LGPD
+    public static final String LGPD = "/lgpd";
+    public static final String LGPD_REQUESTS = "/requests";
+    public static final String LGPD_REQUEST_ID = "/requests/{requestId}";
+    public static final String LGPD_REQUEST_STATUS = "/requests/{requestId}/status";
+    public static final String LGPD_REQUEST_HISTORY = "/requests/{requestId}/history";
+    public static final String LGPD_EMPLOYEE_EXPORT = "/employees/{employeeId}/export";
+    public static final String LGPD_EMPLOYEE_ANONYMIZE = "/employees/{employeeId}/anonymize";
+
+    // Security Incidents
+    public static final String SECURITY_INCIDENTS = "/security-incidents";
+    public static final String SECURITY_INCIDENT_ID = "/{incidentId}";
+
 }
