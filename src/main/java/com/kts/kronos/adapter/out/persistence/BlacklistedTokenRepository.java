@@ -13,6 +13,14 @@ import java.time.LocalDateTime;
 public interface BlacklistedTokenRepository extends JpaRepository<BlacklistedTokenEntity, String> {
     boolean existsByTokenHash(String tokenHash);
 
+    @Query("SELECT COUNT(b) FROM BlacklistedTokenEntity b WHERE b.expiresAt <= :cutoff")
+    long countExpiredBefore(LocalDateTime cutoff);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM BlacklistedTokenEntity b WHERE b.expiresAt <= :cutoff")
+    int deleteExpiredBefore(LocalDateTime cutoff);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM BlacklistedTokenEntity b WHERE b.expiresAt <= :now")

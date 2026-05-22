@@ -17,6 +17,14 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 
     Optional<PasswordResetTokenEntity> findByUserId(UUID userId);
 
+    @Query("SELECT COUNT(t) FROM PasswordResetTokenEntity t WHERE t.expiryDate <= :cutoff")
+    long countExpiredBefore(LocalDateTime cutoff);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM PasswordResetTokenEntity t WHERE t.expiryDate <= :cutoff")
+    int deleteExpiredBefore(LocalDateTime cutoff);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM PasswordResetTokenEntity t WHERE t.expiryDate <= :now")
