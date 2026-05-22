@@ -8,7 +8,10 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.domain.model.LegalText;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -18,7 +21,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import jakarta.annotation.Resource;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -67,8 +70,15 @@ class TermsControllerWebMvcTest {
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(post("/terms/accept-biometric")
-                .header("Authorization", "Bearer token")
-                .header("User-Agent", "JUnit"))
+                        .header("Authorization", "Bearer token")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "version": "2026.05.21",
+                                  "contentHashSha256": "current-hash"
+                                }
+                                """)
+                        .header("User-Agent", "JUnit"))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
@@ -78,7 +88,7 @@ class TermsControllerWebMvcTest {
                         org.hamcrest.Matchers.containsString("SameSite=Lax")
                 )));
 
-        verify(acceptTermsUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+        verify(acceptTermsUseCase).acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit", "2026.05.21", "current-hash");
     }
 
     @Test
@@ -91,6 +101,28 @@ class TermsControllerWebMvcTest {
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accepted").value(true));
+    }
+
+    @Test
+    void shouldReturnCurrentBiometricTerm() throws Exception {
+        when(acceptTermsUseCase.getCurrentBiometricTerm()).thenReturn(new LegalText(
+                UUID.randomUUID(),
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                "2026.05.21",
+                "Termo de Consentimento Biométrico",
+                "Conteúdo do termo",
+                "current-hash",
+                true,
+                Instant.parse("2026-05-21T09:00:00Z"),
+                Instant.parse("2026-05-21T09:05:00Z")
+        ));
+
+        mockMvc.perform(get("/terms/biometric/current"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("BIOMETRIC_CONSENT_TERM"))
+                .andExpect(jsonPath("$.version").value("2026.05.21"))
+                .andExpect(jsonPath("$.contentHashSha256").value("current-hash"))
+                .andExpect(jsonPath("$.active").value(true));
     }
 
     @Test
@@ -107,8 +139,8 @@ class TermsControllerWebMvcTest {
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(delete("/terms/revoke-biometric")
-                .header("Authorization", "Bearer token")
-                .header("User-Agent", "JUnit"))
+                        .header("Authorization", "Bearer token")
+                        .header("User-Agent", "JUnit"))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
@@ -132,10 +164,17 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
         doThrow(new BadRequestException("Termo já aceito"))
-                .when(acceptTermsUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+                .when(acceptTermsUseCase).acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit", "2026.05.21", "current-hash");
 
         mockMvc.perform(post("/terms/accept-biometric")
                         .header("Authorization", "Bearer token")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "version": "2026.05.21",
+                                  "contentHashSha256": "current-hash"
+                                }
+                                """)
                         .header("User-Agent", "JUnit"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Termo já aceito"));

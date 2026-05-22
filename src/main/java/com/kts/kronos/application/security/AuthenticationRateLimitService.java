@@ -54,6 +54,12 @@ public class AuthenticationRateLimitService {
     @Value("${kronos.security.rate-limit.recovery.window-seconds:3600}")
     private int recoveryWindowSeconds;
 
+    @Value("${kronos.security.rate-limit.admin-check.limit:30}")
+    private int adminCheckLimit;
+
+    @Value("${kronos.security.rate-limit.admin-check.window-seconds:60}")
+    private int adminCheckWindowSeconds;
+
     public void checkLoginAllowed(String username) {
         var now = Instant.now();
         consumeOrThrow("auth:login:ip:" + clientIp(), loginIpLimit, Duration.ofSeconds(loginIpWindowSeconds), LOGIN_RATE_LIMIT_MESSAGE, now);
@@ -106,6 +112,12 @@ public class AuthenticationRateLimitService {
             log.warn("Rate limit de recuperação de senha atingido para ip={}", clientIp());
             throw ex;
         }
+    }
+
+    public void checkAdminSearchRateLimit() {
+        var now = Instant.now();
+        consumeOrThrow("admin:check:" + clientIp(), adminCheckLimit, Duration.ofSeconds(adminCheckWindowSeconds),
+                "Muitas consultas de verificação. Tente novamente mais tarde.", now);
     }
 
     private void consumeOrThrow(String key, int limit, Duration window, String message, Instant now) {

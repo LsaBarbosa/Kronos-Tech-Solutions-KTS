@@ -12,9 +12,13 @@ public record AuditLog(
         String ipAddress,
         String userAgent,
         String details,
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+        UUID companyId,
+        String resourceType,
+        String resourceId,
+        String correlationId,
+        String riskLevel
 ) {
-    // Factory method para facilitar a criação sem ID (novo log)
     public static AuditLog create(UUID userId, String action, String ipAddress, String userAgent, String details) {
         return AuditLog.builder()
                 .userId(userId)
@@ -23,6 +27,22 @@ public record AuditLog(
                 .userAgent(userAgent)
                 .details(details)
                 .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    public static AuditLog create(UUID userId, String action, String ipAddress, String userAgent, String details,
+                                  UUID companyId, String resourceType, String resourceId, String riskLevel) {
+        return AuditLog.builder()
+                .userId(userId)
+                .action(action)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .details(details)
+                .timestamp(LocalDateTime.now())
+                .companyId(companyId)
+                .resourceType(resourceType)
+                .resourceId(resourceId)
+                .riskLevel(riskLevel)
                 .build();
     }
 }

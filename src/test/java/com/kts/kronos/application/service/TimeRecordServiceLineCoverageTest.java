@@ -515,7 +515,7 @@ class TimeRecordServiceLineCoverageTest {
         LocalDate start = LocalDate.of(2026, 5, 4);
         RequestTimeOffRequest request = new RequestTimeOffRequest(start, start.plusDays(1), "08:00", "12:00", managerUserId, RequestType.TIME_OFF_REQUEST);
         MockMultipartFile file = new MockMultipartFile("document", "atestado.pdf", "application/pdf", "PDF".getBytes());
-        Document uploaded = new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "atestado.pdf", "application/pdf", "s3://doc", start.atTime(13, 0), 1000L, false, false);
+        Document uploaded = new Document(UUID.randomUUID(), employeeId, DocumentType.TIME_OFF, "atestado.pdf", "application/pdf", "s3://doc", start.atTime(13, 0), 1000L, false, false, "checksum-1");
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -530,7 +530,7 @@ class TimeRecordServiceLineCoverageTest {
 
         assertEquals(1000L, firstRecordId);
         verify(documentService).uploadDocumentForTimeRecord(DocumentType.TIME_OFF, employeeId, 1000L, file);
-        verify(documentProvider).save(org.mockito.ArgumentMatchers.argThat(doc -> doc.timeRecordId().equals(1001L)));
+        verify(documentProvider).save(org.mockito.ArgumentMatchers.argThat(doc -> doc.timeRecordId().equals(1001L) && "checksum-1".equals(doc.checksumSha256())));
     }
 
     @Test

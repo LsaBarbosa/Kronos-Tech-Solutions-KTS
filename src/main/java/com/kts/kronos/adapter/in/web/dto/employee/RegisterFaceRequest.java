@@ -13,4 +13,9 @@ public record RegisterFaceRequest(
     String faceImageBase64,
 
      UUID employeeId
-){}
+) {
+    @Override
+    public String toString() {
+        return "RegisterFaceRequest[faceImageBase64=***MASKED***, employeeId=" + employeeId + "]";
+    }
+}

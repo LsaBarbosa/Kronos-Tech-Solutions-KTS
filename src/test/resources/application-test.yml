@@ -65,3 +65,8 @@ kronos:
       path: /tmp/test-cert.pfx
       password: test-password
     biometric-term-salt: test-salt
+  lgpd:
+    retention:
+      scheduler:
+        enabled: false
+        cron: "0 15 4 * * ?"

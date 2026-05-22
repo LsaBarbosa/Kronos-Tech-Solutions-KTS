@@ -13,7 +13,7 @@ import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
-import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +52,7 @@ public class AuthService implements AuthUseCase {
     private final EmailSenderProvider emailSenderProvider;
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
-    private final DocumentProvider documentProvider;
+    private final LegalConsentProvider legalConsentProvider;
     private final BiometricProtectionService biometricProtectionService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthenticationRateLimitService authenticationRateLimitService;
@@ -79,9 +79,9 @@ public class AuthService implements AuthUseCase {
                     log.warn("event=auth_login result=failure reason=user_not_found");
                     return new ResourceNotFoundException(USER_NOT_FOUND);
                 });
-        var termsAccepted = documentProvider.existsByEmployeeIdAndType(
+        var termsAccepted = legalConsentProvider.existsActive(
                 user.employeeId(),
-                DocumentType.BIOMETRIC_CONSENT_TERM
+                ConsentType.BIOMETRIC_AUTHENTICATION
         );
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
         kronosMetrics.authLoginSuccess();
@@ -111,9 +111,9 @@ public class AuthService implements AuthUseCase {
                     throw new BadRequestException(INACTIVE_USER);
                 }
 
-                var termsAccepted = documentProvider.existsByEmployeeIdAndType(
+                var termsAccepted = legalConsentProvider.existsActive(
                         user.employeeId(),
-                        DocumentType.BIOMETRIC_CONSENT_TERM
+                        ConsentType.BIOMETRIC_AUTHENTICATION
                 );
 
                 return jwtUtils.generateToken(

@@ -15,6 +15,7 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.LegalText;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -25,13 +26,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_1;
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_2;
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_3;
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_ITEM_4;
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_TERM_BODY;
-import static com.kts.kronos.constants.LegalTexts.BIOMETRIC_TERM_TITLE;
+import java.util.ArrayList;
+import java.util.List;
 import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
@@ -41,7 +37,13 @@ public class BiometricTermPdfService {
      @Value("${kronos.security.biometric-term-salt}")
     private String secretSalt;
 
-    public byte[] generateConsentTerm(Employee employee, Company company, String ipAddress, String userAgent) {
+    public byte[] generateConsentTerm(
+            Employee employee,
+            Company company,
+            String ipAddress,
+            String userAgent,
+            LegalText legalText
+    ) {
 
         try (var baos = new ByteArrayOutputStream()) {
             var writer = new PdfWriter(baos);
@@ -71,8 +73,13 @@ public class BiometricTermPdfService {
             // --- 3. CONSTRUÇÃO DO LAYOUT ---
 
             // TÍTULO
-            var title = new Paragraph(BIOMETRIC_TERM_TITLE).setFont(fontBold).setFontSize(16).setTextAlignment(TextAlignment.CENTER).setMarginBottom(20);
+            var title = new Paragraph(legalText.title()).setFont(fontBold).setFontSize(16).setTextAlignment(TextAlignment.CENTER).setMarginBottom(8);
             document.add(title);
+            document.add(new Paragraph("Versão do termo: " + legalText.version())
+                    .setFont(fontTech)
+                    .setFontSize(9)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setMarginBottom(20));
 
             // IDENTIFICAÇÃO DAS PARTES (Caixa sutil)
             var partiesTable = new Table(UnitValue.createPercentArray(new float[]{20, 80})).useAllAvailableWidth().setMarginBottom(20);
@@ -85,19 +92,7 @@ public class BiometricTermPdfService {
 
             document.add(partiesTable);
 
-            // TEXTO LEGAL (Justificado e Elegante)
-            document.add(new Paragraph(BIOMETRIC_TERM_BODY).setFont(fontBody).setFontSize(12).setTextAlignment(TextAlignment.JUSTIFIED).setFirstLineIndent(30).setMarginBottom(10));
-
-            // LISTA DE ITENS
-            var list = new com.itextpdf.layout.element.List().setSymbolIndent(12).setListSymbol("\u2022") // Bullet point
-                    .setFont(fontBody).setFontSize(12).setMarginBottom(20).setMarginLeft(20);
-
-            list.add(new ListItem(BIOMETRIC_ITEM_1));
-            list.add(new ListItem(BIOMETRIC_ITEM_2));
-            list.add(new ListItem(BIOMETRIC_ITEM_3));
-            list.add(new ListItem(BIOMETRIC_ITEM_4));
-
-            document.add(list);
+            renderLegalTextContent(document, fontBody, legalText.content());
 
             // --- SEÇÃO DE VALIDAÇÃO TÉCNICA (Estilo "Certificado") ---
             // Criamos uma caixa com borda para dar peso jurídico
@@ -160,6 +155,52 @@ public class BiometricTermPdfService {
 
     private Cell createValueCell(String text, PdfFont font) {
         return new Cell().add(new Paragraph(text).setFont(font).setFontSize(10)).setBorder(null).setPaddingBottom(5);
+    }
+
+    private void renderLegalTextContent(Document document, PdfFont fontBody, String content) {
+        List<String> listItems = new ArrayList<>();
+        for (String rawLine : content.split("\\R")) {
+            String line = rawLine.trim();
+            if (line.isBlank()) {
+                flushList(document, fontBody, listItems);
+                continue;
+            }
+
+            if (line.startsWith("- ")) {
+                listItems.add(line.substring(2).trim());
+                continue;
+            }
+
+            flushList(document, fontBody, listItems);
+            document.add(new Paragraph(line)
+                    .setFont(fontBody)
+                    .setFontSize(12)
+                    .setTextAlignment(TextAlignment.JUSTIFIED)
+                    .setFirstLineIndent(30)
+                    .setMarginBottom(10));
+        }
+        flushList(document, fontBody, listItems);
+    }
+
+    private void flushList(Document document, PdfFont fontBody, List<String> listItems) {
+        if (listItems.isEmpty()) {
+            return;
+        }
+
+        var list = new com.itextpdf.layout.element.List()
+                .setSymbolIndent(12)
+                .setListSymbol("\u2022")
+                .setFont(fontBody)
+                .setFontSize(12)
+                .setMarginBottom(20)
+                .setMarginLeft(20);
+
+        for (String item : listItems) {
+            list.add(new ListItem(item));
+        }
+
+        document.add(list);
+        listItems.clear();
     }
 
     private String calculateSha256(String input) {

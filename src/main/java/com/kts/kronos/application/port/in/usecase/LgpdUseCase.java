@@ -1,0 +1,33 @@
+package com.kts.kronos.application.port.in.usecase;
+
+import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
+import com.kts.kronos.domain.model.LgpdRequest;
+import com.kts.kronos.domain.model.LgpdRequestHistory;
+import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
+import com.kts.kronos.domain.model.enuns.LgpdRequestType;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface LgpdUseCase {
+    LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent);
+
+    List<LgpdRequest> listRequests(UUID employeeId, LgpdRequestType type, LgpdRequestStatus status);
+
+    LgpdRequest getRequest(UUID requestId);
+
+    LgpdRequest updateRequestStatus(UUID requestId, UpdateLgpdRequestStatusRequest request);
+
+    List<LgpdRequestHistory> getRequestHistory(UUID requestId);
+
+    LgpdEmployeeExportResponse exportEmployeeData(
+            UUID employeeId,
+            boolean includePreciseGeolocation,
+            String ipAddress,
+            String userAgent
+    );
+
+    void anonymizeEmployee(UUID employeeId, String ipAddress, String userAgent);
+}

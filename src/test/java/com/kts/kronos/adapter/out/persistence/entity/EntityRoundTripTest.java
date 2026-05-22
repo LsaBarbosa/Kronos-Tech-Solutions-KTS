@@ -66,7 +66,8 @@ class EntityRoundTripTest {
                 LocalDateTime.now(),
                 10L,
                 true,
-                false
+                false,
+                "checksum"
         );
 
         var back = DocumentEntity.fromDomain(document).toDomain();
@@ -76,6 +77,7 @@ class EntityRoundTripTest {
         assertEquals(document.type(), back.type());
         assertEquals(document.deletedByEmployee(), back.deletedByEmployee());
         assertEquals(document.deletedByManager(), back.deletedByManager());
+        assertEquals("checksum", back.checksumSha256());
     }
 
     @Test

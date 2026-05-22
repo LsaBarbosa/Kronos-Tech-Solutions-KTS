@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
@@ -55,6 +56,8 @@ class UserServiceCoreTest {
     private EmployeeUseCase employeeUseCase;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private AuthenticationRateLimitService authenticationRateLimitService;
 
     private UUID userId;
     private UUID employeeId;

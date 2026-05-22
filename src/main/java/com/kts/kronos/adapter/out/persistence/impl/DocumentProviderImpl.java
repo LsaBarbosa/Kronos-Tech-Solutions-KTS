@@ -108,4 +108,12 @@ public class DocumentProviderImpl implements DocumentProvider {
                 .map(DocumentEntity::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<Document> findAllByEmployeeId(UUID employeeId) {
+        return documentRepository.findByEmployeeIdOrderByUploadedAtDesc(employeeId)
+                .stream()
+                .map(DocumentEntity::toDomain)
+                .toList();
+    }
 }

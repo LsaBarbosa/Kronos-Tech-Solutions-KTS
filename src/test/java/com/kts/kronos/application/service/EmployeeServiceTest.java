@@ -17,6 +17,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
@@ -70,6 +71,8 @@ class EmployeeServiceTest {
     private BiometricProtectionService biometricProtectionService;
     @Mock
     private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock
+    private AuthenticationRateLimitService authenticationRateLimitService;
 
     private UUID loggedEmployeeId;
     private UUID companyId;

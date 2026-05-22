@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
+import com.kts.kronos.domain.model.AuditLog;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -36,4 +37,36 @@ public class AuditLogEntity {
 
     @Column(nullable = false)
     private LocalDateTime timestamp;
+
+    @Column(name = "company_id")
+    private UUID companyId;
+
+    @Column(name = "resource_type")
+    private String resourceType;
+
+    @Column(name = "resource_id")
+    private String resourceId;
+
+    @Column(name = "correlation_id")
+    private String correlationId;
+
+    @Column(name = "risk_level")
+    private String riskLevel;
+
+    public AuditLog toDomain() {
+        return new AuditLog(
+                id,
+                userId,
+                action,
+                ipAddress,
+                userAgent,
+                details,
+                timestamp,
+                companyId,
+                resourceType,
+                resourceId,
+                correlationId,
+                riskLevel
+        );
+    }
 }

@@ -1,9 +1,12 @@
 package com.kts.kronos.application.port.in.usecase;
 
+import com.kts.kronos.domain.model.LegalText;
+
 import java.util.UUID;
 
 public interface AcceptTermsUseCase {
-    void acceptBiometricTerms(UUID employeeId, String ipAddress, String userAgent);
+    LegalText getCurrentBiometricTerm();
+    void acceptBiometricTerms(UUID employeeId, UUID userId, String ipAddress, String userAgent, String version, String contentHashSha256);
     void revokeBiometricTerms(UUID employeeId, String ipAddress, String userAgent);
     boolean hasAcceptedBiometricTerm(UUID employeeId);
 }
