@@ -335,6 +335,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
+        kronosMetrics.timeAdjustmentApproved();
     }
 
     @Override
@@ -349,6 +350,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
+        kronosMetrics.timeAdjustmentRejected();
     }
 
     @Override
@@ -625,6 +627,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
         }
 
+        kronosMetrics.vacationRequested();
         return createdRecordIds; // Retorna os IDs criados para referência
     }
 
@@ -649,6 +652,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 log.warn("Tentativa de aprovar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
             }
         }
+        kronosMetrics.vacationApproved();
     }
 
     @Override
@@ -671,6 +675,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 log.warn("Tentativa de rejeitar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
             }
         }
+        kronosMetrics.vacationRejected();
     }
 
     @Override
@@ -821,6 +826,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (firstRecordId == null) {
             throw new BadRequestException(FAILED_TO_CREATE_FIRST_RECORD);
         }
+        kronosMetrics.timeOffRequested();
         return firstRecordId;
     }
 
@@ -840,6 +846,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
+        kronosMetrics.timeOffApproved();
     }
 
     @Override
@@ -859,7 +866,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
-
+        kronosMetrics.timeOffRejected();
     }
 
     @Override

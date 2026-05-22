@@ -6,6 +6,7 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.AuditLog;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final AuditLogProvider auditLogProvider;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final KronosMetrics kronosMetrics;
 
     @Override
     @Transactional
@@ -87,6 +89,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         auditLogProvider.registerLog(audit);
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
+        kronosMetrics.consentAccepted();
     }
 
     @Override
@@ -122,6 +125,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         auditLogProvider.registerLog(audit);
         log.info("Revogação biométrica concluída com sucesso para o colaborador {}", employeeId);
+        kronosMetrics.consentRevoked();
     }
 
     @Override
