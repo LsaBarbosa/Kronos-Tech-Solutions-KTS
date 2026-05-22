@@ -10,6 +10,8 @@ public record CreateInventoryRequest(
         @NotBlank(message = "Nome do processo é obrigatório")
         String processName,
 
+        String description,
+
         @NotBlank(message = "Categoria de dados é obrigatória")
         String dataCategory,
 
@@ -43,5 +45,14 @@ public record CreateInventoryRequest(
         String securityMeasures,
 
         @NotNull(message = "Status ativo é obrigatório")
-        Boolean active
+        Boolean active,
+
+        String riskLevel,
+
+        @NotNull(message = "Indicador RIPD é obrigatório")
+        Boolean ripdRequired,
+
+        String version,
+
+        String operators
 ) {}

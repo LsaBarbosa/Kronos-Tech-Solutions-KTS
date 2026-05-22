@@ -11,6 +11,7 @@ public class DataProcessingInventoryMapper {
                 entity.getInventoryId(),
                 entity.getProcessCode(),
                 entity.getProcessName(),
+                entity.getDescription(),
                 entity.getDataCategory(),
                 entity.getDataFields(),
                 entity.getDataSubjectCategory(),
@@ -24,6 +25,10 @@ public class DataProcessingInventoryMapper {
                 entity.getInternationalTransfer(),
                 entity.getSecurityMeasures(),
                 entity.getActive(),
+                entity.getRiskLevel(),
+                entity.getRipdRequired(),
+                entity.getVersion(),
+                entity.getOperators(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
@@ -34,6 +39,7 @@ public class DataProcessingInventoryMapper {
                 .inventoryId(domain.inventoryId())
                 .processCode(domain.processCode())
                 .processName(domain.processName())
+                .description(domain.description())
                 .dataCategory(domain.dataCategory())
                 .dataFields(domain.dataFields())
                 .dataSubjectCategory(domain.dataSubjectCategory())
@@ -47,6 +53,10 @@ public class DataProcessingInventoryMapper {
                 .internationalTransfer(domain.internationalTransfer())
                 .securityMeasures(domain.securityMeasures())
                 .active(domain.active())
+                .riskLevel(domain.riskLevel())
+                .ripdRequired(domain.ripdRequired())
+                .version(domain.version())
+                .operators(domain.operators())
                 .createdAt(domain.createdAt())
                 .updatedAt(domain.updatedAt())
                 .build();
