@@ -88,6 +88,13 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize(ANY_EMPLOYEE)
+    @PostMapping("/me/biometric-enrollment")
+    public ResponseEntity<Void> enrollBiometricSelf(@Valid @RequestBody RegisterFaceRequest dto) {
+        useCase.enrollBiometricSelf(dto);
+        return ResponseEntity.noContent().build();
+    }
+
     @PreAuthorize(MANAGER)
     @DeleteMapping(EMPLOYEE_ID)
     public ResponseEntity<Void> deleteEmployee(@PathVariable UUID employeeId) {

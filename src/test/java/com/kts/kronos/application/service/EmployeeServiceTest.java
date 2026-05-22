@@ -73,6 +73,10 @@ class EmployeeServiceTest {
     private AcceptTermsUseCase acceptTermsUseCase;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private com.kts.kronos.observability.application.KronosMetrics kronosMetrics;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.LegalConsentProvider legalConsentProvider;
 
     private UUID loggedEmployeeId;
     private UUID companyId;
@@ -241,25 +245,15 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: registra face e salva chave biométrica")
-    void shouldCreateEmployeeWithFaceRegistration() {
+    @DisplayName("createEmployee: rejeita quando face é incluída no request (LGPD-S01-01)")
+    void shouldRejectWhenFaceIncludedInCreateRequest() {
         String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
         CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
 
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
-        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
-        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
-        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any())).thenReturn("face-id");
-
-        Employee created = service.createEmployee(request);
-
-        assertEquals("faces/new-key.jpg", created.faceS3ObjectKey());
-        verify(biometricProtectionService).protectEnrollment(created.employeeId(), validBase64);
-        verify(faceRecognitionProvider).deleteFacesByExternalImageId(created.employeeId());
-        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
-        verify(employeeProvider, times(2)).save(any(Employee.class));
+        assertThrows(BadRequestException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).findByCpf(anyString());
+        verify(viaCep, never()).lookup(anyString());
+        verify(employeeProvider, never()).save(any());
     }
 
     @Test
@@ -306,28 +300,24 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: CPF órfão com face substitui imagem antiga")
-    void shouldUpdateOrphanEmployeeWithFaceAndDeleteOldImage() {
-        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+    @DisplayName("createEmployee: CPF órfão sem face mantém face anterior")
+    void shouldUpdateOrphanEmployeePreservingFaceAfterBlock() {
         UUID orphanEmployeeId = UUID.randomUUID();
         Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID()).withFaceS3ObjectKey("faces/old.jpg");
-        CreateEmployeeRequest request = createRequest("Novo Nome", orphan.cpf(), companyId, validBase64);
+        CreateEmployeeRequest request = createRequest("Novo Nome", orphan.cpf(), companyId, null);
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
         when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
         when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(faceStorageProvider.uploadFaceImage(eq(orphanEmployeeId), any(), eq("image/jpeg"))).thenReturn("faces/new.jpg");
-        when(faceRecognitionProvider.indexFace("faces/new.jpg", orphanEmployeeId)).thenReturn("face-id");
 
         Employee updated = service.createEmployee(request);
 
         assertEquals(orphanEmployeeId, updated.employeeId());
-        assertEquals("faces/new.jpg", updated.faceS3ObjectKey());
-        verify(biometricProtectionService).protectEnrollment(orphanEmployeeId, validBase64);
-        verify(faceStorageProvider).deleteFaceImage("faces/old.jpg");
-        verify(employeeProvider, times(2)).save(any(Employee.class));
+        assertEquals("faces/old.jpg", updated.faceS3ObjectKey());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+        verify(employeeProvider).save(any(Employee.class));
     }
 
     @Test
@@ -367,10 +357,8 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: remove imagem recém-enviada quando não detecta face")
-    void shouldDeleteNewUploadedImageWhenNoFaceIsDetected() {
-        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
-
+    @DisplayName("createEmployee: cria colaborador sem face por bloqueio LGPD-S01-01")
+    void shouldCreateEmployeeWithoutFaceByDefault() {
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Face Test",
                 "12345678901",
@@ -382,7 +370,7 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 companyId,
                 false,
-                validBase64,
+                null,
                 null,
                 null,
                 null,
@@ -398,24 +386,17 @@ class EmployeeServiceTest {
         when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
-        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any())).thenReturn(null);
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
-                () -> service.createEmployee(request)
-        );
+        Employee created = service.createEmployee(request);
 
-        assertEquals("Falha ao registrar face no Rekognition.", exception.getMessage());
-        assertNotNull(exception.getCause());
-        assertInstanceOf(BadRequestException.class, exception.getCause());
-
-        verify(faceStorageProvider, times(2)).deleteFaceImage("faces/new-key.jpg");
+        assertNull(created.faceS3ObjectKey());
+        verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
+        verify(faceRecognitionProvider, never()).indexFace(anyString(), any());
         }
 
     @Test
-    @DisplayName("createEmployee: base64 inválido remove upload parcial e falha")
-    void shouldFailWhenBase64IsInvalidDuringFaceRegistration() {
+    @DisplayName("createEmployee: rejeita base64 de face por LGPD-S01-01")
+    void shouldRejectWhenBase64IsProvidedForFace() {
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Face Test",
                 "12345678901",
@@ -439,33 +420,26 @@ class EmployeeServiceTest {
                 null
         );
 
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
-        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
-        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
         assertThrows(BadRequestException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).save(any());
         verify(faceStorageProvider, never()).deleteFaceImage(anyString());
     }
 
     @Test
-    @DisplayName("createEmployee: falha de reconhecimento remove upload parcial")
-    void shouldDeleteUploadedFaceWhenRecognitionFails() {
-        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
-        CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
+    @DisplayName("createEmployee: sem face cria colaborador normalmente")
+    void shouldCreateEmployeeWithoutFaceSuccessfully() {
+        CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, null);
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
         when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
-        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any()))
-                .thenThrow(new RuntimeException("rekognition down"));
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> service.createEmployee(request));
+        Employee created = service.createEmployee(request);
 
-        assertEquals("Falha ao registrar face no Rekognition.", exception.getMessage());
-        verify(faceStorageProvider).deleteFaceImage("faces/new-key.jpg");
+        assertNotNull(created.employeeId());
+        assertNull(created.faceS3ObjectKey());
+        verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
     }
 
     @Test
@@ -536,11 +510,10 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("updateEmployee: atualiza campos gerenciais, endereço e face")
-    void shouldUpdateEmployeeWithManagerFieldsAddressAndFace() {
+    @DisplayName("updateEmployee: atualiza campos gerenciais, endereço e preserva face")
+    void shouldUpdateEmployeeWithManagerFieldsAddressAndPreserveFace() {
         UUID targetId = UUID.randomUUID();
         Employee target = buildEmployee(targetId, companyId).withFaceS3ObjectKey("faces/old.jpg");
-        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
         UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
                 "Nome Atualizado",
                 null,
@@ -551,7 +524,7 @@ class EmployeeServiceTest {
                 "21977777777",
                 true,
                 new UpdateAddressRequest("12345678", "88"),
-                validBase64,
+                null,
                 LocalTime.of(7, 0),
                 LocalTime.of(16, 0),
                 LocalTime.of(11, 30),
@@ -567,8 +540,6 @@ class EmployeeServiceTest {
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
         when(employeeProvider.findById(targetId)).thenReturn(Optional.of(target));
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua Nova", "0", "12345678", "Rio", "RJ"));
-        when(faceStorageProvider.uploadFaceImage(eq(targetId), any(), eq("image/jpeg"))).thenReturn("faces/new.jpg");
-        when(faceRecognitionProvider.indexFace("faces/new.jpg", targetId)).thenReturn("face-id");
 
         service.updateEmployee(targetId, request);
 
@@ -581,9 +552,9 @@ class EmployeeServiceTest {
         assertEquals(9000.0, saved.salary());
         assertEquals(LocalDate.of(2026, 4, 1), saved.scaleStartDate());
         assertEquals("88", saved.address().number());
-        assertEquals("faces/new.jpg", saved.faceS3ObjectKey());
-        verify(faceStorageProvider).deleteFaceImage("faces/old.jpg");
-        verify(biometricProtectionService).protectEnrollment(targetId, validBase64);
+        assertEquals("faces/old.jpg", saved.faceS3ObjectKey());
+        verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
     }
 
     @Test
@@ -775,22 +746,14 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: remove upload parcial quando provider lança IllegalArgumentException após upload")
-    void shouldDeleteUploadedFaceWhenIllegalArgumentOccursAfterUpload() {
+    @DisplayName("createEmployee: rejeita face por LGPD-S01-01 mesmo com provider")
+    void shouldRejectFaceEvenWhenProviderIsAvailable() {
         String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
         CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, validBase64);
 
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
-        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
-        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(faceStorageProvider.uploadFaceImage(any(), any(), eq("image/jpeg"))).thenReturn("faces/new-key.jpg");
-        when(faceRecognitionProvider.indexFace(eq("faces/new-key.jpg"), any()))
-                .thenThrow(new IllegalArgumentException("invalid external id"));
-
         assertThrows(BadRequestException.class, () -> service.createEmployee(request));
-
-        verify(faceStorageProvider).deleteFaceImage("faces/new-key.jpg");
+        verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
+        verify(faceRecognitionProvider, never()).indexFace(anyString(), any());
     }
 
     @Test
@@ -883,5 +846,71 @@ class EmployeeServiceTest {
                 null,
                 null
         );
+    }
+
+    @Test
+    @DisplayName("LGPD-S01-01: createEmployee rejeita faceImageBase64")
+    void shouldRejectBiometricEnrollmentInCreateEmployee() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+
+        CreateEmployeeRequest request = new CreateEmployeeRequest(
+                "Face Test",
+                "12345678901",
+                null,
+                "Dev",
+                "face@kts.com",
+                1000.0,
+                "21944444444",
+                new AddressRequest("12345678", "10"),
+                companyId,
+                false,
+                validBase64,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThrows(BadRequestException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).save(any());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("LGPD-S01-01: updateEmployee rejeita faceImageBase64")
+    void shouldRejectBiometricEnrollmentInUpdateEmployee() {
+        String validBase64 = Base64.getEncoder().encodeToString("face".getBytes());
+        UUID employeeId = UUID.randomUUID();
+
+        UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
+                "Updated Name",
+                "12345678901",
+                null,
+                "Dev",
+                "email@kts.com",
+                1000.0,
+                "21933333333",
+                false,
+                new UpdateAddressRequest("12345678", "99"),
+                validBase64,
+                LocalTime.of(8, 0),
+                LocalTime.of(17, 0),
+                LocalTime.of(12, 0),
+                LocalTime.of(13, 0),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        assertThrows(BadRequestException.class, () -> service.updateEmployee(employeeId, request));
+        verify(employeeProvider, never()).save(any());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
     }
 }

@@ -1,7 +1,7 @@
 # SPEC — Backlog de Correção e Adequação LGPD do Kronos
 
 **Projeto:** Kronos  
-**Branches-alvo:**
+**Branches-alvo:**  
 - Back-end: `feature/lgpd-compliance`
 - Front-end: `feature/lgpd-compliance`
 
@@ -279,12 +279,12 @@ POST /employee/me/biometric-enrollment
 ```
 
 - O endpoint deve exigir:
-    - usuário autenticado;
-    - consentimento biométrico ativo;
-    - liveness quando ambiente for produção;
-    - rate limit;
-    - auditoria;
-    - substituição segura da face anterior.
+  - usuário autenticado;
+  - consentimento biométrico ativo;
+  - liveness quando ambiente for produção;
+  - rate limit;
+  - auditoria;
+  - substituição segura da face anterior.
 
 ### Frontend — tarefas
 
@@ -325,32 +325,32 @@ Garantir que o aceite biométrico seja específico, destacado, versionado, audit
 ### Tarefas
 
 - Confirmar que `LegalText` possui:
-    - versão;
-    - hash;
-    - conteúdo;
-    - tipo;
-    - data de ativação;
-    - status ativo.
+  - versão;
+  - hash;
+  - conteúdo;
+  - tipo;
+  - data de ativação;
+  - status ativo.
 - Garantir que `LegalConsent` registre:
-    - versão;
-    - IP;
-    - user-agent;
-    - data;
-    - hash da evidência;
-    - documento de evidência;
-    - finalidade;
-    - base legal.
+  - versão;
+  - IP;
+  - user-agent;
+  - data;
+  - hash da evidência;
+  - documento de evidência;
+  - finalidade;
+  - base legal.
 - Exibir claramente no front:
-    - finalidade;
-    - quais dados são coletados;
-    - que a biometria é sensível;
-    - como revogar;
-    - consequência da recusa/revogação.
+  - finalidade;
+  - quais dados são coletados;
+  - que a biometria é sensível;
+  - como revogar;
+  - consequência da recusa/revogação.
 - Revisar texto para remover ambiguidade entre:
-    - consentimento;
-    - obrigação legal;
-    - execução de contrato;
-    - controle de jornada.
+  - consentimento;
+  - obrigação legal;
+  - execução de contrato;
+  - controle de jornada.
 
 ### Critérios de aceite
 
@@ -424,9 +424,9 @@ PARTNER:
 - Alterar `LgpdService.listAdminRequests`.
 - Usar `DomainAuthorizationService.authorizeCompanyAccess`.
 - Se role `MANAGER`:
-    - obter `companyId` do colaborador autenticado;
-    - aplicar filtro obrigatório;
-    - rejeitar companyId divergente.
+  - obter `companyId` do colaborador autenticado;
+  - aplicar filtro obrigatório;
+  - rejeitar companyId divergente.
 - Adicionar logs de tentativa de acesso indevido.
 - Criar teste de segurança multi-tenant.
 
@@ -589,12 +589,12 @@ Existem processadores de anonimização, mas a operação de anonimização prec
 
 - Criar `AnonymizationPlan` a partir do pedido LGPD.
 - Definir flags:
-    - `preserveLaborData`;
-    - `preserveFiscalData`;
-    - `deleteBiometricArtifacts`;
-    - `anonymizeDocuments`;
-    - `anonymizeMessages`;
-    - `anonymizeAuditLogs`.
+  - `preserveLaborData`;
+  - `preserveFiscalData`;
+  - `deleteBiometricArtifacts`;
+  - `anonymizeDocuments`;
+  - `anonymizeMessages`;
+  - `anonymizeAuditLogs`.
 - Executar `AnonymizationPlanExecutor`.
 - Consolidar resultado em `AnonymizationExecutionLog`.
 - Retornar resumo da execução para admin.
@@ -625,13 +625,13 @@ POST /lgpd/employees/{employeeId}/anonymize/dry-run
 ```
 
 - Retornar:
-    - quantidade de documentos;
-    - registros de ponto;
-    - mensagens;
-    - logs;
-    - artefatos biométricos;
-    - dados preservados por obrigação legal;
-    - riscos.
+  - quantidade de documentos;
+  - registros de ponto;
+  - mensagens;
+  - logs;
+  - artefatos biométricos;
+  - dados preservados por obrigação legal;
+  - riscos.
 - Exibir prévia no front antes de confirmar.
 
 ### Critérios de aceite
@@ -786,17 +786,17 @@ O back-end expõe inventário em `/api/lgpd/inventory`, enquanto o front define 
 
 - Validar se front chama URL correta em produção.
 - Criar teste de contrato para:
-    - listagem;
-    - listagem ativa;
-    - busca por processCode;
-    - criação;
-    - atualização.
+  - listagem;
+  - listagem ativa;
+  - busca por processCode;
+  - criação;
+  - atualização.
 - Alinhar update:
-    - front usa `processCode`;
-    - back usa `inventoryId` no `PATCH`.
+  - front usa `processCode`;
+  - back usa `inventoryId` no `PATCH`.
 - Definir padrão único:
-    - `PATCH /api/lgpd/inventory/{inventoryId}` ou
-    - `PUT /api/lgpd/inventory/{processCode}`.
+  - `PATCH /api/lgpd/inventory/{inventoryId}` ou
+  - `PUT /api/lgpd/inventory/{processCode}`.
 
 ### Critérios de aceite
 
@@ -945,12 +945,12 @@ CANCELLED
 ### Tarefas
 
 - Enviar e-mail ou aviso interno quando:
-    - solicitação é criada;
-    - responsável é atribuído;
-    - status muda;
-    - pedido é concluído;
-    - pedido é rejeitado;
-    - SLA está próximo de vencer.
+  - solicitação é criada;
+  - responsável é atribuído;
+  - status muda;
+  - pedido é concluído;
+  - pedido é rejeitado;
+  - SLA está próximo de vencer.
 - Registrar notificação enviada.
 
 ### Critérios de aceite
@@ -1016,13 +1016,13 @@ evidenceLinks
 ### Saída
 
 - PDF ou JSON exportável com:
-    - dados do incidente;
-    - avaliação de risco;
-    - titulares afetados;
-    - dados afetados;
-    - medidas tomadas;
-    - comunicação ANPD/titulares;
-    - evidências.
+  - dados do incidente;
+  - avaliação de risco;
+  - titulares afetados;
+  - dados afetados;
+  - medidas tomadas;
+  - comunicação ANPD/titulares;
+  - evidências.
 
 ### Critérios de aceite
 
@@ -1052,8 +1052,8 @@ Fortalecer controles técnicos de proteção de dados.
 - Garantir `HttpOnly=true` no access token.
 - Garantir `Secure=true` em produção.
 - Definir `SameSite` por cenário:
-    - mesmo domínio: `Lax`;
-    - cross-site necessário: `None` + `Secure`.
+  - mesmo domínio: `Lax`;
+  - cross-site necessário: `None` + `Secure`.
 - Tornar CSRF cookie configurável.
 - Validar CORS por origem explícita.
 
@@ -1144,12 +1144,12 @@ GET /terms/consents/history
 ```
 
 - Exibir:
-    - tipo;
-    - versão;
-    - data de aceite;
-    - data de revogação;
-    - status;
-    - documento de evidência quando permitido.
+  - tipo;
+  - versão;
+  - data de aceite;
+  - data de revogação;
+  - status;
+  - documento de evidência quando permitido.
 
 ### Critérios de aceite
 
