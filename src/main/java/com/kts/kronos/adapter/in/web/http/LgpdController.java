@@ -1,9 +1,15 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.lgpd.AddLgpdRequestNoteRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.AssignLgpdRequestRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestHistoryResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.RejectLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
@@ -12,6 +18,9 @@ import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,8 +34,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME;
 
 import static com.kts.kronos.constants.ApiPaths.LGPD;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_ANONYMIZE;
@@ -128,5 +140,63 @@ public class LgpdController {
                 userAgent
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @GetMapping("/admin/requests")
+    public ResponseEntity<Page<LgpdRequestAdminListResponse>> listAdminRequests(
+            @RequestParam(required = false) LgpdRequestType type,
+            @RequestParam(required = false) LgpdRequestStatus status,
+            @RequestParam(required = false) UUID companyId,
+            Pageable pageable
+    ) {
+        var page = lgpdUseCase.listAdminRequests(type, status, companyId, pageable);
+        return ResponseEntity.ok(page);
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @GetMapping("/admin/requests/{requestId}")
+    public ResponseEntity<LgpdRequestDetailsResponse> getRequestDetails(@PathVariable UUID requestId) {
+        return ResponseEntity.ok(lgpdUseCase.getRequestDetails(requestId));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PatchMapping("/admin/requests/{requestId}/assign")
+    public ResponseEntity<LgpdRequestResponse> assignRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody AssignLgpdRequestRequest request
+    ) {
+        var updated = lgpdUseCase.assignRequest(requestId, request.assignedToUserId());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping("/admin/requests/{requestId}/notes")
+    public ResponseEntity<LgpdRequestResponse> addNote(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody AddLgpdRequestNoteRequest request
+    ) {
+        var updated = lgpdUseCase.addNote(requestId, request.publicNote(), request.internalNote());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping("/admin/requests/{requestId}/complete")
+    public ResponseEntity<LgpdRequestResponse> completeRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody CompleteLgpdRequestRequest request
+    ) {
+        var updated = lgpdUseCase.completeRequest(requestId, request.publicResolutionNotes(), request.internalNotes());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping("/admin/requests/{requestId}/reject")
+    public ResponseEntity<LgpdRequestResponse> rejectRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody RejectLgpdRequestRequest request
+    ) {
+        var updated = lgpdUseCase.rejectRequest(requestId, request.closedReason(), request.publicNote(), request.internalNote());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
     }
 }

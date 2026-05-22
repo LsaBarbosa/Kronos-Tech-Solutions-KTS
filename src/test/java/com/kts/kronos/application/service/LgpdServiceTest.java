@@ -118,20 +118,26 @@ class LgpdServiceTest {
                     request.createdAt(),
                     request.updatedAt(),
                     request.resolvedAt(),
-                    request.resolvedByUserId()
+                    request.resolvedByUserId(),
+                    request.assignedToUserId(),
+                    request.dueAt(),
+                    request.priority(),
+                    request.closedReason(),
+                    request.publicResolutionNotes(),
+                    request.internalNotes()
             );
         });
         when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LgpdRequest created = service.createRequest(
-                new CreateLgpdRequestRequest(null, LgpdRequestType.DATA_EXPORT, "Exportar meus dados"),
+                new CreateLgpdRequestRequest(null, LgpdRequestType.ACCESS, "Exportar meus dados"),
                 "127.0.0.1",
                 "JUnit"
         );
 
         assertNotNull(created.requestId());
         assertEquals(LgpdRequestStatus.OPEN, created.status());
-        assertEquals(LgpdRequestType.DATA_EXPORT, created.requestType());
+        assertEquals(LgpdRequestType.ACCESS, created.requestType());
 
         verify(lgpdRequestHistoryProvider).save(any(LgpdRequestHistory.class));
         ArgumentCaptor<String> detailsCaptor = ArgumentCaptor.forClass(String.class);
@@ -157,14 +163,14 @@ class LgpdServiceTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(companyId);
         when(lgpdRequestProvider.findByCompanyId(companyId)).thenReturn(List.of(
-                buildRequest(employeeId, companyId, LgpdRequestType.DATA_EXPORT, LgpdRequestStatus.OPEN),
+                buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN),
                 buildRequest(employeeId, companyId, LgpdRequestType.ANONYMIZATION, LgpdRequestStatus.COMPLETED)
         ));
 
         List<LgpdRequest> requests = service.listRequests(null, null, LgpdRequestStatus.OPEN);
 
         assertEquals(1, requests.size());
-        assertEquals(LgpdRequestType.DATA_EXPORT, requests.getFirst().requestType());
+        assertEquals(LgpdRequestType.ACCESS, requests.getFirst().requestType());
     }
 
     @Test
@@ -174,7 +180,7 @@ class LgpdServiceTest {
         UUID companyId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
-        LgpdRequest existing = buildRequest(employeeId, companyId, LgpdRequestType.DATA_ACCESS, LgpdRequestStatus.OPEN);
+        LgpdRequest existing = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
 
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(new LgpdRequest(
@@ -189,7 +195,13 @@ class LgpdServiceTest {
                 existing.createdAt(),
                 existing.updatedAt(),
                 existing.resolvedAt(),
-                existing.resolvedByUserId()
+                existing.resolvedByUserId(),
+                existing.assignedToUserId(),
+                existing.dueAt(),
+                existing.priority(),
+                existing.closedReason(),
+                existing.publicResolutionNotes(),
+                existing.internalNotes()
         )));
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -440,6 +452,76 @@ class LgpdServiceTest {
         );
     }
 
+    @Test
+    void shouldListAdminRequestsForCto() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findAll(any())).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+
+        var result = service.listAdminRequests(null, null, null, org.springframework.data.domain.Pageable.unpaged());
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("Lucas", result.getContent().get(0).employeeFullName());
+        assertEquals("KTS", result.getContent().get(0).companyName());
+    }
+
+    @Test
+    void shouldGetRequestDetailsWithEnrichedData() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID adminUserId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+        User assignedAdmin = new User(adminUserId, "admin", "hash", Role.CTO, true, null);
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                "Exportar dados",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                adminUserId,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findById(adminUserId)).thenReturn(Optional.of(assignedAdmin));
+        when(lgpdRequestHistoryProvider.findByRequestId(requestId)).thenReturn(List.of());
+
+        var result = service.getRequestDetails(requestId);
+
+        assertNotNull(result);
+        assertEquals("Lucas", result.employee().fullName());
+        assertEquals("KTS", result.company().tradeName());
+        assertEquals("admin", result.assignedTo().username());
+    }
+
     private LgpdRequest buildRequest(UUID employeeId, UUID companyId, LgpdRequestType type, LgpdRequestStatus status) {
         return new LgpdRequest(
                 UUID.randomUUID(),
@@ -452,6 +534,12 @@ class LgpdServiceTest {
                 null,
                 Instant.now(),
                 Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
                 null,
                 null
         );

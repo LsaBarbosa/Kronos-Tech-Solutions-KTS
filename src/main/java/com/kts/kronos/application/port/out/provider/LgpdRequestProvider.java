@@ -1,6 +1,8 @@
 package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.LgpdRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +18,8 @@ public interface LgpdRequestProvider {
     List<LgpdRequest> findByCompanyId(UUID companyId);
 
     List<LgpdRequest> findAll();
+
+    Page<LgpdRequest> findByCompanyId(UUID companyId, Pageable pageable);
+
+    Page<LgpdRequest> findAll(Pageable pageable);
 }

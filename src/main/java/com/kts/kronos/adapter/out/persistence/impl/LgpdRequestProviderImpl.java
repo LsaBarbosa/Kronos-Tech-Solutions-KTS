@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.out.persistence.mapper.LgpdRequestMapper;
 import com.kts.kronos.application.port.out.provider.LgpdRequestProvider;
 import com.kts.kronos.domain.model.LgpdRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -49,5 +51,17 @@ public class LgpdRequestProviderImpl implements LgpdRequestProvider {
                 .stream()
                 .map(mapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Page<LgpdRequest> findByCompanyId(UUID companyId, Pageable pageable) {
+        return repository.findByCompanyIdOrderByCreatedAtDesc(companyId, pageable)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Page<LgpdRequest> findAll(Pageable pageable) {
+        return repository.findAllByOrderByCreatedAtDesc(pageable)
+                .map(mapper::toDomain);
     }
 }
