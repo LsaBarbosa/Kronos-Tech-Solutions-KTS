@@ -2,6 +2,8 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
@@ -10,6 +12,8 @@ import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -68,12 +72,18 @@ class LgpdControllerWebMvcTest {
                 employeeId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                LgpdRequestType.DATA_EXPORT,
+                LgpdRequestType.ACCESS,
                 LgpdRequestStatus.OPEN,
                 "Exportar meus dados",
                 null,
                 Instant.now(),
                 Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
                 null,
                 null
         ));
@@ -116,14 +126,20 @@ class LgpdControllerWebMvcTest {
                 employeeId,
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                LgpdRequestType.DATA_EXPORT,
+                LgpdRequestType.ACCESS,
                 LgpdRequestStatus.COMPLETED,
                 "Exportar meus dados",
                 "Atendido",
                 Instant.now(),
                 Instant.now(),
                 Instant.now(),
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                "Atendido",
+                null
         ));
 
         mockMvc.perform(patch("/lgpd/requests/{requestId}/status", requestId)
@@ -278,5 +294,126 @@ class LgpdControllerWebMvcTest {
                 .andExpect(status().isNoContent());
 
         verify(lgpdUseCase).anonymizeEmployee(employeeId, "127.0.0.1", "JUnit");
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldListAdminRequestsForCto() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+
+        LgpdRequestAdminListResponse response = new LgpdRequestAdminListResponse(
+                requestId,
+                "João Silva",
+                "Empresa XYZ",
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                Instant.now(),
+                null,
+                Instant.now(),
+                false
+        );
+
+        Page<LgpdRequestAdminListResponse> page = new PageImpl<>(List.of(response));
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/lgpd/admin/requests"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].requestId").value(requestId.toString()))
+                .andExpect(jsonPath("$.content[0].employeeFullName").value("João Silva"));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldListAdminRequestsForManager() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        LgpdRequestAdminListResponse response = new LgpdRequestAdminListResponse(
+                requestId,
+                "João Silva",
+                "Empresa XYZ",
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.IN_PROGRESS,
+                Instant.now(),
+                "admin",
+                Instant.now(),
+                false
+        );
+
+        Page<LgpdRequestAdminListResponse> page = new PageImpl<>(List.of(response));
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/lgpd/admin/requests")
+                        .queryParam("type", "DATA_ACCESS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].type").value("DATA_ACCESS"));
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void shouldForbidEmployeeFromListingAdminRequests() throws Exception {
+        mockMvc.perform(get("/lgpd/admin/requests"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldGetRequestDetails() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        LgpdRequestDetailsResponse response = new LgpdRequestDetailsResponse(
+                new com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestResponse(
+                        requestId,
+                        employeeId,
+                        UUID.randomUUID(),
+                        companyId,
+                        LgpdRequestType.ACCESS,
+                        LgpdRequestStatus.OPEN,
+                        "Exportar dados",
+                        null,
+                        Instant.now(),
+                        Instant.now(),
+                        null,
+                        null
+                ),
+                new com.kts.kronos.adapter.in.web.dto.lgpd.EmployeeSummaryResponse(
+                        employeeId,
+                        "João Silva",
+                        "joao@kts.com",
+                        "Dev"
+                ),
+                new com.kts.kronos.adapter.in.web.dto.lgpd.CompanySummaryResponse(
+                        companyId,
+                        "12345678000199",
+                        "KTS"
+                ),
+                new com.kts.kronos.adapter.in.web.dto.lgpd.UserSummaryResponse(
+                        userId,
+                        "admin",
+                        com.kts.kronos.domain.model.enuns.Role.CTO
+                ),
+                List.of()
+        );
+
+        when(lgpdUseCase.getRequestDetails(requestId)).thenReturn(response);
+
+        mockMvc.perform(get("/lgpd/admin/requests/{requestId}", requestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.request.requestId").value(requestId.toString()))
+                .andExpect(jsonPath("$.employee.fullName").value("João Silva"))
+                .andExpect(jsonPath("$.company.tradeName").value("KTS"));
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void shouldForbidEmployeeFromGettingRequestDetails() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        mockMvc.perform(get("/lgpd/admin/requests/{requestId}", requestId))
+                .andExpect(status().isForbidden());
     }
 }

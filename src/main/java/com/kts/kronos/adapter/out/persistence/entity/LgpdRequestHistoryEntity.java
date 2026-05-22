@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
+import com.kts.kronos.domain.model.enuns.LgpdRequestEventType;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -51,4 +52,29 @@ public class LgpdRequestHistoryEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "event_type", length = 50)
+    private LgpdRequestEventType eventType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "previous_status", length = 50)
+    private LgpdRequestStatus previousStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "new_status", length = 50)
+    private LgpdRequestStatus newStatus;
+
+    @Column(name = "public_note", columnDefinition = "TEXT")
+    private String publicNote;
+
+    @Column(name = "internal_note", columnDefinition = "TEXT")
+    private String internalNote;
+
+    @Column(name = "actor_user_id")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID actorUserId;
+
+    @Column(name = "visible_to_data_subject", nullable = false)
+    private Boolean visibleToDataSubject = true;
 }

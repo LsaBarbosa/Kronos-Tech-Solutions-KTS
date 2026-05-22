@@ -73,4 +73,23 @@ public class LgpdRequestEntity {
     @Column(name = "resolved_by_user_id")
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID resolvedByUserId;
+
+    @Column(name = "assigned_to_user_id")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID assignedToUserId;
+
+    @Column(name = "due_at")
+    private Instant dueAt;
+
+    @Column(name = "priority", length = 30)
+    private String priority;
+
+    @Column(name = "closed_reason", length = 100)
+    private String closedReason;
+
+    @Column(name = "public_resolution_notes", columnDefinition = "TEXT")
+    private String publicResolutionNotes;
+
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
 }

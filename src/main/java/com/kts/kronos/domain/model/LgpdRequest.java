@@ -18,7 +18,13 @@ public record LgpdRequest(
         Instant createdAt,
         Instant updatedAt,
         Instant resolvedAt,
-        UUID resolvedByUserId
+        UUID resolvedByUserId,
+        UUID assignedToUserId,
+        Instant dueAt,
+        String priority,
+        String closedReason,
+        String publicResolutionNotes,
+        String internalNotes
 ) {
     public LgpdRequest updateStatus(
             LgpdRequestStatus newStatus,
@@ -41,7 +47,13 @@ public record LgpdRequest(
                 createdAt,
                 changedAt,
                 terminalResolvedAt,
-                terminalResolvedBy
+                terminalResolvedBy,
+                assignedToUserId,
+                dueAt,
+                priority,
+                closedReason,
+                publicResolutionNotes,
+                internalNotes
         );
     }
 

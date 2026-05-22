@@ -1,10 +1,13 @@
 package com.kts.kronos.domain.model.enuns;
 
 public enum LgpdRequestType {
-    DATA_ACCESS,
-    DATA_EXPORT,
-    DATA_CORRECTION,
-    CONSENT_REVOCATION,
+    CONFIRM_PROCESSING,
+    ACCESS,
+    CORRECTION,
     ANONYMIZATION,
-    DELETION
+    BLOCKING,
+    DELETION,
+    PORTABILITY,
+    CONSENT_REVOCATION,
+    SHARING_INFORMATION
 }

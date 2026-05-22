@@ -19,7 +19,13 @@ public class LgpdRequestMapper {
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 entity.getResolvedAt(),
-                entity.getResolvedByUserId()
+                entity.getResolvedByUserId(),
+                entity.getAssignedToUserId(),
+                entity.getDueAt(),
+                entity.getPriority(),
+                entity.getClosedReason(),
+                entity.getPublicResolutionNotes(),
+                entity.getInternalNotes()
         );
     }
 
@@ -37,6 +43,12 @@ public class LgpdRequestMapper {
                 .updatedAt(domain.updatedAt())
                 .resolvedAt(domain.resolvedAt())
                 .resolvedByUserId(domain.resolvedByUserId())
+                .assignedToUserId(domain.assignedToUserId())
+                .dueAt(domain.dueAt())
+                .priority(domain.priority())
+                .closedReason(domain.closedReason())
+                .publicResolutionNotes(domain.publicResolutionNotes())
+                .internalNotes(domain.internalNotes())
                 .build();
     }
 }

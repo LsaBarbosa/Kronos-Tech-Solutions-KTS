@@ -1,0 +1,14 @@
+package com.kts.kronos.domain.model.enuns;
+
+public enum LgpdRequestEventType {
+    REQUEST_CREATED,
+    STATUS_CHANGED,
+    ASSIGNED,
+    NOTE_ADDED,
+    EVIDENCE_ATTACHED,
+    EXPORT_GENERATED,
+    ANONYMIZATION_EXECUTED,
+    REQUEST_REJECTED,
+    REQUEST_COMPLETED,
+    SLA_RECALCULATED
+}

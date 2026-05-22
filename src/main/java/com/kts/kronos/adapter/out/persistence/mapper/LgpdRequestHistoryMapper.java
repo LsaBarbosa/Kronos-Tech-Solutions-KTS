@@ -13,7 +13,14 @@ public class LgpdRequestHistoryMapper {
                 entity.getStatus(),
                 entity.getNotes(),
                 entity.getChangedByUserId(),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                entity.getEventType(),
+                entity.getPreviousStatus(),
+                entity.getNewStatus(),
+                entity.getPublicNote(),
+                entity.getInternalNote(),
+                entity.getActorUserId(),
+                entity.getVisibleToDataSubject()
         );
     }
 
@@ -25,6 +32,13 @@ public class LgpdRequestHistoryMapper {
                 .notes(domain.notes())
                 .changedByUserId(domain.changedByUserId())
                 .createdAt(domain.createdAt())
+                .eventType(domain.eventType())
+                .previousStatus(domain.previousStatus())
+                .newStatus(domain.newStatus())
+                .publicNote(domain.publicNote())
+                .internalNote(domain.internalNote())
+                .actorUserId(domain.actorUserId())
+                .visibleToDataSubject(domain.visibleToDataSubject())
                 .build();
     }
 }

@@ -2,6 +2,8 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -19,16 +21,20 @@ import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
+import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
@@ -51,11 +57,14 @@ public class LgpdService implements LgpdUseCase {
     private final AuditService auditService;
     private final LegalConsentProvider legalConsentProvider;
     private final EmployeeAnonymizationService employeeAnonymizationService;
+    private final LgpdSlaPolicyService lgpdSlaPolicyService;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
         Employee targetEmployee = resolveTargetEmployee(request.employeeId());
         Instant now = Instant.now();
+        Instant dueAt = lgpdSlaPolicyService.calculateDueAt(request.type(), now);
+        String priority = lgpdSlaPolicyService.priorityBySla(dueAt);
 
         LgpdRequest toSave = new LgpdRequest(
                 null,
@@ -68,6 +77,12 @@ public class LgpdService implements LgpdUseCase {
                 null,
                 now,
                 now,
+                null,
+                null,
+                null,
+                dueAt,
+                priority,
+                null,
                 null,
                 null
         );
@@ -221,6 +236,209 @@ public class LgpdService implements LgpdUseCase {
                 userAgent,
                 jwtAuthenticatedUser.getuserId()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<LgpdRequestAdminListResponse> listAdminRequests(
+            LgpdRequestType type,
+            LgpdRequestStatus status,
+            UUID companyId,
+            Pageable pageable
+    ) {
+        Page<LgpdRequest> requests = companyId == null
+                ? lgpdRequestProvider.findAll(pageable)
+                : lgpdRequestProvider.findByCompanyId(companyId, pageable);
+
+        Page<LgpdRequestAdminListResponse> result = requests.map(request -> {
+            Employee employee = employeeProvider.findById(request.employeeId()).orElse(null);
+            var company = companyProvider.findById(request.companyId()).orElse(null);
+            java.util.Optional<User> assignedTo = request.assignedToUserId() != null
+                    ? userProvider.findById(request.assignedToUserId())
+                    : java.util.Optional.empty();
+
+            return LgpdRequestAdminListResponse.fromDomain(request, employee, company, assignedTo);
+        });
+
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LgpdRequestDetailsResponse getRequestDetails(UUID requestId) {
+        LgpdRequest request = findAuthorizedRequest(requestId);
+        Employee employee = employeeProvider.findById(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+        var company = companyProvider.findById(request.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        java.util.Optional<User> assignedTo = request.assignedToUserId() != null
+                ? userProvider.findById(request.assignedToUserId())
+                : java.util.Optional.empty();
+        var history = lgpdRequestHistoryProvider.findByRequestId(requestId);
+
+        return LgpdRequestDetailsResponse.fromDomain(request, employee, company, assignedTo, history);
+    }
+
+    @Override
+    public LgpdRequest assignRequest(UUID requestId, UUID assignedToUserId) {
+        LgpdRequest request = findAuthorizedRequest(requestId);
+        Instant now = Instant.now();
+
+        LgpdRequest updated = new LgpdRequest(
+                request.requestId(),
+                request.employeeId(),
+                request.requestedByUserId(),
+                request.companyId(),
+                request.requestType(),
+                request.status(),
+                request.description(),
+                request.resolutionNotes(),
+                request.createdAt(),
+                now,
+                request.resolvedAt(),
+                request.resolvedByUserId(),
+                assignedToUserId,
+                request.dueAt(),
+                request.priority(),
+                request.closedReason(),
+                request.publicResolutionNotes(),
+                request.internalNotes()
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(updated);
+
+        return saved;
+    }
+
+    @Override
+    public LgpdRequest addNote(UUID requestId, String publicNote, String internalNote) {
+        LgpdRequest request = findAuthorizedRequest(requestId);
+        Instant now = Instant.now();
+
+        LgpdRequest updated = new LgpdRequest(
+                request.requestId(),
+                request.employeeId(),
+                request.requestedByUserId(),
+                request.companyId(),
+                request.requestType(),
+                request.status(),
+                request.description(),
+                request.resolutionNotes(),
+                request.createdAt(),
+                now,
+                request.resolvedAt(),
+                request.resolvedByUserId(),
+                request.assignedToUserId(),
+                request.dueAt(),
+                request.priority(),
+                request.closedReason(),
+                request.publicResolutionNotes(),
+                internalNote != null ? (request.internalNotes() != null ? request.internalNotes() + "\n" + internalNote : internalNote) : request.internalNotes()
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(updated);
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                publicNote,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        return saved;
+    }
+
+    @Override
+    public LgpdRequest completeRequest(UUID requestId, String publicResolutionNotes, String internalNotes) {
+        LgpdRequest request = findAuthorizedRequest(requestId);
+        Instant now = Instant.now();
+
+        LgpdRequest updated = request.updateStatus(
+                LgpdRequestStatus.COMPLETED,
+                jwtAuthenticatedUser.getuserId(),
+                publicResolutionNotes,
+                now
+        );
+
+        LgpdRequest withNotes = new LgpdRequest(
+                updated.requestId(),
+                updated.employeeId(),
+                updated.requestedByUserId(),
+                updated.companyId(),
+                updated.requestType(),
+                updated.status(),
+                updated.description(),
+                updated.resolutionNotes(),
+                updated.createdAt(),
+                updated.updatedAt(),
+                updated.resolvedAt(),
+                updated.resolvedByUserId(),
+                updated.assignedToUserId(),
+                updated.dueAt(),
+                updated.priority(),
+                updated.closedReason(),
+                publicResolutionNotes,
+                internalNotes
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(withNotes);
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                publicResolutionNotes,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        return saved;
+    }
+
+    @Override
+    public LgpdRequest rejectRequest(UUID requestId, String closedReason, String publicNote, String internalNote) {
+        LgpdRequest request = findAuthorizedRequest(requestId);
+        Instant now = Instant.now();
+
+        LgpdRequest updated = request.updateStatus(
+                LgpdRequestStatus.REJECTED,
+                jwtAuthenticatedUser.getuserId(),
+                publicNote,
+                now
+        );
+
+        LgpdRequest withReason = new LgpdRequest(
+                updated.requestId(),
+                updated.employeeId(),
+                updated.requestedByUserId(),
+                updated.companyId(),
+                updated.requestType(),
+                updated.status(),
+                updated.description(),
+                updated.resolutionNotes(),
+                updated.createdAt(),
+                updated.updatedAt(),
+                updated.resolvedAt(),
+                updated.resolvedByUserId(),
+                updated.assignedToUserId(),
+                updated.dueAt(),
+                updated.priority(),
+                closedReason,
+                publicNote,
+                internalNote
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(withReason);
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                publicNote,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        return saved;
     }
 
     private LgpdRequest findAuthorizedRequest(UUID requestId) {
