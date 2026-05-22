@@ -74,6 +74,8 @@ class AcceptTermsServiceTest {
     private LegalConsentProvider legalConsentProvider;
     @Mock
     private LegalTextProvider legalTextProvider;
+    @Mock
+    private com.kts.kronos.observability.application.KronosMetrics kronosMetrics;
 
     private static final HexFormat HEX = HexFormat.of();
 

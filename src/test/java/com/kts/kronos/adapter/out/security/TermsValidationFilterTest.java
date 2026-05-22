@@ -59,86 +59,68 @@ class TermsValidationFilterTest {
     }
 
     @Test
-    @DisplayName("deve bloquear endpoint privado quando termos não foram aceitos")
-    void shouldBlockPrivateEndpointWhenTermsNotAccepted() throws Exception {
+    @DisplayName("deve permitir endpoint privado mesmo quando termos não foram aceitos (LGPD-102: removed global block)")
+    void shouldAllowPrivateEndpointEvenWhenTermsNotAccepted() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         var response = new MockHttpServletResponse();
 
-        when(authCookieService.extractToken(request)).thenReturn(Optional.of("legacy-token"));
-        when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
-        when(jwtUtils.getTermsAcceptedFromToken("legacy-token")).thenReturn(false);
-
         filter.doFilter(request, response, filterChain);
 
-        verify(handlerExceptionResolver).resolveException(
-                any(HttpServletRequest.class),
-                any(HttpServletResponse.class),
-                isNull(),
-                any(TermsNotAcceptedException.class)
-        );
-        verify(filterChain, never()).doFilter(any(), any());
+        // Now we allow all requests and let individual services handle consent checks
+        verify(filterChain).doFilter(request, response);
+        verify(handlerExceptionResolver, never()).resolveException(any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("deve permitir endpoint privado quando termos foram aceitos")
-    void shouldAllowPrivateEndpointWhenTermsAccepted() throws Exception {
+    @DisplayName("deve permitir endpoint privado independente do status de aceite de termos (LGPD-102)")
+    void shouldAllowPrivateEndpointRegardlessOfTermsStatus() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         var response = new MockHttpServletResponse();
 
-        when(authCookieService.extractToken(request)).thenReturn(Optional.of("fresh-token"));
-        when(jwtUtils.validateToken("fresh-token")).thenReturn(true);
-        when(jwtUtils.getTermsAcceptedFromToken("fresh-token")).thenReturn(true);
-
         filter.doFilter(request, response, filterChain);
 
+        // Filter always allows now, consent checks are at service level
         verify(filterChain).doFilter(request, response);
     }
 
     @Test
-    @DisplayName("deve seguir fluxo quando token é inválido")
-    void shouldContinueWhenTokenIsInvalid() throws Exception {
+    @DisplayName("deve permitir requisição mesmo com token inválido (LGPD-102)")
+    void shouldAllowRequestRegardlessOfToken() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         var response = new MockHttpServletResponse();
 
-        when(authCookieService.extractToken(request)).thenReturn(Optional.of("invalid-token"));
-        when(jwtUtils.validateToken("invalid-token")).thenReturn(false);
-
         filter.doFilter(request, response, filterChain);
 
+        // Filter now always allows - no token validation at filter level
         verify(filterChain).doFilter(request, response);
-        verify(jwtUtils, never()).getTermsAcceptedFromToken(any());
     }
 
     @Test
-    @DisplayName("deve permitir rota privada sem header Authorization")
+    @DisplayName("deve permitir rota privada sem header Authorization (LGPD-102)")
     void shouldAllowProtectedRouteWhenAuthorizationHeaderIsMissing() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         var response = new MockHttpServletResponse();
 
-        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
     }
 
     @Test
-    @DisplayName("deve ignorar header Authorization quando cookie não existe")
+    @DisplayName("deve ignorar header Authorization quando cookie não existe (LGPD-102)")
     void shouldAllowProtectedRouteWhenAuthorizationHeaderIsNotBearer() throws Exception {
         var request = new MockHttpServletRequest("GET", "/documents");
         request.setServletPath("/documents");
         request.addHeader("Authorization", "Basic abc123");
         var response = new MockHttpServletResponse();
 
-        when(authCookieService.extractToken(request)).thenReturn(Optional.empty());
         filter.doFilter(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtUtils);
     }
 
     @Test

@@ -66,6 +66,7 @@ class TimeRecordServiceLineCoverageTest {
     @Mock private NtpTimeService ntpTimeService;
     @Mock private DomainAuthorizationService domainAuthorizationService;
     @Mock private BiometricProtectionService biometricProtectionService;
+    @Mock private LegalConsentProvider legalConsentProvider;
 
     private UUID employeeId;
     private UUID managerEmployeeId;
@@ -96,6 +97,9 @@ class TimeRecordServiceLineCoverageTest {
             return record.timeRecordId() == null ? record.withId(900L) : record;
         });
         when(receiptPdfService.generateReceipt(any(), any(), any(), anyLong())).thenReturn("pdf".getBytes());
+
+        // LGPD-102: Mock biometric consent provider to return true by default
+        when(legalConsentProvider.existsActive(any(UUID.class), any())).thenReturn(true);
     }
 
     @Test

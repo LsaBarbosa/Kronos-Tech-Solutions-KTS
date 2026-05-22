@@ -39,11 +39,11 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final LegalConsentProvider legalConsentProvider;
     private final LegalTextProvider legalTextProvider;
+    private final KronosMetrics kronosMetrics;
 
     private static final HexFormat HEX = HexFormat.of();
     private static final String BIOMETRIC_CONSENT_PURPOSE =
             "Biometric authentication and identity validation in authorized Kronos flows.";
-    private final KronosMetrics kronosMetrics;
 
     @Override
     public LegalText getCurrentBiometricTerm() {

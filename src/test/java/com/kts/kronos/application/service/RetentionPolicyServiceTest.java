@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.application.port.out.provider.RetentionPolicyProvider;
+import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,9 @@ class RetentionPolicyServiceTest {
 
     @Mock
     private RetentionPolicyProvider retentionPolicyProvider;
+
+    @Mock
+    private RetentionPolicyExecutor retentionPolicyExecutor;
 
     @InjectMocks
     private RetentionPolicyService service;

@@ -3,8 +3,10 @@ package com.kts.kronos.adapter.out.persistence;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -74,4 +76,48 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
 
     List<DocumentEntity> findByEmployeeIdOrderByUploadedAtDesc(UUID employeeId);
+
+    @Query("""
+        SELECT d FROM DocumentEntity d
+        WHERE d.uploadedAt < :cutoff
+        AND d.deletedByRetention = false
+        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
+        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+    """)
+    List<DocumentEntity> findRemovableByRetention(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+        SELECT COUNT(d) FROM DocumentEntity d
+        WHERE d.uploadedAt < :cutoff
+        AND d.deletedByRetention = false
+        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
+        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+    """)
+    long countRemovableByRetention(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+        SELECT COUNT(d) FROM DocumentEntity d
+        WHERE d.uploadedAt < :cutoff
+        AND d.deletedByRetention = false
+        AND (d.type IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT', 'MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+    """)
+    long countPreservedByType(@Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE DocumentEntity d
+        SET d.deletedByRetention = true,
+            d.retentionDeletedAt = :now,
+            d.retentionPolicyCode = :policyCode
+        WHERE d.uploadedAt < :cutoff
+        AND d.deletedByRetention = false
+        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
+        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+    """)
+    int markAsDeletedByRetention(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("now") LocalDateTime now,
+            @Param("policyCode") String policyCode
+    );
 }
