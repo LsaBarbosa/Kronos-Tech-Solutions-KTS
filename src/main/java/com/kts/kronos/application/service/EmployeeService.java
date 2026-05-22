@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.adapter.in.web.dto.employee.RegisterFaceRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
@@ -15,6 +16,7 @@ import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
@@ -46,10 +48,15 @@ public class EmployeeService implements EmployeeUseCase {
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
+    private final LegalConsentProvider legalConsentProvider;
 
     // MANAGER
     @Override
     public Employee createEmployee(CreateEmployeeRequest req) {
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            throw new BadRequestException("BIOMETRIC_ENROLLMENT_REQUIRES_DATA_SUBJECT_ACTION");
+        }
+
         var userRole = jwtAuthenticatedUser.getCurrentRole();
         UUID companyId;
 
@@ -122,22 +129,6 @@ public class EmployeeService implements EmployeeUseCase {
             throw new ConflictException(CPF_ALREADY_EXIST);
         }
 
-        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
-            biometricProtectionService.protectEnrollment(
-                    savedEmployee.employeeId(),
-                    req.faceImageBase64()
-            );
-
-            var s3Key = handleFaceRegistration(
-                    savedEmployee.employeeId(),
-                    savedEmployee.faceS3ObjectKey(),
-                    req.faceImageBase64()
-            );
-
-            savedEmployee = savedEmployee.withFaceS3ObjectKey(s3Key);
-            employeeProvider.save(savedEmployee);
-        }
-
         kronosMetrics.employeeCreated();
         return savedEmployee;
     }
@@ -174,6 +165,10 @@ public class EmployeeService implements EmployeeUseCase {
 
     @Override
     public void updateEmployee(UUID id, UpdateEmployeeManagerRequest req) {
+        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
+            throw new BadRequestException("BIOMETRIC_ENROLLMENT_REQUIRES_DATA_SUBJECT_ACTION");
+        }
+
         var existingEmployee = getEmployee(id);
 
         var updatedEmployee = new Employee(
@@ -208,22 +203,6 @@ public class EmployeeService implements EmployeeUseCase {
             var updatedAddress = lookup.withNumber(req.address().number());
             updatedEmployee = updatedEmployee.withAddress(updatedAddress);
         }
-
-        String newS3ObjectKey = updatedEmployee.faceS3ObjectKey();
-
-        if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
-            biometricProtectionService.protectEnrollment(
-                    updatedEmployee.employeeId(),
-                    req.faceImageBase64()
-            );
-
-            newS3ObjectKey = handleFaceRegistration(
-                    updatedEmployee.employeeId(),
-                    updatedEmployee.faceS3ObjectKey(),
-                    req.faceImageBase64()
-            );
-        }
-        updatedEmployee = updatedEmployee.withFaceS3ObjectKey(newS3ObjectKey);
 
         employeeProvider.save(updatedEmployee);
         kronosMetrics.employeeUpdated();
@@ -294,6 +273,24 @@ public class EmployeeService implements EmployeeUseCase {
         var updatedEmployee = employee.withActive(newStatus);
         employeeProvider.save(updatedEmployee);
 
+    }
+
+    @Override
+    public void enrollBiometricSelf(RegisterFaceRequest req) {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+
+        if (!legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)) {
+            throw new ConflictException("Consentimento biométrico não foi aceito. Acesse o Centro de Privacidade para aceitar o termo.");
+        }
+
+        biometricProtectionService.protectEnrollment(employeeId, req.faceImageBase64());
+
+        var s3Key = handleFaceRegistration(employeeId, employee.faceS3ObjectKey(), req.faceImageBase64());
+        var updatedEmployee = employee.withFaceS3ObjectKey(s3Key);
+        employeeProvider.save(updatedEmployee);
+
+        kronosMetrics.employeeCreated();
     }
 
     private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {
