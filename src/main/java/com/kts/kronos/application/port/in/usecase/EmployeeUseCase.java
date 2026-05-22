@@ -29,4 +29,6 @@ public interface EmployeeUseCase {
 
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
 
+    void enrollBiometricSelf(RegisterFaceRequest req);
+
 }
