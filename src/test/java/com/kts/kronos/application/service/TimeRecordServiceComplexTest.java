@@ -55,6 +55,7 @@ class TimeRecordServiceComplexTest {
     @Mock private ReceiptPdfService receiptPdfService;
     @Mock private DomainAuthorizationService domainAuthorizationService;
     @Mock private BiometricProtectionService biometricProtectionService;
+    @Mock private LegalConsentProvider legalConsentProvider;
     private UUID employeeId;
     private UUID managerId;
     private UUID companyId;
@@ -77,6 +78,9 @@ class TimeRecordServiceComplexTest {
 
         // Setup Manager
         managerUser = new User(managerId, "admin", "pass", Role.MANAGER, true, managerId);
+
+        // LGPD-102: Mock biometric consent provider to return true by default
+        when(legalConsentProvider.existsActive(any(UUID.class), any())).thenReturn(true);
     }
 
     @Test

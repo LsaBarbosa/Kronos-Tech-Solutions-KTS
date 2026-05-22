@@ -59,6 +59,16 @@ public class DocumentEntity {
     @Column(name = "deleted_by_manager", nullable = false)
     private boolean deletedByManager = false;
 
+    @Builder.Default
+    @Column(name = "deleted_by_retention", nullable = false)
+    private boolean deletedByRetention = false;
+
+    @Column(name = "retention_deleted_at")
+    private LocalDateTime retentionDeletedAt;
+
+    @Column(name = "retention_policy_code", length = 100)
+    private String retentionPolicyCode;
+
     public Document toDomain() {
         return new Document(
                 documentId,

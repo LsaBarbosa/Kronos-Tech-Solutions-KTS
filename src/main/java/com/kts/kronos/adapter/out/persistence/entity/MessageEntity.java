@@ -52,6 +52,15 @@ public class MessageEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID recipientEmployeeId;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by_system")
+    private Boolean deletedBySystem = false;
+
+    @Column(name = "retention_policy_code", length = 100)
+    private String retentionPolicyCode;
+
     public Message toDomain() {
         return new Message(messageId, employeeId, companyId,title, messageText,priority, createdAt, recipientEmployeeId);
     }

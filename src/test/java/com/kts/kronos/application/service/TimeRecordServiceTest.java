@@ -61,6 +61,7 @@ class TimeRecordServiceTest {
     @Mock private NtpTimeService ntpTimeService;
     @Mock private DomainAuthorizationService domainAuthorizationService;
     @Mock private BiometricProtectionService biometricProtectionService;
+    @Mock private LegalConsentProvider legalConsentProvider;
 
     private UUID employeeId;
     private UUID companyId;
@@ -104,6 +105,9 @@ class TimeRecordServiceTest {
             TimeRecord r = i.getArgument(0);
             return r.withId(1L);
         });
+
+        // LGPD-102: Mock biometric consent provider to return true by default
+        when(legalConsentProvider.existsActive(any(UUID.class), any())).thenReturn(true);
     }
 
     @Test

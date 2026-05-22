@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
@@ -16,6 +17,7 @@ import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.*;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.RequestType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -65,6 +67,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final NtpTimeService ntpTimeService; // Validação de Relógio
     private final DomainAuthorizationService domainAuthorizationService;
     private final BiometricProtectionService biometricProtectionService;
+    private final LegalConsentProvider legalConsentProvider;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -82,6 +85,18 @@ public class TimeRecordService implements TimeRecordUseCase {
 
                 var employeeId = jwtAuthenticatedUser.getEmployeeId();
                 var employee = getEmployee(employeeId);
+
+                // LGPD-102: Validate biometric consent before allowing facial checkin
+                boolean hasBiometricConsent = legalConsentProvider.existsActive(
+                        employeeId,
+                        ConsentType.BIOMETRIC_AUTHENTICATION
+                );
+                if (!hasBiometricConsent) {
+                    throw new TermsNotAcceptedException(
+                            "Consentimento biométrico necessário para registrar ponto com biometria.",
+                            "https://termo.kronossolutions.tech/"
+                    );
+                }
 
                 biometricProtectionService.protectCheckIn(
                         employeeId,

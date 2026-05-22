@@ -42,27 +42,9 @@ public class TermsValidationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 2. Extrai o token do cookie HttpOnly usado pelo JwtAuthenticationFilter.
-        var cookieToken = authCookieService.extractToken(request);
-        if (cookieToken.isPresent()) {
-            String token = cookieToken.get();
-
-            // 3. Verifica a claim de aceite
-            if (jwtUtils.validateToken(token)) {
-                boolean accepted = jwtUtils.getTermsAcceptedFromToken(token);
-
-                if (!accepted) {
-                    handlerExceptionResolver.resolveException(
-                            request,
-                            response,
-                            null,
-                            new TermsNotAcceptedException("Aceite os termos para continuar.", TERMS_SYSTEM_URL)
-                    );
-                    return;
-                }
-            }
-        }
-
+        // Note: Biometric consent checks are now handled at the service/controller level,
+        // not globally, allowing granular control over which features require consent.
+        // LGPD-102: Removed global terms acceptance block to support granular biometric consent.
         chain.doFilter(request, response);
     }
 }
