@@ -101,6 +101,7 @@ integration:
     base-url: ${HERE_BASE_URL:https://geocode.search.hereapi.com}
     api-key: ${HERE_API_KEY:}
 
+
 aws:
   # ATENÇÃO: Removemos o valor de fallback para que a aplicação falhe se a variável de ambiente não estiver definida.
   # A região pode ter um valor de fallback se você souber que ela é fixa.
@@ -114,6 +115,14 @@ aws:
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME}
     bucket-name-doc: ${AWS_S3_BUCKET_NAME_DOCS:kronos-docs-legal-prod}
+    bucket-payslip: ${AWS_S3_BUCKET_PAYSLIP:kronos-docs-payslip-prod}
+    bucket-time-off: ${AWS_S3_BUCKET_TIME_OFF:kronos-docs-time-off-prod}
+    bucket-documents: ${AWS_S3_BUCKET_DOCUMENTS:kronos-docs-general-prod}
+    bucket-employee-documents: ${AWS_S3_BUCKET_EMPLOYEE_DOCUMENTS:kronos-docs-employee-prod}
+    bucket-point-record-receipt: ${AWS_S3_BUCKET_POINT_RECORD_RECEIPT:kronos-docs-point-record-receipt-prod}
+    bucket-biometric-consent-term: ${AWS_S3_BUCKET_BIOMETRIC_CONSENT_TERM:kronos-docs-biometric-consent-prod}
+    bucket-service-contract-terms: ${AWS_S3_BUCKET_SERVICE_CONTRACT_TERMS:kronos-docs-service-contract-prod}
+    bucket-face-images: ${AWS_S3_BUCKET_FACE_IMAGES:kronos-app-rekognition-imagens}
   rekognition:
     collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_prod}
 
@@ -154,6 +163,8 @@ kronos:
         host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
+  storage:
+    provider: ${KRONOS_STORAGE_PROVIDER:local}
 
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
