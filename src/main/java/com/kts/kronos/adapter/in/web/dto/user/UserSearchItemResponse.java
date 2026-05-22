@@ -6,7 +6,6 @@ import java.util.UUID;
 
 public record UserSearchItemResponse(
         UUID userId,
-        UUID employeeId,
         String username,
         String role,
         boolean active
@@ -14,7 +13,6 @@ public record UserSearchItemResponse(
     public static UserSearchItemResponse fromDomain(User user) {
         return new UserSearchItemResponse(
                 user.userId(),
-                user.employeeId(),
                 user.username(),
                 user.role().name(),
                 user.active()

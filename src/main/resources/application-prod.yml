@@ -86,6 +86,7 @@ management:
     web:
       exposure:
         include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE:health,prometheus}
+        exclude: env,heapdump,beans,configprops,threaddump,flyway,logfile,loggers
   endpoint:
     health:
       show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:never}
@@ -173,6 +174,9 @@ kronos:
         ip:
           limit: ${RECOVERY_RATE_LIMIT_IP_LIMIT:10}
         window-seconds: ${RECOVERY_RATE_LIMIT_WINDOW_SECONDS:3600}
+      admin-check:
+        limit: ${ADMIN_CHECK_RATE_LIMIT:20}
+        window-seconds: ${ADMIN_CHECK_RATE_LIMIT_WINDOW_SECONDS:60}
     certificate:
       path: ${DIGITAL_CERTIFICATE_PATH}
       password: ${DIGITAL_CERTIFICATE_PASSWORD}
@@ -186,6 +190,11 @@ kronos:
     biometric-term-salt: ${SECRET_TERM}
   storage:
     provider: ${KRONOS_STORAGE_PROVIDER:s3}
+  lgpd:
+    retention:
+      scheduler:
+        enabled: ${LGPD_RETENTION_SCHEDULER_ENABLED:false}
+        cron: ${LGPD_RETENTION_SCHEDULER_CRON:0 15 4 * * ?}
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
   liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}

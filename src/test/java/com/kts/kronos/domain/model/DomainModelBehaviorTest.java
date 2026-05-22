@@ -67,11 +67,13 @@ class DomainModelBehaviorTest {
                 LocalDateTime.now(),
                 10L,
                 false,
-                false
+                false,
+                "checksum"
         );
 
         assertTrue(doc.markDeletedByEmployee().deletedByEmployee());
         assertTrue(doc.markDeletedByManager().deletedByManager());
+        assertEquals("checksum", doc.markDeletedByEmployee().checksumSha256());
     }
 
     @Test

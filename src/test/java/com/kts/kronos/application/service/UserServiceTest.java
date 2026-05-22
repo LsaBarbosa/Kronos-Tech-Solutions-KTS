@@ -13,6 +13,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
@@ -67,6 +68,8 @@ class UserServiceTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock
+    private AuthenticationRateLimitService authenticationRateLimitService;
 
     @Test
     @DisplayName("createUser: deve rejeitar username ja existente")

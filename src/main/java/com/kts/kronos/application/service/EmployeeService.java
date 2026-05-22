@@ -12,6 +12,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -42,6 +43,7 @@ public class EmployeeService implements EmployeeUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final BiometricProtectionService biometricProtectionService;
     private final AcceptTermsUseCase acceptTermsUseCase;
+    private final AuthenticationRateLimitService authenticationRateLimitService;
 
     // MANAGER
     @Override
@@ -274,6 +276,7 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     public boolean cpfExists(String cpf) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
         return employeeProvider.cpfExists(cpf);
     }
 

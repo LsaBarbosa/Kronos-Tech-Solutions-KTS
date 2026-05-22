@@ -3,11 +3,15 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AuditLogEntity;
 import com.kts.kronos.application.port.out.provider.AuditLogProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AuditLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -19,14 +23,18 @@ public class AuditLogProviderImpl implements AuditLogProvider {
     @Override
     public void registerLog(AuditLog domainLog) {
         try {
-            // Mapeamento Domínio -> Entidade JPA
             AuditLogEntity entity = AuditLogEntity.builder()
                     .userId(domainLog.userId())
                     .action(domainLog.action())
                     .ipAddress(domainLog.ipAddress())
                     .userAgent(domainLog.userAgent())
-                    .details(domainLog.details())
+                    .details(SensitiveDataMasker.sanitizeDetails(domainLog.details()))
                     .timestamp(domainLog.timestamp())
+                    .companyId(domainLog.companyId())
+                    .resourceType(domainLog.resourceType())
+                    .resourceId(domainLog.resourceId())
+                    .correlationId(domainLog.correlationId())
+                    .riskLevel(domainLog.riskLevel())
                     .build();
 
             repository.save(entity);
@@ -39,5 +47,13 @@ public class AuditLogProviderImpl implements AuditLogProvider {
                     e
             );
         }
+    }
+
+    @Override
+    public List<AuditLog> findByUserId(UUID userId) {
+        return repository.findByUserIdOrderByTimestampDesc(userId)
+                .stream()
+                .map(AuditLogEntity::toDomain)
+                .toList();
     }
 }

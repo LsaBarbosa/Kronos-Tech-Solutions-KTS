@@ -60,6 +60,34 @@ class AuditLogProviderImplTest {
     }
 
     @Test
+    @DisplayName("registerLog: deve sanitizar detalhes sensíveis antes de persistir")
+    void shouldSanitizeSensitiveDetailsBeforePersisting() {
+        AuditLog domain = AuditLog.builder()
+                .userId(UUID.randomUUID())
+                .action("LGPD_EXPORT")
+                .ipAddress("127.0.0.1")
+                .userAgent("JUnit")
+                .details("cpf=12345678901 token=eyJhbGciOiJIUzI1NiJ9.payload.signature storage=storage/documents/secret.pdf image="
+                        + "A".repeat(220))
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        provider.registerLog(domain);
+
+        ArgumentCaptor<AuditLogEntity> captor = ArgumentCaptor.forClass(AuditLogEntity.class);
+        verify(repository).save(captor.capture());
+
+        String details = captor.getValue().getDetails();
+        assertEquals(false, details.contains("12345678901"));
+        assertEquals(false, details.contains("payload.signature"));
+        assertEquals(false, details.contains("storage/documents/secret.pdf"));
+        assertEquals(false, details.contains("A".repeat(50)));
+        assertEquals(true, details.contains("123.***.901"));
+        assertEquals(true, details.contains("[MASKED_PATH]"));
+        assertEquals(true, details.contains("[BASE64_REDACTED]"));
+    }
+
+    @Test
     @DisplayName("registerLog: não deve propagar exceção do repository")
     void shouldNotPropagateRepositoryFailure() {
         AuditLog domain = AuditLog.builder()

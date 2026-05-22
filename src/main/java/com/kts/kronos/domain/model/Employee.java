@@ -218,6 +218,45 @@ public record Employee(
         );
     }
 
+    public Employee anonymize(
+            String anonymizedFullName,
+            String anonymizedCpf,
+            String anonymizedEmail,
+            String anonymizedPis,
+            java.util.UUID deletedBy,
+            java.time.LocalDateTime deletedAt,
+            String reason
+    ) {
+        return new Employee(
+                employeeId,
+                anonymizedFullName,
+                anonymizedCpf,
+                anonymizedPis,
+                jobPosition,
+                anonymizedEmail,
+                salary,
+                null,
+                false,
+                null,
+                companyId,
+                lastSeenMessageTimestamp,
+                homeOffice,
+                null,
+                workStartTime,
+                workEndTime,
+                breakStartTime,
+                breakEndTime,
+                scheduleType,
+                scaleStartDate,
+                preferredDayOff,
+                weekendOffIndex,
+                fixedWorkDays,
+                deletedAt,
+                deletedBy,
+                reason
+        );
+    }
+
     public long getDailyWorkMinutes() {
         if (workStartTime == null || workEndTime == null) {
             return 480;

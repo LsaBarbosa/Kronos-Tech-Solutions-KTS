@@ -9,7 +9,6 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.adapter.out.security.TermsValidationFilter;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -117,10 +116,6 @@ public class SecurityConfig {
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.GET,
                     "/observability/status"
-            ).permitAll();
-
-            auth.requestMatchers(
-                    EndpointRequest.to("health", "info", "metrics", "prometheus")
             ).permitAll();
 
             if (publicDocsEnabled) {

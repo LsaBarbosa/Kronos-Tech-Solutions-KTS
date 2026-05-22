@@ -12,6 +12,7 @@ import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class CompanyService implements CompanyUseCase {
     private final UserProvider userProvider;
     private final UserUseCase userUseCase;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final AuthenticationRateLimitService authenticationRateLimitService;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -172,6 +174,7 @@ public class CompanyService implements CompanyUseCase {
     }
 
     public boolean cnpjExists(String cnpj) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
         return companyProvider.existsByCnpj(cnpj);
     }
 

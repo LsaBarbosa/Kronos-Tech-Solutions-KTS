@@ -40,6 +40,9 @@ public class DocumentEntity {
     @Column(name = "storage_path", length = 512, nullable = false)
     private String storagePath;
 
+    @Column(name = "checksum_sha256", length = 128)
+    private String checksumSha256;
+
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
@@ -65,7 +68,10 @@ public class DocumentEntity {
                 contentType,
                 storagePath,
                 uploadedAt,
-                timeRecordId,deletedByEmployee, deletedByManager
+                timeRecordId,
+                deletedByEmployee,
+                deletedByManager,
+                checksumSha256
         );
     }
 
@@ -76,6 +82,7 @@ public class DocumentEntity {
                 .fileName(document.fileName())
                 .contentType(document.contentType())
                 .storagePath(document.storagePath())
+                .checksumSha256(document.checksumSha256())
                 .uploadedAt(document.uploadeAt())
                 .type(document.type())
                 .timeRecordId(document.timeRecordId())

@@ -1,10 +1,13 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.legal.AcceptBiometricTermsRequest;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.domain.model.LegalText;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -60,10 +64,13 @@ class TermsControllerTest {
         request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
         request.setRemoteAddr("198.51.100.7");
 
-        var response = controller.acceptBiometricTerms(request);
+        var response = controller.acceptBiometricTerms(
+                new AcceptBiometricTermsRequest("2026.05.21", "current-hash"),
+                request
+        );
 
         assertEquals(204, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "203.0.113.10", "Desconhecido");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "203.0.113.10", "Desconhecido", "2026.05.21", "current-hash");
         verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
     }
 
@@ -83,10 +90,13 @@ class TermsControllerTest {
         request.setRemoteAddr("127.0.0.1");
         request.addHeader("User-Agent", "JUnit-Agent");
 
-        var response = controller.acceptBiometricTerms(request);
+        var response = controller.acceptBiometricTerms(
+                new AcceptBiometricTermsRequest("2026.05.21", "current-hash"),
+                request
+        );
 
         assertEquals(204, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "127.0.0.1", "JUnit-Agent");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash");
         verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, true);
     }
 
@@ -107,10 +117,13 @@ class TermsControllerTest {
         request.setRemoteAddr(null);
         request.addHeader("User-Agent", "JUnit-Agent");
 
-        var response = controller.acceptBiometricTerms(request);
+        var response = controller.acceptBiometricTerms(
+                new AcceptBiometricTermsRequest("2026.05.21", "current-hash"),
+                request
+        );
 
         assertEquals(204, response.getStatusCode().value());
-        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, "unknown", "JUnit-Agent");
+        verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "unknown", "JUnit-Agent", "2026.05.21", "current-hash");
     }
 
     @Test
@@ -147,6 +160,29 @@ class TermsControllerTest {
         assertEquals(200, response.getStatusCode().value());
         assertEquals(Map.of("accepted", true), response.getBody());
         verify(acceptanceUseCase).hasAcceptedBiometricTerm(employeeId);
+    }
+
+    @Test
+    @DisplayName("current: deve retornar o termo biométrico ativo")
+    void shouldReturnCurrentBiometricTerm() {
+        when(acceptanceUseCase.getCurrentBiometricTerm()).thenReturn(new LegalText(
+                UUID.randomUUID(),
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                "2026.05.21",
+                "Termo de Consentimento Biométrico",
+                "Conteúdo do termo",
+                "current-hash",
+                true,
+                Instant.parse("2026-05-21T09:00:00Z"),
+                Instant.parse("2026-05-21T09:05:00Z")
+        ));
+
+        var response = controller.getCurrentBiometricTerm();
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals(DocumentType.BIOMETRIC_CONSENT_TERM, response.getBody().type());
+        assertEquals("2026.05.21", response.getBody().version());
+        assertEquals("current-hash", response.getBody().contentHashSha256());
     }
 
     private AuthCookieService authCookieService() {

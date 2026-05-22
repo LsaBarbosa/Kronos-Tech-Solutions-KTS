@@ -14,6 +14,7 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.Normalizer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.List;
@@ -31,11 +34,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipInputStream;
+import java.util.HexFormat;
 
 import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 @Service
@@ -45,6 +51,7 @@ public class DocumentService implements DocumentUseCase {
 
     private static final String FORBIDDEN_OTHER_EMPLOYEE_DELETE = "Você não pode apagar documentos de outro funcionário.";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
+    private static final HexFormat HEX = HexFormat.of();
     private static final Map<String, Set<String>> ALLOWED_EXTENSIONS_BY_MIME = Map.of(
             "application/pdf", Set.of("pdf"),
             "image/jpeg", Set.of("jpg", "jpeg"),
@@ -56,6 +63,7 @@ public class DocumentService implements DocumentUseCase {
     private final BucketStorageProvider bucketStorageProvider;
     private final DomainAuthorizationService domainAuthorizationService;
     private final FileScanningProvider fileScanningProvider;
+    private final AuditService auditService;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -90,6 +98,37 @@ public class DocumentService implements DocumentUseCase {
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
 
+            String ipAddress = "unknown";
+            String userAgent = "unknown";
+            try {
+                var requestAttrs = RequestContextHolder.getRequestAttributes();
+                if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
+                    var request = servletAttrs.getRequest();
+                    ipAddress = request.getHeader("X-Forwarded-For");
+                    if (ipAddress == null || ipAddress.isBlank()) {
+                        ipAddress = request.getRemoteAddr();
+                    }
+                    userAgent = request.getHeader("User-Agent");
+                    if (userAgent == null) {
+                        userAgent = "unknown";
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Falha ao obter IP/User-Agent para auditoria de download", e);
+            }
+
+            auditService.register(
+                    AuditAction.DOCUMENT_DOWNLOADED,
+                    doc.employeeId(),
+                    null,
+                    "DOCUMENT",
+                    doc.documentId().toString(),
+                    "LOW",
+                    ipAddress,
+                    userAgent,
+                    String.format("documentId=%s, documentType=%s", doc.documentId(), doc.type())
+            );
+
             return new DocumentWithData(
                     doc.documentId(),
                     doc.employeeId(),
@@ -103,8 +142,8 @@ public class DocumentService implements DocumentUseCase {
         } catch (ResourceNotFoundException e) {
             if (e.getMessage().contains("Arquivo não encontrado")) {
                 kronosMetrics.documentDownloadFailure(documentType, "storage_object_not_found");
-                log.warn("event=document_download result=failure document_type={} reason=storage_object_not_found document_id={} storage_path={}",
-                        documentType, documentId, doc.storagePath());
+                log.warn("event=document_download result=failure document_type={} reason=storage_object_not_found document_id={}",
+                        documentType, documentId);
             } else {
                 kronosMetrics.documentDownloadFailure(documentType, "metadata_not_found");
                 log.warn("event=document_download result=failure document_type={} reason=metadata_not_found document_id={}",
@@ -220,7 +259,8 @@ public class DocumentService implements DocumentUseCase {
                         TIME_ZONE_BRAZIL,
                         timeRecordId,
                         false,
-                        false
+                        false,
+                        calculateSha256(uploadData.data())
                 );
                 documentProvider.save(doc);
             });
@@ -272,7 +312,10 @@ public class DocumentService implements DocumentUseCase {
                     contentType,
                     storagePath,
                     TIME_ZONE_BRAZIL,
-                    timeRecordId,false,false
+                    timeRecordId,
+                    false,
+                    false,
+                    calculateSha256(content)
             );
             documentProvider.save(doc);
 
@@ -440,6 +483,14 @@ public class DocumentService implements DocumentUseCase {
 
     private String normalizeDocumentType(DocumentType type) {
         return type == null ? "unknown" : type.name().toLowerCase(Locale.ROOT);
+    }
+
+    private String calculateSha256(byte[] payload) {
+        try {
+            return HEX.formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
+        }
     }
 
     private record UploadData(byte[] data, String fileName, String contentType) {}

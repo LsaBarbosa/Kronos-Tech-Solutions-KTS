@@ -20,4 +20,5 @@ public interface DocumentProvider {
     List<Document> findByTimeRecordId(Long timeRecordId);
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
     List<Document> findByTimeRecordIds(Collection<Long> timeRecordIds);
+    List<Document> findAllByEmployeeId(UUID employeeId);
 }

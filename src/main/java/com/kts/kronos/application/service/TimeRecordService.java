@@ -739,6 +739,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         String uploadedStoragePath = null;
         String documentFileName = null;
         String documentContentType = null;
+        String documentChecksumSha256 = null;
         Long firstRecordId = null;
 
         for (int i = 0; i < daysBetween; i++) {
@@ -795,6 +796,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                         uploadedStoragePath = uploadedDoc.storagePath();
                         documentFileName = uploadedDoc.fileName();
                         documentContentType = uploadedDoc.contentType();
+                        documentChecksumSha256 = uploadedDoc.checksumSha256();
                         // --------------------------------------------------
 
                     } catch (IOException e) {
@@ -811,7 +813,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                             documentContentType,
                             uploadedStoragePath,
                             TIME_ZONE_BRAZIL,
-                            savedRecord.timeRecordId(), false, false
+                            savedRecord.timeRecordId(),
+                            false,
+                            false,
+                            documentChecksumSha256
                     );
                     documentProvider.save(docToLink);
                 }
