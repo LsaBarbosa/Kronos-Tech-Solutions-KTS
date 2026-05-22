@@ -15,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class CompanyService implements CompanyUseCase {
     private final UserUseCase userUseCase;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final AuthenticationRateLimitService authenticationRateLimitService;
+    private final KronosMetrics kronosMetrics;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -55,6 +57,7 @@ public class CompanyService implements CompanyUseCase {
         );
         try {
             companyProvider.save(company);
+            kronosMetrics.companyCreated();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(COMPANY_ALREADY_EXIST);
         }
@@ -123,6 +126,7 @@ public class CompanyService implements CompanyUseCase {
                 company.inactiveEmployees()
         );
         companyProvider.save(updatedCompany);
+        kronosMetrics.companyUpdated();
     }
 
     @Override

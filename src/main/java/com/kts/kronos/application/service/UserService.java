@@ -19,6 +19,7 @@ import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,6 +47,7 @@ public class UserService implements UserUseCase {
     private final DomainAuthorizationService domainAuthorizationService;
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final AuthenticationRateLimitService authenticationRateLimitService;
+    private final KronosMetrics kronosMetrics;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -71,6 +73,7 @@ public class UserService implements UserUseCase {
         );
         try {
             userProvider.save(user);
+            kronosMetrics.userCreated();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
@@ -136,6 +139,7 @@ public class UserService implements UserUseCase {
 
         try {
             userProvider.save(updated);
+            kronosMetrics.userUpdated();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
