@@ -2,8 +2,10 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -14,6 +16,11 @@ import java.util.UUID;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(
+    name = "kronos.storage.provider",
+    havingValue = "local",
+    matchIfMissing = true
+)
 public class BucketStorageProviderImpl implements BucketStorageProvider {
     private static final String INVALID_STORAGE_PATH = "Caminho de storage inválido.";
 
@@ -21,7 +28,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
     private String rootPath;
 
     @Override
-    public String uploadFile(String originalFileName, byte[] fileData, String contentType) {
+    public String uploadFile(DocumentType documentType, String originalFileName, byte[] fileData, String contentType) {
         try {
             Path filePath = resolveWithinRoot(originalFileName);
 
@@ -42,7 +49,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
     }
 
     @Override
-    public byte[] downloadFile(String objectName) {
+    public byte[] downloadFile(DocumentType documentType, String objectName) {
         try {
             Path filePath = resolveWithinRoot(objectName);
             if (!Files.exists(filePath)) {
@@ -59,7 +66,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
     }
 
     @Override
-    public void deleteFile(String objectName) {
+    public void deleteFile(DocumentType documentType, String objectName) {
         try {
             Path filePath = resolveWithinRoot(objectName);
             Files.deleteIfExists(filePath);
