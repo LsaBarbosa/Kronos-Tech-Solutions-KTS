@@ -35,46 +35,75 @@ class LgpdRequestRetentionProcessorTest {
     }
 
     @Test
-    void shouldCountLgpdRequestsInDryRun() {
+    void shouldCountClosedLgpdRequestsInDryRun() {
         var policy = createPolicy(RetentionExecutionMode.DRY_RUN);
 
-        when(lgpdRequestRepository.countCreatedBefore(any(Instant.class)))
-                .thenReturn(75L);
+        when(lgpdRequestRepository.countClosedRequestsBefore(any(Instant.class)))
+                .thenReturn(45L);
 
         var result = processor.execute(policy, "DRY_RUN");
 
         assertNotNull(result);
         assertEquals("DRY_RUN", result.executionMode());
-        assertEquals(75L, result.scannedCount());
+        assertEquals(45L, result.scannedCount());
         assertEquals(0L, result.affectedCount());
         assertEquals("SUCCESS", result.status());
 
-        verify(lgpdRequestRepository, times(1)).countCreatedBefore(any(Instant.class));
+        verify(lgpdRequestRepository, times(1)).countClosedRequestsBefore(any(Instant.class));
     }
 
     @Test
-    void shouldDeleteLgpdRequestsInApplyMode() {
+    void shouldMinimizeClosedLgpdRequestsInApplyMode() {
         var policy = createPolicy(RetentionExecutionMode.APPLY);
 
-        when(lgpdRequestRepository.deleteCreatedBefore(any(Instant.class)))
-                .thenReturn(60);
+        when(lgpdRequestRepository.minimizeClosedRequestsBefore(any(Instant.class), any(Instant.class), any(String.class)))
+                .thenReturn(35);
 
         var result = processor.execute(policy, "APPLY");
 
         assertNotNull(result);
         assertEquals("APPLY", result.executionMode());
-        assertEquals(60L, result.scannedCount());
-        assertEquals(60L, result.affectedCount());
+        assertEquals(35L, result.scannedCount());
+        assertEquals(35L, result.affectedCount());
         assertEquals("SUCCESS", result.status());
 
-        verify(lgpdRequestRepository, times(1)).deleteCreatedBefore(any(Instant.class));
+        verify(lgpdRequestRepository, times(1)).minimizeClosedRequestsBefore(any(Instant.class), any(Instant.class), any(String.class));
     }
 
     @Test
-    void shouldHandleExceptionDuringExecution() {
+    void shouldNotModifyOpenLgpdRequests() {
         var policy = createPolicy(RetentionExecutionMode.APPLY);
 
-        when(lgpdRequestRepository.deleteCreatedBefore(any(Instant.class)))
+        // Only closed requests (COMPLETED, REJECTED, etc) are minimized, open ones remain unchanged
+        when(lgpdRequestRepository.minimizeClosedRequestsBefore(any(Instant.class), any(Instant.class), any(String.class)))
+                .thenReturn(0);  // No old closed requests
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertNotNull(result);
+        assertEquals("APPLY", result.executionMode());
+        assertEquals(0L, result.affectedCount());
+        assertEquals("SUCCESS", result.status());
+    }
+
+    @Test
+    void shouldHandleExceptionInDryRun() {
+        var policy = createPolicy(RetentionExecutionMode.DRY_RUN);
+
+        when(lgpdRequestRepository.countClosedRequestsBefore(any(Instant.class)))
+                .thenThrow(new RuntimeException("Database error"));
+
+        var result = processor.execute(policy, "DRY_RUN");
+
+        assertEquals("ERROR", result.status());
+        assertNotNull(result.notes());
+    }
+
+    @Test
+    void shouldHandleExceptionInApplyMode() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+
+        when(lgpdRequestRepository.minimizeClosedRequestsBefore(any(Instant.class), any(Instant.class), any(String.class)))
                 .thenThrow(new RuntimeException("Database error"));
 
         var result = processor.execute(policy, "APPLY");
@@ -87,7 +116,7 @@ class LgpdRequestRetentionProcessorTest {
         return new RetentionPolicy(
                 UUID.randomUUID(),
                 "LGPD_REQUEST_POLICY",
-                "Delete old LGPD requests",
+                "Minimize old closed LGPD requests",
                 "LGPD_REQUEST",
                 180,
                 mode,

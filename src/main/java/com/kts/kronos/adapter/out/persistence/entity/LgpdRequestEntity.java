@@ -92,4 +92,10 @@ public class LgpdRequestEntity {
 
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
+
+    @Column(name = "retention_applied_at")
+    private Instant retentionAppliedAt;
+
+    @Column(name = "retention_policy_code", length = 100)
+    private String retentionPolicyCode;
 }
