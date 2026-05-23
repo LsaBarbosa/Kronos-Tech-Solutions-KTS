@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
+import com.kts.kronos.adapter.out.persistence.AnonymizationConsolidatedResultRepository;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -15,6 +16,8 @@ import com.kts.kronos.application.port.out.provider.MessageProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecutor;
+import com.kts.kronos.application.service.LgpdRequestNotificationService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.AuditLog;
 import com.kts.kronos.domain.model.Company;
@@ -94,6 +97,14 @@ class LgpdServiceTest {
     private LegalConsentProvider legalConsentProvider;
     @Mock
     private EmployeeAnonymizationService employeeAnonymizationService;
+    @Mock
+    private AnonymizationPlanExecutor anonymizationPlanExecutor;
+    @Mock
+    private AnonymizationConsolidatedResultRepository anonymizationConsolidatedResultRepository;
+    @Mock
+    private LgpdSlaPolicyService lgpdSlaPolicyService;
+    @Mock
+    private LgpdRequestNotificationService notificationService;
 
     @Test
     void shouldCreateLgpdRequestAndRegisterHistoryAndAudit() {
