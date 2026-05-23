@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.lgpd.AddLgpdRequestNoteRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationConsolidatedResultResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AssignLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
@@ -242,5 +243,17 @@ public class LgpdController {
     ) {
         var updated = lgpdUseCase.cancelRequest(requestId, request.reason());
         return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @GetMapping("/admin/requests/{requestId}/anonymization-result")
+    public ResponseEntity<AnonymizationConsolidatedResultResponse> getAnonymizationResult(
+            @PathVariable UUID requestId
+    ) {
+        var result = lgpdUseCase.getAnonymizationResult(requestId);
+        if (result != null) {
+            return ResponseEntity.ok(AnonymizationConsolidatedResultResponse.from(result));
+        }
+        return ResponseEntity.noContent().build();
     }
 }

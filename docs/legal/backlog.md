@@ -1,1369 +1,1335 @@
-# SPEC — Backlog de Correção e Adequação LGPD do Kronos
+# SPEC — Backlog de Correção das Pendências LGPD Kronos
 
 **Projeto:** Kronos  
 **Branches-alvo:**
 - Back-end: `feature/lgpd-compliance`
 - Front-end: `feature/lgpd-compliance`
 
-**Data da especificação:** 2026-05-22  
-**Responsável técnico sugerido:** Lucas / Engenharia Kronos  
-**Natureza:** backlog técnico-funcional para adequação LGPD.  
-**Observação:** este documento é uma especificação técnica de produto e engenharia. Não substitui parecer jurídico.
+**Documento:** backlog técnico em modelo de especificação  
+**Objetivo:** corrigir pendências remanescentes da auditoria LGPD sem alterar o comportamento atual de liveness.  
+**Importante:** `liveness` permanecerá **não obrigatório**. Não criar tarefa, validação, config ou regra que torne `liveness` obrigatório em produção.
 
 ---
 
-## 1. Objetivo
+# 1. Escopo
 
-Adequar o Kronos aos requisitos técnicos e operacionais relacionados à LGPD, com foco em:
+Este backlog cobre exclusivamente as pendências listadas abaixo:
 
-1. Garantir tratamento adequado de dados pessoais e dados pessoais sensíveis.
-2. Corrigir riscos identificados no fluxo de biometria, exportação, anonimização, retenção, incidentes e segregação multi-tenant.
-3. Criar evidências técnicas de conformidade.
-4. Preparar o sistema para auditoria interna, revisão jurídica e operação em produção.
-
----
-
-## 2. Escopo da adequação
-
-### 2.1 Incluído
-
-- Consentimento biométrico.
-- Cadastro e uso de biometria facial.
-- Registro de ponto com biometria e geolocalização.
-- Revogação de consentimento.
-- Solicitações LGPD.
-- Exportação de dados do titular.
-- Anonimização e pseudonimização.
-- Retenção e descarte.
-- Inventário de tratamento.
-- RIPD para biometria/geolocalização.
-- Incidentes de segurança.
-- Segurança de sessão e cookies.
-- Evidências técnicas e logs de execução.
-- Testes automatizados de conformidade.
-
-### 2.2 Fora do escopo técnico imediato
-
-- Emissão de parecer jurídico definitivo.
-- Definição final de base legal sem validação com contador/jurídico/DPO.
-- Comunicação real à ANPD, salvo implementação de fluxo e evidência.
-- Contratos comerciais com operadores terceiros.
-- Registro público de política jurídica fora do sistema.
+1. Retenção ainda não cobre todos os `RetentionResourceType` declarados.
+2. Scheduler de retenção vem desligado em produção.
+3. Anonimização de registros de ponto ainda é simplificada demais.
+4. Dry-run de anonimização pode subestimar impacto.
+5. Falhas parciais na anonimização podem não bloquear conclusão.
+6. Inventário LGPD pode ter inconsistência de prefixo `/api`.
+7. Exportação no front ainda deveria ter confirmação explícita.
+8. Fluxo de incidentes precisa validar prazo/evidência de comunicação.
+9. Testes/CI não foram comprovados na auditoria.
 
 ---
 
-## 3. Diagnóstico resumido
+# 2. Fora de escopo obrigatório
 
-A branch `feature/lgpd-compliance` já contém uma base relevante:
+## 2.1 Liveness
 
-- Consentimento biométrico com termo versionado.
-- Revogação biométrica.
-- Solicitações LGPD.
-- Painel administrativo LGPD.
-- SLA inicial.
-- Inventário de tratamento.
-- Retenção com executor e processadores.
-- Anonimização com executor e processadores.
-- Logs de retenção e anonimização.
-- Cookies HTTP-only.
-- CSRF.
-- Métricas e observabilidade.
+Não modificar o estado atual do `liveness`.
 
-Porém, ainda existem pontos que exigem correção/validação antes de produção:
+### Regra
 
-| Risco | Severidade | Descrição |
-|---|---:|---|
-| Cadastro biométrico por gestor sem aceite prévio do titular | P0 | `createEmployee` e `updateEmployee` ainda podem processar `faceImageBase64` sem comprovação de consentimento ativo do colaborador. |
-| Possível vazamento multi-tenant em listagem/admin LGPD | P0 | Manager não pode listar solicitações de outras empresas, mesmo que omita `companyId` ou force parâmetro externo. |
-| Exportação de audit logs com identificador incorreto | P0 | Exportação deve usar `userId`, não `employeeId`, para buscar logs de usuário. |
-| Anonimização precisa de prova de execução por domínio | P0 | Existem processadores, mas é necessário garantir integração, resultado, rollback lógico e testes por domínio. |
-| Retenção precisa de validação real por domínio | P0 | Existem executor/processadores, mas é necessário provar `DRY_RUN` e `APPLY`, com logs, escopo e preservação legal. |
-| Inventário front/back precisa validação contratual | P1 | Rotas existem, mas contrato, payloads, permissões e atualização por UUID/processCode precisam ser alinhados. |
-| Liveness deve ser obrigatório em produção | P1 | O default técnico não pode permitir produção sem vivacidade. |
-| RIPD e documentação de alto risco | P1 | Necessário para biometria, geolocalização e controle de jornada. |
-| Incidentes precisam workflow completo | P1 | Deve haver avaliação de risco, decisão de comunicação, prazo e evidências. |
+```text
+NÃO tornar liveness obrigatório.
+NÃO alterar default de liveness.
+NÃO bloquear produção caso liveness esteja false.
+NÃO criar validação em ProductionConfigValidator para exigir liveness.
+NÃO alterar aplicação para exigir liveness em check-in, login facial ou cadastro biométrico além do comportamento atual.
+```
+
+### Justificativa
+
+O projeto decidiu manter `liveness` como não obrigatório neste momento. As correções deste backlog devem respeitar essa decisão.
 
 ---
 
-## 4. Princípios técnicos obrigatórios
+# 3. Definition of Done geral
 
-### 4.1 Privacy by design
+Uma task só pode ser considerada concluída quando:
 
-Toda nova funcionalidade que trate dados pessoais deve declarar:
-
-- dado tratado;
-- finalidade;
-- base legal;
-- titular;
-- origem;
-- retenção;
-- compartilhamento;
-- medida de segurança;
-- forma de exclusão, anonimização ou preservação.
-
-### 4.2 Least privilege
-
-Nenhum usuário pode acessar dados fora do seu papel:
-
-- `PARTNER`: apenas os próprios dados.
-- `MANAGER`: apenas dados da empresa vinculada.
-- `CTO`: acesso administrativo global quando estritamente necessário.
-
-### 4.3 Biometria como dado sensível
-
-Biometria facial deve ter fluxo próprio, com consentimento ou base legal formalmente documentada, evidência, revogação e alternativa operacional.
-
-### 4.4 Evidência técnica
-
-Toda ação sensível deve gerar evidência:
-
-- criação de solicitação LGPD;
-- exportação de dados;
-- revogação biométrica;
-- anonimização;
-- retenção;
-- incidente;
-- alteração de status;
-- rejeição de solicitação;
-- comunicação ao titular.
+- código implementado;
+- testes unitários criados ou ajustados;
+- testes de integração criados ou ajustados quando houver API;
+- front-end ajustado quando houver impacto de tela;
+- contrato front/back validado quando houver rota;
+- logs de auditoria/execução revisados;
+- documentação técnica atualizada;
+- CI executado com sucesso;
+- nenhum ajuste altera o comportamento atual do `liveness`.
 
 ---
 
-# 5. Backlog por Sprints
+# 4. Sprints
 
 ---
 
-# Sprint 0 — Baseline, congelamento e contrato técnico
+# Sprint LGPD-CORR-01 — Cobertura completa de retenção
 
 ## Objetivo
 
-Estabilizar a base antes das correções, garantindo que back-end e front-end estejam sincronizados, testáveis e com contrato mínimo documentado.
+Garantir que todos os valores declarados em `RetentionResourceType` tenham processador explícito, comportamento conhecido, teste e log de execução.
 
-## Resultado esperado
+## Pendência relacionada
 
-Uma baseline confiável da branch `feature/lgpd-compliance`, com CI executando, contratos conhecidos e riscos mapeados.
+> Retenção ainda não cobre todos os `RetentionResourceType` declarados.
+
+## Tipos declarados
+
+```java
+BLACKLISTED_TOKEN,
+PASSWORD_RESET_TOKEN,
+MESSAGE,
+DOCUMENT,
+AUDIT_LOG,
+LEGAL_CONSENT,
+BIOMETRIC_ARTIFACT,
+LGPD_REQUEST
+```
 
 ---
 
-## LGPD-S00-01 — Criar baseline técnica da branch
+## Task LGPD-CORR-01-01 — Criar matriz de cobertura de retenção
 
 **Prioridade:** P0  
-**Tipo:** Infra / Gestão técnica  
-**Backend:** Sim  
-**Frontend:** Sim
+**Tipo:** Back-end / Documentação técnica  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
 
-### Descrição
+### Problema
 
-Criar um ponto de controle da branch `feature/lgpd-compliance`, registrando commit SHA do back-end e front-end, resultado de testes e pendências conhecidas.
+O enum declara vários tipos de retenção, mas nem todos possuem processador dedicado e testado.
 
-### Tarefas técnicas
+### O que fazer
 
-- Registrar SHA atual do back-end.
-- Registrar SHA atual do front-end.
-- Rodar build do back-end.
-- Rodar testes do back-end.
-- Rodar lint/test/build do front-end.
-- Registrar falhas abertas.
-- Criar arquivo `docs/legal/lgpd-baseline-validation.md`.
+Criar documento:
+
+```text
+docs/legal/retention-resource-coverage.md
+```
+
+Com a matriz:
+
+| ResourceType | Processor | Ação DRY_RUN | Ação APPLY | Preserva dado legal? | Testado? |
+|---|---|---|---|---|---|
+| BLACKLISTED_TOKEN | BlacklistedTokenRetentionProcessor | contar expirados | deletar expirados | não aplicável | sim |
+| PASSWORD_RESET_TOKEN | PasswordResetTokenRetentionProcessor | contar expirados | deletar expirados | não aplicável | sim |
+| MESSAGE | MessageRetentionProcessor | contar elegíveis | anonimizar/deletar | depende | sim |
+| DOCUMENT | DocumentRetentionProcessor | contar removíveis/preservados | deletar storage + marcar DB | sim | sim |
+| AUDIT_LOG | AuditLogRetentionProcessor | contar elegíveis | anonimizar detalhes | sim | sim |
+| LEGAL_CONSENT | LegalConsentRetentionProcessor | contar elegíveis | preservar evidência mínima / expurgar excesso | sim | sim |
+| BIOMETRIC_ARTIFACT | BiometricArtifactRetentionProcessor | contar órfãos/revogados | deletar S3/Rekognition | não | sim |
+| LGPD_REQUEST | LgpdRequestRetentionProcessor | contar antigas | preservar registro mínimo | sim | sim |
 
 ### Critérios de aceite
 
-- Existe documento de baseline com SHA das duas branches.
-- Build do back-end foi executado.
-- Build do front-end foi executado.
-- Falhas conhecidas estão listadas.
-- Nenhuma correção P0 começa sem baseline registrada.
+- Documento criado.
+- Todos os `RetentionResourceType` aparecem na matriz.
+- Cada tipo possui decisão explícita.
+- Tipos sem exclusão física possuem justificativa de preservação.
+
+---
+
+## Task LGPD-CORR-01-02 — Separar retenção de token em dois processadores
+
+**Prioridade:** P0  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+O processador atual de tokens suporta `BLACKLISTED_TOKEN`, mas também apaga `PASSWORD_RESET_TOKEN` internamente. Isso cria ambiguidade: uma política com `PASSWORD_RESET_TOKEN` pode não encontrar processor dedicado.
+
+### O que fazer
+
+Criar dois processadores:
+
+```text
+BlacklistedTokenRetentionProcessor
+PasswordResetTokenRetentionProcessor
+```
+
+### Regras
+
+#### BLACKLISTED_TOKEN
+
+- `DRY_RUN`: contar tokens expirados antes do cutoff.
+- `APPLY`: deletar tokens expirados.
+- Não deletar tokens ainda válidos.
+
+#### PASSWORD_RESET_TOKEN
+
+- `DRY_RUN`: contar tokens expirados antes do cutoff.
+- `APPLY`: deletar tokens expirados.
+- Não deletar tokens ainda válidos.
+
+### Critérios de aceite
+
+- `supports()` de cada processor retorna o tipo correto.
+- `RetentionPolicyExecutor` encontra processor para os dois tipos.
+- Teste garante que `PASSWORD_RESET_TOKEN` não cai em warning `retention_no_processor`.
+- Teste garante que `BLACKLISTED_TOKEN` e `PASSWORD_RESET_TOKEN` são processados separadamente.
 
 ### Testes
 
+Criar ou ajustar:
+
+```text
+BlacklistedTokenRetentionProcessorTest
+PasswordResetTokenRetentionProcessorTest
+RetentionPolicyExecutorTest
+```
+
+---
+
+## Task LGPD-CORR-01-03 — Criar `AuditLogRetentionProcessor`
+
+**Prioridade:** P0  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+Logs de auditoria podem conter detalhes sensíveis, mas também são evidência de segurança, LGPD e operação.
+
+### Estratégia
+
+Não deletar todos os logs de forma cega. Implementar anonimização/sanitização de detalhes antigos.
+
+### Regras
+
+#### DRY_RUN
+
+Contar audit logs com:
+
+```text
+createdAt < cutoff
+```
+
+Separar por severidade:
+
+```text
+LOW
+MEDIUM
+HIGH
+SECURITY
+LGPD
+```
+
+#### APPLY
+
+Para logs elegíveis:
+
+- preservar:
+    - `auditLogId`;
+    - `action`;
+    - `createdAt`;
+    - `severity`;
+    - `resourceType`;
+    - `resourceId`;
+    - `companyId`, se necessário para auditoria;
+- sanitizar:
+    - IP completo;
+    - user-agent completo;
+    - detalhes textuais com CPF/e-mail/token;
+    - latitude/longitude;
+    - qualquer base64;
+- marcar campo de retenção, se existir:
+    - `retentionAppliedAt`;
+    - `retentionPolicyCode`.
+
+### Critérios de aceite
+
+- Logs antigos são sanitizados, não necessariamente apagados.
+- Dados sensíveis são mascarados.
+- Eventos de LGPD e segurança preservam evidência mínima.
+- `DRY_RUN` informa quantidade escaneada e quantidade que seria sanitizada.
+- `APPLY` informa quantidade afetada.
+
+### Testes
+
+- Deve mascarar CPF.
+- Deve mascarar e-mail.
+- Deve mascarar token.
+- Deve mascarar IP.
+- Deve preservar ação/evento.
+- Deve criar `RetentionExecutionLog`.
+
+---
+
+## Task LGPD-CORR-01-04 — Criar `LegalConsentRetentionProcessor`
+
+**Prioridade:** P0  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+Consentimentos legais não podem ser simplesmente excluídos, pois são evidência de aceite/revogação. Porém dados acessórios podem ser reduzidos após prazo.
+
+### Estratégia
+
+Preservar evidência mínima e sanitizar dados acessórios após prazo.
+
+### Regras
+
+#### Preservar
+
+- `consentId`;
+- `employeeId`, se necessário;
+- `consentType`;
+- `legalBasis`;
+- `purpose`;
+- `version`;
+- `grantedAt`;
+- `revokedAt`;
+- `evidenceDocumentId`;
+- `contentHash`.
+
+#### Sanitizar após retenção
+
+- IP;
+- user-agent;
+- qualquer metadado excessivo.
+
+### Critérios de aceite
+
+- Consentimento ativo não é removido.
+- Consentimento revogado antigo é minimizado.
+- Evidência documental permanece referenciável.
+- Logs de execução registram afetados/preservados.
+
+### Testes
+
+- Consentimento ativo não é alterado.
+- Consentimento revogado antigo é minimizado.
+- Consentimento recente não é alterado.
+- Execução gera log.
+
+---
+
+## Task LGPD-CORR-01-05 — Criar `BiometricArtifactRetentionProcessor`
+
+**Prioridade:** P0  
+**Tipo:** Back-end / Storage / Rekognition  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+Artefatos biométricos devem ser removidos quando o consentimento é revogado, quando estiverem órfãos ou quando não houver base legal/finalidade.
+
+### Escopo
+
+Processar:
+
+- imagem facial em S3;
+- template/face indexada no Rekognition;
+- referência `faceS3ObjectKey` em `Employee`.
+
+### Regras
+
+#### DRY_RUN
+
+Contar:
+
+- colaboradores com `faceS3ObjectKey` e sem consentimento ativo;
+- colaboradores com consentimento revogado;
+- imagens órfãs, se houver forma segura de detectar;
+- divergências S3/Rekognition/DB.
+
+#### APPLY
+
+Para colaborador sem consentimento ativo:
+
+- deletar imagem no S3;
+- deletar faces no Rekognition por `externalImageId`;
+- limpar `faceS3ObjectKey`;
+- gerar log de retenção.
+
+### Critérios de aceite
+
+- Não remove biometria de colaborador com consentimento ativo.
+- Remove biometria de colaborador sem consentimento ativo.
+- Erro parcial de S3/Rekognition retorna `PARTIAL`.
+- Não vaza imagem/base64 em log.
+
+### Testes
+
+- Consentimento ativo preserva biometria.
+- Consentimento revogado remove biometria.
+- S3 falhando gera resultado parcial.
+- Rekognition falhando gera resultado parcial.
+
+---
+
+## Task LGPD-CORR-01-06 — Criar `LgpdRequestRetentionProcessor`
+
+**Prioridade:** P1  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+Solicitações LGPD devem ser preservadas como evidência mínima, mas dados excessivos nas descrições/notas podem ser reduzidos após prazo.
+
+### Estratégia
+
+Minimizar solicitações antigas encerradas.
+
+### Elegíveis
+
+```text
+status in COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED
+resolvedAt < cutoff
+```
+
+### APPLY
+
+Preservar:
+
+- `requestId`;
+- `employeeId` ou identificador pseudonimizado;
+- `companyId`;
+- `requestType`;
+- `status`;
+- `createdAt`;
+- `resolvedAt`;
+- `closedReason`, se necessário.
+
+Sanitizar:
+
+- descrição longa;
+- notas internas;
+- notas públicas com dados pessoais;
+- campos livres.
+
+### Critérios de aceite
+
+- Solicitações abertas não são alteradas.
+- Solicitações encerradas antigas são minimizadas.
+- Histórico mantém evento mínimo.
+- Não remove prova de atendimento.
+
+---
+
+# Sprint LGPD-CORR-02 — Ativação controlada do scheduler de retenção
+
+## Objetivo
+
+Ativar retenção em produção de forma controlada, sem causar exclusão indevida.
+
+## Pendência relacionada
+
+> Scheduler de retenção vem desligado em produção.
+
+---
+
+## Task LGPD-CORR-02-01 — Alterar configuração de produção para scheduler habilitado em DRY_RUN
+
+**Prioridade:** P0  
+**Tipo:** Back-end / DevOps  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Regra
+
+Habilitar scheduler de retenção em produção, mas garantir que as políticas iniciais estejam em `DRY_RUN`.
+
+### O que fazer
+
+Alterar documentação e exemplo de env de produção para:
+
+```env
+LGPD_RETENTION_SCHEDULER_ENABLED=true
+```
+
+Não alterar política para `APPLY` automaticamente.
+
+### Critérios de aceite
+
+- Scheduler roda em produção quando env estiver configurado.
+- Políticas padrão continuam `DRY_RUN`.
+- Logs indicam claramente:
+    - policyCode;
+    - resourceType;
+    - mode;
+    - scanned;
+    - affected;
+    - skipped;
+    - errors.
+
+---
+
+## Task LGPD-CORR-02-02 — Criar trava de segurança para `APPLY`
+
+**Prioridade:** P0  
+**Tipo:** Segurança operacional  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+`APPLY` não pode ser ativado por engano.
+
+### O que fazer
+
+Adicionar flag global:
+
+```env
+LGPD_RETENTION_ALLOW_APPLY=false
+```
+
+### Regra
+
+Se policy estiver `dryRun=false`, mas `LGPD_RETENTION_ALLOW_APPLY=false`, o executor deve:
+
+- não executar `APPLY`;
+- registrar log de bloqueio;
+- gerar `RetentionExecutionLog` com status `BLOCKED`;
+- não alterar dados.
+
+### Critérios de aceite
+
+- `APPLY` só executa quando:
+    - policy `dryRun=false`;
+    - `LGPD_RETENTION_ALLOW_APPLY=true`;
+    - policy está ativa.
+- Teste garante bloqueio quando flag estiver false.
+
+---
+
+## Task LGPD-CORR-02-03 — Criar relatório de execução de retenção
+
+**Prioridade:** P1  
+**Tipo:** Observabilidade / Admin  
+**Back-end:** Sim  
+**Front-end:** Opcional
+
+### Endpoint sugerido
+
+```http
+GET /api/lgpd/retention/executions
+GET /api/lgpd/retention/executions/{executionId}
+```
+
+### Dados
+
+- executionId;
+- policyCode;
+- resourceType;
+- mode;
+- status;
+- scannedCount;
+- affectedCount;
+- skippedCount;
+- errorCount;
+- startedAt;
+- finishedAt;
+- errorMessage.
+
+### Critérios de aceite
+
+- CTO consegue consultar execuções.
+- Falhas ficam visíveis.
+- Execução `BLOCKED` aparece com motivo.
+
+---
+
+# Sprint LGPD-CORR-03 — Anonimização de registros de ponto
+
+## Objetivo
+
+Corrigir a simplificação excessiva da anonimização de registros de ponto, separando preservação legal, pseudonimização e remoção de dados excessivos.
+
+## Pendências relacionadas
+
+- Anonimização de registros de ponto ainda é simplificada demais.
+- Dry-run de anonimização pode subestimar impacto.
+
+---
+
+## Task LGPD-CORR-03-01 — Definir estratégia formal para `TimeRecord`
+
+**Prioridade:** P0  
+**Tipo:** Domínio / Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+O comportamento atual apenas limpa latitude/longitude, independentemente de `preserveLaborData`.
+
+### Regra proposta
+
+#### Quando `preserveLaborData=true`
+
+Preservar:
+
+- `timeRecordId`;
+- datas e horários;
+- status;
+- NSR;
+- empresa;
+- vínculo mínimo com colaborador se necessário para obrigação trabalhista/fiscal.
+
+Remover ou minimizar:
+
+- latitude;
+- longitude;
+- endLatitude;
+- endLongitude;
+- detalhes excessivos;
+- metadados de dispositivo, se houver.
+
+#### Quando `preserveLaborData=false`
+
+Aplicar anonimização mais forte:
+
+- remover geolocalização;
+- pseudonimizar ou desvincular `employeeId`, se juridicamente permitido;
+- preservar apenas estatística/histórico mínimo quando necessário.
+
+### Critérios de aceite
+
+- Com `preserveLaborData=true`, dados legais de ponto são preservados.
+- Com `preserveLaborData=false`, anonimização é mais forte.
+- O comportamento não é igual nos dois cenários.
+- Decisão fica documentada.
+
+---
+
+## Task LGPD-CORR-03-02 — Corrigir `TimeRecordAnonymizer.executeDryRun`
+
+**Prioridade:** P0  
+**Tipo:** Bug  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+O dry-run encontra registros, mas retorna `affectedCount=0`, fazendo o resumo parecer que nada será alterado.
+
+### O que fazer
+
+Alterar retorno do dry-run para separar:
+
+```text
+scannedCount = total encontrado
+affectedCount = total que seria alterado
+skippedCount = total preservado sem alteração
+```
+
+### Regra
+
+Se a execução `APPLY` alteraria geolocalização de 10 registros, o dry-run deve retornar:
+
+```text
+scannedCount = 10
+affectedCount = 10
+skippedCount = 0
+```
+
+Se 5 forem preservados sem alteração:
+
+```text
+scannedCount = 10
+affectedCount = 5
+skippedCount = 5
+```
+
+### Critérios de aceite
+
+- Dry-run mostra impacto real.
+- Tela/admin não mostra zero quando existem registros afetáveis.
+- Teste cobre registros com e sem geolocalização.
+
+---
+
+## Task LGPD-CORR-03-03 — Ajustar `AnonymizationDryRunResponse`
+
+**Prioridade:** P0  
+**Tipo:** Contrato API  
+**Back-end:** Sim  
+**Front-end:** Sim
+
+### Problema
+
+O response atual deve diferenciar escaneado, afetado, preservado e erro.
+
+### Modelo sugerido
+
+```json
+{
+  "employeeId": "uuid",
+  "summary": {
+    "totalScanned": 100,
+    "totalAffected": 80,
+    "totalSkipped": 20,
+    "totalErrors": 0
+  },
+  "domains": [
+    {
+      "resourceType": "TIME_RECORD",
+      "scanned": 20,
+      "affected": 20,
+      "skipped": 0,
+      "action": "REMOVE_PRECISE_GEOLOCATION",
+      "warning": "Registros trabalhistas serão preservados."
+    }
+  ],
+  "warnings": []
+}
+```
+
+### Critérios de aceite
+
+- Front mostra impacto por domínio.
+- Admin entende o que será alterado antes de confirmar.
+- Response não subestima registros afetados.
+
+---
+
+# Sprint LGPD-CORR-04 — Controle de falhas parciais na anonimização
+
+## Objetivo
+
+Impedir que uma anonimização parcial seja tratada como sucesso total.
+
+## Pendência relacionada
+
+> Falhas parciais na anonimização podem não bloquear conclusão.
+
+---
+
+## Task LGPD-CORR-04-01 — Criar status consolidado de anonimização
+
+**Prioridade:** P0  
+**Tipo:** Back-end / Domínio  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Problema
+
+O executor pode registrar erro de processador, retornar `null` e continuar a execução.
+
+### O que fazer
+
+Criar status consolidado:
+
+```java
+SUCCESS
+PARTIAL_SUCCESS
+FAILED
+BLOCKED
+```
+
+### Regra
+
+- `SUCCESS`: todos os processadores obrigatórios executaram sem erro.
+- `PARTIAL_SUCCESS`: pelo menos um processador falhou, mas outros concluíram.
+- `FAILED`: nenhum processador crítico concluiu.
+- `BLOCKED`: execução impedida por regra de segurança.
+
+### Critérios de aceite
+
+- Executor nunca retorna sucesso silencioso com processador falhando.
+- Resultado final inclui lista de domínios com falha.
+- Falha parcial fica visível no log e na resposta.
+
+---
+
+## Task LGPD-CORR-04-02 — Bloquear conclusão automática de solicitação LGPD se anonimização falhar parcialmente
+
+**Prioridade:** P0  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Regra
+
+Uma solicitação de anonimização/exclusão não pode ir para `COMPLETED` se a execução ficou `PARTIAL_SUCCESS` ou `FAILED`.
+
+### Comportamento
+
+- Se `SUCCESS`: permitir conclusão.
+- Se `PARTIAL_SUCCESS`: manter solicitação em `IN_ANALYSIS` ou `WAITING_LEGAL_REVIEW`.
+- Se `FAILED`: manter em `IN_ANALYSIS` e registrar erro.
+- Se admin quiser concluir mesmo com parcial:
+    - exigir justificativa;
+    - status deve ser `PARTIALLY_COMPLETED`, não `COMPLETED`.
+
+### Critérios de aceite
+
+- Solicitação não é concluída como completa com falha parcial.
+- Histórico registra quais domínios falharam.
+- Admin vê motivo da falha.
+
+---
+
+## Task LGPD-CORR-04-03 — Criar tela/resumo de resultado de anonimização
+
+**Prioridade:** P1  
+**Tipo:** Front-end  
+**Repositório:** `Kronos-Tech-Solution-User-Plataform`
+
+### O que mostrar
+
+- status final;
+- domínios processados;
+- escaneados;
+- afetados;
+- preservados;
+- erros;
+- mensagens;
+- ação recomendada.
+
+### Critérios de aceite
+
+- Admin não fica sem feedback.
+- Falha parcial aparece visualmente.
+- Botão “Concluir solicitação” fica bloqueado se status não permitir.
+
+---
+
+# Sprint LGPD-CORR-05 — Inventário LGPD e prefixo `/api`
+
+## Objetivo
+
+Remover risco de divergência entre rotas do front-end e do back-end no inventário LGPD.
+
+## Pendência relacionada
+
+> Inventário LGPD pode ter inconsistência de prefixo `/api`.
+
+---
+
+## Task LGPD-CORR-05-01 — Padronizar prefixo das rotas LGPD
+
+**Prioridade:** P0  
+**Tipo:** Contrato front/back  
+**Back-end:** Sim  
+**Front-end:** Sim
+
+### Problema
+
+O inventário está exposto no back-end com:
+
+```text
+/api/lgpd/inventory
+```
+
+Enquanto outros endpoints LGPD podem ser montados por constantes diferentes.
+
+### Decisão necessária
+
+Escolher uma única convenção.
+
+#### Opção recomendada
+
+Back-end expõe tudo sob:
+
+```text
+/api/lgpd/**
+```
+
+Front-end `api.baseURL` deve apontar para domínio base, sem duplicar `/api`.
+
+Exemplo:
+
+```env
+VITE_API_BASE_URL=https://api.kronostechsolutions.com
+```
+
+E o front monta:
+
+```text
+/api/lgpd/inventory
+/api/lgpd/requests
+```
+
+### Tarefas
+
+- Revisar `API_ROUTES.LGPD`.
+- Revisar `buildRoute`.
+- Revisar `DataProcessingInventoryController`.
+- Revisar `LgpdController`.
+- Garantir que inventário e solicitações usem o mesmo prefixo.
+- Criar teste de contrato.
+
+### Critérios de aceite
+
+- Front chama exatamente a URL esperada pelo back.
+- Inventário lista, cria e atualiza em ambiente integrado.
+- Não há duplicidade `/api/api`.
+- Não há chamada sem `/api` quando back exige `/api`.
+
+---
+
+## Task LGPD-CORR-05-02 — Corrigir atualização de inventário por `inventoryId` ou `processCode`
+
+**Prioridade:** P1  
+**Tipo:** Contrato API  
+**Back-end:** Sim  
+**Front-end:** Sim
+
+### Problema
+
+O front pode operar por `processCode`, enquanto o back atualiza por `inventoryId`.
+
+### Escolher padrão
+
+#### Padrão recomendado
+
+- Buscar por `processCode`.
+- Atualizar por `inventoryId`.
+
+### Tarefas
+
+- Garantir que tela de edição carregue inventário por `processCode`.
+- Guardar `inventoryId` retornado.
+- Enviar `PATCH /api/lgpd/inventory/{inventoryId}`.
+- Ajustar types do front.
+
+### Critérios de aceite
+
+- Criar inventário funciona.
+- Editar inventário existente funciona.
+- Buscar por processCode funciona.
+- Atualização não tenta enviar processCode no path errado.
+
+---
+
+# Sprint LGPD-CORR-06 — Confirmação explícita na exportação do titular
+
+## Objetivo
+
+Evitar download impulsivo de arquivo contendo dados pessoais e potencialmente sensíveis.
+
+## Pendência relacionada
+
+> Exportação no front ainda deveria ter confirmação explícita.
+
+---
+
+## Task LGPD-CORR-06-01 — Criar modal de confirmação antes da exportação
+
+**Prioridade:** P1  
+**Tipo:** Front-end / UX LGPD  
+**Repositório:** `Kronos-Tech-Solution-User-Plataform`
+
+### Tela
+
+`PrivacyCenter`
+
+### Comportamento atual
+
+Usuário clica em “Exportar Meus Dados” e o download inicia diretamente.
+
+### Novo comportamento
+
+Ao clicar, abrir modal:
+
+```text
+Você está prestes a exportar seus dados pessoais.
+
+O arquivo pode conter CPF, PIS, endereço, salário, documentos,
+histórico de ponto, geolocalização, mensagens, logs e consentimentos.
+
+Guarde este arquivo em local seguro e não compartilhe com terceiros.
+
+Deseja continuar?
+```
+
+### Botões
+
+- `Cancelar`
+- `Confirmar exportação`
+
+### Critérios de aceite
+
+- Exportação só ocorre após confirmação.
+- Modal informa que pode haver dados sensíveis.
+- Botão mostra loading após confirmação.
+- Erro de exportação aparece em toast.
+- Download mantém nome padronizado.
+
+---
+
+## Task LGPD-CORR-06-02 — Exibir resumo do manifesto após exportação
+
+**Prioridade:** P2  
+**Tipo:** Front-end  
+**Repositório:** `Kronos-Tech-Solution-User-Plataform`
+
+### O que fazer
+
+Após download, mostrar toast ou card com:
+
+- data/hora da exportação;
+- se geolocalização precisa foi incluída;
+- seções exportadas;
+- aviso de armazenamento seguro.
+
+### Critérios de aceite
+
+- Usuário entende o conteúdo exportado.
+- Não exibir dados pessoais no toast.
+- Apenas metadados seguros.
+
+---
+
+# Sprint LGPD-CORR-07 — Incidentes de segurança com prazo e evidência
+
+## Objetivo
+
+Garantir que incidentes com comunicação obrigatória tenham prazo, evidência e bloqueios mínimos antes do encerramento.
+
+## Pendência relacionada
+
+> Fluxo de incidentes precisa validar prazo/evidência de comunicação.
+
+---
+
+## Task LGPD-CORR-07-01 — Validar prazos quando comunicação for obrigatória
+
+**Prioridade:** P0  
+**Tipo:** Back-end / Segurança  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Regra
+
+Se:
+
+```text
+communicationRequired = true
+```
+
+Então exigir:
+
+```text
+anpdCommunicationDeadline
+subjectsCommunicationDeadline
+```
+
+### Comportamento
+
+- Rejeitar avaliação de risco sem prazos.
+- Registrar auditoria.
+- Retornar erro padronizado.
+
+### Erro sugerido
+
+```json
+{
+  "code": "INCIDENT_COMMUNICATION_DEADLINE_REQUIRED",
+  "message": "Prazos de comunicação à ANPD e aos titulares são obrigatórios quando a comunicação é requerida."
+}
+```
+
+### Critérios de aceite
+
+- Incidente com comunicação obrigatória não salva sem prazos.
+- Incidente sem comunicação obrigatória pode salvar sem prazos.
+- Testes cobrem os dois cenários.
+
+---
+
+## Task LGPD-CORR-07-02 — Bloquear encerramento de incidente sem evidência
+
+**Prioridade:** P0  
+**Tipo:** Back-end  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Regra
+
+Se incidente estiver indo para status final:
+
+```text
+CLOSED
+RESOLVED
+```
+
+E `communicationRequired = true`, exigir:
+
+- `notifiedAnpdAt` ou justificativa formal;
+- `notifiedSubjectsAt` ou justificativa formal;
+- `evidenceLinks`;
+- `correctiveActions`.
+
+### Critérios de aceite
+
+- Incidente com comunicação obrigatória não encerra sem evidência.
+- Incidente sem comunicação obrigatória exige pelo menos plano corretivo.
+- Histórico registra tentativa bloqueada.
+
+---
+
+## Task LGPD-CORR-07-03 — Criar alerta de prazo de incidente
+
+**Prioridade:** P1  
+**Tipo:** Back-end / Observabilidade  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### O que fazer
+
+Criar scheduler ou métrica para incidentes:
+
+- com `communicationRequired=true`;
+- sem `notifiedAnpdAt`;
+- com deadline próximo ou vencido.
+
+### Métricas sugeridas
+
+```text
+kronos_security_incident_communication_due_total
+kronos_security_incident_communication_overdue_total
+```
+
+### Critérios de aceite
+
+- Incidente vencido gera log/metric.
+- Incidente próximo do prazo aparece em métrica.
+- Não há dados pessoais nas tags da métrica.
+
+---
+
+# Sprint LGPD-CORR-08 — Testes e CI de conformidade
+
+## Objetivo
+
+Comprovar por testes automatizados que as correções funcionam e não terão regressão.
+
+## Pendência relacionada
+
+> Testes/CI não foram comprovados nesta auditoria.
+
+---
+
+## Task LGPD-CORR-08-01 — Criar suíte de testes back-end LGPD P0
+
+**Prioridade:** P0  
+**Tipo:** Testes  
+**Repositório:** `Kronos-Tech-Solutions-KTS`
+
+### Testes obrigatórios
+
+#### Biometria
+
+- manager não cria colaborador com `faceImageBase64`;
+- manager não atualiza colaborador com `faceImageBase64`;
+- titular só cadastra biometria com consentimento ativo;
+- titular sem consentimento recebe erro.
+
+#### Multi-tenant
+
+- manager A não lista solicitações da empresa B;
+- manager A não acessa detalhes de solicitação da empresa B;
+- manager A não exporta dados de colaborador da empresa B;
+- CTO acessa dados globais.
+
+#### Exportação
+
+- export usa `userId`;
+- export inclui manifesto;
+- export sem usuário não falha;
+- export de terceiro exige justificativa.
+
+#### Retenção
+
+- cada `RetentionResourceType` tem processor;
+- `DRY_RUN` não altera dados;
+- `APPLY` bloqueado quando flag global não permite;
+- `APPLY` altera quando flag permite.
+
+#### Anonimização
+
+- dry-run mostra impacto correto;
+- falha parcial retorna `PARTIAL_SUCCESS`;
+- solicitação não conclui como `COMPLETED` com falha parcial.
+
+#### Incidentes
+
+- comunicação obrigatória exige deadlines;
+- encerramento exige evidência;
+- relatório só gera após avaliação de risco.
+
+### Critérios de aceite
+
+- Todos os testes passam localmente.
+- CI executa a suíte.
+- Falha em qualquer teste P0 bloqueia merge.
+
+---
+
+## Task LGPD-CORR-08-02 — Criar suíte front-end LGPD
+
+**Prioridade:** P1  
+**Tipo:** Testes  
+**Repositório:** `Kronos-Tech-Solution-User-Plataform`
+
+### Testes obrigatórios
+
+- Privacy Center renderiza.
+- Exportação abre modal antes do download.
+- Cancelar modal não chama API.
+- Confirmar modal chama API.
+- Inventário usa rota correta.
+- Admin vê falha parcial de anonimização.
+- Admin não consegue concluir solicitação quando backend retorna bloqueio.
+- Solicitações LGPD exibem status novos.
+
+### Critérios de aceite
+
+- `npm run test` passa.
+- Testes cobrem fluxos principais.
+- Não há snapshot frágil desnecessário.
+
+---
+
+## Task LGPD-CORR-08-03 — Atualizar pipeline de CI
+
+**Prioridade:** P0  
+**Tipo:** DevOps / CI  
+**Back-end:** Sim  
+**Front-end:** Sim
+
+### Back-end CI
+
+Executar:
+
 ```bash
 ./gradlew clean test
+```
+
+Gerar relatório:
+
+```text
+build/reports/tests/test/index.html
+```
+
+### Front-end CI
+
+Executar:
+
+```bash
 npm ci
 npm run lint
 npm run test
 npm run build
 ```
 
+### Critérios de aceite
+
+- PR falha se back-end falhar.
+- PR falha se front-end falhar.
+- Artefatos de testes ficam disponíveis.
+- Documentar resultado em `docs/legal/evidence/ci-validation.md`.
+
 ---
 
-## LGPD-S00-02 — Consolidar contrato OpenAPI LGPD
+## Task LGPD-CORR-08-04 — Criar evidência final da auditoria técnica
 
-**Prioridade:** P0  
-**Tipo:** Contrato API  
-**Backend:** Sim  
-**Frontend:** Sim
+**Prioridade:** P1  
+**Tipo:** Documentação  
+**Back-end:** Sim  
+**Front-end:** Sim
 
-### Descrição
-
-Gerar ou atualizar o contrato OpenAPI dos endpoints LGPD, incluindo solicitações, exportação, anonimização, inventário, incidentes e termos.
-
-### Endpoints mínimos
+### Arquivo
 
 ```text
-GET    /lgpd/requests
-POST   /lgpd/requests
-GET    /lgpd/requests/{requestId}
-GET    /lgpd/requests/{requestId}/history
-GET    /lgpd/employees/{employeeId}/export
-POST   /lgpd/employees/{employeeId}/anonymize
-
-GET    /lgpd/admin/requests
-GET    /lgpd/admin/requests/{requestId}
-PATCH  /lgpd/admin/requests/{requestId}/assign
-POST   /lgpd/admin/requests/{requestId}/notes
-POST   /lgpd/admin/requests/{requestId}/complete
-POST   /lgpd/admin/requests/{requestId}/reject
-
-GET    /api/lgpd/inventory
-GET    /api/lgpd/inventory/active
-GET    /api/lgpd/inventory/{processCode}
-POST   /api/lgpd/inventory
-PATCH  /api/lgpd/inventory/{inventoryId}
-
-GET    /terms/status
-GET    /terms/biometric/current
-POST   /terms/accept-biometric
-DELETE /terms/revoke-biometric
-```
-
-### Critérios de aceite
-
-- Front-end não usa rota inexistente.
-- Back-end documenta payloads de entrada e saída.
-- Contrato distingue rotas `/lgpd/*` e `/api/lgpd/*`, ou padroniza ambas.
-- Testes de contrato falham se rota usada no front não existir no back.
-
----
-
-# Sprint 1 — Biometria e consentimento do titular
-
-## Objetivo
-
-Eliminar o risco de cadastro/uso de biometria sem consentimento válido do titular.
-
----
-
-## LGPD-S01-01 — Bloquear cadastro biométrico por gestor sem consentimento
-
-**Prioridade:** P0  
-**Tipo:** Correção legal/técnica  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Problema
-
-O gestor pode criar ou atualizar colaborador enviando `faceImageBase64`, fazendo upload/indexação biométrica sem comprovação de consentimento ativo do titular.
-
-### Regra de negócio
-
-O gestor pode cadastrar dados administrativos do colaborador, mas não pode cadastrar biometria facial em nome do titular sem fluxo formal de aceite.
-
-### Backend — tarefas
-
-- Remover o processamento automático de `faceImageBase64` em `createEmployee`.
-- Remover o processamento automático de `faceImageBase64` em `updateEmployee`.
-- Rejeitar payload com `faceImageBase64` nesses endpoints, ou ignorar com erro de validação explícito.
-- Criar exceção padronizada:
-
-```json
-{
-  "code": "BIOMETRIC_ENROLLMENT_REQUIRES_DATA_SUBJECT_ACTION",
-  "message": "A biometria deve ser cadastrada pelo próprio titular após aceite do termo."
-}
-```
-
-- Criar endpoint próprio para cadastro biométrico pelo titular autenticado:
-
-```text
-POST /employee/me/biometric-enrollment
-```
-
-- O endpoint deve exigir:
-    - usuário autenticado;
-    - consentimento biométrico ativo;
-    - liveness quando ambiente for produção;
-    - rate limit;
-    - auditoria;
-    - substituição segura da face anterior.
-
-### Frontend — tarefas
-
-- Remover upload/captura facial da tela de criação/edição de colaborador feita por gestor.
-- Exibir mensagem: “A biometria deve ser cadastrada pelo próprio colaborador no primeiro uso do recurso biométrico.”
-- Criar tela/modal “Cadastrar minha biometria”.
-- Proteger o cadastro com `BiometricConsentGuard`.
-
-### Critérios de aceite
-
-- Manager não consegue cadastrar face de colaborador em `createEmployee`.
-- Manager não consegue alterar face de colaborador em `updateEmployee`.
-- Colaborador consegue cadastrar a própria face após aceitar termo.
-- Revogação remove a face e exige novo aceite/cadastro para uso biométrico.
-- Toda tentativa bloqueada gera log sem armazenar a imagem.
-
-### Testes obrigatórios
-
-- Unit test: `createEmployee` com `faceImageBase64` retorna erro.
-- Unit test: `updateEmployee` com `faceImageBase64` retorna erro.
-- Integration test: endpoint próprio de biometria exige consentimento.
-- E2E: gestor cria colaborador sem campo biométrico.
-- E2E: colaborador aceita termo e cadastra biometria.
-
----
-
-## LGPD-S01-02 — Formalizar fluxo de consentimento biométrico
-
-**Prioridade:** P0  
-**Tipo:** Produto / Legal Tech  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Descrição
-
-Garantir que o aceite biométrico seja específico, destacado, versionado, auditável e revogável.
-
-### Tarefas
-
-- Confirmar que `LegalText` possui:
-    - versão;
-    - hash;
-    - conteúdo;
-    - tipo;
-    - data de ativação;
-    - status ativo.
-- Garantir que `LegalConsent` registre:
-    - versão;
-    - IP;
-    - user-agent;
-    - data;
-    - hash da evidência;
-    - documento de evidência;
-    - finalidade;
-    - base legal.
-- Exibir claramente no front:
-    - finalidade;
-    - quais dados são coletados;
-    - que a biometria é sensível;
-    - como revogar;
-    - consequência da recusa/revogação.
-- Revisar texto para remover ambiguidade entre:
-    - consentimento;
-    - obrigação legal;
-    - execução de contrato;
-    - controle de jornada.
-
-### Critérios de aceite
-
-- O termo não usa texto genérico.
-- O aceite é específico para biometria.
-- A recusa não bloqueia a plataforma inteira.
-- A revogação não bloqueia login por senha.
-- O termo exibido no front corresponde ao hash enviado ao back.
-
----
-
-## LGPD-S01-03 — Ativar liveness obrigatório em produção
-
-**Prioridade:** P1  
-**Tipo:** Segurança biométrica  
-**Backend:** Sim  
-**DevOps:** Sim
-
-### Tarefas
-
-- Definir `app.biometric.liveness-required=true` no profile `prod`.
-- Adicionar `ProductionConfigValidator` impedindo boot em produção com liveness desligado.
-- Criar teste de contexto de produção.
-- Registrar métrica de falha de liveness.
-- Criar alerta operacional para picos de falha.
-
-### Critérios de aceite
-
-- Aplicação não sobe em `prod` se liveness estiver `false`.
-- Login facial e ponto biométrico exigem liveness.
-- Ambiente local pode manter configuração flexível.
-
----
-
-# Sprint 2 — Isolamento multi-tenant e autorização LGPD
-
-## Objetivo
-
-Eliminar risco de exposição de dados entre empresas diferentes.
-
----
-
-## LGPD-S02-01 — Corrigir listagem administrativa LGPD para Manager
-
-**Prioridade:** P0  
-**Tipo:** Segurança / Autorização  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Problema
-
-Manager não pode listar solicitações LGPD de outras empresas, com ou sem filtro `companyId`.
-
-### Backend — regra
-
-```text
-CTO:
-  pode listar todas as empresas
-  pode filtrar por companyId
-
-MANAGER:
-  sempre limitado à empresa do próprio manager
-  ignora companyId externo ou rejeita se companyId != empresa do manager
-
-PARTNER:
-  não acessa endpoints admin
-```
-
-### Tarefas
-
-- Alterar `LgpdService.listAdminRequests`.
-- Usar `DomainAuthorizationService.authorizeCompanyAccess`.
-- Se role `MANAGER`:
-    - obter `companyId` do colaborador autenticado;
-    - aplicar filtro obrigatório;
-    - rejeitar companyId divergente.
-- Adicionar logs de tentativa de acesso indevido.
-- Criar teste de segurança multi-tenant.
-
-### Critérios de aceite
-
-- Manager da empresa A não lista solicitações da empresa B.
-- Manager da empresa A não acessa detalhe de solicitação da empresa B.
-- Manager da empresa A não atribui/conclui/rejeita solicitação da empresa B.
-- CTO mantém acesso global.
-- Testes automatizados cobrem os cenários.
-
----
-
-## LGPD-S02-02 — Endurecer autorização em detalhes e ações administrativas
-
-**Prioridade:** P0  
-**Tipo:** Segurança  
-**Backend:** Sim
-
-### Tarefas
-
-Validar tenant em:
-
-```text
-GET   /lgpd/admin/requests/{requestId}
-PATCH /lgpd/admin/requests/{requestId}/assign
-POST  /lgpd/admin/requests/{requestId}/notes
-POST  /lgpd/admin/requests/{requestId}/complete
-POST  /lgpd/admin/requests/{requestId}/reject
-```
-
-### Critérios de aceite
-
-- Toda ação administrativa passa por autorização de empresa.
-- Falha retorna 403 ou 404 sem vazar existência do recurso.
-- Auditoria registra tentativa negada.
-
----
-
-# Sprint 3 — Exportação de dados do titular
-
-## Objetivo
-
-Garantir que a exportação seja completa, correta, segura e compreensível.
-
----
-
-## LGPD-S03-01 — Corrigir exportação de audit logs
-
-**Prioridade:** P0  
-**Tipo:** Bug  
-**Backend:** Sim
-
-### Problema
-
-A exportação deve buscar logs por `userId`, não por `employeeId`.
-
-### Tarefas
-
-- Alterar `LgpdService.exportEmployeeData`.
-- Obter usuário por `employeeId`.
-- Buscar logs por `user.userId()`.
-- Se não houver usuário, retornar lista vazia e registrar observação no manifesto.
-- Criar teste unitário.
-
-### Critérios de aceite
-
-- Exportação de colaborador com usuário inclui audit logs corretos.
-- Exportação de colaborador sem usuário não falha.
-- Nenhuma busca usa `employeeId` como `userId`.
-
----
-
-## LGPD-S03-02 — Criar manifesto da exportação
-
-**Prioridade:** P1  
-**Tipo:** Transparência  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Descrição
-
-Toda exportação deve conter metadados explicando o que foi exportado.
-
-### Campos mínimos
-
-```json
-{
-  "exportId": "uuid",
-  "exportedAt": "instant",
-  "requestedByUserId": "uuid",
-  "targetEmployeeId": "uuid",
-  "includePreciseGeolocation": false,
-  "sections": [
-    "employee",
-    "user",
-    "company",
-    "documents",
-    "timeRecords",
-    "messages",
-    "auditLogs",
-    "legalConsents"
-  ],
-  "warnings": [
-    "Este arquivo contém dados pessoais e pode conter dados sensíveis."
-  ]
-}
-```
-
-### Critérios de aceite
-
-- Exportação inclui manifesto.
-- Front exibe aviso antes do download.
-- Arquivo tem nome padronizado.
-- Exportação gera auditoria.
-
----
-
-## LGPD-S03-03 — Criar escopo de exportação por perfil
-
-**Prioridade:** P1  
-**Tipo:** Segurança  
-**Backend:** Sim
-
-### Regras
-
-| Perfil | Pode exportar |
-|---|---|
-| PARTNER | próprios dados |
-| MANAGER | colaboradores da própria empresa, com justificativa |
-| CTO | qualquer colaborador, com auditoria alta |
-
-### Critérios de aceite
-
-- Manager não exporta dados de outra empresa.
-- Exportação de terceiros exige motivo.
-- Exportação do próprio titular continua simples.
-
----
-
-# Sprint 4 — Anonimização e eliminação por domínio
-
-## Objetivo
-
-Transformar a anonimização em processo completo, auditável e seguro por domínio de dados.
-
----
-
-## LGPD-S04-01 — Integrar `EmployeeAnonymizationService` ao `AnonymizationPlanExecutor`
-
-**Prioridade:** P0  
-**Tipo:** Arquitetura / Domínio  
-**Backend:** Sim
-
-### Problema
-
-Existem processadores de anonimização, mas a operação de anonimização precisa garantir execução centralizada, consistente e logada por domínio.
-
-### Tarefas
-
-- Criar `AnonymizationPlan` a partir do pedido LGPD.
-- Definir flags:
-    - `preserveLaborData`;
-    - `preserveFiscalData`;
-    - `deleteBiometricArtifacts`;
-    - `anonymizeDocuments`;
-    - `anonymizeMessages`;
-    - `anonymizeAuditLogs`.
-- Executar `AnonymizationPlanExecutor`.
-- Consolidar resultado em `AnonymizationExecutionLog`.
-- Retornar resumo da execução para admin.
-
-### Critérios de aceite
-
-- Anonimização roda por plano.
-- Cada domínio gera log próprio.
-- Falha parcial não fica invisível.
-- Admin consegue ver resultado.
-- Dados trabalhistas/fiscais são preservados conforme regra.
-
----
-
-## LGPD-S04-02 — Implementar modo DRY_RUN para anonimização
-
-**Prioridade:** P0  
-**Tipo:** Segurança operacional  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Tarefas
-
-- Criar endpoint:
-
-```text
-POST /lgpd/employees/{employeeId}/anonymize/dry-run
-```
-
-- Retornar:
-    - quantidade de documentos;
-    - registros de ponto;
-    - mensagens;
-    - logs;
-    - artefatos biométricos;
-    - dados preservados por obrigação legal;
-    - riscos.
-- Exibir prévia no front antes de confirmar.
-
-### Critérios de aceite
-
-- Admin vê impacto antes de anonimizar.
-- Dry-run não altera dados.
-- Apply só ocorre após confirmação explícita.
-
----
-
-## LGPD-S04-03 — Estratégia por domínio de anonimização
-
-**Prioridade:** P0  
-**Tipo:** Domínio / Segurança  
-**Backend:** Sim
-
-### Regras por domínio
-
-| Domínio | Estratégia |
-|---|---|
-| Employee | anonimizar nome, CPF, PIS, e-mail, telefone, endereço |
-| User | desativar e anonimizar username se necessário |
-| Biometria | excluir S3 e Rekognition |
-| Documents | anonimizar metadados ou excluir arquivo quando permitido |
-| TimeRecord | preservar se trabalhista/fiscal, pseudonimizar identificadores quando possível |
-| Messages | anonimizar remetente/destinatário e conteúdo pessoal |
-| AuditLog | sanitizar detalhes pessoais, preservar evento mínimo |
-| LGPD Request | preservar evidência mínima de atendimento |
-
-### Critérios de aceite
-
-- Cada domínio tem teste próprio.
-- Nenhum domínio é ignorado silenciosamente.
-- Dados preservados possuem motivo técnico/legal registrado.
-
----
-
-# Sprint 5 — Retenção e descarte real
-
-## Objetivo
-
-Garantir que a retenção execute ações reais, controladas, reversíveis operacionalmente via backup e auditáveis.
-
----
-
-## LGPD-S05-01 — Validar processadores de retenção por domínio
-
-**Prioridade:** P0  
-**Tipo:** Retenção  
-**Backend:** Sim
-
-### Domínios mínimos
-
-```text
-TOKEN
-PASSWORD_RESET_TOKEN
-MESSAGE
-DOCUMENT
-AUDIT_LOG
-LGPD_REQUEST
-BIOMETRIC_ARTIFACT
-```
-
-### Tarefas
-
-- Validar processador existente para cada `RetentionResourceType`.
-- Adicionar processadores ausentes.
-- Garantir que `resourceType` inválido falha explicitamente.
-- Criar fixtures de banco para cada domínio.
-- Registrar `RetentionExecutionLog`.
-
-### Critérios de aceite
-
-- Cada política executa o processador correto.
-- `DRY_RUN` não altera dados.
-- `APPLY` altera dados conforme política.
-- Logs mostram scanned/affected/skipped/errors.
-
----
-
-## LGPD-S05-02 — Definir políticas padrão de retenção
-
-**Prioridade:** P0  
-**Tipo:** Produto / Legal Tech  
-**Backend:** Sim  
-**Docs:** Sim
-
-### Políticas sugeridas
-
-| Código | Recurso | Ação | Retenção | Observação |
-|---|---|---|---:|---|
-| `RET_PASSWORD_TOKEN` | password reset token | delete | 1 dia | token expirado |
-| `RET_BLACKLIST_TOKEN` | blacklisted token | delete | após expiração | segurança |
-| `RET_MESSAGES` | messages | anonymize/delete | 180 dias | conforme política da empresa |
-| `RET_DOCUMENTS_COMMON` | documents | delete/anonymize | configurável | exceto trabalhista/fiscal |
-| `RET_AUDIT_LOGS` | audit logs | anonymize | 365 dias | preservar evento mínimo |
-| `RET_BIOMETRIC_REVOKED` | biometric artifacts | delete | imediato | após revogação |
-| `RET_LGPD_REQUESTS` | lgpd requests | preserve minimal | 5 anos sugerido | evidência de atendimento |
-
-### Critérios de aceite
-
-- Políticas ficam versionadas em migration ou seed controlado.
-- Produção inicia com `DRY_RUN`.
-- Mudança para `APPLY` exige aprovação explícita.
-
----
-
-## LGPD-S05-03 — Criar dashboard de retenção
-
-**Prioridade:** P1  
-**Tipo:** Observabilidade  
-**Backend:** Sim  
-**Frontend:** Opcional
-
-### Métricas
-
-- execuções por política;
-- registros escaneados;
-- registros afetados;
-- falhas;
-- tempo de execução;
-- última execução;
-- modo `DRY_RUN`/`APPLY`.
-
-### Critérios de aceite
-
-- Admin técnico consegue ver se retenção está funcionando.
-- Falhas geram alerta.
-
----
-
-# Sprint 6 — Inventário de tratamento e RIPD
-
-## Objetivo
-
-Criar documentação técnica-operacional que sustente finalidade, base legal, retenção e risco.
-
----
-
-## LGPD-S06-01 — Validar contrato do inventário LGPD
-
-**Prioridade:** P1  
-**Tipo:** Contrato API  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Problema
-
-O back-end expõe inventário em `/api/lgpd/inventory`, enquanto o front define paths relativos como `inventory`, `inventory/active` e `inventory/{processCode}`. É necessário garantir que o `apiBaseUrl` normalize corretamente o prefixo `/api`.
-
-### Tarefas
-
-- Validar se front chama URL correta em produção.
-- Criar teste de contrato para:
-    - listagem;
-    - listagem ativa;
-    - busca por processCode;
-    - criação;
-    - atualização.
-- Alinhar update:
-    - front usa `processCode`;
-    - back usa `inventoryId` no `PATCH`.
-- Definir padrão único:
-    - `PATCH /api/lgpd/inventory/{inventoryId}` ou
-    - `PUT /api/lgpd/inventory/{processCode}`.
-
-### Critérios de aceite
-
-- Front não chama endpoint inexistente.
-- Criação e edição funcionam em ambiente integrado.
-- Contrato fica documentado.
-
----
-
-## LGPD-S06-02 — Completar campos obrigatórios do inventário
-
-**Prioridade:** P1  
-**Tipo:** Governança de dados  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Campos mínimos por processo
-
-```text
-processCode
-processName
-description
-dataSubjects
-personalDataCategories
-sensitiveDataCategories
-processingPurpose
-legalBasis
-retentionPolicyCode
-sharingWithThirdParties
-operators
-internationalTransfer
-securityMeasures
-riskLevel
-ripdRequired
-active
-version
-createdAt
-updatedAt
-```
-
-### Critérios de aceite
-
-- Todo processo crítico do Kronos está inventariado.
-- Biometria e geolocalização aparecem como alto risco.
-- Dados de jornada e documentos aparecem com retenção própria.
-- Existe versão do inventário.
-
----
-
-## LGPD-S06-03 — Criar RIPD biometria + geolocalização + jornada
-
-**Prioridade:** P1  
-**Tipo:** Documentação / Governança  
-**Docs:** Sim  
-**Backend:** Opcional  
-**Frontend:** Opcional
-
-### Documento alvo
-
-```text
-docs/legal/RIPD-biometria-geolocalizacao-jornada.md
-```
-
-### Conteúdo mínimo
-
-- contexto do tratamento;
-- descrição dos dados pessoais;
-- dados sensíveis;
-- titulares;
-- finalidade;
-- base legal;
-- fluxo de coleta;
-- armazenamento;
-- operadores terceiros;
-- riscos;
-- probabilidade;
-- impacto;
-- medidas de mitigação;
-- retenção;
-- descarte;
-- aprovação interna;
-- revisão periódica.
-
-### Critérios de aceite
-
-- RIPD cobre biometria, geolocalização e jornada.
-- Documento possui versão e data.
-- Documento possui responsável por aprovação.
-- Riscos têm medidas associadas.
-
----
-
-# Sprint 7 — Solicitações LGPD e atendimento operacional
-
-## Objetivo
-
-Completar o ciclo operacional das solicitações dos titulares.
-
----
-
-## LGPD-S07-01 — Melhorar workflow de solicitações LGPD
-
-**Prioridade:** P1  
-**Tipo:** Produto  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Status esperados
-
-```text
-OPEN
-IN_ANALYSIS
-WAITING_CONTROLLER
-WAITING_LEGAL_REVIEW
-WAITING_DATA_SUBJECT
-COMPLETED
-REJECTED
-PARTIALLY_COMPLETED
-CANCELLED
-```
-
-### Tarefas
-
-- Adicionar `WAITING_DATA_SUBJECT` se necessário.
-- Permitir pedido de complemento ao titular.
-- Registrar notas públicas e internas separadamente.
-- Exibir ao titular apenas notas públicas.
-- Exigir razão de rejeição.
-
-### Critérios de aceite
-
-- Titular vê andamento claro.
-- Admin vê histórico completo.
-- Rejeição sem motivo é bloqueada.
-- Conclusão sem nota pública é bloqueada.
-
----
-
-## LGPD-S07-02 — Notificação de mudança de status
-
-**Prioridade:** P1  
-**Tipo:** Comunicação  
-**Backend:** Sim  
-**Frontend:** Opcional
-
-### Tarefas
-
-- Enviar e-mail ou aviso interno quando:
-    - solicitação é criada;
-    - responsável é atribuído;
-    - status muda;
-    - pedido é concluído;
-    - pedido é rejeitado;
-    - SLA está próximo de vencer.
-- Registrar notificação enviada.
-
-### Critérios de aceite
-
-- Titular recebe informação de mudança relevante.
-- Falha de envio não quebra a transação principal.
-- Existe retry ou log de falha.
-
----
-
-# Sprint 8 — Incidentes de segurança
-
-## Objetivo
-
-Transformar o cadastro de incidente em workflow de resposta.
-
----
-
-## LGPD-S08-01 — Implementar avaliação de risco de incidente
-
-**Prioridade:** P1  
-**Tipo:** Segurança / LGPD  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Campos adicionais
-
-```text
-incidentConfirmed
-personalDataInvolved
-sensitiveDataInvolved
-affectedSubjectsEstimate
-dataCategories
-incidentCause
-confidentialityImpact
-integrityImpact
-availabilityImpact
-riskToSubjects
-communicationRequired
-anpdCommunicationDeadline
-subjectsCommunicationDeadline
-containmentActions
-correctiveActions
-evidenceLinks
-```
-
-### Critérios de aceite
-
-- Incidente confirmado calcula prazo interno.
-- Sistema registra decisão de comunicar ou não comunicar.
-- Se comunicação for necessária, prazo fica visível.
-- Encerramento exige medidas corretivas.
-
----
-
-## LGPD-S08-02 — Criar relatório de incidente
-
-**Prioridade:** P1  
-**Tipo:** Evidência  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Saída
-
-- PDF ou JSON exportável com:
-    - dados do incidente;
-    - avaliação de risco;
-    - titulares afetados;
-    - dados afetados;
-    - medidas tomadas;
-    - comunicação ANPD/titulares;
-    - evidências.
-
-### Critérios de aceite
-
-- Relatório pode ser gerado por CTO.
-- Relatório não expõe segredo técnico desnecessário.
-- Relatório fica vinculado ao incidente.
-
----
-
-# Sprint 9 — Segurança, sessão e hardening
-
-## Objetivo
-
-Fortalecer controles técnicos de proteção de dados.
-
----
-
-## LGPD-S09-01 — Revisar cookies, CSRF e SameSite por ambiente
-
-**Prioridade:** P1  
-**Tipo:** Segurança  
-**Backend:** Sim  
-**DevOps:** Sim
-
-### Tarefas
-
-- Garantir `HttpOnly=true` no access token.
-- Garantir `Secure=true` em produção.
-- Definir `SameSite` por cenário:
-    - mesmo domínio: `Lax`;
-    - cross-site necessário: `None` + `Secure`.
-- Tornar CSRF cookie configurável.
-- Validar CORS por origem explícita.
-
-### Critérios de aceite
-
-- Produção não aceita origem curinga.
-- Cookies são seguros.
-- CSRF funciona com front real.
-- Reset password não sofre redirecionamento indevido por sessão expirada.
-
----
-
-## LGPD-S09-02 — Sanitizar logs e erros
-
-**Prioridade:** P1  
-**Tipo:** Segurança  
-**Backend:** Sim
-
-### Dados proibidos em logs
-
-```text
-CPF completo
-PIS completo
-token JWT
-password
-reset token
-faceImageBase64
-latitude/longitude precisa
-document payload
-conteúdo de documento
-```
-
-### Critérios de aceite
-
-- Testes garantem mascaramento.
-- Exceptions não retornam stack trace em produção.
-- Logs de auditoria preservam evento, não payload sensível.
-
----
-
-# Sprint 10 — Transparência e experiência do titular
-
-## Objetivo
-
-Melhorar a clareza para o titular sobre tratamento de dados, exportação, revogação e direitos.
-
----
-
-## LGPD-S10-01 — Melhorar Privacy Center
-
-**Prioridade:** P1  
-**Tipo:** Frontend / Produto  
-**Frontend:** Sim
-
-### Seções
-
-- Meus dados.
-- Exportar dados.
-- Solicitações LGPD.
-- Consentimento biométrico.
-- Revogação.
-- Política de privacidade.
-- Contato do encarregado/DPO.
-- Histórico de termos aceitos.
-
-### Critérios de aceite
-
-- Titular encontra todos os direitos em uma tela.
-- Exportação exibe aviso de sensibilidade.
-- Revogação explica consequência sem coerção.
-- Política de privacidade é acessível.
-
----
-
-## LGPD-S10-02 — Histórico de consentimentos no front
-
-**Prioridade:** P1  
-**Tipo:** Transparência  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Tarefas
-
-- Criar endpoint:
-
-```text
-GET /terms/consents/history
-```
-
-- Exibir:
-    - tipo;
-    - versão;
-    - data de aceite;
-    - data de revogação;
-    - status;
-    - documento de evidência quando permitido.
-
-### Critérios de aceite
-
-- Titular visualiza histórico de consentimentos.
-- Documento de evidência não expõe dados indevidos a terceiros.
-
----
-
-# Sprint 11 — Testes automatizados de conformidade
-
-## Objetivo
-
-Criar uma suíte que impeça regressões de LGPD.
-
----
-
-## LGPD-S11-01 — Testes de biometria
-
-**Prioridade:** P0  
-**Tipo:** Testes  
-**Backend:** Sim  
-**Frontend:** Sim
-
-### Cenários
-
-- Manager não cadastra biometria.
-- Titular aceita termo e cadastra biometria.
-- Titular revoga biometria.
-- Ponto biométrico sem consentimento falha.
-- Ponto biométrico com consentimento passa.
-- Liveness obrigatório em produção.
-
----
-
-## LGPD-S11-02 — Testes multi-tenant
-
-**Prioridade:** P0  
-**Tipo:** Testes  
-**Backend:** Sim
-
-### Cenários
-
-- Manager A não lista solicitações da empresa B.
-- Manager A não acessa detalhes da empresa B.
-- Manager A não exporta colaborador da empresa B.
-- Manager A não anonimiza colaborador da empresa B.
-- CTO acessa conforme permissão.
-
----
-
-## LGPD-S11-03 — Testes de retenção e anonimização
-
-**Prioridade:** P0  
-**Tipo:** Testes  
-**Backend:** Sim
-
-### Cenários
-
-- Retenção `DRY_RUN` não altera banco.
-- Retenção `APPLY` altera apenas registros elegíveis.
-- Dados trabalhistas/fiscais são preservados.
-- Anonimização remove biometria.
-- Anonimização preserva evidência mínima.
-- Logs de execução são criados.
-
----
-
-# Sprint 12 — Readiness de produção e auditoria
-
-## Objetivo
-
-Consolidar evidências e decidir se a branch pode ir para produção.
-
----
-
-## LGPD-S12-01 — Criar checklist final de produção LGPD
-
-**Prioridade:** P0  
-**Tipo:** Release  
-**Backend:** Sim  
-**Frontend:** Sim  
-**DevOps:** Sim  
-**Docs:** Sim
-
-### Checklist
-
-- [ ] Build back-end aprovado.
-- [ ] Build front-end aprovado.
-- [ ] Testes P0 aprovados.
-- [ ] Testes multi-tenant aprovados.
-- [ ] Liveness obrigatório em produção.
-- [ ] CORS revisado.
-- [ ] Cookies revisados.
-- [ ] CSRF validado.
-- [ ] Retenção em `DRY_RUN` executada e validada.
-- [ ] Plano de ativação de `APPLY` aprovado.
-- [ ] RIPD criado.
-- [ ] Inventário criado.
-- [ ] Política de privacidade publicada.
-- [ ] Canal de encarregado/DPO definido.
-- [ ] Fluxo de incidente documentado.
-- [ ] Rollback documentado.
-
----
-
-## LGPD-S12-02 — Pacote de evidências
-
-**Prioridade:** P1  
-**Tipo:** Auditoria  
-**Docs:** Sim
-
-### Gerar pasta
-
-```text
-docs/legal/evidence/
+docs/legal/evidence/lgpd-correction-final-validation.md
 ```
 
 ### Conteúdo
 
+- SHA do back-end.
+- SHA do front-end.
+- Resultado de testes.
+- Pendências corrigidas.
+- Pendências aceitas como risco.
+- Confirmação explícita:
+
 ```text
-01-baseline.md
-02-api-contract.md
-03-test-results.md
-04-retention-dry-run.md
-05-anonymization-dry-run.md
-06-ripd.md
-07-inventory-export.md
-08-security-incident-flow.md
-09-cookie-csrf-review.md
-10-release-approval.md
+Liveness permanece não obrigatório por decisão de produto/operação.
+Nenhuma task deste backlog alterou esse comportamento.
 ```
 
 ### Critérios de aceite
 
-- Evidências estão versionadas.
-- Cada evidência possui data e responsável.
-- Release só é aprovado com evidências P0 concluídas.
+- Documento criado.
+- Evidência versionada.
+- Release só segue após esse documento.
 
 ---
 
-# 6. Ordem recomendada de execução
+# 5. Ordem recomendada de execução
 
-## Prioridade absoluta
+## Primeiro bloco — P0 técnico
 
-1. `LGPD-S01-01` — bloquear biometria por gestor.
-2. `LGPD-S02-01` — corrigir multi-tenant em admin LGPD.
-3. `LGPD-S03-01` — corrigir audit logs da exportação.
-4. `LGPD-S04-01` — integrar anonimização por plano.
-5. `LGPD-S05-01` — validar retenção real.
-6. `LGPD-S11-01` e `LGPD-S11-02` — testes de regressão P0.
+1. `LGPD-CORR-01-02` — separar token retention.
+2. `LGPD-CORR-01-03` — audit log retention.
+3. `LGPD-CORR-01-04` — legal consent retention.
+4. `LGPD-CORR-01-05` — biometric artifact retention.
+5. `LGPD-CORR-02-02` — trava de segurança para APPLY.
+6. `LGPD-CORR-03-02` — corrigir dry-run de ponto.
+7. `LGPD-CORR-04-01` — status consolidado de anonimização.
+8. `LGPD-CORR-04-02` — bloquear conclusão indevida.
+9. `LGPD-CORR-07-01` — prazo obrigatório para incidentes comunicáveis.
+10. `LGPD-CORR-07-02` — evidência obrigatória para encerramento.
 
-## Sequência ideal
+## Segundo bloco — contrato/front
+
+11. `LGPD-CORR-05-01` — padronizar prefixo `/api`.
+12. `LGPD-CORR-05-02` — update de inventário.
+13. `LGPD-CORR-06-01` — modal de confirmação da exportação.
+
+## Terceiro bloco — comprovação
+
+14. `LGPD-CORR-08-01` — testes back-end.
+15. `LGPD-CORR-08-02` — testes front-end.
+16. `LGPD-CORR-08-03` — CI.
+17. `LGPD-CORR-08-04` — evidência final.
+
+---
+
+# 6. Critério de conclusão do backlog
+
+Este backlog será considerado concluído quando:
+
+- todos os `RetentionResourceType` tiverem processor ou justificativa formal;
+- scheduler de retenção estiver preparado para produção com `DRY_RUN`;
+- `APPLY` tiver trava global;
+- anonimização de ponto diferenciar preservação legal e anonimização;
+- dry-run não subestimar impacto;
+- falhas parciais bloquearem conclusão como sucesso total;
+- rotas do inventário estiverem padronizadas;
+- exportação exigir confirmação explícita no front;
+- incidentes comunicáveis exigirem prazos e evidências;
+- CI comprovar os testes;
+- liveness permanecer sem alteração de obrigatoriedade.
+
+---
+
+# 7. Checklist final
 
 ```text
-Sprint 0 -> Sprint 1 -> Sprint 2 -> Sprint 3 -> Sprint 4 -> Sprint 5 -> Sprint 11 -> Sprint 12
+[ ] Liveness não foi tornado obrigatório.
+[ ] Todos os RetentionResourceType possuem processor.
+[ ] PASSWORD_RESET_TOKEN tem processor próprio.
+[ ] AUDIT_LOG tem retenção/sanitização.
+[ ] LEGAL_CONSENT tem retenção/minimização.
+[ ] BIOMETRIC_ARTIFACT tem retenção própria.
+[ ] LGPD_REQUEST tem retenção/minimização.
+[ ] Scheduler de retenção está preparado para produção em DRY_RUN.
+[ ] APPLY depende de flag global explícita.
+[ ] TimeRecordAnonymizer diferencia preserveLaborData true/false.
+[ ] Dry-run retorna impacto correto.
+[ ] Anonimização retorna SUCCESS/PARTIAL_SUCCESS/FAILED/BLOCKED.
+[ ] Solicitação LGPD não conclui como COMPLETED em falha parcial.
+[ ] Prefixo /api do inventário está padronizado.
+[ ] Exportação no front exige confirmação.
+[ ] Incidente comunicável exige deadline.
+[ ] Incidente comunicável exige evidência para encerrar.
+[ ] Testes back-end passam.
+[ ] Testes front-end passam.
+[ ] CI executa tudo.
+[ ] Evidência final foi criada.
 ```
-
-As sprints 6, 7, 8, 9 e 10 podem rodar em paralelo após correção dos P0.
-
----
-
-# 7. Definition of Done geral
-
-Uma tarefa deste backlog só pode ser considerada concluída se atender a todos os itens abaixo:
-
-- Código implementado.
-- Testes unitários criados/atualizados.
-- Testes de integração criados/atualizados quando houver API.
-- Testes E2E criados/atualizados quando houver fluxo de usuário.
-- Logs sensíveis revisados.
-- Autorização multi-tenant validada.
-- Documentação atualizada.
-- Critérios de aceite cumpridos.
-- Evidência registrada em `docs/legal/evidence`, quando aplicável.
-- Build local aprovado.
-- CI aprovado.
-
----
-
-# 8. Riscos remanescentes
-
-| Risco | Mitigação |
-|---|---|
-| Base legal da biometria incorreta | Revisão jurídica/DPO antes de produção |
-| Retenção apagar dados trabalhistas/fiscais | Começar em `DRY_RUN`, validar com jurídico/contábil |
-| Exportação expor dados de terceiros | Escopo por perfil e sanitização |
-| Manager acessar dados de outra empresa | Testes multi-tenant obrigatórios |
-| Incidente sem comunicação no prazo | Workflow com prazo e alerta |
-| Front e back divergirem nos contratos | Testes de contrato/OpenAPI |
-| Logs conterem dados sensíveis | Testes de sanitização |
-
----
-
-# 9. Critério de liberação para produção
-
-A branch `feature/lgpd-compliance` só deve ser promovida para produção quando:
-
-```text
-P0 = 100% concluído
-P1 crítico = concluído ou formalmente aceito como risco
-Testes LGPD = verdes
-RIPD = criado
-Inventário = criado e validado
-Retenção = validada em DRY_RUN
-Plano APPLY = aprovado
-Rollback = documentado
-```
-
----
-
-# 10. Conclusão técnica
-
-A branch `feature/lgpd-compliance` está em um estágio avançado de adequação, mas ainda precisa de correções críticas para reduzir risco regulatório e operacional.
-
-O maior bloqueador técnico é a biometria cadastrável por gestor sem consentimento formal do titular. O segundo maior bloqueador é a validação rigorosa de isolamento multi-tenant no módulo administrativo LGPD. Em seguida, devem ser fechadas exportação correta, anonimização por domínio e retenção com evidências.
-
-Este backlog deve ser tratado como plano de hardening antes de produção.

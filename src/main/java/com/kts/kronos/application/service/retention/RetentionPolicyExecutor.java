@@ -6,6 +6,7 @@ import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -21,8 +22,32 @@ public class RetentionPolicyExecutor {
     private final List<RetentionDomainProcessor> processors;
     private final RetentionExecutionLogProvider executionLogProvider;
 
+    @Value("${kronos.lgpd.retention.allow-apply:false}")
+    private boolean allowApply;
+
     public void executePolicy(RetentionPolicy policy) {
         validatePolicy(policy);
+
+        var executionId = UUID.randomUUID();
+        var executionMode = policy.isDryRun() ? "DRY_RUN" : "APPLY";
+
+        if ("APPLY".equals(executionMode) && !allowApply) {
+            log.warn(
+                    "event=retention_apply_blocked policyCode={} resourceType={} reason=APPLY_NOT_ALLOWED",
+                    policy.policyCode(),
+                    policy.resourceType()
+            );
+            var blockedResult = com.kts.kronos.domain.model.RetentionExecutionResult.blocked(
+                    executionId,
+                    policy.policyCode(),
+                    com.kts.kronos.domain.model.enuns.RetentionResourceType.valueOf(policy.resourceType()),
+                    executionMode,
+                    "APPLY execution is currently disabled. Set LGPD_RETENTION_ALLOW_APPLY=true to enable."
+            );
+            var executionLog = RetentionExecutionLog.fromResult(blockedResult);
+            executionLogProvider.save(executionLog);
+            return;
+        }
 
         var processor = findProcessor(policy.resourceType());
         if (processor.isEmpty()) {
@@ -33,9 +58,6 @@ public class RetentionPolicyExecutor {
             );
             return;
         }
-
-        var executionId = UUID.randomUUID();
-        var executionMode = policy.isDryRun() ? "DRY_RUN" : "APPLY";
 
         log.info(
                 "event=retention_execution_start policyCode={} resourceType={} executionMode={}",

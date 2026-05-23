@@ -49,21 +49,22 @@ class LgpdDryRunControllerTest {
     void shouldReturnDryRunResultForEmployeeAnonymization() throws Exception {
         UUID employeeId = UUID.randomUUID();
 
-        AnonymizationDryRunResponse response = new AnonymizationDryRunResponse(
-                employeeId,
-                10,
-                5,
-                15,
-                20,
-                100,
-                1,
-                0,
-                Arrays.asList(
-                        "Serão deletados 10 documentos.",
-                        "20 mensagens serão anonimizadas.",
-                        "Artefatos biométricos serão deletados permanentemente.",
-                        "Esta é uma visualização. Nenhum dado foi modificado."
+        var summary = new com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunSummary(
+                100, 50, 50, 0
+        );
+        var domains = Arrays.asList(
+                new com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain(
+                        "TIME_RECORD", 50, 50, 0,
+                        "REMOVE_PRECISE_GEOLOCATION",
+                        "Registros trabalhistas serão preservados. Apenas geolocalização será removida."
                 )
+        );
+        var warnings = Arrays.asList(
+                "Esta é uma visualização. Nenhum dado foi modificado."
+        );
+
+        AnonymizationDryRunResponse response = new AnonymizationDryRunResponse(
+                employeeId, summary, domains, warnings
         );
 
         when(lgpdUseCase.dryRunAnonymizeEmployee(employeeId)).thenReturn(response);
@@ -71,11 +72,13 @@ class LgpdDryRunControllerTest {
         mockMvc.perform(post("/lgpd/employees/{employeeId}/anonymize/dry-run", employeeId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
-                .andExpect(jsonPath("$.totalDocumentsToDelete").value(10))
-                .andExpect(jsonPath("$.totalMessagesToAnonymize").value(20))
-                .andExpect(jsonPath("$.totalBiometricArtifactsToDelete").value(1))
-                .andExpect(jsonPath("$.warnings.length()").value(4))
-                .andExpect(jsonPath("$.warnings[3]").value("Esta é uma visualização. Nenhum dado foi modificado."));
+                .andExpect(jsonPath("$.summary.totalScanned").value(100))
+                .andExpect(jsonPath("$.summary.totalAffected").value(50))
+                .andExpect(jsonPath("$.summary.totalSkipped").value(50))
+                .andExpect(jsonPath("$.domains.length()").value(1))
+                .andExpect(jsonPath("$.domains[0].resourceType").value("TIME_RECORD"))
+                .andExpect(jsonPath("$.warnings.length()").value(1))
+                .andExpect(jsonPath("$.warnings[0]").value("Esta é uma visualização. Nenhum dado foi modificado."));
     }
 
     @Test

@@ -54,10 +54,30 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
     private AnonymizationExecutionResult executeDryRun(UUID executionId, AnonymizationPlan plan) {
         var timeRecords = timeRecordRepository.findByEmployeeId(plan.employeeId());
 
+        long affectedCount = 0;
+        long skippedCount = 0;
+
+        if (plan.preserveLaborData()) {
+            for (var record : timeRecords) {
+                boolean hasGeolocation = record.getLatitude() != null || record.getLongitude() != null
+                        || record.getEndLatitude() != null || record.getEndLongitude() != null;
+                if (hasGeolocation) {
+                    affectedCount++;
+                } else {
+                    skippedCount++;
+                }
+            }
+        } else {
+            affectedCount = timeRecords.size();
+        }
+
         log.info(
-                "event=time_record_anonymization_dry_run employeeId={} timeRecordCount={}",
+                "event=time_record_anonymization_dry_run employeeId={} preserveLaborData={} scanned={} affected={} skipped={}",
                 plan.employeeId(),
-                timeRecords.size()
+                plan.preserveLaborData(),
+                timeRecords.size(),
+                affectedCount,
+                skippedCount
         );
 
         return AnonymizationExecutionResult.success(
@@ -68,33 +88,49 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
                 AnonymizationResourceType.TIME_RECORD,
                 "DRY_RUN",
                 timeRecords.size(),
-                0,
-                0
+                affectedCount,
+                skippedCount
         );
     }
 
     private AnonymizationExecutionResult executeApply(UUID executionId, AnonymizationPlan plan) {
         var timeRecords = timeRecordRepository.findByEmployeeId(plan.employeeId());
 
+        long affectedCount = 0;
+        long skippedCount = 0;
+
         for (var timeRecord : timeRecords) {
             if (plan.preserveLaborData()) {
-                timeRecord.setLatitude(null);
-                timeRecord.setLongitude(null);
-                timeRecord.setEndLatitude(null);
-                timeRecord.setEndLongitude(null);
+                boolean hadGeolocation = timeRecord.getLatitude() != null || timeRecord.getLongitude() != null
+                        || timeRecord.getEndLatitude() != null || timeRecord.getEndLongitude() != null;
+
+                if (hadGeolocation) {
+                    timeRecord.setLatitude(null);
+                    timeRecord.setLongitude(null);
+                    timeRecord.setEndLatitude(null);
+                    timeRecord.setEndLongitude(null);
+                    timeRecordRepository.save(timeRecord);
+                    affectedCount++;
+                } else {
+                    skippedCount++;
+                }
             } else {
                 timeRecord.setLatitude(null);
                 timeRecord.setLongitude(null);
                 timeRecord.setEndLatitude(null);
                 timeRecord.setEndLongitude(null);
+                timeRecordRepository.save(timeRecord);
+                affectedCount++;
             }
-            timeRecordRepository.save(timeRecord);
         }
 
         log.info(
-                "event=time_record_anonymization_apply employeeId={} timeRecordCount={}",
+                "event=time_record_anonymization_apply employeeId={} preserveLaborData={} scanned={} affected={} skipped={}",
                 plan.employeeId(),
-                timeRecords.size()
+                plan.preserveLaborData(),
+                timeRecords.size(),
+                affectedCount,
+                skippedCount
         );
 
         return AnonymizationExecutionResult.success(
@@ -105,8 +141,8 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
                 AnonymizationResourceType.TIME_RECORD,
                 "APPLY",
                 timeRecords.size(),
-                timeRecords.size(),
-                0
+                affectedCount,
+                skippedCount
         );
     }
 }
