@@ -109,7 +109,8 @@ class SecurityIncidentMapperTest {
                 null,
                 UUID.randomUUID(),
                 now,
-                null
+                null,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
 }

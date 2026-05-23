@@ -74,7 +74,20 @@ class SecurityIncidentServiceTest {
                     incident.notifiedSubjectsAt(),
                     incident.createdByUserId(),
                     incident.createdAt(),
-                    incident.updatedAt()
+                    incident.updatedAt(),
+                    incident.incidentConfirmed(),
+                    incident.dataCategories(),
+                    incident.incidentCause(),
+                    incident.confidentialityImpact(),
+                    incident.integrityImpact(),
+                    incident.availabilityImpact(),
+                    incident.riskToSubjects(),
+                    incident.communicationRequired(),
+                    incident.anpdCommunicationDeadline(),
+                    incident.subjectsCommunicationDeadline(),
+                    incident.containmentActions(),
+                    incident.correctiveActions(),
+                    incident.evidenceLinks()
             );
         });
 
@@ -185,7 +198,8 @@ class SecurityIncidentServiceTest {
                 null,
                 UUID.randomUUID(),
                 now,
-                null
+                null,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
 }

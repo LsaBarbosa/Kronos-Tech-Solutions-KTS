@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.security;
 
 import com.kts.kronos.domain.model.SecurityIncident;
+import com.kts.kronos.domain.model.enuns.SecurityImpactLevel;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentSeverity;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentStatus;
 
@@ -22,7 +23,21 @@ public record SecurityIncidentResponse(
         Instant notifiedSubjectsAt,
         UUID createdByUserId,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        // Sprint 8 - Risk Assessment fields
+        boolean incidentConfirmed,
+        String dataCategories,
+        String incidentCause,
+        SecurityImpactLevel confidentialityImpact,
+        SecurityImpactLevel integrityImpact,
+        SecurityImpactLevel availabilityImpact,
+        String riskToSubjects,
+        Boolean communicationRequired,
+        Instant anpdCommunicationDeadline,
+        Instant subjectsCommunicationDeadline,
+        String containmentActions,
+        String correctiveActions,
+        String evidenceLinks
 ) {
     public static SecurityIncidentResponse fromDomain(SecurityIncident domain) {
         return new SecurityIncidentResponse(
@@ -40,7 +55,20 @@ public record SecurityIncidentResponse(
                 domain.notifiedSubjectsAt(),
                 domain.createdByUserId(),
                 domain.createdAt(),
-                domain.updatedAt()
+                domain.updatedAt(),
+                domain.incidentConfirmed(),
+                domain.dataCategories(),
+                domain.incidentCause(),
+                domain.confidentialityImpact(),
+                domain.integrityImpact(),
+                domain.availabilityImpact(),
+                domain.riskToSubjects(),
+                domain.communicationRequired(),
+                domain.anpdCommunicationDeadline(),
+                domain.subjectsCommunicationDeadline(),
+                domain.containmentActions(),
+                domain.correctiveActions(),
+                domain.evidenceLinks()
         );
     }
 }
