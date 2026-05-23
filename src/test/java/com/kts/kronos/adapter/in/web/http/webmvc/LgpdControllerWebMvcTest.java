@@ -93,7 +93,7 @@ class LgpdControllerWebMvcTest {
                         .header("User-Agent", "JUnit")
                         .content("""
                                 {
-                                  "type": "DATA_EXPORT",
+                                  "type": "ACCESS",
                                   "description": "Exportar meus dados"
                                 }
                                 """))
