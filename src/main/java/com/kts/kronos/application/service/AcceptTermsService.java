@@ -195,6 +195,14 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
     }
 
+    @Override
+    public java.util.List<LegalConsent> getConsentHistory(UUID employeeId) {
+        log.info("Recuperando histórico de consentimentos para o colaborador {}", employeeId);
+        employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+        return legalConsentProvider.findAllByEmployeeId(employeeId);
+    }
+
     private String calculateSha256(byte[] payload) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
