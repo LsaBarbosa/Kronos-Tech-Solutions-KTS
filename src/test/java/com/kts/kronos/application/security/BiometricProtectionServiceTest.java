@@ -89,17 +89,17 @@ class BiometricProtectionServiceTest {
     @DisplayName("protectEnrollment: aplica rate limit por colaborador e IP")
     void shouldRateLimitEnrollment() {
         UUID employeeId = UUID.randomUUID();
-        service.protectEnrollment(employeeId, "abc");
-        service.protectEnrollment(employeeId, "abc");
+        service.protectEnrollment(employeeId, "abc", true);
+        service.protectEnrollment(employeeId, "abc", true);
 
-        assertThrows(TooManyRequestsException.class, () -> service.protectEnrollment(employeeId, "abc"));
+        assertThrows(TooManyRequestsException.class, () -> service.protectEnrollment(employeeId, "abc", true));
     }
 
     @Test
     @DisplayName("protectEnrollment: deve rejeitar payload biométrico acima do limite")
     void shouldRejectOversizedBiometricPayload() {
         assertThrows(BadRequestException.class,
-                () -> service.protectEnrollment(UUID.randomUUID(), "abcdefghijk"));
+                () -> service.protectEnrollment(UUID.randomUUID(), "abcdefghijk", true));
     }
 
     @Test
@@ -117,5 +117,24 @@ class BiometricProtectionServiceTest {
         ReflectionTestUtils.setField(service, "livenessRequired", true);
 
         assertThrows(ForbiddenException.class, () -> service.protectPublicLogin("abc", false));
+    }
+
+    @Test
+    @DisplayName("protectEnrollment: deve exigir liveness quando configurado (LGPD-S01-03)")
+    void shouldRequireLivenessForEnrollmentWhenEnabled() {
+        ReflectionTestUtils.setField(service, "livenessRequired", true);
+        UUID employeeId = UUID.randomUUID();
+
+        assertThrows(ForbiddenException.class,
+                () -> service.protectEnrollment(employeeId, "abc", false));
+    }
+
+    @Test
+    @DisplayName("protectEnrollment: aceita enrollment com liveness quando configurado (LGPD-S01-03)")
+    void shouldAcceptEnrollmentWithLivenessWhenEnabled() {
+        ReflectionTestUtils.setField(service, "livenessRequired", true);
+        UUID employeeId = UUID.randomUUID();
+
+        service.protectEnrollment(employeeId, "abc", true);
     }
 }

@@ -1,7 +1,9 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.lgpd.AddLgpdRequestNoteRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AssignLgpdRequestRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
@@ -9,7 +11,9 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestHistoryResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestTransitionRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.RejectLgpdRequestRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.RequestComplementRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
@@ -116,6 +120,7 @@ public class LgpdController {
     public ResponseEntity<LgpdEmployeeExportResponse> exportEmployeeData(
             @PathVariable UUID employeeId,
             @RequestParam(defaultValue = "false") boolean includePreciseGeolocation,
+            @RequestParam(required = false) String exportReason,
             @RequestHeader(value = "User-Agent", required = false) String userAgent,
             HttpServletRequest httpServletRequest
     ) {
@@ -123,7 +128,8 @@ public class LgpdController {
                 employeeId,
                 includePreciseGeolocation,
                 clientIpResolver.resolve(httpServletRequest),
-                userAgent
+                userAgent,
+                exportReason
         ));
     }
 
@@ -140,6 +146,14 @@ public class LgpdController {
                 userAgent
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(ADMINISTRATOR)
+    @PostMapping(LGPD_EMPLOYEE_ANONYMIZE + "/dry-run")
+    public ResponseEntity<AnonymizationDryRunResponse> dryRunAnonymizeEmployee(
+            @PathVariable UUID employeeId
+    ) {
+        return ResponseEntity.ok(lgpdUseCase.dryRunAnonymizeEmployee(employeeId));
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
@@ -197,6 +211,36 @@ public class LgpdController {
             @Valid @RequestBody RejectLgpdRequestRequest request
     ) {
         var updated = lgpdUseCase.rejectRequest(requestId, request.closedReason(), request.publicNote(), request.internalNote());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping("/admin/requests/{requestId}/transition-status")
+    public ResponseEntity<LgpdRequestResponse> transitionStatus(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody LgpdRequestTransitionRequest request
+    ) {
+        var updated = lgpdUseCase.transitionStatus(requestId, request.newStatus(), request.publicNotes(), request.internalNotes(), request.closedReason());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping("/admin/requests/{requestId}/request-complement")
+    public ResponseEntity<LgpdRequestResponse> requestComplement(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody RequestComplementRequest request
+    ) {
+        var updated = lgpdUseCase.requestDataSubjectComplement(requestId, request.message());
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
+    @PreAuthorize("hasRole('CTO')")
+    @PostMapping("/admin/requests/{requestId}/cancel")
+    public ResponseEntity<LgpdRequestResponse> cancelRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody CancelRequestRequest request
+    ) {
+        var updated = lgpdUseCase.cancelRequest(requestId, request.reason());
         return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
     }
 }

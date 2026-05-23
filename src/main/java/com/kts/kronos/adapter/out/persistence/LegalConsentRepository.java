@@ -3,7 +3,11 @@ package com.kts.kronos.adapter.out.persistence;
 import com.kts.kronos.adapter.out.persistence.entity.LegalConsentEntity;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,4 +26,11 @@ public interface LegalConsentRepository extends JpaRepository<LegalConsentEntity
     );
 
     boolean existsByEmployeeIdAndConsentTypeAndRevokedAtIsNull(UUID employeeId, ConsentType consentType);
+
+    @Query("SELECT COUNT(c) FROM LegalConsentEntity c WHERE c.createdAt < :cutoff")
+    long countCreatedBefore(@Param("cutoff") Instant cutoff);
+
+    @Modifying
+    @Query("DELETE FROM LegalConsentEntity c WHERE c.createdAt < :cutoff")
+    int deleteCreatedBefore(@Param("cutoff") Instant cutoff);
 }

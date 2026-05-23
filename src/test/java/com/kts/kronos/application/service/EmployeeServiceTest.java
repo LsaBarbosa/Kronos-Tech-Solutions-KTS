@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.RegisterFaceRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ConflictException;
@@ -17,6 +18,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Address;
@@ -24,6 +26,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -316,7 +319,7 @@ class EmployeeServiceTest {
 
         assertEquals(orphanEmployeeId, updated.employeeId());
         assertEquals("faces/old.jpg", updated.faceS3ObjectKey());
-        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
         verify(employeeProvider).save(any(Employee.class));
     }
 
@@ -554,7 +557,7 @@ class EmployeeServiceTest {
         assertEquals("88", saved.address().number());
         assertEquals("faces/old.jpg", saved.faceS3ObjectKey());
         verify(faceStorageProvider, never()).uploadFaceImage(any(), any(), anyString());
-        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
     }
 
     @Test
@@ -878,7 +881,7 @@ class EmployeeServiceTest {
 
         assertThrows(BadRequestException.class, () -> service.createEmployee(request));
         verify(employeeProvider, never()).save(any());
-        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
     }
 
     @Test
@@ -911,6 +914,72 @@ class EmployeeServiceTest {
 
         assertThrows(BadRequestException.class, () -> service.updateEmployee(employeeId, request));
         verify(employeeProvider, never()).save(any());
-        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("LGPD-S01-03: enrollBiometricSelf rejeita quando livenessPassed é false")
+    void shouldRejectBiometricEnrollmentWithoutLiveness() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
+
+        var employee = new Employee(
+                employeeId, "John Doe", "12345678901", "1234567890",
+                "Dev", "john@kts.com", 1000.0, "21999999999", true,
+                null, companyId, null, false,
+                null, LocalTime.of(8, 0), LocalTime.of(17, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0),
+                null, null, null, null, null
+        );
+
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, employeeId, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(true);
+        doThrow(new ForbiddenException("Validação de liveness obrigatória para esta operação."))
+                .when(biometricProtectionService)
+                .protectEnrollment(employeeId, validBase64, false);
+
+        assertThrows(ForbiddenException.class, () -> service.enrollBiometricSelf(request));
+        verify(employeeProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("LGPD-S01-03: enrollBiometricSelf aceita quando livenessPassed é true")
+    void shouldAcceptBiometricEnrollmentWithLiveness() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
+
+        var employee = new Employee(
+                employeeId, "John Doe", "12345678901", "1234567890",
+                "Dev", "john@kts.com", 1000.0, "21999999999", true,
+                null, companyId, null, false,
+                null, LocalTime.of(8, 0), LocalTime.of(17, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0),
+                null, null, null, null, null
+        );
+
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, employeeId, true);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(true);
+        when(faceStorageProvider.uploadFaceImage(any(), any(), anyString()))
+                .thenReturn("s3-key-123");
+        when(faceRecognitionProvider.indexFace("s3-key-123", employeeId))
+                .thenReturn("face-id-123");
+
+        service.enrollBiometricSelf(request);
+
+        verify(biometricProtectionService).protectEnrollment(employeeId, validBase64, true);
+        verify(faceStorageProvider).uploadFaceImage(eq(employeeId), any(), eq("image/jpeg"));
+        verify(faceRecognitionProvider).indexFace("s3-key-123", employeeId);
+        verify(employeeProvider).save(any(Employee.class));
+        verify(kronosMetrics).employeeCreated();
     }
 }
