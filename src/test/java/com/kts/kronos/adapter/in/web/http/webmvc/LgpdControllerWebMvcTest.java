@@ -158,9 +158,13 @@ class LgpdControllerWebMvcTest {
     @Test
     void shouldExportEmployeeData() throws Exception {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
-        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(false), eq("127.0.0.1"), eq("JUnit"))).thenReturn(
+        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(false), eq("127.0.0.1"), eq("JUnit"), eq(null))).thenReturn(
                 new LgpdEmployeeExportResponse(
+                        new LgpdEmployeeExportResponse.ExportManifest(UUID.randomUUID(), Instant.now(), userId, employeeId, false,
+                                java.util.Arrays.asList("employee", "user", "company", "documents", "timeRecords", "messages", "auditLogs", "legalConsents", "biometricStatus"),
+                                java.util.Arrays.asList("Este arquivo contém dados pessoais.")),
                         new LgpdEmployeeExportResponse.ExportedEmployee(
                                 employeeId,
                                 "Lucas",
@@ -240,15 +244,19 @@ class LgpdControllerWebMvcTest {
                 .andExpect(jsonPath("$.documents[0].checksumSha256").value("checksum-123"))
                 .andExpect(jsonPath("$.user.password").doesNotExist());
 
-        verify(lgpdUseCase).exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit");
+        verify(lgpdUseCase).exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
     }
 
     @Test
     void shouldForwardPreciseGeolocationFlagToUseCase() throws Exception {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
-        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(true), eq("127.0.0.1"), eq("JUnit"))).thenReturn(
+        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(true), eq("127.0.0.1"), eq("JUnit"), eq(null))).thenReturn(
                 new LgpdEmployeeExportResponse(
+                        new LgpdEmployeeExportResponse.ExportManifest(UUID.randomUUID(), Instant.now(), userId, employeeId, true,
+                                java.util.Arrays.asList("employee", "user", "company", "documents", "timeRecords", "messages", "auditLogs", "legalConsents", "biometricStatus"),
+                                java.util.Arrays.asList("Este arquivo contém dados pessoais.")),
                         null, null, null, List.of(), List.of(), List.of(), List.of(), List.of(), null, Instant.now()
                 )
         );
@@ -258,7 +266,7 @@ class LgpdControllerWebMvcTest {
                         .header("User-Agent", "JUnit"))
                 .andExpect(status().isOk());
 
-        verify(lgpdUseCase).exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit");
+        verify(lgpdUseCase).exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", null);
     }
 
     @Test

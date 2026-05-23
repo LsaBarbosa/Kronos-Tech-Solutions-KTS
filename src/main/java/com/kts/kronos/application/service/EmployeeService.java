@@ -284,7 +284,7 @@ public class EmployeeService implements EmployeeUseCase {
             throw new ConflictException("Consentimento biométrico não foi aceito. Acesse o Centro de Privacidade para aceitar o termo.");
         }
 
-        biometricProtectionService.protectEnrollment(employeeId, req.faceImageBase64());
+        biometricProtectionService.protectEnrollment(employeeId, req.faceImageBase64(), req.livenessPassed());
 
         var s3Key = handleFaceRegistration(employeeId, employee.faceS3ObjectKey(), req.faceImageBase64());
         var updatedEmployee = employee.withFaceS3ObjectKey(s3Key);
@@ -395,10 +395,12 @@ public class EmployeeService implements EmployeeUseCase {
 
         // Processa a imagem facial novamente
         // Se houver nova foto, o handleFaceRegistration cuidará de deletar a antiga do S3/Rekognition
+        // NOTA: Este código é inalcançável pois createEmployee() rejeita faceImageBase64 no início (LGPD-S01-01)
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
             biometricProtectionService.protectEnrollment(
                     savedEmployee.employeeId(),
-                    req.faceImageBase64()
+                    req.faceImageBase64(),
+                    null
             );
 
             var s3Key = handleFaceRegistration(

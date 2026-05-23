@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -222,13 +223,16 @@ class LgpdServiceTest {
     @Test
     void shouldExportSanitizedEmployeeDataAndAudit() {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
-        User user = new User(UUID.randomUUID(), "lucas", "super-secret-hash", Role.MANAGER, true, employeeId);
+        User user = new User(userId, "lucas", "super-secret-hash", Role.MANAGER, true, employeeId);
         Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
                 new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
                 new Location(-23.0, -46.0), 5, 1);
 
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
@@ -265,9 +269,9 @@ class LgpdServiceTest {
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of(
                 new Message(UUID.randomUUID(), employeeId, companyId, "Aviso", "Texto", MessagePriority.ALERT, LocalDateTime.now(), employeeId)
         ));
-        when(auditService.findByUserId(employeeId)).thenReturn(List.of(
+        when(auditService.findByUserId(userId)).thenReturn(List.of(
                 AuditLog.create(
-                        employeeId,
+                        userId,
                         "ACTION",
                         "127.0.0.1",
                         "JUnit",
@@ -279,7 +283,7 @@ class LgpdServiceTest {
                 new LegalConsent(
                         UUID.randomUUID(),
                         employeeId,
-                        user.userId(),
+                        userId,
                         ConsentType.BIOMETRIC_AUTHENTICATION,
                         LegalBasis.CONSENT,
                         "Autenticação biométrica",
@@ -295,7 +299,7 @@ class LgpdServiceTest {
                 )
         ));
 
-        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit");
+        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
 
         assertEquals("lucas", export.user().username());
         assertEquals("checksum-123", export.documents().getFirst().checksumSha256());
@@ -318,7 +322,7 @@ class LgpdServiceTest {
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
-                eq(employeeId.toString()),
+                any(),
                 eq("MEDIUM"),
                 any(),
                 eq("127.0.0.1"),
@@ -329,12 +333,14 @@ class LgpdServiceTest {
     @Test
     void shouldExportPreciseGeolocationForDataSubject() {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
 
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(new Company(
                 companyId, "KTS", "12345678000199", "contato@kts.com", true,
                 new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
@@ -346,10 +352,10 @@ class LgpdServiceTest {
                 employeeId, -22.9035, -43.2096, -22.9040, -43.2101, 10L, 11L, null, null
         )));
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
-        when(auditService.findByUserId(employeeId)).thenReturn(List.of());
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
-        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit");
+        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", null);
 
         assertEquals(-22.9035, export.timeRecords().getFirst().latitude());
         assertEquals(-43.2096, export.timeRecords().getFirst().longitude());
@@ -358,7 +364,7 @@ class LgpdServiceTest {
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
-                eq(employeeId.toString()),
+                any(),
                 eq("HIGH"),
                 any(),
                 eq("127.0.0.1"),
@@ -370,12 +376,14 @@ class LgpdServiceTest {
     void shouldKeepManagerExportMinimizedEvenWhenPreciseGeolocationIsRequested() {
         UUID employeeId = UUID.randomUUID();
         UUID managerEmployeeId = UUID.randomUUID();
+        UUID managerUserId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
 
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(managerUserId);
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(new Company(
                 companyId, "KTS", "12345678000199", "contato@kts.com", true,
                 new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
@@ -387,10 +395,10 @@ class LgpdServiceTest {
                 employeeId, -22.9035, -43.2096, -22.9040, -43.2101, 10L, 11L, null, null
         )));
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
-        when(auditService.findByUserId(employeeId)).thenReturn(List.of());
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
-        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit");
+        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", "Personnel file");
 
         assertEquals(null, export.timeRecords().getFirst().latitude());
         assertEquals(null, export.timeRecords().getFirst().longitude());
@@ -399,7 +407,7 @@ class LgpdServiceTest {
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
-                eq(employeeId.toString()),
+                any(),
                 eq("MEDIUM"),
                 any(),
                 eq("127.0.0.1"),
@@ -520,6 +528,264 @@ class LgpdServiceTest {
         assertEquals("Lucas", result.employee().fullName());
         assertEquals("KTS", result.company().tradeName());
         assertEquals("admin", result.assignedTo().username());
+    }
+
+    @Test
+    void managerCannotListRequestsFromOtherCompany() {
+        UUID managerCompanyId = UUID.randomUUID();
+        UUID otherCompanyId = UUID.randomUUID();
+        com.kts.kronos.application.exceptions.ForbiddenException exception =
+            new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente");
+
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(exception);
+
+        try {
+            service.listAdminRequests(null, null, otherCompanyId, null);
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void managerCannotAccessRequestDetailsFromOtherCompany() {
+        UUID managerCompanyId = UUID.randomUUID();
+        UUID otherCompanyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, otherCompanyId);
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        try {
+            service.getRequestDetails(requestId);
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void managerCannotAssignRequestsFromOtherCompany() {
+        UUID otherCompanyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID assignToUserId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, otherCompanyId);
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        try {
+            service.assignRequest(requestId, assignToUserId);
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void managerCannotAddNoteToRequestsFromOtherCompany() {
+        UUID otherCompanyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, otherCompanyId);
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        try {
+            service.addNote(requestId, "public note", "internal note");
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void managerCannotCompleteRequestsFromOtherCompany() {
+        UUID otherCompanyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, otherCompanyId);
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        try {
+            service.completeRequest(requestId, "public notes", "internal notes");
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void managerCannotRejectRequestsFromOtherCompany() {
+        UUID otherCompanyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, otherCompanyId);
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        try {
+            service.rejectRequest(requestId, "Invalid request", "public note", "internal note");
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
+        }
+    }
+
+    @Test
+    void exportEmployeeDataShouldFetchAuditLogsByUserIdNotEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        User user = new User(userId, "testuser", "hash", Role.MANAGER, true, employeeId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
+        when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(auditService.findByUserId(userId)).thenReturn(List.of(
+                AuditLog.create(userId, "TEST_ACTION", "127.0.0.1", "JUnit", "Test details")
+        ));
+        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+
+        var response = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
+
+        assertNotNull(response);
+        assertNotNull(response.manifest());
+        assertEquals(1, response.auditLogs().size());
+        assertEquals(userId, response.auditLogs().getFirst().userId());
+        verify(auditService).findByUserId(userId);
+    }
+
+    @Test
+    void exportEmployeeDataShouldReturnEmptyAuditLogsIfNoUser() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+
+        var response = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
+
+        assertNotNull(response);
+        assertNotNull(response.manifest());
+        assertTrue(response.auditLogs().isEmpty());
+    }
+
+    @Test
+    void exportEmployeeDataShouldIncludeManifest() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+
+        var response = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
+
+        assertNotNull(response.manifest());
+        assertNotNull(response.manifest().exportId());
+        assertNotNull(response.manifest().exportedAt());
+        assertEquals(userId, response.manifest().requestedByUserId());
+        assertEquals(employeeId, response.manifest().targetEmployeeId());
+        assertFalse(response.manifest().includePreciseGeolocation());
+        assertFalse(response.manifest().sections().isEmpty());
+        assertFalse(response.manifest().warnings().isEmpty());
+    }
+
+    @Test
+    void exportEmployeeDataShouldRequireReasonForThirdPartyExport() {
+        UUID employeeId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(targetEmployeeId, companyId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId)).thenReturn(employee);
+
+        try {
+            service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", null);
+            fail("Should have thrown ForbiddenException");
+        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
+            assertTrue(e.getMessage().contains("justificativa"));
+        }
+    }
+
+    @Test
+    void exportEmployeeDataShouldAllowThirdPartyExportWithReason() {
+        UUID employeeId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(targetEmployeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId)).thenReturn(employee);
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findByEmployeeId(targetEmployeeId)).thenReturn(Optional.empty());
+        when(documentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
+        when(timeRecordProvider.findByEmployeeId(targetEmployeeId)).thenReturn(List.of());
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, targetEmployeeId)).thenReturn(List.of());
+        when(legalConsentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
+
+        var response = service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", "HR request for personnel file");
+
+        assertNotNull(response);
+        assertNotNull(response.manifest());
     }
 
     private LgpdRequest buildRequest(UUID employeeId, UUID companyId, LgpdRequestType type, LgpdRequestStatus status) {

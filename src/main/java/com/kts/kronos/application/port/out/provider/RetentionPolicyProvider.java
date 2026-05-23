@@ -8,4 +8,8 @@ public interface RetentionPolicyProvider {
     RetentionPolicy save(RetentionPolicy policy);
 
     List<RetentionPolicy> findEnabledPolicies();
+
+    List<RetentionPolicy> findAll();
+
+    RetentionPolicy findByCode(String policyCode);
 }

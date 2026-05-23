@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public record LgpdEmployeeExportResponse(
+        ExportManifest manifest,
         ExportedEmployee employee,
         ExportedUser user,
         ExportedCompany company,
@@ -48,13 +49,26 @@ public record LgpdEmployeeExportResponse(
             List<Message> messages,
             List<AuditLog> auditLogs,
             List<LegalConsent> legalConsents,
-            boolean includePreciseGeolocation
+            boolean includePreciseGeolocation,
+            UUID requestedByUserId
     ) {
         boolean hasFaceImage = employee.faceS3ObjectKey() != null && !employee.faceS3ObjectKey().isBlank();
         boolean hasActiveBiometricConsent = legalConsents.stream()
                 .anyMatch(consent -> consent.consentType() == ConsentType.BIOMETRIC_AUTHENTICATION && consent.isActive());
 
+        Instant exportedAt = Instant.now();
+        ExportManifest manifest = new ExportManifest(
+                UUID.randomUUID(),
+                exportedAt,
+                requestedByUserId,
+                employee.employeeId(),
+                includePreciseGeolocation,
+                java.util.Arrays.asList("employee", "user", "company", "documents", "timeRecords", "messages", "auditLogs", "legalConsents", "biometricStatus"),
+                java.util.Arrays.asList("Este arquivo contém dados pessoais e pode conter dados sensíveis. Mantenha-o em local seguro.")
+        );
+
         return new LgpdEmployeeExportResponse(
+                manifest,
                 ExportedEmployee.from(employee),
                 ExportedUser.from(user),
                 ExportedCompany.from(company),
@@ -71,7 +85,7 @@ public record LgpdEmployeeExportResponse(
                         hasFaceImage && hasActiveBiometricConsent,
                         documents.stream().filter(document -> document.type() == DocumentType.BIOMETRIC_CONSENT_TERM).count()
                 ),
-                Instant.now()
+                exportedAt
         );
     }
 
@@ -374,6 +388,17 @@ public record LgpdEmployeeExportResponse(
             boolean activeBiometricConsent,
             boolean biometricLoginEnabled,
             long biometricEvidenceDocumentCount
+    ) {
+    }
+
+    public record ExportManifest(
+            UUID exportId,
+            Instant exportedAt,
+            UUID requestedByUserId,
+            UUID targetEmployeeId,
+            boolean includePreciseGeolocation,
+            java.util.List<String> sections,
+            java.util.List<String> warnings
     ) {
     }
 }

@@ -2,12 +2,14 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.application.port.out.provider.AnonymizationExecutionLogProvider;
 import com.kts.kronos.domain.model.AnonymizationExecutionLog;
+import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,7 +24,12 @@ public class AnonymizationPlanExecutor {
     private final AnonymizationExecutionLogProvider executionLogProvider;
 
     public void executePlan(AnonymizationPlan plan, String executionMode) {
+        executePlanWithResults(plan, executionMode);
+    }
+
+    public List<AnonymizationExecutionResult> executePlanWithResults(AnonymizationPlan plan, String executionMode) {
         validatePlan(plan);
+        List<AnonymizationExecutionResult> results = new ArrayList<>();
 
         log.info(
                 "event=anonymization_execution_start employeeId={} companyId={} executionMode={}",
@@ -34,39 +41,51 @@ public class AnonymizationPlanExecutor {
         var processorsByType = getAvailableProcessors();
 
         if (plan.preserveLaborData()) {
-            executeProcessor(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode));
         } else {
-            executeProcessor(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode));
         }
 
         if (plan.deleteBiometricArtifacts()) {
-            executeProcessor(processorsByType, AnonymizationResourceType.BIOMETRIC_ARTIFACT, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.BIOMETRIC_ARTIFACT, plan, executionMode));
         }
 
         if (plan.anonymizeDocuments()) {
-            executeProcessor(processorsByType, AnonymizationResourceType.DOCUMENT, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.DOCUMENT, plan, executionMode));
         }
 
         if (plan.anonymizeMessages()) {
-            executeProcessor(processorsByType, AnonymizationResourceType.MESSAGE, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.MESSAGE, plan, executionMode));
         }
 
         if (plan.anonymizeAuditLogs()) {
-            executeProcessor(processorsByType, AnonymizationResourceType.AUDIT_LOG, plan, executionMode);
+            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.AUDIT_LOG, plan, executionMode));
         }
 
-        executeProcessor(processorsByType, AnonymizationResourceType.EMPLOYEE, plan, executionMode);
-        executeProcessor(processorsByType, AnonymizationResourceType.USER, plan, executionMode);
+        results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.EMPLOYEE, plan, executionMode));
+        results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.USER, plan, executionMode));
 
         log.info(
-                "event=anonymization_execution_complete employeeId={} companyId={} executionMode={}",
+                "event=anonymization_execution_complete employeeId={} companyId={} executionMode={} resultCount={}",
                 plan.employeeId(),
                 plan.companyId(),
-                executionMode
+                executionMode,
+                results.size()
         );
+
+        return results;
     }
 
     private void executeProcessor(
+            Map<String, AnonymizationDomainProcessor> processorsByType,
+            AnonymizationResourceType resourceType,
+            AnonymizationPlan plan,
+            String executionMode
+    ) {
+        executeProcessorWithResult(processorsByType, resourceType, plan, executionMode);
+    }
+
+    private AnonymizationExecutionResult executeProcessorWithResult(
             Map<String, AnonymizationDomainProcessor> processorsByType,
             AnonymizationResourceType resourceType,
             AnonymizationPlan plan,
@@ -79,7 +98,7 @@ public class AnonymizationPlanExecutor {
                     plan.employeeId(),
                     resourceType
             );
-            return;
+            return null;
         }
 
         try {
@@ -97,6 +116,7 @@ public class AnonymizationPlanExecutor {
                     result.skippedCount(),
                     result.errorCount()
             );
+            return result;
         } catch (Exception e) {
             log.error(
                     "event=anonymization_processor_error employeeId={} resourceType={} error={}",
@@ -105,6 +125,7 @@ public class AnonymizationPlanExecutor {
                     e.getMessage(),
                     e
             );
+            return null;
         }
     }
 

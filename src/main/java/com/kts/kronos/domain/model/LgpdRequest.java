@@ -58,6 +58,9 @@ public record LgpdRequest(
     }
 
     private boolean isTerminal(LgpdRequestStatus status) {
-        return status == LgpdRequestStatus.COMPLETED || status == LgpdRequestStatus.REJECTED;
+        return status == LgpdRequestStatus.COMPLETED
+                || status == LgpdRequestStatus.REJECTED
+                || status == LgpdRequestStatus.PARTIALLY_COMPLETED
+                || status == LgpdRequestStatus.CANCELLED;
     }
 }

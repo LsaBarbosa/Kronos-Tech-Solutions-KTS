@@ -27,4 +27,19 @@ public class RetentionPolicyProviderImpl implements RetentionPolicyProvider {
                 .map(mapper::toDomain)
                 .toList();
     }
+
+    @Override
+    public List<RetentionPolicy> findAll() {
+        return repository.findAll()
+                .stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public RetentionPolicy findByCode(String policyCode) {
+        return repository.findByPolicyCode(policyCode)
+                .map(mapper::toDomain)
+                .orElseThrow(() -> new RuntimeException("Policy not found: " + policyCode));
+    }
 }

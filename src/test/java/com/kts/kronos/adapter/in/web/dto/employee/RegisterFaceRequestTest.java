@@ -13,10 +13,11 @@ class RegisterFaceRequestTest {
     void shouldExposeRecordComponents() {
         UUID employeeId = UUID.randomUUID();
 
-        var request = new RegisterFaceRequest("base64-image", employeeId);
+        var request = new RegisterFaceRequest("base64-image", employeeId, true);
 
         assertEquals("base64-image", request.faceImageBase64());
         assertEquals(employeeId, request.employeeId());
+        assertEquals(true, request.livenessPassed());
     }
 
     @Test
@@ -24,7 +25,7 @@ class RegisterFaceRequestTest {
     void toString_doesNotRevealFaceImageBase64() {
         String sensitiveBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
         UUID employeeId = UUID.randomUUID();
-        RegisterFaceRequest request = new RegisterFaceRequest(sensitiveBase64, employeeId);
+        RegisterFaceRequest request = new RegisterFaceRequest(sensitiveBase64, employeeId, true);
 
         String result = request.toString();
 
@@ -38,7 +39,7 @@ class RegisterFaceRequestTest {
     void toString_containsEmployeeId() {
         String base64 = "dGVzdGJhc2U2NCBkYXRh";
         UUID employeeId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-        RegisterFaceRequest request = new RegisterFaceRequest(base64, employeeId);
+        RegisterFaceRequest request = new RegisterFaceRequest(base64, employeeId, false);
 
         String result = request.toString();
 
@@ -50,7 +51,7 @@ class RegisterFaceRequestTest {
     void toString_hasExpectedFormat() {
         String base64 = "dGVzdA==";
         UUID employeeId = UUID.randomUUID();
-        RegisterFaceRequest request = new RegisterFaceRequest(base64, employeeId);
+        RegisterFaceRequest request = new RegisterFaceRequest(base64, employeeId, null);
 
         String result = request.toString();
 
