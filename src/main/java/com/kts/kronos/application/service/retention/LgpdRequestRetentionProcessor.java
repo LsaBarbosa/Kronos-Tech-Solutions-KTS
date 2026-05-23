@@ -52,12 +52,12 @@ public class LgpdRequestRetentionProcessor implements RetentionDomainProcessor {
     }
 
     private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        long countOld = lgpdRequestRepository.countCreatedBefore(cutoff);
+        long countClosedOld = lgpdRequestRepository.countClosedRequestsBefore(cutoff);
 
         log.info(
-                "event=lgpd_request_retention_dry_run policyCode={} countToDelete={}",
+                "event=lgpd_request_retention_dry_run policyCode={} closedRequestsBefore={} action=MINIMIZE",
                 policy.policyCode(),
-                countOld
+                countClosedOld
         );
 
         return RetentionExecutionResult.success(
@@ -65,19 +65,24 @@ public class LgpdRequestRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.LGPD_REQUEST,
                 "DRY_RUN",
-                countOld,
+                countClosedOld,
                 0,
                 0
         );
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        int deleted = lgpdRequestRepository.deleteCreatedBefore(cutoff);
+        var now = Instant.now();
+        int minimized = lgpdRequestRepository.minimizeClosedRequestsBefore(
+                cutoff,
+                now,
+                policy.policyCode()
+        );
 
         log.info(
-                "event=lgpd_request_retention_apply policyCode={} deleted={}",
+                "event=lgpd_request_retention_apply policyCode={} minimized={} action=MINIMIZE_METADATA",
                 policy.policyCode(),
-                deleted
+                minimized
         );
 
         return RetentionExecutionResult.success(
@@ -85,8 +90,8 @@ public class LgpdRequestRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.LGPD_REQUEST,
                 "APPLY",
-                deleted,
-                deleted,
+                minimized,
+                minimized,
                 0
         );
     }
