@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
@@ -18,6 +19,8 @@ import com.kts.kronos.application.port.out.provider.MessageProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecutor;
+import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
@@ -57,7 +60,9 @@ public class LgpdService implements LgpdUseCase {
     private final AuditService auditService;
     private final LegalConsentProvider legalConsentProvider;
     private final EmployeeAnonymizationService employeeAnonymizationService;
+    private final AnonymizationPlanExecutor anonymizationPlanExecutor;
     private final LgpdSlaPolicyService lgpdSlaPolicyService;
+    private final LgpdRequestNotificationService notificationService;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
@@ -183,16 +188,22 @@ public class LgpdService implements LgpdUseCase {
             UUID employeeId,
             boolean includePreciseGeolocation,
             String ipAddress,
-            String userAgent
+            String userAgent,
+            String exportReason
     ) {
         Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
+        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
+        UUID requestedByEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+
+        validateExportReason(targetEmployee.employeeId(), requestedByEmployeeId, exportReason);
+
         var company = companyProvider.findById(targetEmployee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + targetEmployee.companyId()));
         var user = userProvider.findByEmployeeId(targetEmployee.employeeId()).orElse(null);
         var documents = documentProvider.findAllByEmployeeId(targetEmployee.employeeId());
         var timeRecords = timeRecordProvider.findByEmployeeId(targetEmployee.employeeId());
         var messages = messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(targetEmployee.companyId(), targetEmployee.employeeId());
-        var auditLogs = auditService.findByUserId(targetEmployee.employeeId());
+        List<com.kts.kronos.domain.model.AuditLog> auditLogs = user != null ? auditService.findByUserId(user.userId()) : List.of();
         var legalConsents = legalConsentProvider.findAllByEmployeeId(targetEmployee.employeeId());
         boolean allowPreciseGeolocation = includePreciseGeolocation && canAccessPreciseGeolocation(targetEmployee.employeeId());
 
@@ -205,7 +216,8 @@ public class LgpdService implements LgpdUseCase {
                 messages,
                 auditLogs,
                 legalConsents,
-                allowPreciseGeolocation
+                allowPreciseGeolocation,
+                requestedByUserId
         );
 
         auditService.registerLgpd(
@@ -213,19 +225,30 @@ public class LgpdService implements LgpdUseCase {
                 targetEmployee.employeeId(),
                 targetEmployee.companyId(),
                 "EMPLOYEE",
-                targetEmployee.employeeId().toString(),
+                response.manifest().exportId().toString(),
                 allowPreciseGeolocation ? "HIGH" : "MEDIUM",
                 String.format(
-                        "Exportação LGPD gerada. employeeId=%s, preciseGeolocationIncluded=%s, preciseGeolocationRequested=%s",
+                        "Exportação LGPD gerada. exportId=%s, employeeId=%s, requestedBy=%s, preciseGeolocationIncluded=%s, reason=%s",
+                        response.manifest().exportId(),
                         targetEmployee.employeeId(),
+                        requestedByUserId,
                         allowPreciseGeolocation,
-                        includePreciseGeolocation
+                        exportReason != null ? "provided" : "own_data"
                 ),
                 ipAddress,
                 userAgent
         );
 
         return response;
+    }
+
+    private void validateExportReason(UUID targetEmployeeId, UUID requestedByEmployeeId, String exportReason) {
+        boolean isOwnData = targetEmployeeId.equals(requestedByEmployeeId);
+        if (!isOwnData && (exportReason == null || exportReason.trim().isEmpty())) {
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Exportação de dados de terceiros exige justificativa."
+            );
+        }
     }
 
     @Override
@@ -240,15 +263,85 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     @Transactional(readOnly = true)
+    public AnonymizationDryRunResponse dryRunAnonymizeEmployee(UUID employeeId) {
+        var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
+
+        var plan = new AnonymizationPlan(
+                employeeId,
+                employee.companyId(),
+                jwtAuthenticatedUser.getuserId(),
+                "DRY_RUN_CHECK",
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        );
+
+        var results = anonymizationPlanExecutor.executePlanWithResults(plan, "DRY_RUN");
+
+        long documentsToDelete = 0;
+        long timeRecordsToPreserve = 0;
+        long timeRecordsToAnonymize = 0;
+        long messagesToAnonymize = 0;
+        long auditLogsToSanitize = 0;
+        long biometricArtifactsToDelete = 0;
+        long errorsExpected = 0;
+
+        for (var result : results) {
+            if (result == null) continue;
+            switch (result.resourceType()) {
+                case DOCUMENT -> documentsToDelete = result.affectedCount();
+                case TIME_RECORD -> timeRecordsToAnonymize = result.affectedCount();
+                case MESSAGE -> messagesToAnonymize = result.affectedCount();
+                case AUDIT_LOG -> auditLogsToSanitize = result.affectedCount();
+                case BIOMETRIC_ARTIFACT -> biometricArtifactsToDelete = result.affectedCount();
+                default -> {}
+            }
+            if (result.errorCount() > 0) {
+                errorsExpected += result.errorCount();
+            }
+        }
+
+        List<String> warnings = new java.util.ArrayList<>();
+        if (documentsToDelete > 0) {
+            warnings.add(String.format("Serão deletados %d documentos.", documentsToDelete));
+        }
+        if (messagesToAnonymize > 0) {
+            warnings.add(String.format("%d mensagens serão anonimizadas.", messagesToAnonymize));
+        }
+        if (biometricArtifactsToDelete > 0) {
+            warnings.add("Artefatos biométricos serão deletados permanentemente.");
+        }
+        warnings.add("Esta é uma visualização. Nenhum dado foi modificado.");
+
+        return new AnonymizationDryRunResponse(
+                employeeId,
+                documentsToDelete,
+                timeRecordsToPreserve,
+                timeRecordsToAnonymize,
+                messagesToAnonymize,
+                auditLogsToSanitize,
+                biometricArtifactsToDelete,
+                errorsExpected,
+                warnings
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<LgpdRequestAdminListResponse> listAdminRequests(
             LgpdRequestType type,
             LgpdRequestStatus status,
             UUID companyId,
             Pageable pageable
     ) {
-        Page<LgpdRequest> requests = companyId == null
+        UUID authorizedCompanyId = domainAuthorizationService.authorizeCompanyAccess(companyId);
+
+        Page<LgpdRequest> requests = authorizedCompanyId == null
                 ? lgpdRequestProvider.findAll(pageable)
-                : lgpdRequestProvider.findByCompanyId(companyId, pageable);
+                : lgpdRequestProvider.findByCompanyId(authorizedCompanyId, pageable);
 
         Page<LgpdRequestAdminListResponse> result = requests.map(request -> {
             Employee employee = employeeProvider.findById(request.employeeId()).orElse(null);
@@ -266,7 +359,7 @@ public class LgpdService implements LgpdUseCase {
     @Override
     @Transactional(readOnly = true)
     public LgpdRequestDetailsResponse getRequestDetails(UUID requestId) {
-        LgpdRequest request = findAuthorizedRequest(requestId);
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Employee employee = employeeProvider.findById(request.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
         var company = companyProvider.findById(request.companyId())
@@ -281,7 +374,7 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public LgpdRequest assignRequest(UUID requestId, UUID assignedToUserId) {
-        LgpdRequest request = findAuthorizedRequest(requestId);
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
         LgpdRequest updated = new LgpdRequest(
@@ -306,13 +399,14 @@ public class LgpdService implements LgpdUseCase {
         );
 
         LgpdRequest saved = lgpdRequestProvider.save(updated);
+        notificationService.notifyResponsibilityAssigned(saved, assignedToUserId);
 
         return saved;
     }
 
     @Override
     public LgpdRequest addNote(UUID requestId, String publicNote, String internalNote) {
-        LgpdRequest request = findAuthorizedRequest(requestId);
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
         LgpdRequest updated = new LgpdRequest(
@@ -351,7 +445,7 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public LgpdRequest completeRequest(UUID requestId, String publicResolutionNotes, String internalNotes) {
-        LgpdRequest request = findAuthorizedRequest(requestId);
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
         LgpdRequest updated = request.updateStatus(
@@ -397,7 +491,7 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public LgpdRequest rejectRequest(UUID requestId, String closedReason, String publicNote, String internalNote) {
-        LgpdRequest request = findAuthorizedRequest(requestId);
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
         LgpdRequest updated = request.updateStatus(
@@ -441,6 +535,14 @@ public class LgpdService implements LgpdUseCase {
         return saved;
     }
 
+    private LgpdRequest findAuthorizedAdminRequest(UUID requestId) {
+        LgpdRequest request = lgpdRequestProvider.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException(LGPD_REQUEST_NOT_FOUND));
+        domainAuthorizationService.authorizeEmployeeAccess(request.employeeId());
+        domainAuthorizationService.authorizeCompanyAccess(request.companyId());
+        return request;
+    }
+
     private LgpdRequest findAuthorizedRequest(UUID requestId) {
         LgpdRequest request = lgpdRequestProvider.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException(LGPD_REQUEST_NOT_FOUND));
@@ -456,5 +558,138 @@ public class LgpdService implements LgpdUseCase {
     private boolean canAccessPreciseGeolocation(UUID targetEmployeeId) {
         return jwtAuthenticatedUser.getCurrentRole() == Role.CTO
                 || targetEmployeeId.equals(jwtAuthenticatedUser.getEmployeeId());
+    }
+
+    public LgpdRequest transitionStatus(UUID requestId, LgpdRequestStatus newStatus, String publicNotes, String internalNotes, String closedReason) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+        Instant now = Instant.now();
+
+        if (newStatus == LgpdRequestStatus.REJECTED && (closedReason == null || closedReason.isBlank())) {
+            throw new IllegalArgumentException("Motivo da rejeição é obrigatório");
+        }
+
+        if ((newStatus == LgpdRequestStatus.COMPLETED || newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED)
+                && (publicNotes == null || publicNotes.isBlank())) {
+            throw new IllegalArgumentException("Notas públicas são obrigatórias para conclusão");
+        }
+
+        String oldStatus = request.status().name();
+        LgpdRequest updated = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNotes, now);
+
+        LgpdRequest withAllNotes = new LgpdRequest(
+                updated.requestId(),
+                updated.employeeId(),
+                updated.requestedByUserId(),
+                updated.companyId(),
+                updated.requestType(),
+                updated.status(),
+                updated.description(),
+                updated.resolutionNotes(),
+                updated.createdAt(),
+                updated.updatedAt(),
+                updated.resolvedAt(),
+                updated.resolvedByUserId(),
+                updated.assignedToUserId(),
+                updated.dueAt(),
+                updated.priority(),
+                closedReason,
+                publicNotes,
+                internalNotes
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(withAllNotes);
+
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                publicNotes != null ? publicNotes : internalNotes,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        // Send notifications asynchronously
+        notificationService.notifyStatusChanged(saved, oldStatus, jwtAuthenticatedUser.getuserId());
+
+        if (newStatus == LgpdRequestStatus.REJECTED) {
+            notificationService.notifyRejectionRequest(saved);
+        } else if (newStatus == LgpdRequestStatus.COMPLETED || newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED) {
+            notificationService.notifyCompletionRequest(saved);
+        }
+
+        return saved;
+    }
+
+    public LgpdRequest requestDataSubjectComplement(UUID requestId, String complementMessage) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        if (request.status() != LgpdRequestStatus.WAITING_DATA_SUBJECT) {
+            throw new IllegalStateException("Solicitação não está aguardando complemento do titular");
+        }
+
+        notificationService.notifyComplementRequest(request, complementMessage);
+
+        return request;
+    }
+
+    public LgpdRequest cancelRequest(UUID requestId, String cancellationReason) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        if (jwtAuthenticatedUser.getCurrentRole() != Role.CTO) {
+            throw new IllegalArgumentException("Apenas CTO pode cancelar solicitações");
+        }
+
+        Instant now = Instant.now();
+        LgpdRequest updated = request.updateStatus(
+                LgpdRequestStatus.CANCELLED,
+                jwtAuthenticatedUser.getuserId(),
+                cancellationReason,
+                now
+        );
+
+        LgpdRequest withReason = new LgpdRequest(
+                updated.requestId(),
+                updated.employeeId(),
+                updated.requestedByUserId(),
+                updated.companyId(),
+                updated.requestType(),
+                updated.status(),
+                updated.description(),
+                updated.resolutionNotes(),
+                updated.createdAt(),
+                updated.updatedAt(),
+                updated.resolvedAt(),
+                updated.resolvedByUserId(),
+                updated.assignedToUserId(),
+                updated.dueAt(),
+                updated.priority(),
+                null,
+                null,
+                cancellationReason
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(withReason);
+
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                "Cancelado: " + cancellationReason,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        return saved;
+    }
+
+    public List<LgpdRequestStatus> getAvailableTransitions(LgpdRequestStatus currentStatus) {
+        return switch (currentStatus) {
+            case OPEN -> List.of(LgpdRequestStatus.IN_ANALYSIS, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case IN_ANALYSIS -> List.of(LgpdRequestStatus.WAITING_CONTROLLER, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case WAITING_CONTROLLER -> List.of(LgpdRequestStatus.WAITING_LEGAL_REVIEW, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case WAITING_LEGAL_REVIEW -> List.of(LgpdRequestStatus.WAITING_DATA_SUBJECT, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case WAITING_DATA_SUBJECT -> List.of(LgpdRequestStatus.IN_ANALYSIS, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED -> List.of();
+        };
     }
 }

@@ -1,5 +1,6 @@
 package com.kts.kronos.application.port.in.usecase;
 
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
@@ -30,10 +31,13 @@ public interface LgpdUseCase {
             UUID employeeId,
             boolean includePreciseGeolocation,
             String ipAddress,
-            String userAgent
+            String userAgent,
+            String exportReason
     );
 
     void anonymizeEmployee(UUID employeeId, String ipAddress, String userAgent);
+
+    AnonymizationDryRunResponse dryRunAnonymizeEmployee(UUID employeeId);
 
     Page<LgpdRequestAdminListResponse> listAdminRequests(
             LgpdRequestType type,
@@ -51,4 +55,12 @@ public interface LgpdUseCase {
     LgpdRequest completeRequest(UUID requestId, String publicResolutionNotes, String internalNotes);
 
     LgpdRequest rejectRequest(UUID requestId, String closedReason, String publicNote, String internalNote);
+
+    LgpdRequest transitionStatus(UUID requestId, LgpdRequestStatus newStatus, String publicNotes, String internalNotes, String closedReason);
+
+    LgpdRequest requestDataSubjectComplement(UUID requestId, String complementMessage);
+
+    LgpdRequest cancelRequest(UUID requestId, String cancellationReason);
+
+    List<LgpdRequestStatus> getAvailableTransitions(LgpdRequestStatus currentStatus);
 }

@@ -78,8 +78,9 @@ public class BiometricProtectionService {
         );
     }
 
-    public void protectEnrollment(UUID employeeId, String faceImageBase64) {
+    public void protectEnrollment(UUID employeeId, String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
+        ensureLiveness(livenessPassed);
         consume(
                 "bio:enrollment:" + employeeId + ":" + clientIp(),
                 enrollmentLimit,

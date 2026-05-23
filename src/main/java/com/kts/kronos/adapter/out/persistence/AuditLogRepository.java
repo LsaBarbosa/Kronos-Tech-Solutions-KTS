@@ -2,10 +2,21 @@ package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.AuditLogEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> {
     List<AuditLogEntity> findByUserIdOrderByTimestampDesc(UUID userId);
+
+    @Query("SELECT COUNT(a) FROM AuditLogEntity a WHERE a.timestamp < :cutoff")
+    long countCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying
+    @Query("UPDATE AuditLogEntity a SET a.details = 'ANONYMIZED', a.userId = NULL WHERE a.timestamp < :cutoff")
+    int anonymizeCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
 }

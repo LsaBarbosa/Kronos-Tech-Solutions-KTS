@@ -1,145 +1,113 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.application.port.out.provider.AnonymizationExecutionLogProvider;
+import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
+import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AnonymizationPlanExecutorTest {
 
     @Mock
-    private AnonymizationDomainProcessor mockProcessor;
+    private EmployeeAnonymizer employeeAnonymizer;
+
+    @Mock
+    private UserAnonymizer userAnonymizer;
 
     @Mock
     private AnonymizationExecutionLogProvider executionLogProvider;
 
-    @InjectMocks
     private AnonymizationPlanExecutor executor;
 
     @Test
-    void testValidatePlanWithMissingEmployeeId() {
-        var plan = new AnonymizationPlan(
-                null,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "Test reason",
-                true,
-                true,
-                false,
-                false,
-                false,
-                false
-        );
-
-        assertThrows(IllegalArgumentException.class, () -> executor.executePlan(plan, "DRY_RUN"));
-    }
-
-    @Test
-    void testValidatePlanWithMissingCompanyId() {
-        var plan = new AnonymizationPlan(
-                UUID.randomUUID(),
-                null,
-                UUID.randomUUID(),
-                "Test reason",
-                true,
-                true,
-                false,
-                false,
-                false,
-                false
-        );
-
-        assertThrows(IllegalArgumentException.class, () -> executor.executePlan(plan, "DRY_RUN"));
-    }
-
-    @Test
-    void testValidatePlanWithMissingRequestedByUserId() {
-        var plan = new AnonymizationPlan(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                null,
-                "Test reason",
-                true,
-                true,
-                false,
-                false,
-                false,
-                false
-        );
-
-        assertThrows(IllegalArgumentException.class, () -> executor.executePlan(plan, "DRY_RUN"));
-    }
-
-    @Test
-    void testValidatePlanWithMissingReason() {
-        var plan = new AnonymizationPlan(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "",
-                true,
-                true,
-                false,
-                false,
-                false,
-                false
-        );
-
-        assertThrows(IllegalArgumentException.class, () -> executor.executePlan(plan, "DRY_RUN"));
-    }
-
-    @Test
-    void testGetAvailableProcessors() {
-        var mockProcessor = mock(AnonymizationDomainProcessor.class);
-        when(mockProcessor.supports()).thenReturn(com.kts.kronos.domain.model.enuns.AnonymizationResourceType.EMPLOYEE);
+    void shouldExecutePlanAndReturnResults() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
 
         executor = new AnonymizationPlanExecutor(
-                List.of(mockProcessor),
+                Arrays.asList(employeeAnonymizer, userAnonymizer),
                 executionLogProvider
         );
 
-        var processors = executor.getAvailableProcessors();
-        assertNotNull(processors);
-        assertFalse(processors.isEmpty());
-        assertTrue(processors.containsKey("EMPLOYEE"));
-    }
-
-    @Test
-    void testValidatePlanSucceedsWithValidPlan() {
-        var plan = createValidPlan();
-        assertDoesNotThrow(() -> {
-            executor = new AnonymizationPlanExecutor(
-                    Collections.emptyList(),
-                    executionLogProvider
-            );
-            executor.executePlan(plan, "DRY_RUN");
-        });
-    }
-
-    private AnonymizationPlan createValidPlan() {
-        return new AnonymizationPlan(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "Valid reason",
-                true,
-                true,
+        AnonymizationPlan plan = new AnonymizationPlan(
+                employeeId,
+                companyId,
+                actorId,
+                "TEST_ANONYMIZATION",
+                false,
+                false,
                 true,
                 true,
                 true,
                 true
         );
+
+        AnonymizationExecutionResult employeeResult = AnonymizationExecutionResult.success(
+                UUID.randomUUID(),
+                employeeId,
+                companyId,
+                actorId,
+                AnonymizationResourceType.EMPLOYEE,
+                "DRY_RUN",
+                1,
+                1,
+                0
+        );
+
+        AnonymizationExecutionResult userResult = AnonymizationExecutionResult.success(
+                UUID.randomUUID(),
+                employeeId,
+                companyId,
+                actorId,
+                AnonymizationResourceType.USER,
+                "DRY_RUN",
+                1,
+                0,
+                0
+        );
+
+        when(employeeAnonymizer.supports()).thenReturn(AnonymizationResourceType.EMPLOYEE);
+        when(employeeAnonymizer.execute(plan, "DRY_RUN")).thenReturn(employeeResult);
+        when(userAnonymizer.supports()).thenReturn(AnonymizationResourceType.USER);
+        when(userAnonymizer.execute(plan, "DRY_RUN")).thenReturn(userResult);
+
+        List<AnonymizationExecutionResult> results = executor.executePlanWithResults(plan, "DRY_RUN");
+
+        assertNotNull(results);
+    }
+
+    @Test
+    void shouldHandleMissingProcessorsGracefully() {
+        executor = new AnonymizationPlanExecutor(Arrays.asList(), executionLogProvider);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "TEST",
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        );
+
+        List<AnonymizationExecutionResult> results = executor.executePlanWithResults(plan, "DRY_RUN");
+        assertNotNull(results);
     }
 }

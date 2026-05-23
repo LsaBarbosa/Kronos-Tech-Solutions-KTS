@@ -8,8 +8,10 @@ import java.util.Optional;
 import java.util.UUID;
 import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
     boolean existsByCpf(String cpf);
@@ -29,4 +31,11 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
         GROUP BY e.companyId
     """)
     List<CompanyEmployeeCountsProjection> countByCompanyIds(@Param("companyIds") Collection<UUID> companyIds);
+
+    @Query("SELECT COUNT(e) FROM EmployeeEntity e WHERE e.faceS3ObjectKey IS NOT NULL")
+    long countByFaceS3ObjectKeyIsNotNullAndCreatedAtBefore(@Param("cutoff") Instant cutoff);
+
+    @Modifying
+    @Query("UPDATE EmployeeEntity e SET e.faceS3ObjectKey = NULL WHERE e.faceS3ObjectKey IS NOT NULL")
+    int clearBiometricDataBefore(Instant cutoff);
 }

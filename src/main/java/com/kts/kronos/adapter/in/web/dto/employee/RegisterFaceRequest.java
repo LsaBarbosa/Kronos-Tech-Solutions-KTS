@@ -12,10 +12,12 @@ public record RegisterFaceRequest(
     @Size(max = 1500000, message = "A imagem da face excede o tamanho máximo permitido.")
     String faceImageBase64,
 
-     UUID employeeId
+    UUID employeeId,
+
+    Boolean livenessPassed
 ) {
     @Override
     public String toString() {
-        return "RegisterFaceRequest[faceImageBase64=***MASKED***, employeeId=" + employeeId + "]";
+        return "RegisterFaceRequest[faceImageBase64=***MASKED***, employeeId=" + employeeId + ", livenessPassed=" + livenessPassed + "]";
     }
 }
