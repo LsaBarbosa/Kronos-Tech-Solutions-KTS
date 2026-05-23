@@ -1,609 +1,361 @@
-# LGPD Request Workflow API Contract
-## Endpoint Specifications & Examples
+# LGPD API Contract & Workflow
 
-**Version:** 1.0  
-**Date:** 2026-05-22  
-**Status:** Production Ready
+## API Architecture: Internal vs External Paths
 
----
+### Path Standardization Pattern
 
-## Base URL
+Kronos implements a standard API gateway pattern for LGPD endpoints:
 
 ```
-https://kronos-api.example.com/api/lgpd
+┌────────────────────────────────────────────────────────────┐
+│  External Client (Web/Mobile)                              │
+└────────────────┬─────────────────────────────────────────┘
+                 │
+                 │ HTTPS: /api/lgpd/**
+                 │
+┌────────────────▼─────────────────────────────────────────┐
+│  Nginx Reverse Proxy (API Gateway)                        │
+│  server_name: api.seu-dominio.com                        │
+│  Rewrite: /api/lgpd/** → /lgpd/**                       │
+└────────────────┬─────────────────────────────────────────┘
+                 │
+                 │ HTTP: /lgpd/**
+                 │
+┌────────────────▼─────────────────────────────────────────┐
+│  Spring Boot Backend                                       │
+│  @RequestMapping("/lgpd/**")                              │
+│  Internal HTTP: /lgpd/inventory, /lgpd/requests, etc.    │
+└─────────────────────────────────────────────────────────┘
 ```
 
----
+### URL Examples
 
-## Authentication
+| Concept | URL | Component |
+|---------|-----|-----------|
+| **External URL** | `https://api.seu-dominio.com/api/lgpd/inventory` | What clients call |
+| **Nginx Rewrites** | `/api/lgpd/inventory` → `/lgpd/inventory` | Path transformation |
+| **Internal Path** | `/lgpd/inventory` | Spring endpoint |
 
-All endpoints require JWT Bearer token in Authorization header:
+### Why This Pattern?
 
+1. **API Versioning**: `/api/v1/`, `/api/v2/` easy to implement
+2. **Service Routing**: Multiple backends can be routed via gateway
+3. **Feature Flags**: Different path versions for canary deployments
+4. **Clear Boundaries**: Explicit distinction between public API and internal services
+
+## Endpoint Contract
+
+### LGPD Inventory Endpoints
+
+#### List All Inventories
+
+**External (Client Request):**
 ```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /api/lgpd/inventory?page=0&size=10
+Host: api.seu-dominio.com
 ```
 
----
-
-## Content Type
-
-All requests and responses use:
-
+**Internal (Spring Receives):**
 ```
+GET /lgpd/inventory?page=0&size=10
+Host: 127.0.0.1:8080
+X-Forwarded-Host: api.seu-dominio.com
+X-Forwarded-Proto: https
+```
+
+**Response (200 OK):**
+```json
+{
+  "content": [
+    {
+      "inventoryId": "uuid-1",
+      "processCode": "DPI-001",
+      "processName": "Data Processing Inventory",
+      "dataCategory": "employee_data",
+      "totalElements": 100,
+      "totalPages": 10,
+      "currentPage": 0,
+      "size": 10
+    }
+  ]
+}
+```
+
+#### Get Inventory by Process Code
+
+**External:**
+```
+GET /api/lgpd/inventory/{processCode}
+Host: api.seu-dominio.com
+```
+
+**Internal:**
+```
+GET /lgpd/inventory/{processCode}
+Host: 127.0.0.1:8080
+```
+
+#### Create Inventory
+
+**External:**
+```
+POST /api/lgpd/inventory
+Host: api.seu-dominio.com
 Content-Type: application/json
-Charset: UTF-8
-```
+X-CSRF-Token: [token]
 
----
-
-## 1. Status Transition Endpoint
-
-### Endpoint
-```
-POST /admin/requests/{requestId}/transition-status
-```
-
-### Authorization
-
-```
-@PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
-```
-
-- **CTO:** Can transition any request globally
-- **MANAGER:** Can transition requests in own company only
-
-### Path Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| requestId | UUID | Yes | ID of the LGPD request to transition |
-
-### Request Body
-
-```json
 {
-  "newStatus": "IN_ANALYSIS",
-  "publicNotes": "Starting analysis phase",
-  "internalNotes": "Internal tracking info",
-  "closedReason": null
+  "processCode": "DPI-NEW",
+  "processName": "New Process",
+  "dataCategory": "employee_data",
+  "sensitiveData": true,
+  ...
 }
 ```
 
-**Schema:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| newStatus | LgpdRequestStatus | Yes | Valid enum value | Target status for transition |
-| publicNotes | String | Conditional | Max 5000 chars | Required for COMPLETED/PARTIALLY_COMPLETED |
-| internalNotes | String | No | Max 1000 chars | Internal notes not sent to employee |
-| closedReason | String | Conditional | Max 255 chars | Required only for REJECTED status |
-
-### Valid Status Transitions
-
+**Internal:**
 ```
-OPEN:
-  ├─ IN_ANALYSIS
-  ├─ REJECTED (requires closedReason)
-  └─ CANCELLED (CTO-only)
-
-IN_ANALYSIS:
-  ├─ WAITING_CONTROLLER
-  ├─ REJECTED (requires closedReason)
-  └─ CANCELLED (CTO-only)
-
-WAITING_CONTROLLER:
-  ├─ WAITING_LEGAL_REVIEW
-  ├─ REJECTED (requires closedReason)
-  └─ CANCELLED (CTO-only)
-
-WAITING_LEGAL_REVIEW:
-  ├─ WAITING_DATA_SUBJECT
-  ├─ COMPLETED (requires publicNotes)
-  ├─ PARTIALLY_COMPLETED (requires publicNotes)
-  ├─ REJECTED (requires closedReason)
-  └─ CANCELLED (CTO-only)
-
-WAITING_DATA_SUBJECT:
-  ├─ IN_ANALYSIS
-  ├─ COMPLETED (requires publicNotes)
-  ├─ PARTIALLY_COMPLETED (requires publicNotes)
-  ├─ REJECTED (requires closedReason)
-  └─ CANCELLED (CTO-only)
-
-COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED:
-  └─ (no transitions allowed - terminal states)
+POST /lgpd/inventory
+Host: 127.0.0.1:8080
 ```
 
-### Example Request
+#### Update Inventory
 
-```bash
-curl -X POST \
-  https://kronos-api.example.com/api/lgpd/admin/requests/550e8400-e29b-41d4-a716-446655440000/transition-status \
-  -H 'Authorization: Bearer {jwt_token}' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "newStatus": "IN_ANALYSIS",
-    "publicNotes": "Request received and sent to analysis team",
-    "internalNotes": "High priority - CEO request",
-    "closedReason": null
-  }'
+**External:**
+```
+PATCH /api/lgpd/inventory/{inventoryId}
+Host: api.seu-dominio.com
+Content-Type: application/json
+X-CSRF-Token: [token]
+
+{ "processName": "Updated Name", ... }
 ```
 
-### Success Response (200 OK)
-
-```json
-{
-  "requestId": "550e8400-e29b-41d4-a716-446655440000",
-  "employeeId": "660e8400-e29b-41d4-a716-446655440001",
-  "requestedByUserId": "770e8400-e29b-41d4-a716-446655440002",
-  "companyId": "880e8400-e29b-41d4-a716-446655440003",
-  "requestType": "ACCESS",
-  "status": "IN_ANALYSIS",
-  "description": "Request for access to personal data",
-  "resolutionNotes": "Request received and sent to analysis team",
-  "createdAt": "2026-05-20T10:00:00Z",
-  "updatedAt": "2026-05-22T14:30:00Z",
-  "resolvedAt": null,
-  "resolvedByUserId": null
-}
+**Internal:**
+```
+PATCH /lgpd/inventory/{inventoryId}
+Host: 127.0.0.1:8080
 ```
 
-### Error Responses
+### LGPD Request Workflow Endpoints
 
-#### 400 Bad Request - Missing Required Field
-```json
-{
-  "error": "Validation Error",
-  "message": "newStatus is required",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
+#### Create LGPD Request
+
+**External:**
+```
+POST /api/lgpd/requests
+Host: api.seu-dominio.com
 ```
 
-#### 400 Bad Request - Invalid Status Transition
-```json
-{
-  "error": "Invalid Transition",
-  "message": "Cannot transition from OPEN to WAITING_CONTROLLER. Valid transitions: [IN_ANALYSIS, REJECTED, CANCELLED]",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
+#### Get Request Details
+
+**External:**
+```
+GET /api/lgpd/requests/{requestId}
+Host: api.seu-dominio.com
 ```
 
-#### 400 Bad Request - Missing Mandatory Notes
-```json
-{
-  "error": "Validation Error",
-  "message": "publicNotes are required for COMPLETED status",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
+#### Transition Request Status
+
+**External:**
+```
+POST /api/lgpd/admin/requests/{requestId}/transition-status
+Host: api.seu-dominio.com
 ```
 
-#### 400 Bad Request - Missing Rejection Reason
-```json
-{
-  "error": "Validation Error",
-  "message": "closedReason is required for REJECTED status",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
+#### Get Anonymization Result
+
+**External:**
+```
+GET /api/lgpd/admin/requests/{requestId}/anonymization-result
+Host: api.seu-dominio.com
 ```
 
-#### 403 Forbidden - Insufficient Role
-```json
-{
-  "error": "Access Denied",
-  "message": "MANAGER role cannot transition cross-company requests",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 403
-}
-```
+## HTTP Headers
 
-#### 404 Not Found
-```json
-{
-  "error": "Not Found",
-  "message": "LGPD Request not found: 550e8400-e29b-41d4-a716-446655440000",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 404
-}
-```
+### Request Headers (Nginx → Spring)
 
----
-
-## 2. Request Complement Endpoint
-
-### Endpoint
-```
-POST /admin/requests/{requestId}/request-complement
-```
-
-### Authorization
+Nginx adds forwarding headers so Spring can reconstruct the original request:
 
 ```
-@PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+X-Forwarded-For: 203.0.113.45          # Original client IP
+X-Forwarded-Host: api.seu-dominio.com  # Original hostname
+X-Forwarded-Proto: https                # Original protocol
+X-Forwarded-Port: 443                   # Original port
+X-Real-IP: 203.0.113.45                 # Direct client IP
+X-Original-URI: /api/lgpd/inventory    # Original request path (before rewrite)
 ```
 
-- Requires request to be in WAITING_DATA_SUBJECT status
-- MANAGER restricted to own company
+### CORS Headers (Spring → Client)
 
-### Path Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| requestId | UUID | Yes | ID of the LGPD request |
-
-### Request Body
-
-```json
-{
-  "message": "Please provide proof of residence and official ID copy"
-}
-```
-
-**Schema:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| message | String | Yes | Min 10, Max 5000 chars | Information requested from employee |
-
-### Example Request
-
-```bash
-curl -X POST \
-  https://kronos-api.example.com/api/lgpd/admin/requests/550e8400-e29b-41d4-a716-446655440000/request-complement \
-  -H 'Authorization: Bearer {jwt_token}' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "message": "We need proof of your current address (utility bill or lease agreement) to proceed with your data access request"
-  }'
-```
-
-### Success Response (200 OK)
-
-```json
-{
-  "requestId": "550e8400-e29b-41d4-a716-446655440000",
-  "employeeId": "660e8400-e29b-41d4-a716-446655440001",
-  "requestedByUserId": "770e8400-e29b-41d4-a716-446655440002",
-  "companyId": "880e8400-e29b-41d4-a716-446655440003",
-  "requestType": "ACCESS",
-  "status": "WAITING_DATA_SUBJECT",
-  "description": "Request for access to personal data",
-  "resolutionNotes": null,
-  "createdAt": "2026-05-20T10:00:00Z",
-  "updatedAt": "2026-05-22T14:35:00Z",
-  "resolvedAt": null,
-  "resolvedByUserId": null
-}
-```
-
-**Side Effect:** Employee receives notification email with complement message
-
-### Error Responses
-
-#### 400 Bad Request - Invalid Status
-```json
-{
-  "error": "Invalid State",
-  "message": "Request is not in WAITING_DATA_SUBJECT status. Current status: IN_ANALYSIS",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
-```
-
-#### 400 Bad Request - Message Too Long
-```json
-{
-  "error": "Validation Error",
-  "message": "message exceeds maximum length of 5000 characters",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
-```
-
-#### 400 Bad Request - Message Too Short
-```json
-{
-  "error": "Validation Error",
-  "message": "message must be at least 10 characters",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
-```
-
-#### 403 Forbidden
-```json
-{
-  "error": "Access Denied",
-  "message": "You do not have permission to request complement for this request",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 403
-}
-```
-
-#### 404 Not Found
-```json
-{
-  "error": "Not Found",
-  "message": "LGPD Request not found",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 404
-}
-```
-
----
-
-## 3. Cancel Request Endpoint
-
-### Endpoint
-```
-POST /admin/requests/{requestId}/cancel
-```
-
-### Authorization
+If CORS is enabled:
 
 ```
-@PreAuthorize("hasRole('CTO')")
+Access-Control-Allow-Origin: https://app.seu-dominio.com
+Access-Control-Allow-Methods: GET, POST, PATCH, DELETE
+Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-Correlation-Id
+Access-Control-Allow-Credentials: true
 ```
 
-- **CTO-only operation** - Restricted to CTO role only
-- Global access - Can cancel any request
+## Client Integration
 
-### Path Parameters
+### Front-End Configuration
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| requestId | UUID | Yes | ID of the LGPD request to cancel |
-
-### Request Body
-
-```json
-{
-  "reason": "Duplicate request from same employee"
-}
+**Environment Setup (.env.production):**
+```env
+VITE_API_BASE_URL=https://api.seu-dominio.com
 ```
 
-**Schema:**
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| reason | String | Yes | Max 255 chars | Reason for cancellation |
-
-### Example Request
-
-```bash
-curl -X POST \
-  https://kronos-api.example.com/api/lgpd/admin/requests/550e8400-e29b-41d4-a716-446655440000/cancel \
-  -H 'Authorization: Bearer {cto_jwt_token}' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "reason": "Employee requested to cancel - resolved issue offline"
-  }'
+**Axios Base Configuration:**
+```typescript
+// src/config/api.ts
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const api = axios.create({ baseURL: API_BASE_URL });
 ```
 
-### Success Response (200 OK)
-
-```json
-{
-  "requestId": "550e8400-e29b-41d4-a716-446655440000",
-  "employeeId": "660e8400-e29b-41d4-a716-446655440001",
-  "requestedByUserId": "770e8400-e29b-41d4-a716-446655440002",
-  "companyId": "880e8400-e29b-41d4-a716-446655440003",
-  "requestType": "ACCESS",
-  "status": "CANCELLED",
-  "description": "Request for access to personal data",
-  "resolutionNotes": null,
-  "createdAt": "2026-05-20T10:00:00Z",
-  "updatedAt": "2026-05-22T14:40:00Z",
-  "resolvedAt": "2026-05-22T14:40:00Z",
-  "resolvedByUserId": "770e8400-e29b-41d4-a716-446655440002"
-}
+**Route Definition:**
+```typescript
+// src/config/api-routes.ts
+export const LGPD_PATHS = {
+  INVENTORY: "api/lgpd/inventory",  // Includes external /api prefix
+  // ...
+};
 ```
 
-### Error Responses
-
-#### 400 Bad Request - Empty Reason
-```json
-{
-  "error": "Validation Error",
-  "message": "reason is required",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
+**Service Usage:**
+```typescript
+// src/service/inventory.service.ts
+const response = await api.get(`/${LGPD_PATHS.INVENTORY}`);
+// Resolves to: https://api.seu-dominio.com/api/lgpd/inventory
 ```
 
-#### 400 Bad Request - Reason Too Long
-```json
-{
-  "error": "Validation Error",
-  "message": "reason exceeds maximum length of 255 characters",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 400
-}
-```
+## Testing & Validation
 
-#### 403 Forbidden - Not CTO
-```json
-{
-  "error": "Access Denied",
-  "message": "Only CTO role can cancel requests",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 403
-}
-```
-
-#### 404 Not Found
-```json
-{
-  "error": "Not Found",
-  "message": "LGPD Request not found",
-  "timestamp": "2026-05-22T14:30:00Z",
-  "status": 404
-}
-```
-
----
-
-## Response Models
-
-### LgpdRequestResponse
+### Contract Test Example
 
 ```typescript
-interface LgpdRequestResponse {
-  requestId: UUID;           // Unique request identifier
-  employeeId: UUID;          // Employee who initiated request
-  requestedByUserId: UUID;   // User who created the request
-  companyId: UUID;           // Company context
-  requestType: string;       // Type of request (ACCESS, DELETION, etc.)
-  status: string;            // Current status (OPEN, IN_ANALYSIS, etc.)
-  description: string;       // Request description
-  resolutionNotes: string | null;  // Notes on how request was resolved
-  createdAt: ISO8601;        // Request creation timestamp
-  updatedAt: ISO8601;        // Last update timestamp
-  resolvedAt: ISO8601 | null;      // When request was resolved/completed
-  resolvedByUserId: UUID | null;   // User who resolved request
-}
+// src/service/__tests__/inventory.service.contract.test.ts
+describe("Inventory Service - API Contract", () => {
+  it("should call /api/lgpd/inventory endpoint", async () => {
+    const mockResponse = { content: [], totalElements: 0, currentPage: 0, totalPages: 0, size: 10 };
+    
+    mock.onGet("/api/lgpd/inventory").reply(200, mockResponse);
+    
+    const result = await listInventories();
+    
+    expect(result).toEqual(mockResponse);
+  });
+
+  it("should call /api/lgpd/inventory/{processCode} endpoint", async () => {
+    const mockResponse = { inventoryId: "123", processCode: "DPI-001", ... };
+    
+    mock.onGet("/api/lgpd/inventory/DPI-001").reply(200, mockResponse);
+    
+    const result = await getInventoryByProcessCode("DPI-001");
+    
+    expect(result).toEqual(mockResponse);
+  });
+});
 ```
 
-### Error Response
+### Nginx Configuration Test
 
-```typescript
-interface ErrorResponse {
-  error: string;              // Error type
-  message: string;            // Human-readable error message
-  timestamp: ISO8601;         // When error occurred
-  status: number;             // HTTP status code
-  path?: string;              // API path that caused error
-  details?: object;           // Additional error details
-}
+```bash
+# Test rewrite rule (simulate request)
+curl -v https://api.seu-dominio.com/api/lgpd/inventory
+
+# Should see:
+# > GET /api/lgpd/inventory HTTP/2
+# < HTTP/2 200
+# (Nginx rewrites internally to /lgpd/inventory)
 ```
 
----
+### Integration Test
 
-## Notification System Integration
+```bash
+# End-to-end test of full path
+curl -X GET \
+  "https://api.seu-dominio.com/api/lgpd/inventory?page=0&size=10" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {token}"
 
-### Notifications Triggered by Endpoints
-
-#### Status Transition Endpoint
-- **Notification Type:** STATUS_CHANGED
-- **Recipient:** Request creator (employee)
-- **Content:** Old status, new status, timestamp
-- **Channel:** EMAIL
-- **Timing:** Async (sent after endpoint returns)
-
-When transitioning to COMPLETED/PARTIALLY_COMPLETED:
-- **Additional Notification:** REQUEST_COMPLETED
-- **Content:** Completion notes, data availability
-
-When transitioning to REJECTED:
-- **Additional Notification:** REQUEST_REJECTED
-- **Content:** Rejection reason, next steps
-
-#### Request Complement Endpoint
-- **Notification Type:** COMPLEMENT_REQUESTED
-- **Recipient:** Request creator (employee)
-- **Content:** Requested information message
-- **Channel:** EMAIL
-- **Timing:** Async (sent after endpoint returns)
-
-#### Cancel Endpoint
-- **Notification Type:** None (cancellation reason in history only)
-- **Note:** No notification email sent to employee on cancellation
-
----
-
-## Rate Limiting
-
-```
-Recommended: 100 requests per minute per user
-Suggested Implementation: Token bucket algorithm
+# Expected: 200 OK with inventory list
 ```
 
----
+## Deployment Checklist
 
-## Pagination (for list endpoints)
+### Nginx Configuration
 
+- [ ] Review `deploy/hostinger-nginx.conf` for `/api/lgpd` rewrite rules
+- [ ] Verify SSL certificates are installed for `api.seu-dominio.com`
+- [ ] Test rewrite rules: `/api/lgpd/** → /lgpd/**`
+- [ ] Verify headers (X-Forwarded-*) are passed to backend
+- [ ] Confirm no `/api/api` double-prefix occurs
+- [ ] Load test to verify path rewriting performance
+
+### Back-End Configuration
+
+- [ ] Spring beans use `@RequestMapping(ApiPaths.LGPD + ...)`
+- [ ] LGPD paths start with `/lgpd` not `/api/lgpd`
+- [ ] Test `/lgpd/inventory` endpoint directly (via localhost:8080)
+- [ ] Verify internal path works independently of external gateway
+
+### Front-End Configuration
+
+- [ ] `VITE_API_BASE_URL=https://api.seu-dominio.com` in production
+- [ ] All LGPD routes prefixed with `/api/lgpd/`
+- [ ] No hardcoded paths (use `LGPD_PATHS` constants)
+- [ ] Contract tests mock `/api/lgpd/**` URLs
+- [ ] Staging/QA use correct API gateway URL
+
+### Integration Testing
+
+- [ ] End-to-end test of `https://api.seu-dominio.com/api/lgpd/inventory`
+- [ ] Verify CSRF tokens work across Nginx boundary
+- [ ] Verify CORS headers are correct (if single-origin policy)
+- [ ] Test authentication/authorization flow
+- [ ] Verify correlation IDs propagate correctly
+- [ ] Load test full pipeline (client → nginx → spring)
+
+## Troubleshooting
+
+### Path Not Found (404)
+
+**Symptom:** `GET /api/lgpd/inventory` returns 404
+
+**Checklist:**
+1. Verify Nginx location rule matches: `location ~ ^/api/lgpd/(.*)$`
+2. Check rewrite rule: `rewrite ^/api/lgpd/(.*)$ /lgpd/$1 break;`
+3. Verify backend is listening on `/lgpd/inventory` (not `/api/lgpd/inventory`)
+4. Check Nginx error logs: `tail -f /var/log/nginx/error.log`
+
+### Double Prefix (/api/api)
+
+**Symptom:** Client sees `/api/api/lgpd/inventory` in error messages
+
+**Cause:** Front-end is calling `/api/...` AND Nginx is adding `/api` again
+
+**Fix:**
+- Front-end should call `/api/lgpd/...` (NOT `/lgpd/...`)
+- Nginx rewrites `/api/lgpd/**` → `/lgpd/**` (removes `/api`)
+- Backend serves `/lgpd/**` (no `/api` prefix)
+
+### Headers Not Forwarded
+
+**Symptom:** Backend receives wrong hostname in request
+
+**Check:**
+```nginx
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Real-IP $remote_addr;
 ```
-GET /admin/requests?page=0&size=20&status=IN_ANALYSIS&companyId=...
 
-Parameters:
-- page (int): 0-based page number
-- size (int): Results per page (max 100)
-- status (string): Filter by status
-- type (string): Filter by request type
-- companyId (UUID): Filter by company
-```
+All required headers must be present in Nginx config.
 
----
+## References
 
-## Status Codes Reference
-
-| Code | Meaning | Scenarios |
-|------|---------|-----------|
-| 200 | OK | Successful request processing |
-| 400 | Bad Request | Validation failed, invalid transition, missing fields |
-| 401 | Unauthorized | Missing or invalid JWT token |
-| 403 | Forbidden | Insufficient role, cross-company access denied |
-| 404 | Not Found | Request ID doesn't exist |
-| 500 | Server Error | Internal server error, notification service down |
-| 503 | Service Unavailable | Email service unavailable (non-blocking) |
-
----
-
-## Request/Response Headers
-
-### Request Headers
-
-```
-Authorization: Bearer {jwt_token}
-Content-Type: application/json
-Accept: application/json
-X-Request-ID: {uuid}           # Optional: for tracing
-X-Correlation-ID: {uuid}       # Optional: for tracking
-```
-
-### Response Headers
-
-```
-Content-Type: application/json
-X-Request-ID: {uuid}
-X-Correlation-ID: {uuid}
-Cache-Control: no-cache, no-store, must-revalidate
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1621696800
-```
-
----
-
-## Versioning
-
-Current API Version: **1.0**
-
-Future versions will be released as `/v2/`, `/v3/`, etc.
-
-Backward compatibility maintained for existing endpoints.
-
----
-
-## Changelog
-
-### Version 1.0 (2026-05-22)
-- Initial release
-- POST /admin/requests/{requestId}/transition-status
-- POST /admin/requests/{requestId}/request-complement
-- POST /admin/requests/{requestId}/cancel
-- Multi-tenant authorization
-- Async notification dispatch
-- Comprehensive error handling
-
----
-
-## Support & Issues
-
-For API issues or questions:
-- Documentation: /docs/legal/
-- Email: support@kronos-tech.com
-- Status Page: https://status.kronos-tech.com
+- [RFC 3986: URI Generic Syntax](https://tools.ietf.org/html/rfc3986)
+- [HTTP Header X-Forwarded-*](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For)
+- [Nginx HTTP Rewrite Module](https://nginx.org/en/docs/http/ngx_http_rewrite_module.html)
+- [CORS with API Gateway](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
