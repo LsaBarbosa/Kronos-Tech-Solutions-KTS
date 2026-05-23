@@ -14,6 +14,7 @@ import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
@@ -26,6 +27,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
@@ -59,6 +62,7 @@ public class AuthService implements AuthUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthenticationRateLimitService authenticationRateLimitService;
+    private final AuditService auditService;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -68,20 +72,57 @@ public class AuthService implements AuthUseCase {
     public String login(String username, String password) {
         var normalizedUsername = username.toLowerCase();
         authenticationRateLimitService.checkLoginAllowed(normalizedUsername);
+        String[] ipAndUA = extractIpAndUserAgent();
+        String ipAddress = ipAndUA[0];
+        String userAgent = ipAndUA[1];
+
         try {
             authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
         } catch (AuthenticationException ex) {
             authenticationRateLimitService.onLoginFailure(normalizedUsername);
             kronosMetrics.authLoginFailure("invalid_credentials");
             log.warn("event=auth_login result=failure reason=invalid_credentials");
+
+            // Auditoria de falha de login
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_LOGIN_FAILURE,
+                        null,
+                        "MEDIUM",
+                        "USER",
+                        null,
+                        "reason=invalid_credentials",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de login", auditEx);
+            }
             throw ex;
         }
         var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> {
                     kronosMetrics.authLoginFailure("user_not_found");
                     log.warn("event=auth_login result=failure reason=user_not_found");
+
+                    // Auditoria de falha - usuário não encontrado
+                    try {
+                        auditService.registerSecurity(
+                                AuditAction.AUTH_LOGIN_FAILURE,
+                                null,
+                                "MEDIUM",
+                                "USER",
+                                null,
+                                "reason=user_not_found",
+                                ipAddress,
+                                userAgent
+                        );
+                    } catch (Exception auditEx) {
+                        log.debug("Falha ao registrar auditoria de login", auditEx);
+                    }
                     return new ResourceNotFoundException(USER_NOT_FOUND);
                 });
+
         var termsAccepted = legalConsentProvider.existsActive(
                 user.employeeId(),
                 ConsentType.BIOMETRIC_AUTHENTICATION
@@ -89,6 +130,23 @@ public class AuthService implements AuthUseCase {
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
         kronosMetrics.authLoginSuccess();
         log.info("event=auth_login result=success");
+
+        // Auditoria de sucesso de login
+        try {
+            auditService.registerSecurity(
+                    AuditAction.AUTH_LOGIN_SUCCESS,
+                    user.userId(),
+                    "LOW",
+                    "USER",
+                    user.userId().toString(),
+                    "method=password",
+                    ipAddress,
+                    userAgent
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de login bem-sucedido", auditEx);
+        }
+
         return jwtUtils.generateToken(
                 user.employeeId(),
                 user.username(),
@@ -102,6 +160,9 @@ public class AuthService implements AuthUseCase {
     @Override
     public String loginFace(String faceImageBase64, Boolean livenessPassed) {
         biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
+        String[] ipAndUA = extractIpAndUserAgent();
+        String ipAddress = ipAndUA[0];
+        String userAgent = ipAndUA[1];
 
         try {
             String token = kronosTracing.observe("kronos.auth.face_login", () -> {
@@ -144,20 +205,90 @@ public class AuthService implements AuthUseCase {
 
             kronosMetrics.authFaceLoginSuccess();
             log.info("event=auth_face_login result=success");
+
+            // Auditoria de sucesso de login facial
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_FACE_LOGIN_SUCCESS,
+                        null,
+                        "MEDIUM",
+                        "USER",
+                        null,
+                        "method=face",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de login facial bem-sucedido", auditEx);
+            }
+
             return token;
         } catch (IllegalArgumentException e) {
             kronosMetrics.authFaceLoginFailure("invalid_image");
             log.warn("event=auth_face_login result=failure reason=invalid_image");
+
+            // Auditoria de falha - imagem inválida
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_FACE_LOGIN_FAILURE,
+                        null,
+                        "HIGH",
+                        "USER",
+                        null,
+                        "reason=invalid_image",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de login facial", auditEx);
+            }
+
             throw new BadRequestException(INVALID_IMAGE);
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
             String reason = resolveFaceLoginFailureReason(e);
             kronosMetrics.authFaceLoginFailure(reason);
             log.warn("event=auth_face_login result=failure reason={}", reason);
+
+            // Auditoria de falha de login facial
+            try {
+                String riskLevel = "biometric_consent_missing".equals(reason) ? "HIGH" :
+                                 "face_not_recognized".equals(reason) ? "HIGH" : "MEDIUM";
+                auditService.registerSecurity(
+                        AuditAction.AUTH_FACE_LOGIN_FAILURE,
+                        null,
+                        riskLevel,
+                        "USER",
+                        null,
+                        "reason=" + reason,
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de login facial", auditEx);
+            }
+
             throw e;
         } catch (RuntimeException e) {
             kronosMetrics.authFaceLoginFailure("unknown");
             log.error("event=auth_face_login result=failure reason=unknown exception_type={}",
                     e.getClass().getSimpleName());
+
+            // Auditoria de erro desconhecido
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_FACE_LOGIN_FAILURE,
+                        null,
+                        "HIGH",
+                        "USER",
+                        null,
+                        "reason=unknown",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de login facial", auditEx);
+            }
+
             throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
     }
@@ -221,6 +352,10 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public void resetPassword(ResetPasswordRequest request) {
+        String[] ipAndUA = extractIpAndUserAgent();
+        String ipAddress = ipAndUA[0];
+        String userAgent = ipAndUA[1];
+
         try {
             var userId = tokenProvider.validateToken(request.token())
                     .orElseThrow(() -> new ResourceNotFoundException(INVALID_PASSWORD_RESET_TOKEN));
@@ -240,6 +375,22 @@ public class AuthService implements AuthUseCase {
             tokenProvider.deleteToken(request.token());
             kronosMetrics.passwordResetSuccess();
             log.info("event=password_reset result=success");
+
+            // Auditoria de sucesso de reset de senha
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_PASSWORD_RESET,
+                        user.userId(),
+                        "HIGH",
+                        "USER",
+                        user.userId().toString(),
+                        "password_reset=true,sessions_revoked=true",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de reset de senha", auditEx);
+            }
         } catch (BadRequestException e) {
             kronosMetrics.passwordResetFailure("validation");
             log.warn("event=password_reset result=failure reason=validation");
@@ -287,5 +438,27 @@ public class AuthService implements AuthUseCase {
             return "inactive_user";
         }
         return "unknown";
+    }
+
+    private String[] extractIpAndUserAgent() {
+        String ipAddress = "unknown";
+        String userAgent = "unknown";
+        try {
+            var requestAttrs = RequestContextHolder.getRequestAttributes();
+            if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
+                var request = servletAttrs.getRequest();
+                ipAddress = request.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isBlank()) {
+                    ipAddress = request.getRemoteAddr();
+                }
+                userAgent = request.getHeader("User-Agent");
+                if (userAgent == null) {
+                    userAgent = "unknown";
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Falha ao obter IP/User-Agent para auditoria de autenticação", e);
+        }
+        return new String[]{ipAddress, userAgent};
     }
 }
