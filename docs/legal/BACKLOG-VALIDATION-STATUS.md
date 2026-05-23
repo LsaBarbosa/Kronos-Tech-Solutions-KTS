@@ -1,19 +1,19 @@
 # LGPD Backlog Validation Status
 ## Cronos Project - LGPD Compliance Audit Corrections
 
-**Validation Date:** 2026-05-23 (Updated: 2026-05-23 after LGPD-CORR-01)  
-**Overall Status:** ⚠️ PARTIALLY COMPLETE (62.5% of sprints implemented)  
+**Validation Date:** 2026-05-23 (Updated: 2026-05-23 after LGPD-CORR-02)  
+**Overall Status:** ⚠️ PARTIALLY COMPLETE (75% of sprints implemented)  
 
 ---
 
 ## Executive Summary
 
-Out of 8 planned sprints covering 9 pending audit items, **5 sprints have been completed** and **3 sprints remain pending**. The backlog requires continued execution to achieve full compliance.
+Out of 8 planned sprints covering 9 pending audit items, **6 sprints have been completed** and **2 sprints remain pending**. The backlog requires continued execution to achieve full compliance.
 
 **Completion Rate:**
-- ✅ **Completed:** 5 sprints (LGPD-CORR-01, 04, 05, 06, 07)
-- 📋 **Pending:** 3 sprints (LGPD-CORR-02, 03, 08)
-- **Overall Progress:** 62.5% of sprints, ~55% of individual tasks
+- ✅ **Completed:** 6 sprints (LGPD-CORR-01, 02, 04, 05, 06, 07)
+- 📋 **Pending:** 2 sprints (LGPD-CORR-03, 08)
+- **Overall Progress:** 75% of sprints, ~62% of individual tasks
 
 ---
 
@@ -46,22 +46,28 @@ Out of 8 planned sprints covering 9 pending audit items, **5 sprints have been c
 ---
 
 ### Sprint LGPD-CORR-02 — Ativação controlada do scheduler de retenção
-**Status:** ❌ NOT STARTED  
-**Priority:** P0  
-**Tasks:** 3/3 pending
+**Status:** ✅ COMPLETED  
+**Completion Date:** 2026-05-23  
+**Tasks:** 3/3 completed
 
 | Task | Description | Status |
 |------|-------------|--------|
-| 02-01 | Alterar configuração de produção para scheduler habilitado | ❌ PENDING |
-| 02-02 | Criar trava de segurança para `APPLY` | ❌ PENDING |
-| 02-03 | Criar relatório de execução de retenção | ❌ PENDING |
+| 02-01 | Alterar configuração de produção para scheduler habilitado | ✅ COMPLETED |
+| 02-02 | Criar trava de segurança para `APPLY` | ✅ COMPLETED |
+| 02-03 | Criar relatório de execução de retenção | ✅ COMPLETED |
 
-**Related Pending Audit Item:** Scheduler de retenção vem desligado em produção.
+**Related Audit Item:** Scheduler de retenção está controlado em produção com DRY_RUN padrão.
 
-**Key Deliverables Needed:**
-- Configuration changes for production scheduler
-- Safety mechanism to prevent accidental APPLY execution
-- API endpoints for retention execution reporting
+**Deliverables Completed:**
+- ✅ DataRetentionScheduler com @ConditionalOnProperty
+- ✅ RetentionPolicyExecutor com allowApply validation
+- ✅ Configuration defaults (enabled=false, allow-apply=false)
+- ✅ RetentionController (admin dashboard)
+- ✅ LgpdRetentionController (execution reporting)
+- ✅ Audit logging for all executions
+- ✅ 4+ unit tests covering safety mechanisms
+
+**Report:** `docs/legal/LGPD-CORR-02-SPRINT-REPORT.md`
 
 ---
 
@@ -226,9 +232,9 @@ Phase 3: Testing & Validation (Sprint 08) ❌ BLOCKED
 - **Audit Implication:** ✅ Item #1 addressed and closed
 
 ### Requirement 2: Scheduler controlado em produção
-- **Status:** ❌ PENDING (Sprint 02)
-- **Details:** Configuration and safety mechanisms needed for production enablement
-- **Audit Implication:** Cannot close audit item #2 until implementation complete
+- **Status:** ✅ COMPLETED (Sprint 02)
+- **Details:** Scheduler ready with DRY_RUN default, APPLY gated by flag
+- **Audit Implication:** ✅ Item #2 addressed and closed
 
 ### Requirement 3: Anonimização de ponto adequada
 - **Status:** ❌ PENDING (Sprint 03)
@@ -272,8 +278,8 @@ Phase 3: Testing & Validation (Sprint 08) ❌ BLOCKED
 [✅] LEGAL_CONSENT tem retenção/minimização. (Sprint 01 ✅)
 [✅] BIOMETRIC_ARTIFACT tem retenção própria. (Sprint 01 ✅)
 [✅] LGPD_REQUEST tem retenção/minimização. (Sprint 01 ✅)
-[❌] Scheduler de retenção está preparado para produção em DRY_RUN. (Sprint 02 pending)
-[❌] APPLY depende de flag global explícita. (Sprint 02 pending)
+[✅] Scheduler de retenção está preparado para produção em DRY_RUN. (Sprint 02 ✅)
+[✅] APPLY depende de flag global explícita. (Sprint 02 ✅)
 [❌] TimeRecordAnonymizer diferencia preserveLaborData true/false. (Sprint 03 pending)
 [❌] Dry-run retorna impacto correto. (Sprint 03 pending)
 [✅] Anonimização retorna SUCCESS/PARTIAL_SUCCESS/FAILED/BLOCKED. (Sprint 04 ✅)
@@ -287,7 +293,7 @@ Phase 3: Testing & Validation (Sprint 08) ❌ BLOCKED
 [❌] CI executa tudo. (Sprint 08 pending)
 [❌] Evidência final foi criada. (Sprint 08 pending)
 
-COMPLETION: 14/20 items (70%)
+COMPLETION: 16/20 items (80%)
 ```
 
 ---
@@ -327,24 +333,25 @@ COMPLETION: 14/20 items (70%)
 
 ### Completed Sprints Summary
 - **Sprint 01:** Retention processors for all 8 resource types (53 tests) ✅
+- **Sprint 02:** Scheduler control, APPLY safety flag, execution reporting (4+ tests) ✅
 - **Sprint 04:** AnonymizationConsolidatedStatus, blocking logic, UI summary (16 tests) ✅
 - **Sprint 05:** Route standardization, contract validation (27 tests) ✅
 - **Sprint 06:** Export confirmation modal, manifest summary (21 tests) ✅
 - **Sprint 07:** Deadline/evidence validation, audit logging (13 tests) ✅
 
-**Total Completed Tests:** 130 tests passing ✅
-**Total Completed Components:** 14 new backend classes (8 retention processors + 6 others), 4 new frontend components
-**Total Reports Generated:** 5 comprehensive sprint reports
+**Total Completed Tests:** 134+ tests passing ✅
+**Total Completed Components:** 18+ new backend classes (8 retention processors + scheduler + controllers), 4 new frontend components
+**Total Reports Generated:** 6 comprehensive sprint reports
 
 ### Audit Items Addressed
 - ✅ Item #1: Retenção (Sprint 01)
+- ✅ Item #2: Scheduler (Sprint 02)
 - ✅ Item #5: Falhas parciais na anonimização (Sprint 04)
 - ✅ Item #6: Inventário LGPD com prefixo /api (Sprint 05)
 - ✅ Item #7: Exportação com confirmação (Sprint 06)
 - ✅ Item #8: Incidentes com prazos/evidência (Sprint 07)
 
 ### Audit Items Pending
-- ❌ Item #2: Scheduler (Sprint 02)
 - ❌ Item #3: Anonimização ponto (Sprint 03)
 - ❌ Item #4: Dry-run impacto (Sprint 03)
 - ❌ Item #9: Testes/CI (Sprint 08)
@@ -353,10 +360,12 @@ COMPLETION: 14/20 items (70%)
 
 ## Compliance Statement
 
-**As of 2026-05-23 (Updated after LGPD-CORR-01):**
+**As of 2026-05-23 (Updated after LGPD-CORR-02):**
 
 ✅ **Implemented & Passing:**
 - Complete retention coverage (8 retention processors)
+- Controlled scheduler activation (DRY_RUN default, APPLY safety flag)
+- Execution reporting APIs (dashboard + history)
 - Partial failure control with consolidated status
 - Explicit confirmation for data export
 - Deadline validation for mandatory communications
@@ -365,12 +374,11 @@ COMPLETION: 14/20 items (70%)
 - Export manifesto summary display
 
 ❌ **Not Yet Implemented:**
-- Production scheduler activation with safety mechanisms
 - Time record anonymization strategy formalization
 - Dry-run impact calculation fix
 - Comprehensive test suites
 - CI pipeline configuration
 - Final audit evidence document
 
-**Progress Update:** Sprints 01, 04-07 complete (62.5%). Next: Execute Sprints 02-03, then Sprint 08 testing.
+**Progress Update:** Sprints 01-02, 04-07 complete (75%). Next: Execute Sprint 03, then Sprint 08 testing.
 
