@@ -407,6 +407,68 @@ sudo systemctl restart kronos-backend
 
 ---
 
+## 7️⃣ Configuração do Nginx (API Gateway)
+
+### Instalação
+
+- [ ] Nginx instalado: `sudo apt-get install nginx`
+- [ ] Nginx habilitado: `sudo systemctl enable nginx`
+- [ ] Nginx iniciado: `sudo systemctl start nginx`
+
+### Configuração de API Gateway (LGPD)
+
+**Path Standardization Pattern:**
+- External (Client): `/api/lgpd/**`
+- Internal (Spring): `/lgpd/**`
+- Nginx rewrites `/api/lgpd/**` → `/lgpd/**`
+
+**Configuração:**
+- [ ] Arquivo `deploy/hostinger-nginx.conf` copiado para `/etc/nginx/sites-available/api.seu-dominio.com`
+- [ ] Symlink criado: `sudo ln -s /etc/nginx/sites-available/api.seu-dominio.com /etc/nginx/sites-enabled/`
+- [ ] Location rule para LGPD paths presente:
+  ```nginx
+  location ~ ^/api/lgpd/(.*)$ {
+    rewrite ^/api/lgpd/(.*)$ /lgpd/$1 break;
+    proxy_pass http://127.0.0.1:8080;
+    ...
+  }
+  ```
+- [ ] Headers X-Forwarded-* configurados:
+  ```nginx
+  proxy_set_header X-Forwarded-Host $host;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_set_header X-Original-URI $request_uri;
+  ```
+
+### Certificados SSL/TLS
+
+- [ ] Certificados gerados/renovados (Let's Encrypt recomendado):
+  ```bash
+  sudo certbot certonly -d api.seu-dominio.com
+  ```
+- [ ] Paths atualizados em `nginx.conf`:
+  ```nginx
+  ssl_certificate /etc/letsencrypt/live/api.seu-dominio.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/api.seu-dominio.com/privkey.pem;
+  ```
+
+### Validação Nginx
+
+- [ ] Sintaxe validada: `sudo nginx -t`
+- [ ] Config recarregada: `sudo systemctl reload nginx`
+- [ ] Path rewrite testado:
+  ```bash
+  curl -v https://api.seu-dominio.com/api/lgpd/inventory
+  # Deve retornar 200 com dados de inventory (ou 401 se não autenticado)
+  ```
+- [ ] Headers verificados:
+  ```bash
+  curl -v https://api.seu-dominio.com/api/lgpd/inventory 2>&1 | grep "X-Forwarded"
+  # Backend deve receber X-Forwarded-Host, X-Forwarded-Proto, etc
+  ```
+
+---
+
 ## ✅ Conclusão
 
 Quando todos os itens estiverem marcados com ✅, o deploy está completo e validado na VPS Hostinger.
