@@ -342,7 +342,7 @@ class LgpdControllerWebMvcTest {
                 "João Silva",
                 "Empresa XYZ",
                 LgpdRequestType.ACCESS,
-                LgpdRequestStatus.IN_PROGRESS,
+                LgpdRequestStatus.IN_ANALYSIS,
                 Instant.now(),
                 "admin",
                 Instant.now(),
