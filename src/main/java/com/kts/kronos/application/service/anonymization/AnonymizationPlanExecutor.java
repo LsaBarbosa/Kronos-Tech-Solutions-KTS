@@ -109,14 +109,28 @@ public class AnonymizationPlanExecutor {
             AnonymizationPlan plan,
             String executionMode
     ) {
+        var executionId = UUID.randomUUID();
         var processor = processorsByType.get(resourceType.name());
+
         if (processor == null) {
             log.warn(
                     "event=anonymization_no_processor employeeId={} resourceType={}",
                     plan.employeeId(),
                     resourceType
             );
-            return null;
+            var errorResult = AnonymizationExecutionResult.error(
+                    executionId,
+                    plan.employeeId(),
+                    plan.companyId(),
+                    plan.requestedByUserId(),
+                    resourceType,
+                    executionMode,
+                    1,
+                    "PROCESSOR_NOT_FOUND"
+            );
+            var executionLog = AnonymizationExecutionLog.fromResult(errorResult);
+            executionLogProvider.save(executionLog);
+            return errorResult;
         }
 
         try {
@@ -143,7 +157,19 @@ public class AnonymizationPlanExecutor {
                     e.getMessage(),
                     e
             );
-            return null;
+            var errorResult = AnonymizationExecutionResult.error(
+                    executionId,
+                    plan.employeeId(),
+                    plan.companyId(),
+                    plan.requestedByUserId(),
+                    resourceType,
+                    executionMode,
+                    1,
+                    e.getMessage()
+            );
+            var executionLog = AnonymizationExecutionLog.fromResult(errorResult);
+            executionLogProvider.save(executionLog);
+            return errorResult;
         }
     }
 
