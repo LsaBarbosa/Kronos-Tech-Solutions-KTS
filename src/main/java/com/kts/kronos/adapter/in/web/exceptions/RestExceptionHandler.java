@@ -6,8 +6,10 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.infrastructure.security.SensitiveDataMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,8 @@ import static com.kts.kronos.constants.Messages.INTERNAL_SERVER_ERROR;
 @Slf4j
 @RestControllerAdvice
 public class RestExceptionHandler extends ResponseEntityExceptionHandler {
+    @Value("${spring.profiles.active:development}")
+    private String activeProfile;
 
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<Object> handleBadRequestException(BadRequestException ex, WebRequest request) {
@@ -52,7 +56,8 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
-        log.warn("event=http_error result=failure reason=data_integrity_conflict path={}", path(request));
+        String maskedMessage = SensitiveDataMasker.maskSensitiveData(ex.getMessage());
+        log.warn("event=http_error result=failure reason=data_integrity_conflict path={} detail={}", path(request), maskedMessage);
         return buildResponseEntity(
                 ex,
                 HttpStatus.CONFLICT,
@@ -90,10 +95,11 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode status,
             WebRequest request
     ) {
+        String maskedDetail = SensitiveDataMasker.maskSensitiveData(ex.getMostSpecificCause().getMessage());
         log.warn(
             "event=http_error result=failure reason=invalid_request_body path={} detail={}",
             path(request),
-            ex.getMostSpecificCause().getMessage()
+            maskedDetail
         );
         return buildResponseEntity(ex, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY", "JSON inválido ou malformado.", request, null, null);
     }
@@ -140,9 +146,11 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception ex, WebRequest request) {
-        log.error("event=http_error result=failure reason=unexpected path={} exception_type={}",
+        String maskedMessage = SensitiveDataMasker.maskSensitiveData(ex.getMessage());
+        log.error("event=http_error result=failure reason=unexpected path={} exception_type={} message={}",
                 path(request),
-                ex.getClass().getSimpleName());
+                ex.getClass().getSimpleName(),
+                maskedMessage);
         return buildResponseEntity(ex, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", INTERNAL_SERVER_ERROR, request, null, null);
     }
 
@@ -155,19 +163,29 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
             List<ProblemDetail.Error> errors,
             String redirectUrl
     ) {
+        String maskedMessage = SensitiveDataMasker.maskSensitiveData(message);
+        boolean isProd = "prod".equalsIgnoreCase(activeProfile) || "production".equalsIgnoreCase(activeProfile);
+
         ProblemDetail problemDetail = ProblemDetail.builder()
                 .code(code)
-                .message(message)
+                .message(maskedMessage)
                 .status(status.value())
                 .path(path(request))
                 .validationErrors(errors)
                 .redirectUrl(redirectUrl)
                 .title(status.getReasonPhrase())
-                .detail(message)
+                .detail(isProd ? maskedMessage : maskDetailIfSensitive(maskedMessage))
                 .errors(errors)
                 .build();
 
         return handleExceptionInternal(ex, problemDetail, new HttpHeaders(), status, request);
+    }
+
+    private String maskDetailIfSensitive(String detail) {
+        if (SensitiveDataMasker.containsSensitiveData(detail)) {
+            return SensitiveDataMasker.maskSensitiveData(detail);
+        }
+        return detail;
     }
 
     private String path(WebRequest request) {
