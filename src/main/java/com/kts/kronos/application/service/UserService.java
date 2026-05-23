@@ -18,9 +18,13 @@ import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static com.kts.kronos.constants.Messages.*;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 @Transactional
@@ -48,6 +53,7 @@ public class UserService implements UserUseCase {
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
+    private final AuditService auditService;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -74,6 +80,23 @@ public class UserService implements UserUseCase {
         try {
             userProvider.save(user);
             kronosMetrics.userCreated();
+
+            // Auditoria de criação de usuário
+            try {
+                String[] ipAndUA = extractIpAndUserAgent();
+                auditService.registerSecurity(
+                        AuditAction.USER_CREATED,
+                        currentUserIdOrNull(),
+                        "MEDIUM",
+                        "USER",
+                        user.userId().toString(),
+                        "role=" + req.role(),
+                        ipAndUA[0],
+                        ipAndUA[1]
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de criação de usuário", auditEx);
+            }
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
@@ -127,10 +150,12 @@ public class UserService implements UserUseCase {
 
         var username = req.username() != null ? req.username().toLowerCase() : existing.username();
         var password = existing.password();
+        boolean passwordChanged = false;
 
         if (req.password() != null && !req.password().isBlank()) {
             validatePasswordPolicy(req.password());
             password = passwordEncoder.encode(req.password());
+            passwordChanged = true;
         }
 
         var role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
@@ -152,6 +177,29 @@ public class UserService implements UserUseCase {
         try {
             userProvider.save(updated);
             kronosMetrics.userUpdated();
+
+            // Auditoria de atualização de usuário
+            try {
+                java.util.List<String> changedFieldsList = new java.util.ArrayList<>();
+                if (!username.equals(existing.username())) changedFieldsList.add("username");
+                if (passwordChanged) changedFieldsList.add("password");
+                if (!role.equals(existing.role())) changedFieldsList.add("role");
+                if (active != existing.active()) changedFieldsList.add("active");
+
+                String[] ipAndUA = extractIpAndUserAgent();
+                auditService.registerSecurity(
+                        AuditAction.USER_UPDATED,
+                        currentUserIdOrNull(),
+                        "MEDIUM",
+                        "USER",
+                        userId.toString(),
+                        "changedFields=" + String.join(",", changedFieldsList),
+                        ipAndUA[0],
+                        ipAndUA[1]
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de atualização de usuário", auditEx);
+            }
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
@@ -167,14 +215,49 @@ public class UserService implements UserUseCase {
         employeeProvider.findById(employeeId)
                 .map(employee -> employee.deactivate(deletedBy, "USER_DELETE"))
                 .ifPresent(employeeProvider::save);
+
+        // Auditoria de desativação de usuário
+        try {
+            String[] ipAndUA = extractIpAndUserAgent();
+            auditService.registerSecurity(
+                    AuditAction.USER_DEACTIVATED,
+                    deletedBy,
+                    "HIGH",
+                    "USER",
+                    userId.toString(),
+                    "reason=USER_DELETE",
+                    ipAndUA[0],
+                    ipAndUA[1]
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de desativação de usuário", auditEx);
+        }
     }
 
     @Override
     public void toggleActivate(UUID userId) {
         var existing = getUserId(userId);
-        var active = existing.withActive(!existing.active());
+        boolean newActiveStatus = !existing.active();
+        var active = existing.withActive(newActiveStatus);
         userProvider.save(active);
         employeeUseCase.toggleActivate(existing.employeeId());
+
+        // Auditoria de alteração de ativação de usuário
+        try {
+            String[] ipAndUA = extractIpAndUserAgent();
+            auditService.registerSecurity(
+                    AuditAction.USER_ACTIVATION_TOGGLED,
+                    currentUserIdOrNull(),
+                    "MEDIUM",
+                    "USER",
+                    userId.toString(),
+                    "active=" + newActiveStatus,
+                    ipAndUA[0],
+                    ipAndUA[1]
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de alteração de ativação de usuário", auditEx);
+        }
     }
 
     @Override
@@ -192,6 +275,23 @@ public class UserService implements UserUseCase {
 
         String hashed = passwordEncoder.encode(req.newPassword());
         userProvider.save(user.withPassword(hashed).incrementSessionVersion());
+
+        // Auditoria de troca de senha
+        try {
+            String[] ipAndUA = extractIpAndUserAgent();
+            auditService.registerSecurity(
+                    AuditAction.AUTH_PASSWORD_CHANGED,
+                    userId,
+                    "HIGH",
+                    "USER",
+                    userId.toString(),
+                    "password_changed=true,sessions_revoked=true",
+                    ipAndUA[0],
+                    ipAndUA[1]
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de troca de senha", auditEx);
+        }
     }
 
     @Override
@@ -227,5 +327,27 @@ public class UserService implements UserUseCase {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    private String[] extractIpAndUserAgent() {
+        String ipAddress = "unknown";
+        String userAgent = "unknown";
+        try {
+            var requestAttrs = RequestContextHolder.getRequestAttributes();
+            if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
+                var request = servletAttrs.getRequest();
+                ipAddress = request.getHeader("X-Forwarded-For");
+                if (ipAddress == null || ipAddress.isBlank()) {
+                    ipAddress = request.getRemoteAddr();
+                }
+                userAgent = request.getHeader("User-Agent");
+                if (userAgent == null) {
+                    userAgent = "unknown";
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Falha ao obter IP/User-Agent para auditoria", e);
+        }
+        return new String[]{ipAddress, userAgent};
     }
 }
