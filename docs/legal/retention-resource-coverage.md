@@ -21,7 +21,7 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
 | **MESSAGE** | MessageRetentionProcessor | Count elegible messages (>180 days old) | Anonymize sender/recipient, redact content | Depends on policy | ✅ Yes | Operational messages can be deleted; preserve audit signatures |
 | **DOCUMENT** | DocumentRetentionProcessor | Count removable documents and preserved labor/fiscal docs | Delete storage file + mark DB record | ✅ Yes (labor/fiscal) | ✅ Yes | Labor/tax docs: CLT, IR, FGTS — preserved forever |
 | **AUDIT_LOG** | AuditLogRetentionProcessor | Count logs older than cutoff, separate by severity | Sanitize sensitive fields (IP, user-agent, PII, tokens) | ✅ Yes (events preserved) | ✅ Yes | Preserve event type/timestamp; mask personal data |
-| **LEGAL_CONSENT** | LegalConsentRetentionProcessor | Count old consents (active excluded) | Preserve consent record + evidence ref; sanitize IP/user-agent | ✅ Yes (evidence) | ✅ Yes | Consent history is audit trail; minimize metadata |
+| **LEGAL_CONSENT** | LegalConsentRetentionProcessor | Count revoked consents older than cutoff | Minimize revoked consents (sanitize IP/user-agent ONLY; preserve evidence) | ✅ Yes (evidence) | ✅ Yes | Consent history is audit trail; NEVER DELETE; minimize metadata only |
 | **BIOMETRIC_ARTIFACT** | BiometricArtifactRetentionProcessor | Count orphans/revoked without active consent | Delete S3 image + Rekognition entries | ❌ No (biometric is deleted) | ✅ Yes | Biometric deletion is final; no preservation |
 | **LGPD_REQUEST** | LgpdRequestRetentionProcessor | Count old, closed requests (>5 years) | Preserve request summary; sanitize descriptions/notes | ✅ Yes (evidence) | ✅ Yes | LGPD requests are compliance evidence; minimize personal data |
 
@@ -47,9 +47,14 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
    - Tests: ✅ AuditLogRetentionProcessorTest
 
 4. **LegalConsentRetentionProcessor**
-   - Status: ✅ Implemented
+   - Status: ✅ Implemented (CORRECTED for evidence preservation)
    - Location: `...retention.processor.legal.LegalConsentRetentionProcessor`
    - Tests: ✅ LegalConsentRetentionProcessorTest
+   - **Strategy**: Revoked consents older than cutoff are MINIMIZED (not deleted):
+     - **Preserved**: consentId, employeeId, consentType, legalBasis, purpose, version, grantedAt, revokedAt, contentHash, evidenceDocumentId
+     - **Minimized**: ipAddress → 'ANONYMIZED', userAgent → 'ANONYMIZED'
+     - **Effect**: DRY_RUN counts eligible revoked consents; APPLY minimizes metadata
+     - **Legal Basis**: LGPD Art. 6 requires proof of consent; deletion violates compliance
 
 5. **BiometricArtifactRetentionProcessor**
    - Status: ✅ Implemented

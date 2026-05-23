@@ -53,12 +53,12 @@ public class LegalConsentRetentionProcessor implements RetentionDomainProcessor 
     }
 
     private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        long countOld = legalConsentRepository.countCreatedBefore(cutoff);
+        long countRevokedOld = legalConsentRepository.countRevokedConsentsBefore(cutoff);
 
         log.info(
-                "event=legal_consent_retention_dry_run policyCode={} countToDelete={}",
+                "event=legal_consent_retention_dry_run policyCode={} revokedConsentsBefore={} action=MINIMIZE",
                 policy.policyCode(),
-                countOld
+                countRevokedOld
         );
 
         return RetentionExecutionResult.success(
@@ -66,19 +66,24 @@ public class LegalConsentRetentionProcessor implements RetentionDomainProcessor 
                 policy.policyCode(),
                 RetentionResourceType.LEGAL_CONSENT,
                 "DRY_RUN",
-                countOld,
+                countRevokedOld,
                 0,
                 0
         );
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        int deleted = legalConsentRepository.deleteCreatedBefore(cutoff);
+        var now = Instant.now();
+        int minimized = legalConsentRepository.minimizeRevokedConsentsBefore(
+                cutoff,
+                now,
+                policy.policyCode()
+        );
 
         log.info(
-                "event=legal_consent_retention_apply policyCode={} deleted={}",
+                "event=legal_consent_retention_apply policyCode={} minimized={} action=MINIMIZE_METADATA",
                 policy.policyCode(),
-                deleted
+                minimized
         );
 
         return RetentionExecutionResult.success(
@@ -86,8 +91,8 @@ public class LegalConsentRetentionProcessor implements RetentionDomainProcessor 
                 policy.policyCode(),
                 RetentionResourceType.LEGAL_CONSENT,
                 "APPLY",
-                deleted,
-                deleted,
+                minimized,
+                minimized,
                 0
         );
     }
