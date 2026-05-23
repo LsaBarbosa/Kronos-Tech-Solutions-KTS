@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
@@ -39,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,7 +81,7 @@ class AuthServiceTest {
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true)).thenReturn("jwt");
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true, 0L)).thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
 
@@ -142,8 +144,8 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("loginFace: deve gerar token quando face e usuario forem validos")
-    void shouldLoginByFace() {
+    @DisplayName("loginFace: deve rejeitar quando consentimento biometrico nao esta ativo")
+    void loginFace_shouldRejectWhenBiometricConsentIsNotActive() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         String image = Base64.getEncoder().encodeToString("face".getBytes());
@@ -151,7 +153,27 @@ class AuthServiceTest {
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, false)).thenReturn("face-jwt");
+
+        TermsNotAcceptedException exception = assertThrows(
+                TermsNotAcceptedException.class,
+                () -> service.loginFace(image, true)
+        );
+
+        assertEquals(AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN, exception.getMessage());
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), any(Long.class));
+    }
+
+    @Test
+    @DisplayName("loginFace: deve gerar token quando consentimento biometrico esta ativo")
+    void loginFace_shouldGenerateTokenWhenBiometricConsentIsActive() {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        String image = Base64.getEncoder().encodeToString("face".getBytes());
+        User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true, 0L)).thenReturn("face-jwt");
 
         assertEquals("face-jwt", service.loginFace(image, true));
     }
@@ -259,8 +281,8 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("resetPassword: deve atualizar senha e apagar token")
-    void shouldResetPassword() {
+    @DisplayName("resetPassword: deve atualizar senha, apagar token e incrementar sessionVersion")
+    void resetPassword_shouldIncrementSessionVersion() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         User user = new User(userId, "manager@kts.com", "old", Role.MANAGER, true, employeeId);
@@ -273,6 +295,7 @@ class AuthServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userProvider).save(captor.capture());
         assertEquals("hashed-new", captor.getValue().password());
+        assertEquals(1L, captor.getValue().sessionVersion());
         verify(tokenProvider).deleteToken("valid");
     }
 

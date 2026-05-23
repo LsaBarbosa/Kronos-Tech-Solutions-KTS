@@ -57,7 +57,18 @@ public class JwtUtils {
         return (first == '"' && last == '"') || (first == '\'' && last == '\'');
     }
 
-    public String generateToken(UUID employeeId, String username, String roleName,  UUID userId,boolean termsAccepted) {
+    public String generateToken(UUID employeeId, String username, String roleName, UUID userId, boolean termsAccepted) {
+        return generateToken(employeeId, username, roleName, userId, termsAccepted, 0L);
+    }
+
+    public String generateToken(
+            UUID employeeId,
+            String username,
+            String roleName,
+            UUID userId,
+            boolean termsAccepted,
+            long sessionVersion
+    ) {
         var now = new Date();
         return Jwts.builder()
                 .setSubject(username)
@@ -65,6 +76,7 @@ public class JwtUtils {
                 .claim("role", roleName)
                 .claim("employeeId", employeeId != null ? employeeId.toString() : null)
                 .claim("terms_accepted", termsAccepted)
+                .claim("session_version", sessionVersion)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -117,6 +129,23 @@ public class JwtUtils {
             return null;
         }
         return UUID.fromString(userIdStr);
+    }
+
+    public long getSessionVersionFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        Object sessionVersion = claims.get("session_version");
+        if (sessionVersion == null) {
+            return 0L;
+        }
+        if (sessionVersion instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.parseLong(String.valueOf(sessionVersion));
     }
 
     public boolean validateToken(String token) {

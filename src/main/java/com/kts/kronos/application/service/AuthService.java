@@ -7,6 +7,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
@@ -41,6 +42,8 @@ public class AuthService implements AuthUseCase {
     public static final String INACTIVE_USER = "Usuário inativo.";
     public static final String INVALID_IMAGE = "Imagem inválida (Base64 malformado).";
     public static final String ERROR_FACIAL_AUTHENTICATION = "Erro na autenticação facial.";
+    public static final String BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN =
+            "Consentimento biométrico ativo é obrigatório para login facial.";
     @Value("${frontend.base-url-plataform}")
     private String defaultFrontendBaseUrl;
 
@@ -86,7 +89,14 @@ public class AuthService implements AuthUseCase {
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
         kronosMetrics.authLoginSuccess();
         log.info("event=auth_login result=success");
-        return jwtUtils.generateToken(user.employeeId(), user.username(), user.role().name(), user.userId(), termsAccepted);
+        return jwtUtils.generateToken(
+                user.employeeId(),
+                user.username(),
+                user.role().name(),
+                user.userId(),
+                termsAccepted,
+                user.sessionVersion()
+        );
     }
 
     @Override
@@ -115,13 +125,20 @@ public class AuthService implements AuthUseCase {
                         user.employeeId(),
                         ConsentType.BIOMETRIC_AUTHENTICATION
                 );
+                if (!termsAccepted) {
+                    throw new TermsNotAcceptedException(
+                            BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN,
+                            "https://termo.kronossolutions.tech/"
+                    );
+                }
 
                 return jwtUtils.generateToken(
                         user.employeeId(),
                         user.username(),
                         user.role().name(),
                         user.userId(),
-                        termsAccepted
+                        termsAccepted,
+                        user.sessionVersion()
                 );
             });
 
@@ -218,15 +235,7 @@ public class AuthService implements AuthUseCase {
 
             var hashed = passwordEncoder.encode(request.newPassword());
 
-            var updatedUser = new User(
-                    user.userId(),
-                    user.username(),
-                    hashed,
-                    user.role(),
-                    user.active(),
-                    user.employeeId()
-            );
-            userProvider.save(updatedUser);
+            userProvider.save(user.withPassword(hashed).incrementSessionVersion());
 
             tokenProvider.deleteToken(request.token());
             kronosMetrics.passwordResetSuccess();

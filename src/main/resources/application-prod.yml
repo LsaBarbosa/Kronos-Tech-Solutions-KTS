@@ -193,7 +193,7 @@ kronos:
     upload:
       max-bytes: ${UPLOAD_MAX_BYTES:5242880}
       antivirus:
-        enabled: ${UPLOAD_ANTIVIRUS_ENABLED:false}
+        enabled: ${UPLOAD_ANTIVIRUS_ENABLED:true}
         host: ${UPLOAD_ANTIVIRUS_HOST:localhost}
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}

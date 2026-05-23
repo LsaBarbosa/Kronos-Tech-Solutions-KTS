@@ -81,6 +81,7 @@ class FlywayMigrationTest {
                    AND constraint_type = 'PRIMARY KEY'
                 """));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_user' AND column_name = 'deleted_at'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_user' AND column_name = 'session_version'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_company' AND column_name = 'deactivation_reason'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_audit_logs' AND column_name = 'company_id'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_audit_logs' AND column_name = 'resource_type'"));

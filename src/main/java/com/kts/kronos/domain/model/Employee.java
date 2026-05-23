@@ -257,6 +257,10 @@ public record Employee(
         );
     }
 
+    public boolean hasFaceImage() {
+        return faceS3ObjectKey != null && !faceS3ObjectKey.isBlank();
+    }
+
     public long getDailyWorkMinutes() {
         if (workStartTime == null || workEndTime == null) {
             return 480;

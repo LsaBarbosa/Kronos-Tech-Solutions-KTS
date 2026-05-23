@@ -15,6 +15,7 @@ import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,8 @@ class UserServiceCoreTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     private UUID userId;
     private UUID employeeId;
@@ -90,6 +93,7 @@ class UserServiceCoreTest {
         assertEquals("encoded-random-password", saved.password());
         assertEquals(Role.MANAGER, saved.role());
         assertEquals(employeeId, saved.employeeId());
+        assertEquals(0L, saved.sessionVersion());
     }
 
     @Test
@@ -117,9 +121,10 @@ class UserServiceCoreTest {
     }
 
     @Test
-    @DisplayName("changeOwnPassword: troca senha quando senha atual confere")
-    void shouldChangeOwnPassword() {
+    @DisplayName("changeOwnPassword: incrementa a versão de sessão quando troca senha")
+    void changeOwnPassword_shouldIncrementSessionVersion() {
         ChangePasswordRequest request = new ChangePasswordRequest("old-pass", "Abcd1234", "Abcd1234");
+        existingUser = new User(userId, "john", "hashed-password", Role.MANAGER, true, employeeId, 2L, null, null, null);
 
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existingUser);
@@ -134,7 +139,11 @@ class UserServiceCoreTest {
                 "new-hash",
                 Role.MANAGER,
                 true,
-                employeeId
+                employeeId,
+                3L,
+                null,
+                null,
+                null
         ));
     }
 
