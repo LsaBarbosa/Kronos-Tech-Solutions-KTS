@@ -20,7 +20,7 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
 | **PASSWORD_RESET_TOKEN** | PasswordResetTokenRetentionProcessor | Count expired tokens before cutoff | Delete expired tokens | N/A | ✅ Yes | Time-bound tokens; no preservation needed |
 | **MESSAGE** | MessageRetentionProcessor | Count elegible messages (>180 days old) | Anonymize sender/recipient, redact content | Depends on policy | ✅ Yes | Operational messages can be deleted; preserve audit signatures |
 | **DOCUMENT** | DocumentRetentionProcessor | Count removable documents and preserved labor/fiscal docs | Delete storage file + mark DB record | ✅ Yes (labor/fiscal) | ✅ Yes | Labor/tax docs: CLT, IR, FGTS — preserved forever |
-| **AUDIT_LOG** | AuditLogRetentionProcessor | Count logs older than cutoff, separate by severity | Sanitize sensitive fields (IP, user-agent, PII, tokens) | ✅ Yes (events preserved) | ✅ Yes | Preserve event type/timestamp; mask personal data |
+| **AUDIT_LOG** | AuditLogRetentionProcessor | Count by category (critical vs common) older than cutoff | Critical: sanitize details, preserve userId; Common: sanitize + clear userId | ✅ Yes (events preserved) | ✅ Yes | Preserve event type/timestamp; protect evidence of authorship |
 | **LEGAL_CONSENT** | LegalConsentRetentionProcessor | Count revoked consents older than cutoff | Minimize revoked consents (sanitize IP/user-agent ONLY; preserve evidence) | ✅ Yes (evidence) | ✅ Yes | Consent history is audit trail; NEVER DELETE; minimize metadata only |
 | **BIOMETRIC_ARTIFACT** | BiometricArtifactRetentionProcessor | Count employees without active consent or with revoked consent | Delete S3 image + Rekognition entries + clear DB | ❌ No (biometric is deleted) | ✅ Yes | Biometric deletion is final; no preservation |
 | **LGPD_REQUEST** | LgpdRequestRetentionProcessor | Count closed requests older than cutoff | Minimize closed requests (description/notes); preserve evidence | ✅ Yes (evidence) | ✅ Yes | LGPD requests are compliance proof; only minimize closed (COMPLETED, REJECTED, etc) |
@@ -42,9 +42,19 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
    - Tests: ✅ PasswordResetTokenRetentionProcessorTest
 
 3. **AuditLogRetentionProcessor**
-   - Status: ✅ Implemented
+   - Status: ✅ Implemented (CORRECTED to preserve evidence of authorship)
    - Location: `...retention.processor.audit.AuditLogRetentionProcessor`
-   - Tests: ✅ AuditLogRetentionProcessorTest
+   - Tests: ✅ AuditLogRetentionProcessorTest (8/8 tests)
+   - **Strategy**: Separate handling by log category
+     - **Critical logs** (LGPD, SECURITY, INCIDENT):
+       - Preserved: userId (for authorship), action, timestamp, resourceType, resourceId, severity
+       - Sanitized: details field (CPF, email, token, S3 paths masked via SensitiveDataMasker)
+     - **Common logs** (all others):
+       - Cleared: userId, ipAddress, userAgent
+       - Sanitized: details field (CPF, email, token, S3 paths masked)
+       - Preserved: action, timestamp, resourceType, resourceId
+     - **Effect**: DRY_RUN counts by category; APPLY sanitizes without destroying evidence
+     - **Legal Basis**: LGPD Art. 6/12 requires proof of actions; critical logs retain minimal authorship
 
 4. **LegalConsentRetentionProcessor**
    - Status: ✅ Implemented (CORRECTED for evidence preservation)
@@ -108,14 +118,19 @@ APPLY:
 
 ```
 DRY_RUN:
-  - Count logs where createdAt < cutoff
-  - Separate by severity (LOW, MEDIUM, HIGH, SECURITY, LGPD)
+  - Count critical logs (riskLevel IN LGPD, SECURITY, INCIDENT) before cutoff
+  - Count common logs (riskLevel NOT IN critical) before cutoff
+  - Report totals by category
   
 APPLY:
-  - Iterate each log
-  - Sanitize: IP, user-agent, CPF, email, token, base64, coordinates
-  - Preserve: auditLogId, action, createdAt, severity, resourceType
-  - Mark: retentionAppliedAt, retentionPolicyCode
+  - Critical logs (LGPD/SECURITY/INCIDENT):
+    - Sanitize details (CPF, email, token, S3 paths, base64)
+    - Preserve userId for authorship evidence
+    - Preserve action, timestamp, resourceType, resourceId, severity
+  - Common logs:
+    - Sanitize details (CPF, email, token, S3 paths, base64)
+    - Clear userId, IP address, user agent
+    - Preserve action, timestamp, resourceType, resourceId
 ```
 
 ### Legal Consent Processor
