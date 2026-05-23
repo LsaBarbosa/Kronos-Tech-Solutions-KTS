@@ -75,6 +75,16 @@ springdoc:
 app:
   security:
     public-docs-enabled: false
+    cookies:
+      http-only: true
+      secure: false
+      same-site: Lax
+    csrf:
+      cookie-name: KRONOS_CSRF_TOKEN
+      header-name: X-CSRF-TOKEN
+      cookie-path: /
+      secure: false
+      same-site: Lax
 
 logging:
   pattern:

@@ -109,6 +109,16 @@ management:
 app:
   security:
     public-docs-enabled: ${APP_SECURITY_PUBLIC_DOCS_ENABLED:false}
+    cookies:
+      http-only: true
+      secure: true
+      same-site: "None"
+    csrf:
+      cookie-name: KRONOS_CSRF_TOKEN
+      header-name: X-CSRF-TOKEN
+      cookie-path: /
+      secure: true
+      same-site: "None"
 
 jwt:
   secret: ${JWT_SECRET}
