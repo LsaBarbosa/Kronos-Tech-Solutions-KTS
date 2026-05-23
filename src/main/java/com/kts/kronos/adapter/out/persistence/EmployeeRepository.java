@@ -38,4 +38,33 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
     @Modifying
     @Query("UPDATE EmployeeEntity e SET e.faceS3ObjectKey = NULL WHERE e.faceS3ObjectKey IS NOT NULL")
     int clearBiometricDataBefore(Instant cutoff);
+
+    @Query("""
+            SELECT e FROM EmployeeEntity e
+             WHERE e.faceS3ObjectKey IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM LegalConsentEntity lc
+                    WHERE lc.employeeId = e.employeeId
+                      AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
+                      AND lc.revokedAt IS NULL
+               )
+            """)
+    List<EmployeeEntity> findEligibleBiometricArtifactsByMissingConsent();
+
+    @Query("""
+            SELECT e FROM EmployeeEntity e
+             WHERE e.faceS3ObjectKey IS NOT NULL
+               AND EXISTS (
+                   SELECT 1 FROM LegalConsentEntity lc
+                    WHERE lc.employeeId = e.employeeId
+                      AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
+                      AND lc.revokedAt IS NOT NULL
+                      AND lc.revokedAt < :cutoff
+               )
+            """)
+    List<EmployeeEntity> findEligibleBiometricArtifactsByRevokedConsent(@Param("cutoff") Instant cutoff);
+
+    @Modifying
+    @Query("UPDATE EmployeeEntity e SET e.faceS3ObjectKey = NULL WHERE e.employeeId = :employeeId")
+    int clearBiometricDataByEmployeeId(@Param("employeeId") UUID employeeId);
 }

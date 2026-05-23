@@ -22,7 +22,7 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
 | **DOCUMENT** | DocumentRetentionProcessor | Count removable documents and preserved labor/fiscal docs | Delete storage file + mark DB record | ✅ Yes (labor/fiscal) | ✅ Yes | Labor/tax docs: CLT, IR, FGTS — preserved forever |
 | **AUDIT_LOG** | AuditLogRetentionProcessor | Count logs older than cutoff, separate by severity | Sanitize sensitive fields (IP, user-agent, PII, tokens) | ✅ Yes (events preserved) | ✅ Yes | Preserve event type/timestamp; mask personal data |
 | **LEGAL_CONSENT** | LegalConsentRetentionProcessor | Count revoked consents older than cutoff | Minimize revoked consents (sanitize IP/user-agent ONLY; preserve evidence) | ✅ Yes (evidence) | ✅ Yes | Consent history is audit trail; NEVER DELETE; minimize metadata only |
-| **BIOMETRIC_ARTIFACT** | BiometricArtifactRetentionProcessor | Count orphans/revoked without active consent | Delete S3 image + Rekognition entries | ❌ No (biometric is deleted) | ✅ Yes | Biometric deletion is final; no preservation |
+| **BIOMETRIC_ARTIFACT** | BiometricArtifactRetentionProcessor | Count employees without active consent or with revoked consent | Delete S3 image + Rekognition entries + clear DB | ❌ No (biometric is deleted) | ✅ Yes | Biometric deletion is final; no preservation |
 | **LGPD_REQUEST** | LgpdRequestRetentionProcessor | Count closed requests older than cutoff | Minimize closed requests (description/notes); preserve evidence | ✅ Yes (evidence) | ✅ Yes | LGPD requests are compliance proof; only minimize closed (COMPLETED, REJECTED, etc) |
 
 ---
@@ -57,9 +57,18 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
      - **Legal Basis**: LGPD Art. 6 requires proof of consent; deletion violates compliance
 
 5. **BiometricArtifactRetentionProcessor**
-   - Status: ✅ Implemented
+   - Status: ✅ Implemented (CORRECTED for real S3/Rekognition deletion)
    - Location: `...retention.processor.biometric.BiometricArtifactRetentionProcessor`
-   - Tests: ✅ BiometricArtifactRetentionProcessorTest
+   - Tests: ✅ BiometricArtifactRetentionProcessorTest (9/9 tests)
+   - **Strategy**: Delete biometric artifacts from S3 + Rekognition for employees without active BIOMETRIC_AUTHENTICATION consent
+     - **Eligible**: faceS3ObjectKey NOT NULL AND (no active consent OR revoked before cutoff)
+     - **Protected**: Employees with active biometric consent never modified
+     - **Actions**: 
+       - DRY_RUN: Count eligible employees
+       - APPLY: Delete S3 image → Delete Rekognition templates → Clear DB faceS3ObjectKey
+       - On partial failure (S3/Rekognition): Return PARTIAL status, never SUCCESS
+       - On success: Return SUCCESS with count
+     - **Legal Basis**: Consent revocation triggers artifact deletion per AcceptTermsService pattern
 
 6. **LgpdRequestRetentionProcessor**
    - Status: ✅ Implemented (CORRECTED for evidence preservation)
@@ -124,16 +133,22 @@ APPLY:
 
 ```
 DRY_RUN:
-  - Count employees with faceS3ObjectKey but no active biometric consent
-  - Count employees with revoked consent
-  - Detect orphaned S3/Rekognition entries
+  - Find employees with faceS3ObjectKey but no active BIOMETRIC_AUTHENTICATION consent
+  - Find employees with BIOMETRIC_AUTHENTICATION consent revoked before cutoff
+  - Count total eligible (both categories combined)
   
 APPLY:
   - For each eligible employee:
-    - DELETE from AWS S3 (by faceS3ObjectKey)
-    - DELETE from AWS Rekognition (by externalImageId)
-    - UPDATE tb_employee SET face_s3_object_key = NULL
-    - Log operation (no base64/path exposure)
+    - Capture S3 key
+    - Call FaceStorageProvider.deleteFaceImage(s3Key)
+    - Call FaceRecognitionProvider.deleteFacesByExternalImageId(employeeId)
+    - If both succeed: UPDATE tb_employee SET face_s3_object_key = NULL
+    - If either fails: Skip DB update, track failure, continue
+  - Result:
+    - SUCCESS if all deletions succeed
+    - PARTIAL if some S3/Rekognition deletions fail
+    - ERROR if unrecoverable error
+  - Logs include employeeId, success/failure per employee, but no S3 paths or base64
 ```
 
 ### LGPD Request Processor
