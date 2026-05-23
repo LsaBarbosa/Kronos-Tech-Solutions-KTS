@@ -20,6 +20,7 @@ import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecutor;
+import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LgpdRequest;
@@ -30,6 +31,7 @@ import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,7 @@ import java.util.UUID;
 import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
 import static com.kts.kronos.constants.Messages.LGPD_REQUEST_NOT_FOUND;
 
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -281,50 +284,56 @@ public class LgpdService implements LgpdUseCase {
 
         var results = anonymizationPlanExecutor.executePlanWithResults(plan, "DRY_RUN");
 
-        long documentsToDelete = 0;
-        long timeRecordsToPreserve = 0;
-        long timeRecordsToAnonymize = 0;
-        long messagesToAnonymize = 0;
-        long auditLogsToSanitize = 0;
-        long biometricArtifactsToDelete = 0;
-        long errorsExpected = 0;
+        long totalScanned = 0;
+        long totalAffected = 0;
+        long totalSkipped = 0;
+        long totalErrors = 0;
+
+        var domains = new java.util.ArrayList<com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain>();
+        var warnings = new java.util.ArrayList<String>();
 
         for (var result : results) {
             if (result == null) continue;
+
+            totalScanned += result.scannedCount();
+            totalAffected += result.affectedCount();
+            totalSkipped += result.skippedCount();
+            totalErrors += result.errorCount();
+
             switch (result.resourceType()) {
-                case DOCUMENT -> documentsToDelete = result.affectedCount();
-                case TIME_RECORD -> timeRecordsToAnonymize = result.affectedCount();
-                case MESSAGE -> messagesToAnonymize = result.affectedCount();
-                case AUDIT_LOG -> auditLogsToSanitize = result.affectedCount();
-                case BIOMETRIC_ARTIFACT -> biometricArtifactsToDelete = result.affectedCount();
+                case TIME_RECORD -> domains.add(
+                        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.timeRecord(
+                                result.scannedCount(),
+                                result.affectedCount(),
+                                result.skippedCount(),
+                                plan.preserveLaborData()
+                        )
+                );
                 default -> {}
             }
-            if (result.errorCount() > 0) {
-                errorsExpected += result.errorCount();
-            }
         }
 
-        List<String> warnings = new java.util.ArrayList<>();
-        if (documentsToDelete > 0) {
-            warnings.add(String.format("Serão deletados %d documentos.", documentsToDelete));
+        if (totalAffected > 0) {
+            warnings.add("Esta é uma visualização. Nenhum dado foi modificado.");
+        } else {
+            warnings.add("Nenhum registro será modificado neste plano de anonimização.");
         }
-        if (messagesToAnonymize > 0) {
-            warnings.add(String.format("%d mensagens serão anonimizadas.", messagesToAnonymize));
-        }
-        if (biometricArtifactsToDelete > 0) {
-            warnings.add("Artefatos biométricos serão deletados permanentemente.");
-        }
-        warnings.add("Esta é uma visualização. Nenhum dado foi modificado.");
 
-        return new AnonymizationDryRunResponse(
+        if (totalErrors > 0) {
+            warnings.add(String.format("Erros esperados: %d", totalErrors));
+        }
+
+        var summary = com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunSummary.from(
+                totalScanned,
+                totalAffected,
+                totalSkipped,
+                totalErrors
+        );
+
+        return com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse.create(
                 employeeId,
-                documentsToDelete,
-                timeRecordsToPreserve,
-                timeRecordsToAnonymize,
-                messagesToAnonymize,
-                auditLogsToSanitize,
-                biometricArtifactsToDelete,
-                errorsExpected,
+                summary,
+                domains,
                 warnings
         );
     }
@@ -573,6 +582,8 @@ public class LgpdService implements LgpdUseCase {
             throw new IllegalArgumentException("Notas públicas são obrigatórias para conclusão");
         }
 
+        validateAnonymizationStatusBeforeConclusion(request, newStatus, publicNotes);
+
         String oldStatus = request.status().name();
         LgpdRequest updated = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNotes, now);
 
@@ -691,5 +702,36 @@ public class LgpdService implements LgpdUseCase {
             case WAITING_DATA_SUBJECT -> List.of(LgpdRequestStatus.IN_ANALYSIS, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
             case COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED -> List.of();
         };
+    }
+
+    @Override
+    public AnonymizationConsolidatedResult getAnonymizationResult(UUID requestId) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        // Placeholder: In production, this would retrieve from AnonymizationConsolidatedResult entity
+        // For now, return null (no result stored yet)
+        log.info(
+                "event=lgpd_anonymization_result_retrieval requestId={} requestType={}",
+                requestId,
+                request.requestType()
+        );
+
+        return null;
+    }
+
+    private void validateAnonymizationStatusBeforeConclusion(LgpdRequest request, LgpdRequestStatus newStatus, String publicNotes) {
+        if (newStatus == LgpdRequestStatus.COMPLETED || newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED) {
+            if (request.requestType() == LgpdRequestType.ANONYMIZATION || request.requestType() == LgpdRequestType.DELETION) {
+                // Check if anonymization was executed and get result
+                // For now, we log a warning if no anonymization result found
+                // In production, this would check against AnonymizationConsolidatedResult table
+                log.info(
+                        "event=lgpd_request_conclusion_validation requestId={} requestType={} newStatus={}",
+                        request.requestId(),
+                        request.requestType(),
+                        newStatus
+                );
+            }
+        }
     }
 }

@@ -38,46 +38,97 @@ class TimeRecordAnonymizerTest {
     void testExecuteDryRunWithNoTimeRecords() {
         when(timeRecordRepository.findByEmployeeId(any())).thenReturn(new ArrayList<>());
 
-        var plan = createPlan();
+        var plan = createPlan(true);
         var result = anonymizer.execute(plan, "DRY_RUN");
 
         assertEquals("DRY_RUN", result.executionMode());
         assertEquals("SUCCESS", result.status());
         assertEquals(0, result.scannedCount());
+        assertEquals(0, result.affectedCount());
+        assertEquals(0, result.skippedCount());
     }
 
     @Test
-    void testExecuteDryRunWithTimeRecords() {
-        var records = Arrays.asList(createTimeRecord(), createTimeRecord());
-        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(records);
+    void testExecuteDryRunWithGeolocationWhenPreserveLaborData() {
+        var record1 = createTimeRecord();
+        record1.setLatitude(-23.5505);
+        record1.setLongitude(-46.6333);
 
-        var plan = createPlan();
+        var record2 = createTimeRecord();
+
+        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record1, record2));
+
+        var plan = createPlan(true);
         var result = anonymizer.execute(plan, "DRY_RUN");
 
         assertEquals("DRY_RUN", result.executionMode());
         assertEquals("SUCCESS", result.status());
         assertEquals(2, result.scannedCount());
-        assertEquals(0, result.affectedCount());
+        assertEquals(1, result.affectedCount());
+        assertEquals(1, result.skippedCount());
     }
 
     @Test
-    void testExecuteApplyAnonymizesLocationData() {
+    void testExecuteDryRunAllAffectedWhenPreserveLaborDataFalse() {
+        var record1 = createTimeRecord();
+        var record2 = createTimeRecord();
+
+        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record1, record2));
+
+        var plan = createPlan(false);
+        var result = anonymizer.execute(plan, "DRY_RUN");
+
+        assertEquals("DRY_RUN", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(2, result.scannedCount());
+        assertEquals(2, result.affectedCount());
+        assertEquals(0, result.skippedCount());
+    }
+
+    @Test
+    void testExecuteApplyWithPreserveLaborDataTrue() {
         var record1 = createTimeRecord();
         record1.setLatitude(-23.5505);
         record1.setLongitude(-46.6333);
         record1.setEndLatitude(-23.5505);
         record1.setEndLongitude(-46.6333);
 
-        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record1));
+        var record2 = createTimeRecord();
 
-        var plan = createPlan();
+        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record1, record2));
+
+        var plan = createPlan(true);
         var result = anonymizer.execute(plan, "APPLY");
 
         assertEquals("APPLY", result.executionMode());
         assertEquals("SUCCESS", result.status());
+        assertEquals(2, result.scannedCount());
         assertEquals(1, result.affectedCount());
+        assertEquals(1, result.skippedCount());
 
         verify(timeRecordRepository, times(1)).save(any());
+    }
+
+    @Test
+    void testExecuteApplyWithPreserveLaborDataFalse() {
+        var record1 = createTimeRecord();
+        record1.setLatitude(-23.5505);
+        record1.setLongitude(-46.6333);
+
+        var record2 = createTimeRecord();
+
+        when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record1, record2));
+
+        var plan = createPlan(false);
+        var result = anonymizer.execute(plan, "APPLY");
+
+        assertEquals("APPLY", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(2, result.scannedCount());
+        assertEquals(2, result.affectedCount());
+        assertEquals(0, result.skippedCount());
+
+        verify(timeRecordRepository, times(2)).save(any());
     }
 
     @Test
@@ -87,7 +138,7 @@ class TimeRecordAnonymizerTest {
         record.setLongitude(-46.6333);
         when(timeRecordRepository.findByEmployeeId(any())).thenReturn(Arrays.asList(record));
 
-        anonymizer.execute(createPlan(), "APPLY");
+        anonymizer.execute(createPlan(true), "APPLY");
 
         var savedCaptor = org.mockito.ArgumentCaptor.forClass(TimeRecordEntity.class);
         verify(timeRecordRepository).save(savedCaptor.capture());
@@ -103,7 +154,7 @@ class TimeRecordAnonymizerTest {
     void testExecuteApplyHandlesException() {
         when(timeRecordRepository.findByEmployeeId(any())).thenThrow(new RuntimeException("DB error"));
 
-        var plan = createPlan();
+        var plan = createPlan(true);
         var result = anonymizer.execute(plan, "APPLY");
 
         assertEquals("APPLY", result.executionMode());
@@ -111,13 +162,13 @@ class TimeRecordAnonymizerTest {
         assertEquals(1, result.errorCount());
     }
 
-    private AnonymizationPlan createPlan() {
+    private AnonymizationPlan createPlan(boolean preserveLaborData) {
         return new AnonymizationPlan(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "Test anonymization",
-                true,
+                preserveLaborData,
                 true,
                 false,
                 false,

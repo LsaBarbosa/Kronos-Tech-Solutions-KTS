@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.inventory.CreateInventoryRequest;
 import com.kts.kronos.adapter.in.web.dto.inventory.DataProcessingInventoryResponse;
 import com.kts.kronos.application.service.DataProcessingInventoryService;
+import com.kts.kronos.constants.ApiPaths;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/lgpd/inventory")
+@RequestMapping(ApiPaths.LGPD + ApiPaths.LGPD_INVENTORY)
 @RequiredArgsConstructor
 public class DataProcessingInventoryController {
     private final DataProcessingInventoryService service;
@@ -35,7 +36,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @GetMapping("/active")
+    @GetMapping(ApiPaths.LGPD_INVENTORY_ACTIVE)
     public ResponseEntity<Page<DataProcessingInventoryResponse>> listActiveInventories(Pageable pageable) {
         var page = service.listActiveInventories(pageable)
                 .map(DataProcessingInventoryResponse::fromDomain);
@@ -43,7 +44,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @GetMapping("/{processCode}")
+    @GetMapping(ApiPaths.LGPD_INVENTORY_BY_CODE)
     public ResponseEntity<DataProcessingInventoryResponse> getByProcessCode(@PathVariable String processCode) {
         var inventory = service.getInventoryByProcessCode(processCode);
         return ResponseEntity.ok(DataProcessingInventoryResponse.fromDomain(inventory));
@@ -59,7 +60,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @PatchMapping("/{inventoryId}")
+    @PatchMapping(ApiPaths.LGPD_INVENTORY_ID)
     public ResponseEntity<DataProcessingInventoryResponse> updateInventory(
             @PathVariable UUID inventoryId,
             @Valid @RequestBody CreateInventoryRequest request) {

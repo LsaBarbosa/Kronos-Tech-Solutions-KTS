@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.in.web.dto.security.*;
 import com.kts.kronos.adapter.out.persistence.SecurityIncidentReportRepository;
 import com.kts.kronos.adapter.out.persistence.entity.SecurityIncidentReportEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.exceptions.IncidentCommunicationDeadlineException;
+import com.kts.kronos.application.exceptions.IncidentClosureValidationException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.SecurityIncidentUseCase;
 import com.kts.kronos.application.port.out.provider.SecurityIncidentProvider;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -104,6 +108,39 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
         var incident = securityIncidentProvider.findById(incidentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Incidente não encontrado"));
 
+        // Task LGPD-CORR-07-02: Validate closure evidence
+        if (request.status() == SecurityIncidentStatus.CLOSED && Boolean.TRUE.equals(incident.communicationRequired())) {
+            List<String> missingFields = new ArrayList<>();
+
+            if (incident.notifiedAnpdAt() == null) {
+                missingFields.add("notifiedAnpdAt");
+            }
+            if (incident.notifiedSubjectsAt() == null) {
+                missingFields.add("notifiedSubjectsAt");
+            }
+            if (incident.evidenceLinks() == null || incident.evidenceLinks().isBlank()) {
+                missingFields.add("evidenceLinks");
+            }
+            if (incident.correctiveActions() == null || incident.correctiveActions().isBlank()) {
+                missingFields.add("correctiveActions");
+            }
+
+            if (!missingFields.isEmpty()) {
+                log.warn("Incident closure blocked for incidentId={}: missing evidence fields: {}", incidentId, missingFields);
+                auditService.registerSecurity(
+                        AuditAction.SECURITY_INCIDENT_UPDATED,
+                        jwtAuthenticatedUser.getuserId(),
+                        "CLOSURE_BLOCKED",
+                        "SECURITY_INCIDENT",
+                        incidentId.toString(),
+                        String.format("Closure blocked due to missing: %s", String.join(", ", missingFields)),
+                        ipAddress,
+                        userAgent
+                );
+                throw new IncidentClosureValidationException(incidentId, missingFields);
+            }
+        }
+
         var updated = incident.updateStatus(request.status());
         if (request.confirmedAt() != null && incident.confirmedAt() == null) {
             updated = updated.confirm(request.confirmedAt());
@@ -140,6 +177,27 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
     ) {
         var incident = securityIncidentProvider.findById(incidentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Incidente não encontrado"));
+
+        // Task LGPD-CORR-07-01: Validate communication deadlines
+        if (Boolean.TRUE.equals(request.communicationRequired())) {
+            if (request.anpdCommunicationDeadline() == null || request.subjectsCommunicationDeadline() == null) {
+                log.warn("Risk assessment failed for incidentId={}: missing communication deadlines", incidentId);
+                auditService.registerSecurity(
+                        AuditAction.SECURITY_INCIDENT_UPDATED,
+                        jwtAuthenticatedUser.getuserId(),
+                        "RISK_ASSESSMENT_BLOCKED",
+                        "SECURITY_INCIDENT",
+                        incidentId.toString(),
+                        "communicationRequired=true but missing deadlines",
+                        ipAddress,
+                        userAgent
+                );
+                throw new IncidentCommunicationDeadlineException(
+                        incidentId,
+                        request.anpdCommunicationDeadline() == null ? "anpdCommunicationDeadline" : "subjectsCommunicationDeadline"
+                );
+            }
+        }
 
         var updated = incident.withRiskAssessment(
                 request.dataCategories(),

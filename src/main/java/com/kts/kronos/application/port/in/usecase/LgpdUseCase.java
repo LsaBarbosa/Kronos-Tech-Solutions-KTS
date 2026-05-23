@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
+import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
@@ -63,4 +64,6 @@ public interface LgpdUseCase {
     LgpdRequest cancelRequest(UUID requestId, String cancellationReason);
 
     List<LgpdRequestStatus> getAvailableTransitions(LgpdRequestStatus currentStatus);
+
+    AnonymizationConsolidatedResult getAnonymizationResult(UUID requestId);
 }
