@@ -29,4 +29,30 @@ public interface LgpdRequestRepository extends JpaRepository<LgpdRequestEntity, 
     @Modifying
     @Query("DELETE FROM LgpdRequestEntity r WHERE r.createdAt < :cutoff")
     int deleteCreatedBefore(@Param("cutoff") Instant cutoff);
+
+    @Query("""
+            SELECT COUNT(r) FROM LgpdRequestEntity r
+             WHERE r.resolvedAt < :cutoff
+               AND r.status IN ('COMPLETED', 'REJECTED', 'PARTIALLY_COMPLETED', 'CANCELLED')
+               AND r.retentionAppliedAt IS NULL
+            """)
+    long countClosedRequestsBefore(@Param("cutoff") Instant cutoff);
+
+    @Modifying
+    @Query("""
+            UPDATE LgpdRequestEntity r
+               SET r.description = '[REMOVED BY RETENTION]',
+                   r.publicResolutionNotes = '[REMOVED BY RETENTION]',
+                   r.internalNotes = '[REMOVED BY RETENTION]',
+                   r.retentionAppliedAt = :appliedAt,
+                   r.retentionPolicyCode = :policyCode
+             WHERE r.resolvedAt < :cutoff
+               AND r.status IN ('COMPLETED', 'REJECTED', 'PARTIALLY_COMPLETED', 'CANCELLED')
+               AND r.retentionAppliedAt IS NULL
+            """)
+    int minimizeClosedRequestsBefore(
+            @Param("cutoff") Instant cutoff,
+            @Param("appliedAt") Instant appliedAt,
+            @Param("policyCode") String policyCode
+    );
 }

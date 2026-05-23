@@ -23,7 +23,7 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
 | **AUDIT_LOG** | AuditLogRetentionProcessor | Count logs older than cutoff, separate by severity | Sanitize sensitive fields (IP, user-agent, PII, tokens) | ✅ Yes (events preserved) | ✅ Yes | Preserve event type/timestamp; mask personal data |
 | **LEGAL_CONSENT** | LegalConsentRetentionProcessor | Count revoked consents older than cutoff | Minimize revoked consents (sanitize IP/user-agent ONLY; preserve evidence) | ✅ Yes (evidence) | ✅ Yes | Consent history is audit trail; NEVER DELETE; minimize metadata only |
 | **BIOMETRIC_ARTIFACT** | BiometricArtifactRetentionProcessor | Count orphans/revoked without active consent | Delete S3 image + Rekognition entries | ❌ No (biometric is deleted) | ✅ Yes | Biometric deletion is final; no preservation |
-| **LGPD_REQUEST** | LgpdRequestRetentionProcessor | Count old, closed requests (>5 years) | Preserve request summary; sanitize descriptions/notes | ✅ Yes (evidence) | ✅ Yes | LGPD requests are compliance evidence; minimize personal data |
+| **LGPD_REQUEST** | LgpdRequestRetentionProcessor | Count closed requests older than cutoff | Minimize closed requests (description/notes); preserve evidence | ✅ Yes (evidence) | ✅ Yes | LGPD requests are compliance proof; only minimize closed (COMPLETED, REJECTED, etc) |
 
 ---
 
@@ -62,9 +62,15 @@ Complete coverage matrix for all `RetentionResourceType` values, detailing proce
    - Tests: ✅ BiometricArtifactRetentionProcessorTest
 
 6. **LgpdRequestRetentionProcessor**
-   - Status: ✅ Implemented
+   - Status: ✅ Implemented (CORRECTED for evidence preservation)
    - Location: `...retention.processor.lgpd.LgpdRequestRetentionProcessor`
    - Tests: ✅ LgpdRequestRetentionProcessorTest
+   - **Strategy**: Closed requests (COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED) older than cutoff are MINIMIZED (not deleted):
+     - **Preserved**: requestId, employeeId, companyId, requestType, status, createdAt, resolvedAt, resolvedByUserId, closedReason
+     - **Minimized**: description → '[REMOVED BY RETENTION]', publicResolutionNotes → '[REMOVED BY RETENTION]', internalNotes → '[REMOVED BY RETENTION]'
+     - **Effect**: DRY_RUN counts eligible closed requests; APPLY minimizes notes/descriptions
+     - **Legal Basis**: LGPD Art. 12 requires proof of request handling; deletion violates compliance
+     - **Condition**: Only closed requests (status IN ...) with resolvedAt < cutoff; open requests never modified
 
 ### ✅ EXECUTOR INTEGRATION
 
@@ -134,12 +140,15 @@ APPLY:
 
 ```
 DRY_RUN:
-  - Count requests where status IN (COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED)
+  - Count closed requests where status IN (COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED)
     AND resolvedAt < cutoff
+    AND retentionAppliedAt IS NULL
   
 APPLY:
-  - Preserve: requestId, employeeId (pseudonymized), companyId, requestType, status, dates, closedReason
-  - Sanitize: description, publicNotes, internalNotes (remove PII)
+  - Preserve: requestId, employeeId, companyId, requestType, status, createdAt, resolvedAt, resolvedByUserId, closedReason
+  - Minimize: description → '[REMOVED BY RETENTION]', publicResolutionNotes → '[REMOVED BY RETENTION]', internalNotes → '[REMOVED BY RETENTION]'
+  - Mark: retentionAppliedAt, retentionPolicyCode
+  - Never modify: open requests (status NOT IN closed statuses)
 ```
 
 ---
