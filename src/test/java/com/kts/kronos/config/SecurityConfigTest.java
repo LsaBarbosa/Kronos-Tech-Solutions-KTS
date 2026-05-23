@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +45,9 @@ class SecurityConfigTest {
     private TokenBlacklistProvider tokenBlacklistProvider;
 
     @Mock
+    private UserProvider userProvider;
+
+    @Mock
     private AuthCookieService authCookieService;
 
     @Mock
@@ -65,6 +69,7 @@ class SecurityConfigTest {
         securityConfig = new SecurityConfig(
                 jwtUtils,
                 customUserDetailsService,
+                userProvider,
                 delegatedAuthenticationEntryPoint,
                 tokenBlacklistProvider,
                 authCookieService,

@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.dto.employee;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.adapter.in.web.dto.address.AddressResponse;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 
@@ -45,7 +46,7 @@ public record EmployeeResponse(
         return new EmployeeResponse(
                 employee.employeeId(),
                 employee.fullName(),
-                employee.cpf(),
+                SensitiveDataMasker.maskCpf(employee.cpf()),
                 employee.jobPosition(),
                 employee.email(),
                 employee.salary(),
@@ -67,8 +68,4 @@ public record EmployeeResponse(
 
         );
     }
-
-//    private static String maskCpf(String cpf) {
-//        return cpf.substring(0, 5) + "..." + cpf.substring(cpf.length() - 2);
-//    }
 }

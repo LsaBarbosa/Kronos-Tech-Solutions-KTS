@@ -10,6 +10,7 @@ import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +42,8 @@ class UserServiceFeature44ListUsersOptimizationTest {
     private JwtAuthenticatedUser jwtAuthenticatedUser;
     @Mock
     private DomainAuthorizationService domainAuthorizationService;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("listUsers: manager usa busca em lote por employeeIds quando active não é informado")

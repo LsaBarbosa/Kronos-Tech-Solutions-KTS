@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -86,7 +87,7 @@ class AuthServiceAuthenticationAndResetTest {
     void setUp() {
         employeeId = UUID.randomUUID();
         userId = UUID.randomUUID();
-        activeUser = new User(userId, "alice", "hashed", Role.MANAGER, true, employeeId);
+        activeUser = new User(userId, "alice", "hashed", Role.MANAGER, true, employeeId, 2L, null, null, null);
     }
 
     @Test
@@ -94,7 +95,7 @@ class AuthServiceAuthenticationAndResetTest {
     void shouldLoginAndGenerateToken() {
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true)).thenReturn("jwt-token");
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true, 2L)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
 
@@ -128,17 +129,35 @@ class AuthServiceAuthenticationAndResetTest {
 
         assertEquals(USER_NOT_FOUND, exception.getMessage());
         verify(legalConsentProvider, never()).existsActive(any(), any());
-        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class));
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), any(Long.class));
     }
 
     @Test
-    @DisplayName("loginFace: deve gerar token quando reconhecimento e usuário são válidos")
-    void shouldLoginWithFaceAndGenerateToken() {
+    @DisplayName("loginFace: deve rejeitar quando consentimento biométrico não está ativo")
+    void loginFace_shouldRejectWhenBiometricConsentIsNotActive() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, false)).thenReturn("face-jwt");
+
+        TermsNotAcceptedException exception = assertThrows(
+                TermsNotAcceptedException.class,
+                () -> authService.loginFace(imageBase64, true)
+        );
+
+        assertEquals(AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN, exception.getMessage());
+        verify(biometricProtectionService).protectPublicLogin(imageBase64, true);
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), any(Long.class));
+    }
+
+    @Test
+    @DisplayName("loginFace: deve gerar token quando consentimento biométrico está ativo")
+    void loginFace_shouldGenerateTokenWhenBiometricConsentIsActive() {
+        String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
+        when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
+        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true, 2L)).thenReturn("face-jwt");
 
         String token = authService.loginFace(imageBase64, true);
 
@@ -253,8 +272,8 @@ class AuthServiceAuthenticationAndResetTest {
     }
 
     @Test
-    @DisplayName("resetPassword: deve atualizar senha e remover token")
-    void shouldResetPasswordAndDeleteToken() {
+    @DisplayName("resetPassword: deve atualizar senha, remover token e incrementar sessionVersion")
+    void resetPassword_shouldIncrementSessionVersion() {
         when(tokenProvider.validateToken("valid-token")).thenReturn(Optional.of(userId));
         when(userProvider.findById(userId)).thenReturn(Optional.of(activeUser));
         when(passwordEncoder.encode("Abcd1234")).thenReturn("new-hash");
@@ -267,7 +286,11 @@ class AuthServiceAuthenticationAndResetTest {
                 "new-hash",
                 Role.MANAGER,
                 true,
-                employeeId
+                employeeId,
+                3L,
+                null,
+                null,
+                null
         )));
         verify(tokenProvider).deleteToken("valid-token");
     }

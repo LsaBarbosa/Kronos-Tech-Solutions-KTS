@@ -136,6 +136,18 @@ public class UserService implements UserUseCase {
         var role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
         boolean active = req.enabled() != null ? req.enabled() : existing.active();
         var updated = new User(userId, username, password, role, active, existing.employeeId());
+        updated = new User(
+                updated.userId(),
+                updated.username(),
+                updated.password(),
+                updated.role(),
+                updated.active(),
+                updated.employeeId(),
+                existing.sessionVersion(),
+                existing.deletedAt(),
+                existing.deletedBy(),
+                existing.deactivationReason()
+        );
 
         try {
             userProvider.save(updated);
@@ -179,14 +191,7 @@ public class UserService implements UserUseCase {
         validatePasswordPolicy(req.newPassword());
 
         String hashed = passwordEncoder.encode(req.newPassword());
-        userProvider.save(new User(
-                user.userId(),
-                user.username(),
-                hashed,
-                user.role(),
-                user.active(),
-                user.employeeId()
-        ));
+        userProvider.save(user.withPassword(hashed).incrementSessionVersion());
     }
 
     @Override

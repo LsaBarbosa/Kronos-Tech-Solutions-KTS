@@ -2,6 +2,7 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -35,10 +36,9 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=document_anonymization_error employeeId={} error={}",
+                    "event=document_anonymization_error employeeId={} exception_type={}",
                     plan.employeeId(),
-                    e.getMessage(),
-                    e
+                    e.getClass().getSimpleName()
             );
             return AnonymizationExecutionResult.error(
                     executionId,
@@ -89,10 +89,10 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
                 anonymized++;
             } catch (Exception e) {
                 log.error(
-                        "event=document_s3_deletion_error_anonymization documentId={} storagePath={} error={}",
+                        "event=document_s3_deletion_error_anonymization documentId={} storageRef={} exception_type={}",
                         doc.getDocumentId(),
-                        doc.getStoragePath(),
-                        e.getMessage()
+                        SensitiveDataMasker.maskStorageReference(doc.getStoragePath()),
+                        e.getClass().getSimpleName()
                 );
                 s3Errors++;
             }

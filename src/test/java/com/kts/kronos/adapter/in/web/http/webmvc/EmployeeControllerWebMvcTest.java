@@ -96,8 +96,10 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(header().string("Location", containsString("/employee/" + employeeId)))
                 .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
                 .andExpect(jsonPath("$.fullName").value("Lucas Silva"))
-                .andExpect(jsonPath("$.maskedCpf").value("52998224725"))
-                .andExpect(jsonPath("$.companyName").value("Kronos Tech"));
+                .andExpect(jsonPath("$.maskedCpf").value("***.982.247-**"))
+                .andExpect(jsonPath("$.companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.cpf").doesNotExist())
+                .andExpect(jsonPath("$.faceS3ObjectKey").doesNotExist());
 
         verify(useCase).createEmployee(any());
     }
@@ -142,7 +144,10 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employees[0].employeeId").value(employeeId.toString()))
                 .andExpect(jsonPath("$.employees[0].fullName").value("Lucas Silva"))
-                .andExpect(jsonPath("$.employees[0].companyName").value("Kronos Tech"));
+                .andExpect(jsonPath("$.employees[0].maskedCpf").value("***.982.247-**"))
+                .andExpect(jsonPath("$.employees[0].companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.employees[0].cpf").doesNotExist())
+                .andExpect(jsonPath("$.employees[0].faceS3ObjectKey").doesNotExist());
 
         verify(useCase).listEmployees(null);
     }
@@ -178,7 +183,10 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
                 .andExpect(jsonPath("$.fullName").value("Lucas Silva"))
-                .andExpect(jsonPath("$.companyName").value("Kronos Tech"));
+                .andExpect(jsonPath("$.maskedCpf").value("***.982.247-**"))
+                .andExpect(jsonPath("$.companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.cpf").doesNotExist())
+                .andExpect(jsonPath("$.faceS3ObjectKey").doesNotExist());
     }
 
     @Test
@@ -244,8 +252,11 @@ class EmployeeControllerWebMvcTest {
         mockMvc.perform(get("/employee/own-profile"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
+                .andExpect(jsonPath("$.maskedCpf").value("***.982.247-**"))
                 .andExpect(jsonPath("$.role").value("MANAGER"))
-                .andExpect(jsonPath("$.companyName").value("Kronos Tech"));
+                .andExpect(jsonPath("$.companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.cpf").doesNotExist())
+                .andExpect(jsonPath("$.faceS3ObjectKey").doesNotExist());
     }
 
     @Test

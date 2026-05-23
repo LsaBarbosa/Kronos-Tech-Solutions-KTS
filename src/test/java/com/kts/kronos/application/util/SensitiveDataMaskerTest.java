@@ -8,18 +8,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class SensitiveDataMaskerTest {
 
     @Test
-    void shouldMaskCpfPartially() {
+    void maskCpf_shouldMaskValidCpf() {
         String cpf = "12345678901";
         String masked = SensitiveDataMasker.maskCpf(cpf);
-        assertEquals("123.***.901", masked);
-        assertFalse(masked.contains("4567"));
+        assertEquals("***.456.789-**", masked);
+        assertFalse(masked.contains("12345678901"));
     }
 
     @Test
-    void shouldMaskCpfWithFormatting() {
+    void maskCpf_shouldHandleFormattedCpf() {
         String cpf = "123.456.789-01";
         String masked = SensitiveDataMasker.maskCpf(cpf);
-        assertEquals("123.***.901", masked);
+        assertEquals("***.456.789-**", masked);
     }
 
     @Test
@@ -31,6 +31,27 @@ class SensitiveDataMaskerTest {
     void shouldReturnBlankForBlankCpf() {
         assertEquals("", SensitiveDataMasker.maskCpf(""));
         assertEquals("   ", SensitiveDataMasker.maskCpf("   "));
+    }
+
+    @Test
+    void maskCpf_shouldNotExposeRawCpf() {
+        String cpf = "12345678901";
+
+        String masked = SensitiveDataMasker.maskCpf(cpf);
+
+        assertNotEquals(cpf, masked);
+        assertFalse(masked.contains(cpf));
+        assertTrue(masked.startsWith("***."));
+        assertTrue(masked.endsWith("-**"));
+    }
+
+    @Test
+    void maskCpf_shouldHandleNullBlankAndInvalidCpf() {
+        assertNull(SensitiveDataMasker.maskCpf(null));
+        assertEquals("", SensitiveDataMasker.maskCpf(""));
+        assertEquals("   ", SensitiveDataMasker.maskCpf("   "));
+        assertEquals("***", SensitiveDataMasker.maskCpf("123"));
+        assertEquals("***", SensitiveDataMasker.maskCpf("abc"));
     }
 
     @Test
@@ -79,10 +100,43 @@ class SensitiveDataMaskerTest {
     }
 
     @Test
+    void maskStorageReference_shouldNotExposeRawStoragePath() {
+        String raw = "company/123/employee/456/BIOMETRIC/2026/05/file.jpg";
+
+        String masked = SensitiveDataMasker.maskStorageReference(raw);
+
+        assertTrue(masked.startsWith("storage_ref_sha256="));
+        assertTrue(masked.contains(",length="));
+        assertFalse(masked.contains("company"));
+        assertFalse(masked.contains("employee"));
+        assertFalse(masked.contains("123"));
+        assertFalse(masked.contains("456"));
+        assertFalse(masked.contains("file.jpg"));
+        assertNotEquals(raw, masked);
+    }
+
+    @Test
+    void maskStorageReference_shouldReturnStableHashForSameValue() {
+        String raw = "company/123/employee/456/BIOMETRIC/2026/05/file.jpg";
+
+        String first = SensitiveDataMasker.maskStorageReference(raw);
+        String second = SensitiveDataMasker.maskStorageReference(raw);
+
+        assertEquals(first, second);
+    }
+
+    @Test
+    void maskStorageReference_shouldHandleNullAndBlank() {
+        assertEquals("storage_ref_empty", SensitiveDataMasker.maskStorageReference(null));
+        assertEquals("storage_ref_empty", SensitiveDataMasker.maskStorageReference(""));
+        assertEquals("storage_ref_empty", SensitiveDataMasker.maskStorageReference("   "));
+    }
+
+    @Test
     void shouldSanitizeDetailsMaskingCpf() {
         String details = "Employee CPF 12345678901 was verified";
         String sanitized = SensitiveDataMasker.sanitizeDetails(details);
-        assertTrue(sanitized.contains("123.***.901"));
+        assertTrue(sanitized.contains("***.456.789-**"));
         assertFalse(sanitized.contains("12345678901"));
     }
 

@@ -3,6 +3,7 @@ package com.kts.kronos.application.service.anonymization;
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class DocumentAnonymizerTest {
 
     @Mock
@@ -95,6 +98,22 @@ class DocumentAnonymizerTest {
         assertEquals("APPLY", result.executionMode());
         assertEquals("PARTIAL", result.status());
         assertEquals(2, result.errorCount());
+    }
+
+    @Test
+    void documentAnonymizer_shouldNotLogRawStoragePath(CapturedOutput output) {
+        var doc = createDocument();
+        doc.setStoragePath("company/123/employee/456/private/term.pdf");
+        when(documentRepository.findByEmployeeIdOrderByUploadedAtDesc(any())).thenReturn(Arrays.asList(doc));
+        doThrow(new RuntimeException("S3 error")).when(bucketStorageProvider).deleteFile(any(), anyString());
+
+        anonymizer.execute(createPlan(), "APPLY");
+
+        String logs = output.getOut() + output.getErr();
+        assertTrue(logs.contains("storageRef=" + SensitiveDataMasker.maskStorageReference(doc.getStoragePath())));
+        assertTrue(logs.contains("exception_type=RuntimeException"));
+        assertFalse(logs.contains(doc.getStoragePath()));
+        assertFalse(logs.contains("storagePath=" + doc.getStoragePath()));
     }
 
     @Test

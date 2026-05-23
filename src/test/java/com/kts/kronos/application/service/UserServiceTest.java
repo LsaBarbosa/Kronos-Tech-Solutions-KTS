@@ -19,6 +19,7 @@ import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,6 +71,8 @@ class UserServiceTest {
     private AcceptTermsUseCase acceptTermsUseCase;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("createUser: deve rejeitar username ja existente")
@@ -112,6 +115,7 @@ class UserServiceTest {
         assertEquals("hashed-random", captor.getValue().password());
         assertEquals(Role.MANAGER, captor.getValue().role());
         assertEquals(employeeId, captor.getValue().employeeId());
+        assertEquals(0L, captor.getValue().sessionVersion());
     }
 
     @Test
@@ -338,10 +342,10 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("changeOwnPassword: deve atualizar senha propria")
-    void shouldChangeOwnPassword() {
+    @DisplayName("changeOwnPassword: deve atualizar senha propria e incrementar sessionVersion")
+    void changeOwnPassword_shouldIncrementSessionVersion() {
         UUID userId = UUID.randomUUID();
-        User user = user(userId, UUID.randomUUID(), Role.MANAGER, true);
+        User user = new User(userId, "manager@kts.com", "stored-hash", Role.MANAGER, true, UUID.randomUUID(), 4L, null, null, null);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user);
         when(passwordEncoder.matches("current", user.password())).thenReturn(true);
@@ -353,6 +357,7 @@ class UserServiceTest {
         verify(userProvider).save(captor.capture());
         assertEquals("hashed", captor.getValue().password());
         assertEquals(user.username(), captor.getValue().username());
+        assertEquals(5L, captor.getValue().sessionVersion());
     }
 
     @Test
