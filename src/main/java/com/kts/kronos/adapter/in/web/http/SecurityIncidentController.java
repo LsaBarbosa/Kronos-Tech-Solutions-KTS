@@ -1,8 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
-import com.kts.kronos.adapter.in.web.dto.security.CreateSecurityIncidentRequest;
-import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentResponse;
-import com.kts.kronos.adapter.in.web.dto.security.UpdateSecurityIncidentRequest;
+import com.kts.kronos.adapter.in.web.dto.security.*;
 import com.kts.kronos.application.port.in.usecase.SecurityIncidentUseCase;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -76,6 +74,55 @@ public class SecurityIncidentController {
         }
 
         var response = securityIncidentUseCase.updateIncident(incidentId, request, ipAddress, userAgent);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(SECURITY_INCIDENT_ID + "/evaluate-risk")
+    @PreAuthorize(KRONOS)
+    public ResponseEntity<SecurityIncidentResponse> evaluateRisk(
+            @PathVariable UUID incidentId,
+            @Valid @RequestBody SecurityIncidentRiskAssessmentRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isBlank()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        }
+        String userAgent = httpRequest.getHeader("User-Agent");
+        if (userAgent == null) {
+            userAgent = "unknown";
+        }
+
+        var response = securityIncidentUseCase.evaluateRisk(incidentId, request, ipAddress, userAgent);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(SECURITY_INCIDENT_ID + "/correction-plan")
+    @PreAuthorize(KRONOS)
+    public ResponseEntity<SecurityIncidentResponse> submitCorrectionPlan(
+            @PathVariable UUID incidentId,
+            @Valid @RequestBody SecurityIncidentCorrectionPlanRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isBlank()) {
+            ipAddress = httpRequest.getRemoteAddr();
+        }
+        String userAgent = httpRequest.getHeader("User-Agent");
+        if (userAgent == null) {
+            userAgent = "unknown";
+        }
+
+        var response = securityIncidentUseCase.submitCorrectionPlan(incidentId, request, ipAddress, userAgent);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping(SECURITY_INCIDENT_ID + "/report")
+    @PreAuthorize(KRONOS)
+    public ResponseEntity<SecurityIncidentReportResponse> generateReport(
+            @PathVariable UUID incidentId
+    ) {
+        var response = securityIncidentUseCase.generateReport(incidentId);
         return ResponseEntity.ok(response);
     }
 }
