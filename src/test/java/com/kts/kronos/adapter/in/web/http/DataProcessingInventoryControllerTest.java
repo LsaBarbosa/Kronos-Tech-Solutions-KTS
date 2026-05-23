@@ -105,7 +105,7 @@ class DataProcessingInventoryControllerTest {
 
         when(service.listAllInventories(any())).thenReturn(page);
 
-        mockMvc.perform(get("/api/lgpd/inventory?page=0&size=10"))
+        mockMvc.perform(get("/lgpd/inventory?page=0&size=10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].processCode").value("BIOMETRIA_FACIAL"))
                 .andExpect(jsonPath("$.content[0].description").value("Coleta e armazenamento de dados biométricos faciais"))
@@ -120,7 +120,7 @@ class DataProcessingInventoryControllerTest {
 
         when(service.listActiveInventories(any())).thenReturn(page);
 
-        mockMvc.perform(get("/api/lgpd/inventory/active?page=0&size=10"))
+        mockMvc.perform(get("/lgpd/inventory/active?page=0&size=10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].active").value(true));
     }
@@ -131,7 +131,7 @@ class DataProcessingInventoryControllerTest {
 
         when(service.getInventoryByProcessCode("BIOMETRIA_FACIAL")).thenReturn(inventory);
 
-        mockMvc.perform(get("/api/lgpd/inventory/BIOMETRIA_FACIAL"))
+        mockMvc.perform(get("/lgpd/inventory/BIOMETRIA_FACIAL"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.processCode").value("BIOMETRIA_FACIAL"))
                 .andExpect(jsonPath("$.version").value("1.0"));
@@ -144,7 +144,7 @@ class DataProcessingInventoryControllerTest {
 
         when(service.createInventory(any())).thenReturn(created);
 
-        mockMvc.perform(post("/api/lgpd/inventory")
+        mockMvc.perform(post("/lgpd/inventory")
                 .contentType("application/json")
                 .content("""
                         {
@@ -183,7 +183,7 @@ class DataProcessingInventoryControllerTest {
 
         when(service.updateInventory(eq(inventoryId), any())).thenReturn(updated);
 
-        mockMvc.perform(patch("/api/lgpd/inventory/" + inventoryId)
+        mockMvc.perform(patch("/lgpd/inventory/" + inventoryId)
                 .contentType("application/json")
                 .content("""
                         {

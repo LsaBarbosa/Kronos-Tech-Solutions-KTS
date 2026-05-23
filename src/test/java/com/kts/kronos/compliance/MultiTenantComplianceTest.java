@@ -13,7 +13,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(classes = testsupport.LgpdComplianceTestApplication.class)
 @ActiveProfiles("test")
 @DisplayName("LGPD-S11-02: Multi-Tenant Isolation Compliance Tests")
 class MultiTenantComplianceTest {

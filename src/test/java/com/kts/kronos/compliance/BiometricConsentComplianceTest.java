@@ -18,7 +18,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(classes = testsupport.LgpdComplianceTestApplication.class)
 @ActiveProfiles("test")
 @DisplayName("LGPD-S11-01: Biometric Consent Compliance Tests")
 class BiometricConsentComplianceTest {
