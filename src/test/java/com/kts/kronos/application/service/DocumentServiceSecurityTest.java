@@ -441,6 +441,70 @@ class DocumentServiceSecurityTest {
     }
 
     @Test
+    @DisplayName("upload: invoca fileScanningProvider.scanOrThrow durante upload")
+    void uploadDocument_shouldInvokeFileScanningProvider() throws Exception {
+        Employee employee = buildEmployee(loggedEmployeeId, companyAId);
+        byte[] pdfBytes = "%PDF-1.7".getBytes(StandardCharsets.UTF_8);
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "documento.pdf",
+                "application/pdf",
+                pdfBytes
+        );
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), anyString())).thenReturn("safe/storage/path");
+
+        service.uploadDocument(DocumentType.PAYSLIP, null, file);
+
+        ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(fileScanningProvider).scanOrThrow(anyString(), eq("application/pdf"), bytesCaptor.capture());
+        assertArrayEquals(pdfBytes, bytesCaptor.getValue());
+    }
+
+    @Test
+    @DisplayName("upload: rejeita quando fileScanningProvider rejeita arquivo")
+    void uploadDocument_shouldRejectWhenFileScanningProviderRejects() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "malicioso.pdf",
+                "application/pdf",
+                "%PDF-1.7".getBytes(StandardCharsets.UTF_8)
+        );
+
+        doThrow(new BadRequestException(MALICIOUS_FILE_DETECTED))
+                .when(fileScanningProvider).scanOrThrow(anyString(), eq("application/pdf"), any(byte[].class));
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, null, file)
+        );
+
+        assertEquals(MALICIOUS_FILE_DETECTED, exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("upload: bloqueia quando fileScanningProvider falha com erro interno")
+    void uploadDocument_shouldRejectWhenFileScanningProviderFails() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "arquivo.pdf",
+                "application/pdf",
+                "%PDF-1.7".getBytes(StandardCharsets.UTF_8)
+        );
+
+        doThrow(new RuntimeException("scanner unavailable"))
+                .when(fileScanningProvider).scanOrThrow(anyString(), eq("application/pdf"), any(byte[].class));
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, null, file)
+        );
+
+        assertEquals("scanner unavailable", exception.getMessage());
+    }
+
+    @Test
     @DisplayName("upload: rejeita nome original nulo")
     void shouldRejectNullOriginalFileName() throws Exception {
         MultipartFile file = mock(MultipartFile.class);

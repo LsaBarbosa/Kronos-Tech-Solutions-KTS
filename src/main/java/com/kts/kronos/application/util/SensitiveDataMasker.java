@@ -1,5 +1,9 @@
 package com.kts.kronos.application.util;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,9 +21,9 @@ public final class SensitiveDataMasker {
         }
         String digits = cpf.replaceAll("\\D", "");
         if (digits.length() != 11) {
-            return cpf;
+            return "***";
         }
-        return digits.substring(0, 3) + "." + "***" + "." + digits.substring(8);
+        return "***." + digits.substring(3, 6) + "." + digits.substring(6, 9) + "-**";
     }
 
     public static String maskEmail(String email) {
@@ -48,6 +52,13 @@ public final class SensitiveDataMasker {
             return path;
         }
         return "[MASKED_PATH]";
+    }
+
+    public static String maskStorageReference(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "storage_ref_empty";
+        }
+        return "storage_ref_sha256=" + sha256Hex(raw).substring(0, 12) + ",length=" + raw.length();
     }
 
     public static String maskFaceBase64(String base64) {
@@ -83,5 +94,15 @@ public final class SensitiveDataMasker {
             result = result.replaceAll("storage/[^\\s]+", "[MASKED_PATH]");
         }
         return result;
+    }
+
+    private static String sha256Hex(String raw) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", ex);
+        }
     }
 }

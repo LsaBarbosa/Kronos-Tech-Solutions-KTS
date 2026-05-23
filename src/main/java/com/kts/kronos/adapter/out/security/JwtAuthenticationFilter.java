@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,17 +18,20 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final UserProvider userProvider;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthCookieService authCookieService;
 
     public JwtAuthenticationFilter(
             JwtUtils jwtUtils,
             UserDetailsService userDetailsService,
+            UserProvider userProvider,
             TokenBlacklistProvider tokenBlacklistProvider,
             AuthCookieService authCookieService
     ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.userProvider = userProvider;
         this.tokenBlacklistProvider = tokenBlacklistProvider;
         this.authCookieService = authCookieService;
     }
@@ -53,6 +57,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String username = jwtUtils.getUsernameFromToken(token);
+        var userId = jwtUtils.getUserIdFromToken(token);
+        long tokenSessionVersion = jwtUtils.getSessionVersionFromToken(token);
+
+        if (userId == null) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        var currentUser = userProvider.findById(userId).orElse(null);
+        if (currentUser == null || currentUser.sessionVersion() != tokenSessionVersion) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails user = userDetailsService.loadUserByUsername(username);

@@ -12,6 +12,7 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +57,8 @@ class UserServiceTenantSecurityTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("updateUser: manager pode operar usuário do mesmo tenant")

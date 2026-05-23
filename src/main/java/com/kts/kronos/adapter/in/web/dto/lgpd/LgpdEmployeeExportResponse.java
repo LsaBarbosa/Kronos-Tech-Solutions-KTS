@@ -52,7 +52,7 @@ public record LgpdEmployeeExportResponse(
             boolean includePreciseGeolocation,
             UUID requestedByUserId
     ) {
-        boolean hasFaceImage = employee.faceS3ObjectKey() != null && !employee.faceS3ObjectKey().isBlank();
+        boolean hasFaceImage = employee.hasFaceImage();
         boolean hasActiveBiometricConsent = legalConsents.stream()
                 .anyMatch(consent -> consent.consentType() == ConsentType.BIOMETRIC_AUTHENTICATION && consent.isActive());
 

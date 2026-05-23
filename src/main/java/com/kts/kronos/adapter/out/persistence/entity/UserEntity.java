@@ -42,6 +42,10 @@ public class UserEntity {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID employeeId;
 
+    @Builder.Default
+    @Column(name = "session_version", nullable = false)
+    private Long sessionVersion = 0L;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -60,6 +64,7 @@ public class UserEntity {
                 role,
                 active,
                 employeeId,
+                sessionVersion,
                 deletedAt,
                 deletedBy,
                 deactivationReason
@@ -74,6 +79,7 @@ public class UserEntity {
                 .role(user.role())
                 .active(user.active())
                 .employeeId(user.employeeId())
+                .sessionVersion(user.sessionVersion())
                 .deletedAt(user.deletedAt())
                 .deletedBy(user.deletedBy())
                 .deactivationReason(user.deactivationReason())

@@ -3,6 +3,7 @@ package com.kts.kronos.application.service.anonymization;
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -38,10 +39,9 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
             }
         } catch (Exception e) {
             log.error(
-                    "event=biometric_artifact_anonymization_error employeeId={} error={}",
+                    "event=biometric_artifact_anonymization_error employeeId={} exception_type={}",
                     plan.employeeId(),
-                    e.getMessage(),
-                    e
+                    e.getClass().getSimpleName()
             );
             return AnonymizationExecutionResult.error(
                     executionId,
@@ -125,10 +125,10 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
             bucketStorageProvider.deleteFile(DocumentType.BIOMETRIC_CONSENT_TERM, s3Key);
         } catch (Exception e) {
             log.error(
-                    "event=biometric_s3_deletion_error employeeId={} s3Key={} error={}",
+                    "event=biometric_s3_deletion_error employeeId={} faceStorageRef={} exception_type={}",
                     plan.employeeId(),
-                    s3Key,
-                    e.getMessage()
+                    SensitiveDataMasker.maskStorageReference(s3Key),
+                    e.getClass().getSimpleName()
             );
             s3Errors++;
         }

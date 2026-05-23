@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticationFilter;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.adapter.out.security.TermsValidationFilter;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -65,6 +66,7 @@ public class SecurityConfig {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
+    private final UserProvider userProvider;
     private final DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthCookieService authCookieService;
@@ -74,6 +76,7 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtUtils jwtUtils,
             CustomUserDetailsService uds,
+            UserProvider userProvider,
             DelegatedAuthenticationEntryPoint delegatedAuthenticationEntryPoint,
             TokenBlacklistProvider tokenBlacklistProvider,
             AuthCookieService authCookieService,
@@ -82,6 +85,7 @@ public class SecurityConfig {
     ) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = uds;
+        this.userProvider = userProvider;
         this.delegatedAuthenticationEntryPoint = delegatedAuthenticationEntryPoint;
         this.tokenBlacklistProvider = tokenBlacklistProvider;
         this.authCookieService = authCookieService;
@@ -92,7 +96,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         var termsFilter = new TermsValidationFilter(jwtUtils, authCookieService, handlerExceptionResolver);
-        var jwtFilter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider, authCookieService);
+        var jwtFilter = new JwtAuthenticationFilter(
+                jwtUtils,
+                userDetailsService,
+                userProvider,
+                tokenBlacklistProvider,
+                authCookieService
+        );
 
         http
                 .csrf(csrf -> csrf

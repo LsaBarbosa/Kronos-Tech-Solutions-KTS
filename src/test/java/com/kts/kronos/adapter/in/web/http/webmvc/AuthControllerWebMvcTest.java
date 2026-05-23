@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.AuthController;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -100,6 +101,27 @@ class AuthControllerWebMvcTest {
                         org.hamcrest.Matchers.containsString("Secure"),
                         org.hamcrest.Matchers.containsString("SameSite=Lax")
                 )));
+    }
+
+    @Test
+    void shouldReturnForbiddenWhenBiometricConsentIsNotAcceptedForFaceLogin() throws Exception {
+        doThrow(new TermsNotAcceptedException(
+                "Consentimento biométrico ativo é obrigatório para login facial.",
+                "https://termo.kronossolutions.tech/"
+        )).when(authUseCase).loginFace("base64-image", true);
+
+        mockMvc.perform(post("/auth/login-face")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "faceImageBase64": "base64-image",
+                                  "livenessPassed": true
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("TERMS_NOT_ACCEPTED"))
+                .andExpect(jsonPath("$.detail").value("Consentimento biométrico ativo é obrigatório para login facial."))
+                .andExpect(jsonPath("$.redirectUrl").value("https://termo.kronossolutions.tech/"));
     }
 
     @Test

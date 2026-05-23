@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -20,7 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class BiometricArtifactAnonymizerTest {
 
     @Mock
@@ -113,6 +116,23 @@ class BiometricArtifactAnonymizerTest {
         assertEquals("APPLY", result.executionMode());
         assertEquals("PARTIAL", result.status());
         assertTrue(result.notes().contains("S3 errors"));
+    }
+
+    @Test
+    void biometricArtifactAnonymizer_shouldNotLogRawS3Key(CapturedOutput output) {
+        var employee = createEmployee();
+        String rawS3Key = "company/123/employee/456/biometric/face.jpg";
+        employee.setFaceS3ObjectKey(rawS3Key);
+        when(employeeRepository.findById(any())).thenReturn(Optional.of(employee));
+        doThrow(new RuntimeException("S3 error")).when(bucketStorageProvider).deleteFile(any(), anyString());
+
+        anonymizer.execute(createPlan(), "APPLY");
+
+        String logs = output.getOut() + output.getErr();
+        assertTrue(logs.contains("faceStorageRef=" + SensitiveDataMasker.maskStorageReference(rawS3Key)));
+        assertTrue(logs.contains("exception_type=RuntimeException"));
+        assertFalse(logs.contains(rawS3Key));
+        assertFalse(logs.contains("s3Key=" + rawS3Key));
     }
 
     @Test

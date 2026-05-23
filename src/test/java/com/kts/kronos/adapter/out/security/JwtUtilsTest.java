@@ -42,12 +42,23 @@ class JwtUtilsTest {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
-        String token = jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true);
+        String token = jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true, 3L);
 
         assertEquals("alice", jwtUtils.getUsernameFromToken(token));
         assertEquals(employeeId, jwtUtils.getEmployeeIdFromToken(token));
         assertEquals(userId, jwtUtils.getUserIdFromToken(token));
+        assertEquals(3L, jwtUtils.getSessionVersionFromToken(token));
         assertTrue(jwtUtils.getTermsAcceptedFromToken(token));
+    }
+
+    @Test
+    @DisplayName("deve incluir session_version no JWT")
+    void jwt_shouldIncludeSessionVersionClaim() {
+        JwtUtils jwtUtils = new JwtUtils(validSecret(), 60_000L);
+
+        String token = jwtUtils.generateToken(UUID.randomUUID(), "alice", "MANAGER", UUID.randomUUID(), true, 7L);
+
+        assertEquals(7L, jwtUtils.getSessionVersionFromToken(token));
     }
 
     @Test

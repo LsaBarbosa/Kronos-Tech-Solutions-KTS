@@ -1,6 +1,8 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,22 +17,24 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
-
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+
 @ExtendWith(MockitoExtension.class)
 class JwtAuthenticationFilterTest {
 
@@ -39,6 +43,9 @@ class JwtAuthenticationFilterTest {
 
     @Mock
     private UserDetailsService userDetailsService;
+
+    @Mock
+    private UserProvider userProvider;
 
     @Mock
     private TokenBlacklistProvider tokenBlacklistProvider;
@@ -50,7 +57,13 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtUtils, userDetailsService, tokenBlacklistProvider, authCookieService);
+        filter = new JwtAuthenticationFilter(
+                jwtUtils,
+                userDetailsService,
+                userProvider,
+                tokenBlacklistProvider,
+                authCookieService
+        );
         SecurityContextHolder.clearContext();
     }
 
@@ -69,6 +82,23 @@ class JwtAuthenticationFilterTest {
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
+        UUID userId = UUID.randomUUID();
+        when(jwtUtils.getUserIdFromToken("valid-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("valid-token")).thenReturn(1L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "manager.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        1L,
+                        null,
+                        null,
+                        null
+                )
+        ));
 
         UserDetails userDetails = User.withUsername("manager.user")
                 .password("encoded")
@@ -94,6 +124,23 @@ class JwtAuthenticationFilterTest {
         when(jwtUtils.validateToken("legacy-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("legacy-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("legacy-token")).thenReturn("disabled.user");
+        UUID userId = UUID.randomUUID();
+        when(jwtUtils.getUserIdFromToken("legacy-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("legacy-token")).thenReturn(0L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "disabled.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        0L,
+                        null,
+                        null,
+                        null
+                )
+        ));
         when(userDetailsService.loadUserByUsername("disabled.user"))
                 .thenThrow(new DisabledException("Conta desativada"));
 
@@ -162,6 +209,23 @@ class JwtAuthenticationFilterTest {
         when(jwtUtils.validateToken("valid-token")).thenReturn(true);
         when(tokenBlacklistProvider.isBlacklisted("valid-token")).thenReturn(false);
         when(jwtUtils.getUsernameFromToken("valid-token")).thenReturn("manager.user");
+        UUID userId = UUID.randomUUID();
+        when(jwtUtils.getUserIdFromToken("valid-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("valid-token")).thenReturn(1L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "manager.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        1L,
+                        null,
+                        null,
+                        null
+                )
+        ));
 
         filter.doFilter(request, response, chain);
 
@@ -186,5 +250,77 @@ class JwtAuthenticationFilterTest {
         verify(tokenBlacklistProvider).isBlacklisted("revoked-token");
         verify(jwtUtils, never()).getUsernameFromToken(anyString());
         verifyNoInteractions(userDetailsService);
+    }
+
+    @Test
+    void filter_shouldRejectTokenWhenSessionVersionIsOutdated() throws Exception {
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+        UUID userId = UUID.randomUUID();
+
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("outdated-token"));
+        when(jwtUtils.validateToken("outdated-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("outdated-token")).thenReturn(false);
+        when(jwtUtils.getUsernameFromToken("outdated-token")).thenReturn("manager.user");
+        when(jwtUtils.getUserIdFromToken("outdated-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("outdated-token")).thenReturn(0L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "manager.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        1L,
+                        null,
+                        null,
+                        null
+                )
+        ));
+
+        filter.doFilter(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(userDetailsService, never()).loadUserByUsername(anyString());
+    }
+
+    @Test
+    void filter_shouldAuthenticateWhenSessionVersionMatches() throws Exception {
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+        UUID userId = UUID.randomUUID();
+
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("current-token"));
+        when(jwtUtils.validateToken("current-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("current-token")).thenReturn(false);
+        when(jwtUtils.getUsernameFromToken("current-token")).thenReturn("manager.user");
+        when(jwtUtils.getUserIdFromToken("current-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("current-token")).thenReturn(1L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "manager.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        1L,
+                        null,
+                        null,
+                        null
+                )
+        ));
+        UserDetails userDetails = User.withUsername("manager.user")
+                .password("encoded")
+                .authorities("ROLE_MANAGER")
+                .build();
+        when(userDetailsService.loadUserByUsername("manager.user")).thenReturn(userDetails);
+
+        filter.doFilter(request, response, chain);
+
+        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
     }
 }
