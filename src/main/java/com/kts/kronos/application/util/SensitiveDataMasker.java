@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 
 public final class SensitiveDataMasker {
     private static final Pattern CPF_PATTERN = Pattern.compile("\\b(\\d{11})\\b");
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b");
     private static final Pattern TOKEN_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
     private static final Pattern BASE64_IMAGE_PATTERN = Pattern.compile("[A-Za-z0-9+/]{200,}={0,2}");
 
@@ -69,6 +70,7 @@ public final class SensitiveDataMasker {
         cpfMatcher.appendTail(sb);
         result = sb.toString();
 
+        result = EMAIL_PATTERN.matcher(result).replaceAll(m -> maskEmail(m.group()));
         result = TOKEN_PATTERN.matcher(result).replaceAll(m -> maskToken(m.group()));
         result = BASE64_IMAGE_PATTERN.matcher(result).replaceAll("[BASE64_REDACTED]");
         if (result.contains("s3://")

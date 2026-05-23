@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.retention;
 
 import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
@@ -53,12 +54,16 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
     }
 
     private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
-        long countOld = auditLogRepository.countCreatedBefore(cutoff);
+        long countCritical = auditLogRepository.countCriticalLogsBefore(cutoff);
+        long countCommon = auditLogRepository.countCommonLogsBefore(cutoff);
+        long totalCount = countCritical + countCommon;
 
         log.info(
-                "event=audit_log_retention_dry_run policyCode={} countToAnonymize={}",
+                "event=audit_log_retention_dry_run policyCode={} totalCount={} criticalLogs={} commonLogs={}",
                 policy.policyCode(),
-                countOld
+                totalCount,
+                countCritical,
+                countCommon
         );
 
         return RetentionExecutionResult.success(
@@ -66,19 +71,49 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.AUDIT_LOG,
                 "DRY_RUN",
-                countOld,
+                totalCount,
                 0,
                 0
         );
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
-        int anonymized = auditLogRepository.anonymizeCreatedBefore(cutoff);
+        var criticalLogs = auditLogRepository.findCriticalLogsBefore(cutoff);
+        var commonLogs = auditLogRepository.findCommonLogsBefore(cutoff);
+
+        long sanitized = 0;
+
+        for (var auditLog : criticalLogs) {
+            if (auditLog.getDetails() != null && !auditLog.getDetails().isBlank()) {
+                var sanitized_details = SensitiveDataMasker.sanitizeDetails(auditLog.getDetails());
+                auditLog.setDetails(sanitized_details);
+                auditLogRepository.save(auditLog);
+                sanitized++;
+                log.debug("event=critical_audit_log_sanitized auditLogId={} action={} riskLevel={}",
+                        auditLog.getId(), auditLog.getAction(), auditLog.getRiskLevel());
+            }
+        }
+
+        for (var auditLog : commonLogs) {
+            if (auditLog.getDetails() != null && !auditLog.getDetails().isBlank()) {
+                var sanitized_details = SensitiveDataMasker.sanitizeDetails(auditLog.getDetails());
+                auditLog.setDetails(sanitized_details);
+            }
+            auditLog.setUserId(null);
+            auditLog.setIpAddress(null);
+            auditLog.setUserAgent(null);
+            auditLogRepository.save(auditLog);
+            sanitized++;
+            log.debug("event=common_audit_log_anonymized auditLogId={} action={} riskLevel={}",
+                    auditLog.getId(), auditLog.getAction(), auditLog.getRiskLevel());
+        }
 
         log.info(
-                "event=audit_log_retention_apply policyCode={} anonymized={}",
+                "event=audit_log_retention_apply policyCode={} sanitized={} critical={} common={}",
                 policy.policyCode(),
-                anonymized
+                sanitized,
+                criticalLogs.size(),
+                commonLogs.size()
         );
 
         return RetentionExecutionResult.success(
@@ -86,8 +121,8 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.AUDIT_LOG,
                 "APPLY",
-                anonymized,
-                anonymized,
+                criticalLogs.size() + commonLogs.size(),
+                sanitized,
                 0
         );
     }

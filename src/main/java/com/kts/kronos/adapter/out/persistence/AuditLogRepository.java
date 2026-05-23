@@ -19,4 +19,32 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> 
     @Modifying
     @Query("UPDATE AuditLogEntity a SET a.details = 'ANONYMIZED', a.userId = NULL WHERE a.timestamp < :cutoff")
     int anonymizeCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            SELECT COUNT(a) FROM AuditLogEntity a
+             WHERE a.timestamp < :cutoff
+               AND a.riskLevel IN ('LGPD', 'SECURITY', 'INCIDENT')
+            """)
+    long countCriticalLogsBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            SELECT COUNT(a) FROM AuditLogEntity a
+             WHERE a.timestamp < :cutoff
+               AND a.riskLevel NOT IN ('LGPD', 'SECURITY', 'INCIDENT')
+            """)
+    long countCommonLogsBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            SELECT a FROM AuditLogEntity a
+             WHERE a.timestamp < :cutoff
+               AND a.riskLevel IN ('LGPD', 'SECURITY', 'INCIDENT')
+            """)
+    List<AuditLogEntity> findCriticalLogsBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            SELECT a FROM AuditLogEntity a
+             WHERE a.timestamp < :cutoff
+               AND a.riskLevel NOT IN ('LGPD', 'SECURITY', 'INCIDENT')
+            """)
+    List<AuditLogEntity> findCommonLogsBefore(@Param("cutoff") LocalDateTime cutoff);
 }
