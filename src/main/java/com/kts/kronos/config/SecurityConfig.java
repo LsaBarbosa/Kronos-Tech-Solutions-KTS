@@ -46,6 +46,22 @@ public class SecurityConfig {
     private String allowedOriginsRaw;
     @Value("${app.security.public-docs-enabled:false}")
     private boolean publicDocsEnabled;
+    @Value("${app.security.cookies.http-only:true}")
+    private boolean cookieHttpOnly;
+    @Value("${app.security.cookies.secure:false}")
+    private boolean cookieSecure;
+    @Value("${app.security.cookies.same-site:Lax}")
+    private String cookieSameSite;
+    @Value("${app.security.csrf.cookie-name:KRONOS_CSRF_TOKEN}")
+    private String csrfCookieName;
+    @Value("${app.security.csrf.header-name:X-CSRF-TOKEN}")
+    private String csrfHeaderName;
+    @Value("${app.security.csrf.cookie-path:/}")
+    private String csrfCookiePath;
+    @Value("${app.security.csrf.secure:false}")
+    private boolean csrfSecure;
+    @Value("${app.security.csrf.same-site:Lax}")
+    private String csrfSameSite;
 
     private final JwtUtils jwtUtils;
     private final UserDetailsService userDetailsService;
@@ -175,13 +191,13 @@ public class SecurityConfig {
 
     private CookieCsrfTokenRepository csrfTokenRepository() {
         var repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        repository.setCookieName("KRONOS_CSRF_TOKEN");
-        repository.setCookiePath("/");
-        repository.setHeaderName("X-CSRF-TOKEN");
+        repository.setCookieName(csrfCookieName);
+        repository.setCookiePath(csrfCookiePath);
+        repository.setHeaderName(csrfHeaderName);
         repository.setCookieCustomizer(cookie -> cookie
-                .secure(true)
-                .sameSite("None")
-                .path("/")
+                .secure(csrfSecure)
+                .sameSite(csrfSameSite)
+                .path(csrfCookiePath)
         );
         return repository;
     }
