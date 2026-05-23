@@ -205,6 +205,7 @@ kronos:
       scheduler:
         enabled: ${LGPD_RETENTION_SCHEDULER_ENABLED:false}
         cron: ${LGPD_RETENTION_SCHEDULER_CRON:0 15 4 * * ?}
+        allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:false}
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
   liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}
