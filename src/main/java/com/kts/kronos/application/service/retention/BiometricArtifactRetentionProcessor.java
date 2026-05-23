@@ -1,6 +1,8 @@
 package com.kts.kronos.application.service.retention;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
@@ -9,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -16,6 +20,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BiometricArtifactRetentionProcessor implements RetentionDomainProcessor {
     private final EmployeeRepository employeeRepository;
+    private final FaceStorageProvider faceStorageProvider;
+    private final FaceRecognitionProvider faceRecognitionProvider;
 
     @Override
     public RetentionResourceType supports() {
@@ -52,12 +58,17 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
     }
 
     private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        long countWithBiometrics = employeeRepository.countByFaceS3ObjectKeyIsNotNullAndCreatedAtBefore(cutoff);
+        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsByMissingConsent();
+        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+
+        long totalEligible = eligibleMissingConsent.size() + eligibleRevokedConsent.size();
 
         log.info(
-                "event=biometric_artifact_retention_dry_run policyCode={} countToDelete={}",
+                "event=biometric_artifact_retention_dry_run policyCode={} eligibleCount={} eligibleMissingConsent={} eligibleRevokedConsent={}",
                 policy.policyCode(),
-                countWithBiometrics
+                totalEligible,
+                eligibleMissingConsent.size(),
+                eligibleRevokedConsent.size()
         );
 
         return RetentionExecutionResult.success(
@@ -65,19 +76,81 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
                 policy.policyCode(),
                 RetentionResourceType.BIOMETRIC_ARTIFACT,
                 "DRY_RUN",
-                countWithBiometrics,
+                totalEligible,
                 0,
                 0
         );
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        int cleared = employeeRepository.clearBiometricDataBefore(cutoff);
+        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsByMissingConsent();
+        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+
+        var allEligible = new ArrayList<>(eligibleMissingConsent);
+        allEligible.addAll(eligibleRevokedConsent);
+
+        long successCount = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (var employee : allEligible) {
+            try {
+                if (employee.getFaceS3ObjectKey() != null && !employee.getFaceS3ObjectKey().isBlank()) {
+                    var s3Key = employee.getFaceS3ObjectKey();
+                    var employeeId = employee.getEmployeeId();
+
+                    try {
+                        faceStorageProvider.deleteFaceImage(s3Key);
+                        log.debug("event=biometric_s3_deletion_success employeeId={}", employeeId);
+                    } catch (Exception e) {
+                        log.error("event=biometric_s3_deletion_failed employeeId={} error={}", employeeId, e.getMessage());
+                        errors.add("S3 deletion failed for employee " + employeeId);
+                        continue;
+                    }
+
+                    try {
+                        faceRecognitionProvider.deleteFacesByExternalImageId(employeeId);
+                        log.debug("event=biometric_rekognition_deletion_success employeeId={}", employeeId);
+                    } catch (Exception e) {
+                        log.error("event=biometric_rekognition_deletion_failed employeeId={} error={}", employeeId, e.getMessage());
+                        errors.add("Rekognition deletion failed for employee " + employeeId);
+                        continue;
+                    }
+
+                    employeeRepository.clearBiometricDataByEmployeeId(employeeId);
+                    successCount++;
+                    log.info("event=biometric_artifact_deleted employeeId={} action=CLEARED_S3_REKOGNITION_AND_DB", employeeId);
+                }
+            } catch (Exception e) {
+                log.error("event=biometric_artifact_deletion_error employeeId={} error={}", employee.getEmployeeId(), e.getMessage());
+                errors.add("Unexpected error for employee " + employee.getEmployeeId());
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            log.warn(
+                    "event=biometric_artifact_retention_apply_partial policyCode={} successCount={} failureCount={} totalEligible={}",
+                    policy.policyCode(),
+                    successCount,
+                    errors.size(),
+                    allEligible.size()
+            );
+            return RetentionExecutionResult.partial(
+                    executionId,
+                    policy.policyCode(),
+                    RetentionResourceType.BIOMETRIC_ARTIFACT,
+                    "APPLY",
+                    allEligible.size(),
+                    successCount,
+                    0,
+                    errors.size(),
+                    "Partial deletion: " + errors.size() + " failures"
+            );
+        }
 
         log.info(
-                "event=biometric_artifact_retention_apply policyCode={} cleared={}",
+                "event=biometric_artifact_retention_apply policyCode={} deleted={}",
                 policy.policyCode(),
-                cleared
+                successCount
         );
 
         return RetentionExecutionResult.success(
@@ -85,8 +158,8 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
                 policy.policyCode(),
                 RetentionResourceType.BIOMETRIC_ARTIFACT,
                 "APPLY",
-                cleared,
-                cleared,
+                allEligible.size(),
+                successCount,
                 0
         );
     }
