@@ -119,4 +119,16 @@ public class TermsController {
                 legalText.active()
         ));
     }
+
+    @GetMapping("/consents/history")
+    @PreAuthorize(ANY_EMPLOYEE)
+    @Operation(summary = "Histórico de Consentimentos", description = "Retorna o histórico completo de consentimentos do usuário autenticado com status atual de cada um.")
+    public ResponseEntity<java.util.List<com.kts.kronos.adapter.in.web.dto.legal.ConsentHistoryResponse>> getConsentHistory() {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var consents = acceptanceUseCase.getConsentHistory(employeeId);
+        var responses = consents.stream()
+                .map(com.kts.kronos.adapter.in.web.dto.legal.ConsentHistoryResponse::fromDomain)
+                .toList();
+        return ResponseEntity.ok(responses);
+    }
 }
