@@ -36,46 +36,62 @@ class LegalConsentRetentionProcessorTest {
     }
 
     @Test
-    void shouldCountLegalConsentsInDryRun() {
+    void shouldCountRevokedLegalConsentsInDryRun() {
         var policy = createPolicy(RetentionExecutionMode.DRY_RUN);
 
-        when(legalConsentRepository.countCreatedBefore(any(Instant.class)))
-                .thenReturn(100L);
+        when(legalConsentRepository.countRevokedConsentsBefore(any(Instant.class)))
+                .thenReturn(25L);
 
         var result = processor.execute(policy, "DRY_RUN");
 
         assertNotNull(result);
         assertEquals("DRY_RUN", result.executionMode());
-        assertEquals(100L, result.scannedCount());
+        assertEquals(25L, result.scannedCount());
         assertEquals(0L, result.affectedCount());
         assertEquals("SUCCESS", result.status());
 
-        verify(legalConsentRepository, times(1)).countCreatedBefore(any(Instant.class));
+        verify(legalConsentRepository, times(1)).countRevokedConsentsBefore(any(Instant.class));
     }
 
     @Test
-    void shouldDeleteLegalConsentsInApplyMode() {
+    void shouldMinimizeRevokedLegalConsentsInApplyMode() {
         var policy = createPolicy(RetentionExecutionMode.APPLY);
 
-        when(legalConsentRepository.deleteCreatedBefore(any(Instant.class)))
-                .thenReturn(50);
+        when(legalConsentRepository.minimizeRevokedConsentsBefore(any(Instant.class), any(Instant.class), any(String.class)))
+                .thenReturn(15);
 
         var result = processor.execute(policy, "APPLY");
 
         assertNotNull(result);
         assertEquals("APPLY", result.executionMode());
-        assertEquals(50L, result.scannedCount());
-        assertEquals(50L, result.affectedCount());
+        assertEquals(15L, result.scannedCount());
+        assertEquals(15L, result.affectedCount());
         assertEquals("SUCCESS", result.status());
 
-        verify(legalConsentRepository, times(1)).deleteCreatedBefore(any(Instant.class));
+        verify(legalConsentRepository, times(1)).minimizeRevokedConsentsBefore(any(Instant.class), any(Instant.class), any(String.class));
+    }
+
+    @Test
+    void shouldNotModifyActiveConsents() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+
+        // Only revoked consents are minimized, active ones are untouched
+        when(legalConsentRepository.minimizeRevokedConsentsBefore(any(Instant.class), any(Instant.class), any(String.class)))
+                .thenReturn(0);  // No revoked old consents
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertNotNull(result);
+        assertEquals("APPLY", result.executionMode());
+        assertEquals(0L, result.affectedCount());
+        assertEquals("SUCCESS", result.status());
     }
 
     @Test
     void shouldHandleExceptionInDryRun() {
         var policy = createPolicy(RetentionExecutionMode.DRY_RUN);
 
-        when(legalConsentRepository.countCreatedBefore(any(Instant.class)))
+        when(legalConsentRepository.countRevokedConsentsBefore(any(Instant.class)))
                 .thenThrow(new RuntimeException("Database error"));
 
         var result = processor.execute(policy, "DRY_RUN");
@@ -88,7 +104,7 @@ class LegalConsentRetentionProcessorTest {
     void shouldHandleExceptionInApplyMode() {
         var policy = createPolicy(RetentionExecutionMode.APPLY);
 
-        when(legalConsentRepository.deleteCreatedBefore(any(Instant.class)))
+        when(legalConsentRepository.minimizeRevokedConsentsBefore(any(Instant.class), any(Instant.class), any(String.class)))
                 .thenThrow(new RuntimeException("Database error"));
 
         var result = processor.execute(policy, "APPLY");

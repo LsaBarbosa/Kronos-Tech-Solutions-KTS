@@ -27,9 +27,36 @@ public interface LegalConsentRepository extends JpaRepository<LegalConsentEntity
 
     boolean existsByEmployeeIdAndConsentTypeAndRevokedAtIsNull(UUID employeeId, ConsentType consentType);
 
+    @Query("""
+            SELECT COUNT(c) FROM LegalConsentEntity c
+             WHERE c.createdAt < :cutoff
+               AND c.revokedAt IS NOT NULL
+               AND c.retentionAppliedAt IS NULL
+            """)
+    long countRevokedConsentsBefore(@Param("cutoff") Instant cutoff);
+
+    @Modifying
+    @Query("""
+            UPDATE LegalConsentEntity c
+               SET c.ipAddress = 'ANONYMIZED',
+                   c.userAgent = 'ANONYMIZED',
+                   c.retentionAppliedAt = :appliedAt,
+                   c.retentionPolicyCode = :policyCode
+             WHERE c.createdAt < :cutoff
+               AND c.revokedAt IS NOT NULL
+               AND c.retentionAppliedAt IS NULL
+            """)
+    int minimizeRevokedConsentsBefore(
+            @Param("cutoff") Instant cutoff,
+            @Param("appliedAt") Instant appliedAt,
+            @Param("policyCode") String policyCode
+    );
+
+    @Deprecated(forRemoval = true)
     @Query("SELECT COUNT(c) FROM LegalConsentEntity c WHERE c.createdAt < :cutoff")
     long countCreatedBefore(@Param("cutoff") Instant cutoff);
 
+    @Deprecated(forRemoval = true)
     @Modifying
     @Query("DELETE FROM LegalConsentEntity c WHERE c.createdAt < :cutoff")
     int deleteCreatedBefore(@Param("cutoff") Instant cutoff);

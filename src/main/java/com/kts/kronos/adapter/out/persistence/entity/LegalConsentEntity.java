@@ -78,4 +78,10 @@ public class LegalConsentEntity {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Column(name = "retention_applied_at")
+    private Instant retentionAppliedAt;
+
+    @Column(name = "retention_policy_code", length = 100)
+    private String retentionPolicyCode;
 }
