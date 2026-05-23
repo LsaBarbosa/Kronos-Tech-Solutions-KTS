@@ -108,6 +108,36 @@ sudo chown root:root /etc/kronos/certs/seu-certificado.p12
 sudo chmod 400 /etc/kronos/certs/seu-certificado.p12
 ```
 
+### LGPD (Lei Geral de Proteção de Dados)
+
+⚠️ **CRÍTICO: O scheduler é desabilitado por padrão para segurança. Ativar apenas após testes em staging.**
+
+```bash
+# Desabilitado por padrão (seguro para produção)
+LGPD_RETENTION_SCHEDULER_ENABLED=false
+LGPD_RETENTION_ALLOW_APPLY=false
+
+# Horário de execução (padrão: 4:15 AM UTC)
+LGPD_RETENTION_SCHEDULER_CRON=0 15 4 * * ?
+```
+
+**Ativação em Produção:**
+
+1. **Fase 1: DRY_RUN (Monitoramento)**
+   ```bash
+   LGPD_RETENTION_SCHEDULER_ENABLED=true
+   LGPD_RETENTION_ALLOW_APPLY=false
+   ```
+   - Monitore por 3-5 ciclos (verá contagem de registros mas nenhuma modificação)
+
+2. **Fase 2: APPLY (Após validação)**
+   ```bash
+   LGPD_RETENTION_SCHEDULER_ENABLED=true
+   LGPD_RETENTION_ALLOW_APPLY=true
+   ```
+
+**Documentação Completa:** Veja `docs/legal/scheduler-activation.md` e `docs/legal/DEPLOYMENT-CHECKLIST.md`
+
 ## 🧪 Testar Variáveis Localmente (Antes de Deploy)
 
 Antes de fazer deploy, teste se as variáveis estão sendo lidas corretamente:
