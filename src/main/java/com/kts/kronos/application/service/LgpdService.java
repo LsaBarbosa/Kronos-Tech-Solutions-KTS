@@ -6,6 +6,8 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
+import com.kts.kronos.adapter.out.persistence.AnonymizationConsolidatedResultRepository;
+import com.kts.kronos.adapter.out.persistence.entity.AnonymizationConsolidatedResultEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
@@ -64,6 +66,7 @@ public class LgpdService implements LgpdUseCase {
     private final LegalConsentProvider legalConsentProvider;
     private final EmployeeAnonymizationService employeeAnonymizationService;
     private final AnonymizationPlanExecutor anonymizationPlanExecutor;
+    private final AnonymizationConsolidatedResultRepository anonymizationConsolidatedResultRepository;
     private final LgpdSlaPolicyService lgpdSlaPolicyService;
     private final LgpdRequestNotificationService notificationService;
 
@@ -262,6 +265,65 @@ public class LgpdService implements LgpdUseCase {
                 userAgent,
                 jwtAuthenticatedUser.getuserId()
         );
+    }
+
+    public AnonymizationConsolidatedResult executeAnonymizationForRequest(UUID requestId) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        if (request.requestType() != LgpdRequestType.ANONYMIZATION && request.requestType() != LgpdRequestType.DELETION) {
+            throw new IllegalArgumentException(
+                    "Anonimização só pode ser executada para requisições de tipo ANONYMIZATION ou DELETION. " +
+                    "requestType=" + request.requestType()
+            );
+        }
+
+        var employee = employeeProvider.findById(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+
+        var plan = new AnonymizationPlan(
+                employee.employeeId(),
+                employee.companyId(),
+                jwtAuthenticatedUser.getuserId(),
+                "LGPD_REQUEST_" + request.requestId(),
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        );
+
+        AnonymizationConsolidatedResult consolidatedResult = anonymizationPlanExecutor.executePlanWithConsolidatedResult(plan, "APPLY");
+
+        var entity = new AnonymizationConsolidatedResultEntity(
+                consolidatedResult.consolidatedExecutionId(),
+                request.requestId(),
+                consolidatedResult.employeeId(),
+                consolidatedResult.companyId(),
+                consolidatedResult.requestedByUserId(),
+                consolidatedResult.consolidatedStatus(),
+                consolidatedResult.executionMode(),
+                consolidatedResult.totalScanned(),
+                consolidatedResult.totalAffected(),
+                consolidatedResult.totalSkipped(),
+                consolidatedResult.totalErrors(),
+                String.join(",", consolidatedResult.failedDomains()),
+                String.join("\n", consolidatedResult.warnings()),
+                consolidatedResult.startedAt(),
+                consolidatedResult.finishedAt(),
+                Instant.now()
+        );
+
+        anonymizationConsolidatedResultRepository.save(entity);
+
+        log.info(
+                "event=lgpd_anonymization_executed_and_persisted requestId={} consolidatedStatus={} employeeId={}",
+                requestId,
+                consolidatedResult.consolidatedStatus(),
+                employee.employeeId()
+        );
+
+        return consolidatedResult;
     }
 
     @Override
@@ -705,31 +767,60 @@ public class LgpdService implements LgpdUseCase {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public AnonymizationConsolidatedResult getAnonymizationResult(UUID requestId) {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
 
-        // Placeholder: In production, this would retrieve from AnonymizationConsolidatedResult entity
-        // For now, return null (no result stored yet)
+        var result = anonymizationConsolidatedResultRepository.findByRequestId(requestId);
+
         log.info(
-                "event=lgpd_anonymization_result_retrieval requestId={} requestType={}",
+                "event=lgpd_anonymization_result_retrieval requestId={} requestType={} found={}",
                 requestId,
-                request.requestType()
+                request.requestType(),
+                result.isPresent()
         );
 
-        return null;
+        return result.map(AnonymizationConsolidatedResultEntity::toDomain).orElse(null);
     }
 
     private void validateAnonymizationStatusBeforeConclusion(LgpdRequest request, LgpdRequestStatus newStatus, String publicNotes) {
         if (newStatus == LgpdRequestStatus.COMPLETED || newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED) {
             if (request.requestType() == LgpdRequestType.ANONYMIZATION || request.requestType() == LgpdRequestType.DELETION) {
-                // Check if anonymization was executed and get result
-                // For now, we log a warning if no anonymization result found
-                // In production, this would check against AnonymizationConsolidatedResult table
+                var result = anonymizationConsolidatedResultRepository.findByRequestId(request.requestId());
+
+                if (result.isEmpty()) {
+                    throw new IllegalStateException(
+                            "Não é possível concluir requisição sem execução de anonimização. " +
+                            "requestId=" + request.requestId()
+                    );
+                }
+
+                var consolidatedResult = result.get().toDomain();
+
+                if (consolidatedResult.isFailed()) {
+                    throw new IllegalStateException(
+                            "Não é possível concluir requisição com status FAILED. " +
+                            "requestId=" + request.requestId() +
+                            ", failedDomains=" + String.join(",", consolidatedResult.failedDomains())
+                    );
+                }
+
+                if (consolidatedResult.isPartialSuccess()) {
+                    if (newStatus == LgpdRequestStatus.COMPLETED) {
+                        throw new IllegalStateException(
+                                "Status PARTIAL_SUCCESS permite apenas conclusão parcial (PARTIALLY_COMPLETED). " +
+                                "requestId=" + request.requestId() +
+                                ", failedDomains=" + String.join(",", consolidatedResult.failedDomains())
+                        );
+                    }
+                } else if (consolidatedResult.isSuccess()) {
+                    // SUCCESS allows both COMPLETED and PARTIALLY_COMPLETED
+                }
+
                 log.info(
-                        "event=lgpd_request_conclusion_validation requestId={} requestType={} newStatus={}",
+                        "event=lgpd_request_conclusion_validation_passed requestId={} consolidatedStatus={}",
                         request.requestId(),
-                        request.requestType(),
-                        newStatus
+                        consolidatedResult.consolidatedStatus()
                 );
             }
         }
