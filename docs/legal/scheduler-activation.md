@@ -62,6 +62,26 @@ Each resource type processor implements:
 
 **APPLY execution requires explicit authorization and should only be enabled in production after thorough testing.**
 
+## ⚠️ MANDATORY: Explicit Production Decision
+
+**BEFORE DEPLOYING TO PRODUCTION, YOU MUST EXPLICITLY CHOOSE:**
+
+### Three Options for Production
+
+| Option | Configuration | Use Case | Readiness |
+|--------|---------------|----------|-----------|
+| **Conservative** | `ENABLED=false`<br/>`ALLOW_APPLY=false` | First deployment<br/>Manual operations preferred<br/>Maximum control | Immediate |
+| **Monitoring** | `ENABLED=true`<br/>`ALLOW_APPLY=false` | Assess impact<br/>Baseline metrics<br/>No data modification | Week 1-2 |
+| **Automation** | `ENABLED=true`<br/>`ALLOW_APPLY=true` | Full production<br/>Automatic retention<br/>After 2+ weeks monitoring | Week 3+ |
+
+**Deployment MUST FAIL if these variables are not explicitly set in production configuration.**
+
+This is not a default that can be left unconfigured. Your DevOps/Infra team must:
+1. Choose one option from the table above
+2. Document the choice in DEPLOYMENT-CHECKLIST.md with date and approver
+3. Configure the environment variables accordingly
+4. Ensure deployment fails if variables are missing
+
 ## Production Activation Checklist
 
 Follow this checklist when activating the scheduler in production:

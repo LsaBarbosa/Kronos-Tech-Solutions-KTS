@@ -65,30 +65,78 @@ This checklist ensures all LGPD compliance features are properly configured and 
 - [ ] Check startup logs for any LGPD-related errors
 - [ ] Verify database migrations applied successfully
 
-### 3. Initial Validation (All with Scheduler Disabled)
+### 3. ⚠️ MANDATORY: Decide Scheduler Policy
 
-- [ ] Confirm `LGPD_RETENTION_SCHEDULER_ENABLED=false` in production
-- [ ] Confirm `LGPD_RETENTION_ALLOW_APPLY=false` in production
+**This step MUST be completed before production deployment. Deployment should fail without explicit decision.**
+
+Choose ONE option below and configure accordingly:
+
+#### Option A: Conservative (Recommended for first deployment)
+```env
+LGPD_RETENTION_SCHEDULER_ENABLED=false
+LGPD_RETENTION_ALLOW_APPLY=false
+```
+- [ ] Scheduler completely disabled
+- [ ] Manual retention execution only
+- [ ] No automatic data processing
+- [ ] Decision recorded: Conservative approach chosen on [DATE]
+
+#### Option B: Monitoring Only (DRY_RUN)
+```env
+LGPD_RETENTION_SCHEDULER_ENABLED=true
+LGPD_RETENTION_ALLOW_APPLY=false
+```
+- [ ] Scheduler enabled and running on schedule
+- [ ] Runs only in DRY_RUN mode (no data modification)
+- [ ] Provides metrics and impact assessment
+- [ ] Decision recorded: Monitoring-only approach chosen on [DATE]
+
+#### Option C: Full Automation (After testing)
+```env
+LGPD_RETENTION_SCHEDULER_ENABLED=true
+LGPD_RETENTION_ALLOW_APPLY=true
+```
+- [ ] Scheduler enabled with full APPLY execution
+- [ ] Automatic data retention processing
+- [ ] Only after successful DRY_RUN phase (minimum 2 weeks)
+- [ ] Decision recorded: Full automation chosen on [DATE]
+
+**Deployment MUST FAIL if these variables are not explicitly set in production configuration.**
+
+### 4. Initial Validation (After Scheduler Decision)
+
+- [ ] Confirm chosen scheduler configuration is deployed (`LGPD_RETENTION_SCHEDULER_ENABLED` and `LGPD_RETENTION_ALLOW_APPLY` match decision)
+- [ ] Verify `LGPD_RETENTION_SCHEDULER_CRON=0 15 4 * * ?` or custom cron is appropriate
 - [ ] Test LGPD request creation and basic workflow
 - [ ] Test data export functionality works correctly
 - [ ] Test anonymization DRY_RUN via API (if exposed)
-- [ ] Verify no errors in application logs
+- [ ] Verify no errors in application logs related to scheduler configuration
 
-### 4. Enable Scheduler DRY_RUN Phase (Week 1)
+### 5. Follow-Up (Based on Chosen Option)
 
-- [ ] Set `LGPD_RETENTION_SCHEDULER_ENABLED=true`
-- [ ] Keep `LGPD_RETENTION_ALLOW_APPLY=false` (DRY_RUN only)
-- [ ] Monitor first scheduled execution
+#### If Option A (Conservative - Scheduler Disabled)
+
+- [ ] Monitor application logs for 24 hours (no scheduler errors expected)
+- [ ] Verify manual LGPD operations work correctly via API
+- [ ] Document when/if scheduler will be enabled in future
+- [ ] Set reminder to re-evaluate scheduler policy quarterly
+
+#### If Option B (Monitoring Only - DRY_RUN)
+
+- [ ] Monitor first scheduled execution (should occur at configured CRON time)
 - [ ] Verify DRY_RUN produces logs with record counts
-- [ ] Verify DRY_RUN does not modify any data
-- [ ] Monitor for 3-5 consecutive executions (verify cron schedule)
+- [ ] Verify DRY_RUN does NOT modify any data
+- [ ] Monitor for 3-5 consecutive executions (verify cron schedule works)
 - [ ] Collect baseline metrics (record counts, resource types affected)
+- [ ] Plan transition to Option C after minimum 2 weeks of successful DRY_RUN
+- [ ] Document DRY_RUN baseline for comparison with APPLY phase
 
-### 5. Enable Scheduler APPLY Phase (Week 2-3)
+#### If Option C (Full Automation - APPLY)
+
+**ONLY if already completed at least 2 weeks of successful DRY_RUN phase:**
 
 - [ ] Verify DRY_RUN phase executed successfully without errors
-- [ ] Set `LGPD_RETENTION_ALLOW_APPLY=true`
-- [ ] Monitor first APPLY execution closely
+- [ ] Monitor first APPLY execution closely (will modify data)
 - [ ] Verify APPLY execution modifies records as expected
 - [ ] Verify audit logs are created for all retention operations
 - [ ] Verify critical audit logs still contain userId (evidence preservation)
