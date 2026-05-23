@@ -118,7 +118,8 @@ class SecurityIncidentControllerWebMvcTest {
                 null,
                 UUID.randomUUID(),
                 now,
-                now
+                now,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
 
         when(securityIncidentUseCase.updateIncident(eq(incidentId), any(), anyString(), anyString()))
@@ -158,7 +159,8 @@ class SecurityIncidentControllerWebMvcTest {
                 null,
                 UUID.randomUUID(),
                 now,
-                null
+                null,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
 }

@@ -32,7 +32,8 @@ class SecurityIncidentTest {
                 null,
                 userId,
                 now,
-                null
+                null,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
 
         assertNotNull(incident);
@@ -114,7 +115,8 @@ class SecurityIncidentTest {
                 null,
                 UUID.randomUUID(),
                 now,
-                null
+                null,
+                false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
 }
