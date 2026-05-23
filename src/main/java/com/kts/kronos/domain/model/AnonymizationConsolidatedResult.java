@@ -44,14 +44,17 @@ public record AnonymizationConsolidatedResult(
         List<String> warnings = new ArrayList<>();
 
         for (AnonymizationExecutionResult result : results) {
-            if (result == null) continue;
+            if (result == null) {
+                warnings.add("CRITICAL: Null result received from processor - this should never happen");
+                continue;
+            }
 
             totalScanned += result.scannedCount();
             totalAffected += result.affectedCount();
             totalSkipped += result.skippedCount();
             totalErrors += result.errorCount();
 
-            if ("ERROR".equals(result.status()) || "FAILED".equals(result.status())) {
+            if ("ERROR".equals(result.status()) || "FAILED".equals(result.status()) || "PARTIAL".equals(result.status())) {
                 failedDomains.add(result.resourceType().name());
                 if (result.notes() != null) {
                     warnings.add(result.resourceType().name() + ": " + result.notes());
@@ -62,7 +65,7 @@ public record AnonymizationConsolidatedResult(
         AnonymizationConsolidatedStatus consolidatedStatus;
         if (failedDomains.isEmpty()) {
             consolidatedStatus = AnonymizationConsolidatedStatus.SUCCESS;
-        } else if (failedDomains.size() < results.size()) {
+        } else if (failedDomains.size() < results.stream().filter(r -> r != null).count()) {
             consolidatedStatus = AnonymizationConsolidatedStatus.PARTIAL_SUCCESS;
         } else {
             consolidatedStatus = AnonymizationConsolidatedStatus.FAILED;
