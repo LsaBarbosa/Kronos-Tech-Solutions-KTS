@@ -5,13 +5,25 @@ import java.util.UUID;
 
 public record AnonymizationDryRunResponse(
         UUID employeeId,
-        long totalDocumentsToDelete,
-        long totalTimeRecordsToPreserve,
-        long totalTimRecordsToAnonymize,
-        long totalMessagesToAnonymize,
-        long totalAuditLogsToSanitize,
-        long totalBiometricArtifactsToDelete,
-        long totalErrorsExpected,
+        AnonymizationDryRunSummary summary,
+        List<AnonymizationDomain> domains,
         List<String> warnings
 ) {
+    public static AnonymizationDryRunResponse create(
+            UUID employeeId,
+            AnonymizationDryRunSummary summary,
+            List<AnonymizationDomain> domains,
+            List<String> warnings
+    ) {
+        return new AnonymizationDryRunResponse(employeeId, summary, domains, warnings);
+    }
+
+    public static AnonymizationDryRunResponse empty(UUID employeeId) {
+        return new AnonymizationDryRunResponse(
+                employeeId,
+                AnonymizationDryRunSummary.from(0, 0, 0, 0),
+                List.of(),
+                List.of()
+        );
+    }
 }

@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.application.port.out.provider.AnonymizationExecutionLogProvider;
+import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.AnonymizationExecutionLog;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +30,13 @@ public class AnonymizationPlanExecutor {
     }
 
     public List<AnonymizationExecutionResult> executePlanWithResults(AnonymizationPlan plan, String executionMode) {
+        return executePlanWithConsolidatedResult(plan, executionMode).domainResults();
+    }
+
+    public AnonymizationConsolidatedResult executePlanWithConsolidatedResult(AnonymizationPlan plan, String executionMode) {
         validatePlan(plan);
         List<AnonymizationExecutionResult> results = new ArrayList<>();
+        Instant executionStart = Instant.now();
 
         log.info(
                 "event=anonymization_execution_start employeeId={} companyId={} executionMode={}",
@@ -65,15 +72,26 @@ public class AnonymizationPlanExecutor {
         results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.EMPLOYEE, plan, executionMode));
         results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.USER, plan, executionMode));
 
+        AnonymizationConsolidatedResult consolidatedResult = AnonymizationConsolidatedResult.consolidate(
+                UUID.randomUUID(),
+                plan.employeeId(),
+                plan.companyId(),
+                plan.requestedByUserId(),
+                executionMode,
+                executionStart,
+                results
+        );
+
         log.info(
-                "event=anonymization_execution_complete employeeId={} companyId={} executionMode={} resultCount={}",
+                "event=anonymization_execution_complete employeeId={} companyId={} executionMode={} consolidatedStatus={} resultCount={}",
                 plan.employeeId(),
                 plan.companyId(),
                 executionMode,
+                consolidatedResult.consolidatedStatus(),
                 results.size()
         );
 
-        return results;
+        return consolidatedResult;
     }
 
     private void executeProcessor(

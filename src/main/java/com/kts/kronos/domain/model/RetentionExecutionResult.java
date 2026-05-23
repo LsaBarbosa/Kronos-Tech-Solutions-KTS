@@ -93,4 +93,27 @@ public record RetentionExecutionResult(
                 notes
         );
     }
+
+    public static RetentionExecutionResult blocked(
+            UUID executionId,
+            String policyCode,
+            RetentionResourceType resourceType,
+            String executionMode,
+            String blockReason
+    ) {
+        return new RetentionExecutionResult(
+                executionId,
+                policyCode,
+                resourceType,
+                executionMode,
+                Instant.now(),
+                Instant.now(),
+                "BLOCKED",
+                0,
+                0,
+                0,
+                0,
+                blockReason
+        );
+    }
 }

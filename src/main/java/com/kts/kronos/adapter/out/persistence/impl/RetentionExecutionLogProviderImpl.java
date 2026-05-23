@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -34,6 +36,12 @@ public class RetentionExecutionLogProviderImpl implements RetentionExecutionLogP
     @Override
     public Page<RetentionExecutionLog> findAll(Pageable pageable) {
         return repository.findAll(pageable)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<RetentionExecutionLog> findById(UUID executionId) {
+        return repository.findById(executionId)
                 .map(mapper::toDomain);
     }
 }
