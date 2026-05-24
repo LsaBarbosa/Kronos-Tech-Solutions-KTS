@@ -365,9 +365,9 @@ class LgpdControllerWebMvcTest {
         when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/lgpd/admin/requests")
-                        .queryParam("type", "DATA_ACCESS"))
+                        .queryParam("type", "ACCESS"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].type").value("DATA_ACCESS"));
+                .andExpect(jsonPath("$.content[0].type").value("ACCESS"));
     }
 
     @Test
@@ -504,9 +504,22 @@ class LgpdControllerWebMvcTest {
 
     @Test
     @WithMockUser(roles = "PARTNER")
-    void shouldForbidPartnerFromAccessingProcessingCatalog() throws Exception {
+    void shouldAllowPartnerToAccessProcessingCatalog() throws Exception {
+        DataProcessingPurpose purpose = new DataProcessingPurpose(
+                "TEST_PURPOSE",
+                DataCategory.IDENTIFICATION,
+                LegalBasis.CONSENT,
+                "Test purpose for LGPD transparency",
+                "RETENTION_TEST",
+                false,
+                true
+        );
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(List.of(purpose));
+
         mockMvc.perform(get("/lgpd/processing-catalog"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("TEST_PURPOSE"))
+                .andExpect(jsonPath("$[0].purpose").value("Test purpose for LGPD transparency"));
     }
 
     @Test

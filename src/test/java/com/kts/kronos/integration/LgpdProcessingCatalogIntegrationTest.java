@@ -93,11 +93,22 @@ class LgpdProcessingCatalogIntegrationTest {
     }
 
     @Test
-    @DisplayName("PARTNER should receive 403 when accessing processing catalog")
+    @DisplayName("PARTNER should access processing catalog and receive 200")
     @WithMockUser(username = "partner-user", roles = "PARTNER")
-    void partnerShouldBeForbiddenFromAccessingProcessingCatalog() throws Exception {
+    void partnerShouldAccessProcessingCatalog() throws Exception {
+        List<DataProcessingPurpose> catalog = createSampleCatalog();
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
         mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].code").value("EMPLOYEE_IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].dataCategory").value("IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].legalBasis").value("CONTRACT_EXECUTION"))
+                .andExpect(jsonPath("$[0].purpose").isNotEmpty())
+                .andExpect(jsonPath("$[0].retentionPolicyCode").isNotEmpty())
+                .andExpect(jsonPath("$[0].sensitive").value(false))
+                .andExpect(jsonPath("$[0].active").value(true));
     }
 
     @Test
