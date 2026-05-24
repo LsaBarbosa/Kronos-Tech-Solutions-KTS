@@ -89,6 +89,8 @@ public class ApiPaths {
     public static final String LGPD_INVENTORY_ACTIVE = "/inventory/active";
     public static final String LGPD_INVENTORY_BY_CODE = "/inventory/{processCode}";
     public static final String LGPD_INVENTORY_ID = "/inventory/{inventoryId}";
+    public static final String LGPD_PROCESSING_CATALOG = "/processing-catalog";
+    public static final String LGPD_RETENTION_DRY_RUN = "/admin/retention/dry-run";
 
     // Security Incidents
     public static final String SECURITY_INCIDENTS = "/security-incidents";

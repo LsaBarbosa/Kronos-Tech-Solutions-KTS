@@ -21,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import com.kts.kronos.application.exceptions.BadRequestException;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.Normalizer;
@@ -40,8 +39,6 @@ import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Slf4j
 @Service
@@ -64,6 +61,7 @@ public class DocumentService implements DocumentUseCase {
     private final DomainAuthorizationService domainAuthorizationService;
     private final FileScanningProvider fileScanningProvider;
     private final AuditService auditService;
+    private final AuditRequestContextService auditRequestContextService;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -98,24 +96,7 @@ public class DocumentService implements DocumentUseCase {
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
 
-            String ipAddress = "unknown";
-            String userAgent = "unknown";
-            try {
-                var requestAttrs = RequestContextHolder.getRequestAttributes();
-                if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
-                    var request = servletAttrs.getRequest();
-                    ipAddress = request.getHeader("X-Forwarded-For");
-                    if (ipAddress == null || ipAddress.isBlank()) {
-                        ipAddress = request.getRemoteAddr();
-                    }
-                    userAgent = request.getHeader("User-Agent");
-                    if (userAgent == null) {
-                        userAgent = "unknown";
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("Falha ao obter IP/User-Agent para auditoria de download", e);
-            }
+            var auditContext = auditRequestContextService.extractContext();
 
             auditService.register(
                     AuditAction.DOCUMENT_DOWNLOADED,
@@ -124,8 +105,8 @@ public class DocumentService implements DocumentUseCase {
                     "DOCUMENT",
                     doc.documentId().toString(),
                     "LOW",
-                    ipAddress,
-                    userAgent,
+                    auditContext.ipAddress(),
+                    auditContext.userAgent(),
                     String.format("documentId=%s, documentType=%s", doc.documentId(), doc.type())
             );
 

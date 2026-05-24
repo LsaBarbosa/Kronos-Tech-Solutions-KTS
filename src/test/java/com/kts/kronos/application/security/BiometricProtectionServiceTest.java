@@ -1,5 +1,6 @@
 package com.kts.kronos.application.security;
 
+import com.kts.kronos.application.config.ClientIpResolverProperties;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
@@ -22,7 +23,8 @@ class BiometricProtectionServiceTest {
     void setUp() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("198.51.100.42");
-        service = new BiometricProtectionService(request, new ClientIpResolver());
+        ClientIpResolverProperties properties = new ClientIpResolverProperties();
+        service = new BiometricProtectionService(request, new ClientIpResolver(properties));
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", false);
         ReflectionTestUtils.setField(service, "loginFaceLimit", 2);
@@ -64,7 +66,8 @@ class BiometricProtectionServiceTest {
     void shouldUseUnknownClientIpWhenRemoteAddrIsBlank() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("");
-        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver());
+        ClientIpResolverProperties properties = new ClientIpResolverProperties();
+        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver(properties));
         ReflectionTestUtils.setField(blankIpService, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
         ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);

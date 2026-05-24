@@ -7,6 +7,7 @@ import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecuto
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,7 +62,7 @@ class EmployeeAnonymizationServiceTest {
         assert plan.companyId().equals(employee.companyId());
         assert plan.requestedByUserId().equals(actorUserId);
 
-        verify(auditService).registerLgpd(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService).registerLgpd(any(AuditAction.class), any(UUID.class), any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     @Test
@@ -74,7 +75,7 @@ class EmployeeAnonymizationServiceTest {
 
         verify(domainAuthorizationService, never()).authorizeEmployeeAccess(any());
         verify(anonymizationPlanExecutor, never()).executePlan(any(), any());
-        verify(auditService, never()).registerLgpd(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, never()).registerLgpd(any(AuditAction.class), any(UUID.class), any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     @Test
@@ -89,7 +90,7 @@ class EmployeeAnonymizationServiceTest {
         service.anonymize(employeeId, "127.0.0.1", "JUnit", actorUserId);
 
         verify(anonymizationPlanExecutor).executePlan(any(AnonymizationPlan.class), eq("APPLY"));
-        verify(auditService).registerLgpd(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService).registerLgpd(any(AuditAction.class), any(UUID.class), any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     @Test
@@ -102,7 +103,7 @@ class EmployeeAnonymizationServiceTest {
         assertThrows(ForbiddenException.class, () -> service.anonymize(employeeId, "127.0.0.1", "JUnit", UUID.randomUUID()));
 
         verify(anonymizationPlanExecutor, never()).executePlan(any(), any());
-        verify(auditService, never()).registerLgpd(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(auditService, never()).registerLgpd(any(AuditAction.class), any(UUID.class), any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     private Employee employee(UUID employeeId) {
