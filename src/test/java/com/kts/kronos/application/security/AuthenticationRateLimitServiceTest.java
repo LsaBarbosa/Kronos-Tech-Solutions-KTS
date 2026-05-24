@@ -1,5 +1,6 @@
 package com.kts.kronos.application.security;
 
+import com.kts.kronos.application.config.ClientIpResolverProperties;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,8 @@ class AuthenticationRateLimitServiceTest {
     void setUp() {
         request = new MockHttpServletRequest();
         request.setRemoteAddr("198.51.100.10");
-        service = new AuthenticationRateLimitService(request, new ClientIpResolver());
+        ClientIpResolverProperties properties = new ClientIpResolverProperties();
+        service = new AuthenticationRateLimitService(request, new ClientIpResolver(properties));
         ReflectionTestUtils.setField(service, "loginIpLimit", 100);
         ReflectionTestUtils.setField(service, "loginIpWindowSeconds", 60);
         ReflectionTestUtils.setField(service, "loginUsernameLimit", 5);

@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.legal.AcceptBiometricTermsRequest;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.application.config.ClientIpResolverProperties;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.domain.model.LegalText;
@@ -39,12 +40,13 @@ class TermsControllerTest {
 
     @BeforeEach
     void setUp() {
+        ClientIpResolverProperties properties = new ClientIpResolverProperties();
         controller = new TermsController(
                 acceptanceUseCase,
                 jwtAuthenticatedUser,
                 jwtUtils,
                 authCookieService(),
-                new ClientIpResolver()
+                new ClientIpResolver(properties)
         );
     }
 
@@ -62,7 +64,7 @@ class TermsControllerTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
-        request.setRemoteAddr("198.51.100.7");
+        request.setRemoteAddr("127.0.0.1");
 
         var response = controller.acceptBiometricTerms(
                 new AcceptBiometricTermsRequest("2026.05.21", "current-hash"),

@@ -198,6 +198,9 @@ kronos:
         port: ${UPLOAD_ANTIVIRUS_PORT:3310}
         timeout-ms: ${UPLOAD_ANTIVIRUS_TIMEOUT_MS:3000}
     biometric-term-salt: ${SECRET_TERM}
+    client-ip:
+      trust-forwarded-headers: ${CLIENT_IP_TRUST_FORWARDED_HEADERS:true}
+      trusted-proxy-cidrs: ${CLIENT_IP_TRUSTED_PROXY_CIDRS:127.0.0.1/32,::1/128}
   storage:
     provider: ${KRONOS_STORAGE_PROVIDER:s3}
   lgpd:
@@ -205,7 +208,7 @@ kronos:
       scheduler:
         enabled: ${LGPD_RETENTION_SCHEDULER_ENABLED:false}
         cron: ${LGPD_RETENTION_SCHEDULER_CRON:0 15 4 * * ?}
-        allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:false}
+      allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:false}
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
   liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}

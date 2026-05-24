@@ -6,10 +6,16 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
+import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
+import com.kts.kronos.domain.model.RetentionDryRunResult;
+import com.kts.kronos.domain.model.enuns.DataCategory;
+import com.kts.kronos.domain.model.enuns.LegalBasis;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import org.springframework.data.domain.Page;
@@ -55,6 +61,12 @@ class LgpdControllerWebMvcTest {
 
     @MockitoBean
     private ClientIpResolver clientIpResolver;
+
+    @MockitoBean
+    private DataProcessingCatalog dataProcessingCatalog;
+
+    @MockitoBean
+    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -422,6 +434,132 @@ class LgpdControllerWebMvcTest {
         UUID requestId = UUID.randomUUID();
 
         mockMvc.perform(get("/lgpd/admin/requests/{requestId}", requestId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldReturnProcessingCatalogForCto() throws Exception {
+        List<DataProcessingPurpose> catalog = List.of(
+                new DataProcessingPurpose(
+                        "EMPLOYEE_IDENTIFICATION",
+                        DataCategory.IDENTIFICATION,
+                        LegalBasis.CONTRACT_EXECUTION,
+                        "Identificação de colaboradores",
+                        "RETENTION_EMPLOYEE_CONTRACT",
+                        false,
+                        true
+                ),
+                new DataProcessingPurpose(
+                        "BIOMETRIC_AUTHENTICATION",
+                        DataCategory.BIOMETRIC,
+                        LegalBasis.CONSENT,
+                        "Autenticação biométrica",
+                        "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
+                        true,
+                        true
+                )
+        );
+
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        mockMvc.perform(get("/lgpd/processing-catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("EMPLOYEE_IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].dataCategory").value("IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].legalBasis").value("CONTRACT_EXECUTION"))
+                .andExpect(jsonPath("$[0].sensitive").value(false))
+                .andExpect(jsonPath("$[1].code").value("BIOMETRIC_AUTHENTICATION"))
+                .andExpect(jsonPath("$[1].sensitive").value(true));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldReturnProcessingCatalogForManager() throws Exception {
+        List<DataProcessingPurpose> catalog = List.of(
+                new DataProcessingPurpose(
+                        "EMPLOYEE_IDENTIFICATION",
+                        DataCategory.IDENTIFICATION,
+                        LegalBasis.CONTRACT_EXECUTION,
+                        "Identificação de colaboradores",
+                        "RETENTION_EMPLOYEE_CONTRACT",
+                        false,
+                        true
+                )
+        );
+
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        mockMvc.perform(get("/lgpd/processing-catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("EMPLOYEE_IDENTIFICATION"));
+    }
+
+    @Test
+    @WithMockUser(roles = "EMPLOYEE")
+    void shouldForbidEmployeeFromAccessingProcessingCatalog() throws Exception {
+        mockMvc.perform(get("/lgpd/processing-catalog"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "PARTNER")
+    void shouldForbidPartnerFromAccessingProcessingCatalog() throws Exception {
+        mockMvc.perform(get("/lgpd/processing-catalog"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldExecuteDryRunRetentionForCto() throws Exception {
+        List<RetentionDryRunResult> results = List.of(
+                new RetentionDryRunResult(
+                        "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
+                        "legal_consent",
+                        100,
+                        0,
+                        "PRESERVE_LEGAL_EVIDENCE",
+                        true
+                ),
+                new RetentionDryRunResult(
+                        "RETENTION_SECURITY_LOG",
+                        "audit_log",
+                        5000,
+                        250,
+                        "MINIMIZE",
+                        false
+                )
+        );
+
+        when(lgpdRetentionDryRunService.executeDryRun()).thenReturn(results);
+
+        mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].policyCode").value("RETENTION_BIOMETRIC_ACTIVE_CONSENT"))
+                .andExpect(jsonPath("$[0].resourceType").value("legal_consent"))
+                .andExpect(jsonPath("$[0].totalScanned").value(100))
+                .andExpect(jsonPath("$[0].totalEligible").value(0))
+                .andExpect(jsonPath("$[1].policyCode").value("RETENTION_SECURITY_LOG"))
+                .andExpect(jsonPath("$[1].totalEligible").value(250));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldForbidManagerFromExecutingDryRunRetention() throws Exception {
+        mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "PARTNER")
+    void shouldForbidPartnerFromExecutingDryRunRetention() throws Exception {
+        mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldForbidAnonymousFromExecutingDryRunRetention() throws Exception {
+        mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
                 .andExpect(status().isForbidden());
     }
 }
