@@ -16,8 +16,12 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestTransitionRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.RejectLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.RequestComplementRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
+import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.domain.model.DataProcessingPurpose;
+import com.kts.kronos.domain.model.RetentionDryRunResult;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,10 +52,12 @@ import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME
 import static com.kts.kronos.constants.ApiPaths.LGPD;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_ANONYMIZE;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_EXPORT;
+import static com.kts.kronos.constants.ApiPaths.LGPD_PROCESSING_CATALOG;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUESTS;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_HISTORY;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_ID;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_STATUS;
+import static com.kts.kronos.constants.ApiPaths.LGPD_RETENTION_DRY_RUN;
 import static com.kts.kronos.constants.Messages.ADMINISTRATOR;
 import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
 
@@ -61,6 +67,8 @@ import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
 public class LgpdController {
     private final LgpdUseCase lgpdUseCase;
     private final ClientIpResolver clientIpResolver;
+    private final DataProcessingCatalog dataProcessingCatalog;
+    private final LgpdRetentionDryRunService lgpdRetentionDryRunService;
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(LGPD_REQUESTS)
@@ -155,6 +163,18 @@ public class LgpdController {
             @PathVariable UUID employeeId
     ) {
         return ResponseEntity.ok(lgpdUseCase.dryRunAnonymizeEmployee(employeeId));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @GetMapping(LGPD_PROCESSING_CATALOG)
+    public ResponseEntity<List<DataProcessingPurpose>> getProcessingCatalog() {
+        return ResponseEntity.ok(dataProcessingCatalog.getActiveTreatments());
+    }
+
+    @PreAuthorize("hasRole('CTO')")
+    @GetMapping(LGPD_RETENTION_DRY_RUN)
+    public ResponseEntity<List<RetentionDryRunResult>> executeDryRunRetention() {
+        return ResponseEntity.ok(lgpdRetentionDryRunService.executeDryRun());
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")

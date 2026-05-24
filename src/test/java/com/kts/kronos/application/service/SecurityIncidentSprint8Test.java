@@ -77,7 +77,7 @@ class SecurityIncidentSprint8Test {
         assertTrue(response.communicationRequired());
 
         verify(securityIncidentProvider).save(any(SecurityIncident.class));
-        verify(auditService).registerSecurity(any(), eq(userId), any(), any(), any(), any(), any(), any());
+        verify(auditService).registerSecurity(any(AuditAction.class), eq(userId), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     @Test
@@ -123,7 +123,7 @@ class SecurityIncidentSprint8Test {
         assertEquals("https://example.com/evidence/incident-123", response.evidenceLinks());
 
         verify(securityIncidentProvider).save(any(SecurityIncident.class));
-        verify(auditService).registerSecurity(any(), eq(userId), any(), any(), any(), any(), any(), any());
+        verify(auditService).registerSecurity(any(AuditAction.class), eq(userId), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
     }
 
     @Test

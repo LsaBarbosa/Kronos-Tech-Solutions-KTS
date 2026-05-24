@@ -27,8 +27,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
@@ -63,6 +61,7 @@ public class AuthService implements AuthUseCase {
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final AuditService auditService;
+    private final AuditRequestContextService auditRequestContextService;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -72,9 +71,9 @@ public class AuthService implements AuthUseCase {
     public String login(String username, String password) {
         var normalizedUsername = username.toLowerCase();
         authenticationRateLimitService.checkLoginAllowed(normalizedUsername);
-        String[] ipAndUA = extractIpAndUserAgent();
-        String ipAddress = ipAndUA[0];
-        String userAgent = ipAndUA[1];
+        var auditContext = auditRequestContextService.extractContext();
+        String ipAddress = auditContext.ipAddress();
+        String userAgent = auditContext.userAgent();
 
         try {
             authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
@@ -160,9 +159,9 @@ public class AuthService implements AuthUseCase {
     @Override
     public String loginFace(String faceImageBase64, Boolean livenessPassed) {
         biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
-        String[] ipAndUA = extractIpAndUserAgent();
-        String ipAddress = ipAndUA[0];
-        String userAgent = ipAndUA[1];
+        var auditContext = auditRequestContextService.extractContext();
+        String ipAddress = auditContext.ipAddress();
+        String userAgent = auditContext.userAgent();
 
         try {
             String token = kronosTracing.observe("kronos.auth.face_login", () -> {
@@ -352,9 +351,9 @@ public class AuthService implements AuthUseCase {
 
     @Override
     public void resetPassword(ResetPasswordRequest request) {
-        String[] ipAndUA = extractIpAndUserAgent();
-        String ipAddress = ipAndUA[0];
-        String userAgent = ipAndUA[1];
+        var auditContext = auditRequestContextService.extractContext();
+        String ipAddress = auditContext.ipAddress();
+        String userAgent = auditContext.userAgent();
 
         try {
             var userId = tokenProvider.validateToken(request.token())
@@ -440,25 +439,4 @@ public class AuthService implements AuthUseCase {
         return "unknown";
     }
 
-    private String[] extractIpAndUserAgent() {
-        String ipAddress = "unknown";
-        String userAgent = "unknown";
-        try {
-            var requestAttrs = RequestContextHolder.getRequestAttributes();
-            if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
-                var request = servletAttrs.getRequest();
-                ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isBlank()) {
-                    ipAddress = request.getRemoteAddr();
-                }
-                userAgent = request.getHeader("User-Agent");
-                if (userAgent == null) {
-                    userAgent = "unknown";
-                }
-            }
-        } catch (Exception e) {
-            log.debug("Falha ao obter IP/User-Agent para auditoria de autenticação", e);
-        }
-        return new String[]{ipAddress, userAgent};
-    }
 }

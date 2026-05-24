@@ -212,4 +212,141 @@ class SensitiveDataMaskerTest {
         assertTrue(masked.contains(String.valueOf(veryLongBase64.length())));
         assertTrue(masked.contains("[FACE_IMAGE_REDACTED:"));
     }
+
+    @Test
+    @DisplayName("sanitizeDetails masks /uploads/ path")
+    void shouldSanitizeDetailsWithUploadsPath() {
+        String details = "User uploaded file at /uploads/employee/document.pdf";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertTrue(sanitized.contains("[MASKED_PATH]"));
+        assertFalse(sanitized.contains("/uploads/employee/document.pdf"));
+        assertFalse(sanitized.contains("document.pdf"));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails handles blank/whitespace text")
+    void shouldSanitizeDetailsWithBlankText() {
+        String blankText = "   ";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(blankText);
+        assertEquals(blankText, sanitized);
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks bucket/ path")
+    void shouldSanitizeDetailsWithBucketPath() {
+        String details = "File at bucket/company/doc.pdf";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertTrue(sanitized.contains("[MASKED_PATH]"));
+        assertFalse(sanitized.contains("bucket/company/doc.pdf"));
+        assertFalse(sanitized.contains("company"));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails preserves blank and returns blank")
+    void shouldSanitizeDetailsReturnBlankForBlankInput() {
+        assertEquals("", SensitiveDataMasker.sanitizeDetails(""));
+        assertEquals("   ", SensitiveDataMasker.sanitizeDetails("   "));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks multiple email addresses in one string")
+    void shouldSanitizeDetailsWithMultipleEmails() {
+        String details = "Contacted user1@company.com and user2@company.com for verification";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(sanitized.contains("user1@company.com"));
+        assertFalse(sanitized.contains("user2@company.com"));
+        assertTrue(sanitized.contains("u***@company.com"));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks email with special characters")
+    void shouldSanitizeDetailsWithComplexEmail() {
+        String details = "Email: joao.silva+tag@empresa.com.br was used";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(sanitized.contains("joao.silva+tag@empresa.com.br"));
+        assertTrue(sanitized.contains("j***@empresa.com.br"));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks multiple CPFs")
+    void shouldSanitizeDetailsWithMultipleCpfs() {
+        String details = "Employees CPF 12345678901 and 98765432100 were verified";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(sanitized.contains("12345678901"));
+        assertFalse(sanitized.contains("98765432100"));
+        assertEquals(2, sanitized.split("\\*\\*\\*\\.").length - 1);
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks JWT in different formats")
+    void shouldSanitizeDetailsWithJwtVariations() {
+        String token1 = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ";
+        String token2 = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        String details = "Auth tokens: " + token1 + " and " + token2;
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(sanitized.contains("TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"));
+        assertFalse(sanitized.contains("SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails masks s3 paths")
+    void shouldSanitizeDetailsWithS3Paths() {
+        String details = "Files at s3://bucket1/file1.pdf stored";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(details);
+        assertTrue(sanitized.contains("[MASKED_PATH]"));
+        assertFalse(sanitized.contains("s3://bucket1/file1.pdf"));
+        assertFalse(sanitized.contains("bucket1"));
+    }
+
+    @Test
+    @DisplayName("maskEmail preserves domain structure")
+    void shouldMaskEmailButShowDomain() {
+        String email = "very.long.name.with.dots@example.com.br";
+        String masked = SensitiveDataMasker.maskEmail(email);
+        assertTrue(masked.startsWith("v***@"));
+        assertTrue(masked.endsWith("example.com.br"));
+        assertFalse(masked.contains("very.long.name"));
+    }
+
+    @Test
+    @DisplayName("maskEmail handles email with numeric prefix")
+    void shouldMaskEmailWithNumericPrefix() {
+        String email = "123admin@company.com";
+        String masked = SensitiveDataMasker.maskEmail(email);
+        assertTrue(masked.startsWith("1***@"));
+        assertFalse(masked.contains("23admin"));
+    }
+
+    @Test
+    void shouldReturnBlankForBlankEmail() {
+        assertEquals("", SensitiveDataMasker.maskEmail(""));
+        assertEquals("   ", SensitiveDataMasker.maskEmail("   "));
+    }
+
+    @Test
+    void shouldReturnBlankForBlankToken() {
+        assertEquals("", SensitiveDataMasker.maskToken(""));
+        assertEquals("   ", SensitiveDataMasker.maskToken("   "));
+    }
+
+    @Test
+    void shouldReturnBlankForBlankStoragePath() {
+        assertEquals("", SensitiveDataMasker.maskStoragePath(""));
+        assertEquals("   ", SensitiveDataMasker.maskStoragePath("   "));
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails does not mask when no sensitive data present")
+    void shouldPreservePlainTextWithoutSensitiveData() {
+        String plainText = "This is a plain text log entry with normal information and numbers 12345 but no sensitive data patterns";
+        String sanitized = SensitiveDataMasker.sanitizeDetails(plainText);
+        assertEquals(plainText, sanitized);
+    }
+
+    @Test
+    @DisplayName("sanitizeDetails handles empty string")
+    void shouldSanitizeEmptyString() {
+        String result = SensitiveDataMasker.sanitizeDetails("");
+        assertEquals("", result);
+    }
 }

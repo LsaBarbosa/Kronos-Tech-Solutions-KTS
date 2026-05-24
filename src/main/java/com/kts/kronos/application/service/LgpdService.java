@@ -69,6 +69,7 @@ public class LgpdService implements LgpdUseCase {
     private final AnonymizationConsolidatedResultRepository anonymizationConsolidatedResultRepository;
     private final LgpdSlaPolicyService lgpdSlaPolicyService;
     private final LgpdRequestNotificationService notificationService;
+    private final AuditRequestContextService auditRequestContextService;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
@@ -472,6 +473,27 @@ public class LgpdService implements LgpdUseCase {
         LgpdRequest saved = lgpdRequestProvider.save(updated);
         notificationService.notifyResponsibilityAssigned(saved, assignedToUserId);
 
+        var auditContext = auditRequestContextService.extractContext();
+        String details = String.format(
+                "requestId=%s, oldAssignedToUserId=%s, newAssignedToUserId=%s, actorUserId=%s",
+                saved.requestId(),
+                request.assignedToUserId(),
+                assignedToUserId,
+                jwtAuthenticatedUser.getuserId()
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_ASSIGNED,
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                "MEDIUM",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
+
         return saved;
     }
 
@@ -511,6 +533,31 @@ public class LgpdService implements LgpdUseCase {
                 now
         ));
 
+        var auditContext = auditRequestContextService.extractContext();
+        boolean hasPublicNote = publicNote != null && !publicNote.isBlank();
+        boolean hasInternalNote = internalNote != null && !internalNote.isBlank();
+        String details = String.format(
+                "requestId=%s, hasPublicNote=%s, hasInternalNote=%s, publicNoteLength=%d, internalNoteLength=%d, actorUserId=%s",
+                saved.requestId(),
+                hasPublicNote,
+                hasInternalNote,
+                hasPublicNote ? publicNote.length() : 0,
+                hasInternalNote ? internalNote.length() : 0,
+                jwtAuthenticatedUser.getuserId()
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_NOTE_ADDED,
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                "LOW",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
+
         return saved;
     }
 
@@ -518,6 +565,7 @@ public class LgpdService implements LgpdUseCase {
     public LgpdRequest completeRequest(UUID requestId, String publicResolutionNotes, String internalNotes) {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
+        String oldStatus = request.status().name();
 
         LgpdRequest updated = request.updateStatus(
                 LgpdRequestStatus.COMPLETED,
@@ -557,6 +605,32 @@ public class LgpdService implements LgpdUseCase {
                 now
         ));
 
+        var auditContext = auditRequestContextService.extractContext();
+        boolean hasPublicResolutionNotes = publicResolutionNotes != null && !publicResolutionNotes.isBlank();
+        boolean hasInternalNotes = internalNotes != null && !internalNotes.isBlank();
+        String details = String.format(
+                "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, hasPublicResolutionNotes=%s, hasInternalNotes=%s",
+                saved.requestId(),
+                saved.requestType(),
+                oldStatus,
+                saved.status().name(),
+                jwtAuthenticatedUser.getuserId(),
+                hasPublicResolutionNotes,
+                hasInternalNotes
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_COMPLETED,
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                "MEDIUM",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
+
         return saved;
     }
 
@@ -564,6 +638,7 @@ public class LgpdService implements LgpdUseCase {
     public LgpdRequest rejectRequest(UUID requestId, String closedReason, String publicNote, String internalNote) {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
+        String oldStatus = request.status().name();
 
         LgpdRequest updated = request.updateStatus(
                 LgpdRequestStatus.REJECTED,
@@ -594,6 +669,34 @@ public class LgpdService implements LgpdUseCase {
         );
 
         LgpdRequest saved = lgpdRequestProvider.save(withReason);
+
+        var auditContext = auditRequestContextService.extractContext();
+        boolean hasPublicNote = publicNote != null && !publicNote.isBlank();
+        boolean hasInternalNote = internalNote != null && !internalNote.isBlank();
+        String details = String.format(
+                "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, closedReason=%s, hasPublicNote=%s, hasInternalNote=%s",
+                saved.requestId(),
+                saved.requestType(),
+                oldStatus,
+                saved.status().name(),
+                jwtAuthenticatedUser.getuserId(),
+                closedReason != null ? closedReason : "none",
+                hasPublicNote,
+                hasInternalNote
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_REJECTED,
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                "MEDIUM",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
+
         lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
                 null,
                 saved.requestId(),
@@ -681,6 +784,63 @@ public class LgpdService implements LgpdUseCase {
                 now
         ));
 
+        if (newStatus == LgpdRequestStatus.COMPLETED || newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED) {
+            var auditContext = auditRequestContextService.extractContext();
+            boolean hasPublicResolutionNotes = publicNotes != null && !publicNotes.isBlank();
+            boolean hasInternalNotes = internalNotes != null && !internalNotes.isBlank();
+            String details = String.format(
+                    "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, hasPublicResolutionNotes=%s, hasInternalNotes=%s",
+                    saved.requestId(),
+                    saved.requestType(),
+                    oldStatus,
+                    saved.status().name(),
+                    jwtAuthenticatedUser.getuserId(),
+                    hasPublicResolutionNotes,
+                    hasInternalNotes
+            );
+
+            auditService.registerLgpd(
+                    AuditAction.LGPD_REQUEST_COMPLETED,
+                    saved.employeeId(),
+                    saved.companyId(),
+                    "LGPD_REQUEST",
+                    saved.requestId().toString(),
+                    "MEDIUM",
+                    details,
+                    auditContext.ipAddress(),
+                    auditContext.userAgent()
+            );
+        } else if (newStatus == LgpdRequestStatus.REJECTED || newStatus == LgpdRequestStatus.CANCELLED) {
+            var auditContext = auditRequestContextService.extractContext();
+            boolean hasPublicNote = publicNotes != null && !publicNotes.isBlank();
+            boolean hasInternalNote = internalNotes != null && !internalNotes.isBlank();
+            String details = String.format(
+                    "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, closedReason=%s, hasPublicNote=%s, hasInternalNote=%s",
+                    saved.requestId(),
+                    saved.requestType(),
+                    oldStatus,
+                    saved.status().name(),
+                    jwtAuthenticatedUser.getuserId(),
+                    closedReason != null ? closedReason : "none",
+                    hasPublicNote,
+                    hasInternalNote
+            );
+
+            AuditAction auditAction = newStatus == LgpdRequestStatus.REJECTED ? AuditAction.LGPD_REQUEST_REJECTED : AuditAction.LGPD_REQUEST_CANCELLED;
+
+            auditService.registerLgpd(
+                    auditAction,
+                    saved.employeeId(),
+                    saved.companyId(),
+                    "LGPD_REQUEST",
+                    saved.requestId().toString(),
+                    "MEDIUM",
+                    details,
+                    auditContext.ipAddress(),
+                    auditContext.userAgent()
+            );
+        }
+
         // Send notifications asynchronously
         notificationService.notifyStatusChanged(saved, oldStatus, jwtAuthenticatedUser.getuserId());
 
@@ -702,6 +862,27 @@ public class LgpdService implements LgpdUseCase {
 
         notificationService.notifyComplementRequest(request, complementMessage);
 
+        var auditContext = auditRequestContextService.extractContext();
+        String details = String.format(
+                "requestId=%s, actorUserId=%s, messageLength=%d, status=%s",
+                request.requestId(),
+                jwtAuthenticatedUser.getuserId(),
+                complementMessage != null ? complementMessage.length() : 0,
+                request.status().name()
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_COMPLEMENT_REQUESTED,
+                request.employeeId(),
+                request.companyId(),
+                "LGPD_REQUEST",
+                request.requestId().toString(),
+                "LOW",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
+
         return request;
     }
 
@@ -713,6 +894,7 @@ public class LgpdService implements LgpdUseCase {
         }
 
         Instant now = Instant.now();
+        String oldStatus = request.status().name();
         LgpdRequest updated = request.updateStatus(
                 LgpdRequestStatus.CANCELLED,
                 jwtAuthenticatedUser.getuserId(),
@@ -751,6 +933,29 @@ public class LgpdService implements LgpdUseCase {
                 jwtAuthenticatedUser.getuserId(),
                 now
         ));
+
+        var auditContext = auditRequestContextService.extractContext();
+        String details = String.format(
+                "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, closedReason=%s, hasPublicNote=false, hasInternalNote=false",
+                saved.requestId(),
+                saved.requestType(),
+                oldStatus,
+                saved.status().name(),
+                jwtAuthenticatedUser.getuserId(),
+                cancellationReason != null ? cancellationReason : "none"
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_REQUEST_CANCELLED,
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                "MEDIUM",
+                details,
+                auditContext.ipAddress(),
+                auditContext.userAgent()
+        );
 
         return saved;
     }
