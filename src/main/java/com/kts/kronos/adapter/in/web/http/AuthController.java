@@ -67,4 +67,16 @@ public class AuthController {
                 .header(HttpHeaders.SET_COOKIE, authCookieService.expireAccessTokenCookie().toString())
                 .build();
     }
+
+    @PostMapping(REFRESH)
+    public ResponseEntity<Void> refresh(HttpServletRequest request) {
+        var tokenOpt = authCookieService.extractToken(request);
+        if (tokenOpt.isEmpty()) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).build();
+        }
+        String newToken = authUseCase.refreshToken(tokenOpt.get());
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(newToken).toString())
+                .build();
+    }
 }

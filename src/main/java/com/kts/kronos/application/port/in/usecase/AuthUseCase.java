@@ -9,4 +9,5 @@ public interface AuthUseCase {
     void recoverPassword(RecoverPasswordRequest request);
     void resetPassword(ResetPasswordRequest request);
     void logout(String rawToken);
+    String refreshToken(String expiredToken);
 }
