@@ -23,8 +23,7 @@ public class ProductionSecurityPropertiesValidator {
     @Value("${frontend.allowed-origins:*}")
     private String corsAllowedOrigins;
 
-    @Value("${kronos.security.auth-cookie.http-only:false}")
-    private boolean cookieHttpOnly;
+    // Note: HttpOnly is hardcoded in AuthCookieService.baseCookie() - no configuration needed
 
     @Value("${springdoc.swagger-ui.enabled:true}")
     private boolean swaggerEnabled;
@@ -68,14 +67,7 @@ public class ProductionSecurityPropertiesValidator {
             throw new IllegalStateException(error);
         }
 
-        if (!cookieHttpOnly) {
-            var error = "SECURITY ERROR: Authentication cookies are not HTTP-only in production. " +
-                    "Set kronos.security.auth-cookie.http-only=true";
-            log.error(error);
-            throw new IllegalStateException(error);
-        }
-
-        log.info("✓ Cookie security validated");
+        log.info("✓ Cookie security validated (HttpOnly is guaranteed by AuthCookieService)");
     }
 
     private void validateCORS() {
@@ -195,37 +187,40 @@ public class ProductionSecurityPropertiesValidator {
         String awsSecretKey = environment.getProperty("aws.secret-access-key");
         String awsRegion = environment.getProperty("aws.region");
 
-        if (awsAccessKey == null || awsAccessKey.isEmpty()) {
-            log.warn("WARNING: AWS access key ID not configured. S3 operations may fail");
-        }
-
-        if (awsSecretKey == null || awsSecretKey.isEmpty()) {
-            log.warn("WARNING: AWS secret access key not configured. S3 operations may fail");
-        }
-
         if (awsRegion == null || awsRegion.isEmpty()) {
-            log.warn("WARNING: AWS region not configured. Using default region");
+            var error = "SECURITY ERROR: AWS region is not configured in production. " +
+                    "Set aws.region (required for S3 and Rekognition)";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
 
-        if ((awsAccessKey != null && !awsAccessKey.isEmpty()) &&
-            (awsSecretKey != null && !awsSecretKey.isEmpty())) {
-            log.info("✓ AWS credentials configured");
+        boolean hasAccessKey = awsAccessKey != null && !awsAccessKey.isEmpty();
+        boolean hasSecretKey = awsSecretKey != null && !awsSecretKey.isEmpty();
+
+        if (hasAccessKey && hasSecretKey) {
+            log.info("✓ AWS credentials mode: Static credentials (access-key-id + secret-access-key)");
+        } else if (!hasAccessKey && !hasSecretKey) {
+            log.info("✓ AWS credentials mode: IAM Role (will use instance profile, ECS task role, or web identity)");
+        } else {
+            var error = "SECURITY ERROR: AWS credentials are incomplete. " +
+                    "Either provide both aws.access-key-id and aws.secret-access-key, or use IAM Role (provide neither)";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
     }
 
     private void validateActuatorEndpoints() {
         String actuatorExposure = environment.getProperty("management.endpoints.web.exposure.include", "");
 
-        if (actuatorExposure.contains("env") || actuatorExposure.contains("*")) {
-            log.warn("WARNING: Actuator /env endpoint is exposed. Remove from management.endpoints.web.exposure.include");
-        }
+        String[] sensitiveEndpoints = {"*", "env", "heapdump", "beans", "configprops", "threaddump", "flyway", "logfile", "loggers"};
 
-        if (actuatorExposure.contains("heapdump")) {
-            log.warn("WARNING: Actuator /heapdump endpoint is exposed. Remove from management.endpoints.web.exposure.include");
-        }
-
-        if (actuatorExposure.contains("configprops")) {
-            log.warn("WARNING: Actuator /configprops endpoint is exposed. Remove from management.endpoints.web.exposure.include");
+        for (String endpoint : sensitiveEndpoints) {
+            if (actuatorExposure.contains(endpoint)) {
+                var error = "SECURITY ERROR: Sensitive Actuator endpoint '" + endpoint + "' is exposed in production. " +
+                        "Remove from management.endpoints.web.exposure.include";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
         }
 
         log.info("✓ Actuator endpoints validation completed");

@@ -6,14 +6,10 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -31,30 +27,11 @@ import java.io.IOException;
 public class S3BucketStorageProviderImpl implements BucketStorageProvider {
 
     private final S3DocumentBucketProperties bucketProperties;
-
-    @Value("${aws.region}")
-    private String region;
-
-    @Value("${aws.access-key-id}")
-    private String accessKeyId;
-
-    @Value("${aws.secret-access-key}")
-    private String secretAccessKey;
-
-    private S3Client s3Client;
+    private final S3Client s3Client;
 
     @PostConstruct
     void init() {
-        this.s3Client = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKeyId, secretAccessKey)
-                        )
-                )
-                .build();
-
-        log.info("event=s3_storage_init result=success region={}", region);
+        log.info("event=s3_storage_init result=success");
     }
 
     @Override

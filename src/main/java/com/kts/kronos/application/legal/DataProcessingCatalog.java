@@ -1,5 +1,6 @@
 package com.kts.kronos.application.legal;
 
+import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.enuns.DataCategory;
 import com.kts.kronos.domain.model.enuns.LegalBasis;
@@ -128,5 +129,56 @@ public class DataProcessingCatalog {
             .filter(t -> t.code().equals(code))
             .findFirst()
             .orElse(null);
+    }
+
+    public List<PublicDataProcessingPurposeResponse> getPublicTreatments() {
+        return getActiveTreatments().stream()
+            .filter(DataProcessingPurpose::active)
+            .map(this::toPublic)
+            .toList();
+    }
+
+    private PublicDataProcessingPurposeResponse toPublic(DataProcessingPurpose treatment) {
+        String publicPurpose = getPublicPurpose(treatment.code(), treatment.purpose());
+
+        return new PublicDataProcessingPurposeResponse(
+            treatment.code(),
+            treatment.dataCategory(),
+            treatment.legalBasis(),
+            publicPurpose,
+            treatment.retentionPolicyCode(),
+            treatment.sensitive(),
+            treatment.active()
+        );
+    }
+
+    private String getPublicPurpose(String code, String technicalPurpose) {
+        return switch (code) {
+            case "EMPLOYEE_IDENTIFICATION" ->
+                "Gerenciamento da sua identificação para cumprimento do contrato de trabalho.";
+            case "EMPLOYEE_CONTACT" ->
+                "Dados de contato para comunicações relacionadas ao trabalho.";
+            case "EMPLOYEE_CONTRACT_DATA" ->
+                "Informações sobre seu contrato e relação de emprego.";
+            case "EMPLOYEE_PAYROLL_DATA" ->
+                "Processamento do seu pagamento e obrigações fiscais.";
+            case "TIME_RECORD_CONTROL" ->
+                "Registro da sua jornada de trabalho.";
+            case "TIME_RECORD_GEOLOCATION" ->
+                "Localização para controle e registro de sua jornada.";
+            case "BIOMETRIC_AUTHENTICATION" ->
+                "Autenticação segura com dados biométricos (requer consentimento).";
+            case "DOCUMENT_MANAGEMENT" ->
+                "Gerenciamento de documentos corporativos e pessoais.";
+            case "INTERNAL_MESSAGES" ->
+                "Comunicação interna e troca de mensagens.";
+            case "SECURITY_AUDIT_LOGS" ->
+                "Proteção de sistemas e detecção de atividades fraudulentas.";
+            case "LGPD_REQUEST_MANAGEMENT" ->
+                "Processamento de seus direitos de acesso, correção e exclusão.";
+            case "LEGAL_CONSENT_EVIDENCE" ->
+                "Registro legal dos consentimentos que você forneceu.";
+            default -> technicalPurpose;
+        };
     }
 }
