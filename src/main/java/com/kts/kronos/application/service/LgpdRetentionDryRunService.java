@@ -1,13 +1,10 @@
 package com.kts.kronos.application.service;
 
-import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
-import com.kts.kronos.adapter.out.persistence.DocumentRepository;
-import com.kts.kronos.adapter.out.persistence.LegalConsentRepository;
-import com.kts.kronos.adapter.out.persistence.LgpdRequestRepository;
-import com.kts.kronos.adapter.out.persistence.MessageRepository;
-import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
+import com.kts.kronos.application.legal.RetentionPolicyCatalog;
+import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
 import com.kts.kronos.domain.model.RetentionDryRunResult;
-import com.kts.kronos.domain.model.enuns.RetentionPolicyCode;
+import com.kts.kronos.domain.model.RetentionPolicy;
+import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,126 +12,73 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+/**
+ * DEPRECATED: Use RetentionPolicyExecutor directly.
+ * This service is maintained for backward compatibility only.
+ */
+@Deprecated(since = "2026-05-25", forRemoval = true)
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LgpdRetentionDryRunService {
-    private final LegalConsentRepository legalConsentRepository;
-    private final LgpdRequestRepository lgpdRequestRepository;
-    private final AuditLogRepository auditLogRepository;
-    private final DocumentRepository documentRepository;
-    private final MessageRepository messageRepository;
-    private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final RetentionPolicyExecutor retentionPolicyExecutor;
+    private final RetentionPolicyCatalog retentionPolicyCatalog;
 
     public List<RetentionDryRunResult> executeDryRun() {
+        log.warn("event=lgpd_retention_dry_run_deprecated_service_used notice=use_RetentionPolicyExecutor_directly");
+
         List<RetentionDryRunResult> results = new ArrayList<>();
-        
-        results.add(executeDryRunForLegalConsent());
-        results.add(executeDryRunForLgpdRequest());
-        results.add(executeDryRunForAuditLog());
-        results.add(executeDryRunForDocument());
-        results.add(executeDryRunForMessage());
-        results.add(executeDryRunForPasswordResetToken());
-        
+        var policies = retentionPolicyCatalog.getActivePolicies();
+
+        for (var policy : policies) {
+            try {
+                RetentionPolicy retentionPolicy = new RetentionPolicy(
+                    UUID.randomUUID(),
+                    policy.code().name(),
+                    policy.description(),
+                    mapPolicyCodeToResourceType(policy.code().name()),
+                    policy.retentionDays(),
+                    RetentionExecutionMode.DRY_RUN,
+                    true,
+                    false,
+                    false,
+                    null,
+                    Instant.now(),
+                    Instant.now()
+                );
+
+                retentionPolicyExecutor.executePolicy(retentionPolicy);
+
+            } catch (Exception e) {
+                log.error(
+                    "event=lgpd_retention_dry_run_error policyCode={} error={}",
+                    policy.code(),
+                    e.getMessage(),
+                    e
+                );
+            }
+        }
+
         log.info("event=lgpd_retention_dry_run_completed totalResults={}", results.size());
-        
+
         return results;
     }
 
-    private RetentionDryRunResult executeDryRunForLegalConsent() {
-        long totalScanned = legalConsentRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_legal_consent resourceType=legal_consent totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_BIOMETRIC_ACTIVE_CONSENT.name(),
-            "legal_consent",
-            totalScanned,
-            totalEligible,
-            "PRESERVE_LEGAL_EVIDENCE",
-            true
-        );
-    }
-
-    private RetentionDryRunResult executeDryRunForLgpdRequest() {
-        long totalScanned = lgpdRequestRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_lgpd_request resourceType=lgpd_request totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_LGPD_REQUEST.name(),
-            "lgpd_request",
-            totalScanned,
-            totalEligible,
-            "PRESERVE_LEGAL_EVIDENCE",
-            true
-        );
-    }
-
-    private RetentionDryRunResult executeDryRunForAuditLog() {
-        long totalScanned = auditLogRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_audit_log resourceType=audit_log totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_SECURITY_LOG.name(),
-            "audit_log",
-            totalScanned,
-            totalEligible,
-            "MINIMIZE",
-            false
-        );
-    }
-
-    private RetentionDryRunResult executeDryRunForDocument() {
-        long totalScanned = documentRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_document resourceType=document totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_DOCUMENT_GENERAL.name(),
-            "document",
-            totalScanned,
-            totalEligible,
-            "PRESERVE_LEGAL_EVIDENCE",
-            false
-        );
-    }
-
-    private RetentionDryRunResult executeDryRunForMessage() {
-        long totalScanned = messageRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_message resourceType=message totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_INTERNAL_MESSAGE.name(),
-            "message",
-            totalScanned,
-            totalEligible,
-            "DELETE",
-            false
-        );
-    }
-
-    private RetentionDryRunResult executeDryRunForPasswordResetToken() {
-        long totalScanned = passwordResetTokenRepository.count();
-        long totalEligible = 0;
-        
-        log.info("event=lgpd_retention_dry_run_password_reset_token resourceType=password_reset_token totalScanned={}", totalScanned);
-        
-        return new RetentionDryRunResult(
-            RetentionPolicyCode.RETENTION_PASSWORD_RESET_TOKEN.name(),
-            "password_reset_token",
-            totalScanned,
-            totalEligible,
-            "DELETE",
-            false
-        );
+    private String mapPolicyCodeToResourceType(String policyCode) {
+        return switch (policyCode) {
+            case "RETENTION_BIOMETRIC_ACTIVE_CONSENT" -> "BIOMETRIC_ARTIFACT";
+            case "RETENTION_BIOMETRIC_EVIDENCE" -> "LEGAL_CONSENT";
+            case "RETENTION_TIME_RECORD" -> null;
+            case "RETENTION_EMPLOYEE_CONTRACT" -> "DOCUMENT";
+            case "RETENTION_DOCUMENT_GENERAL" -> "DOCUMENT";
+            case "RETENTION_DOCUMENT_LABOR" -> "DOCUMENT";
+            case "RETENTION_SECURITY_LOG" -> "AUDIT_LOG";
+            case "RETENTION_LGPD_REQUEST" -> "LGPD_REQUEST";
+            case "RETENTION_INTERNAL_MESSAGE" -> "MESSAGE";
+            case "RETENTION_PASSWORD_RESET_TOKEN" -> "PASSWORD_RESET_TOKEN";
+            default -> null;
+        };
     }
 }
