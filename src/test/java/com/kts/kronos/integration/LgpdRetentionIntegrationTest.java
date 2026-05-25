@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
+import org.springframework.context.annotation.Bean;
+import org.mockito.Mockito;
+import com.kts.kronos.adapter.out.persistence.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@Import(LgpdRetentionIntegrationTest.RetentionTestConfiguration.class)
 @DisplayName("LGPD Retention Integration Tests")
 class LgpdRetentionIntegrationTest {
 
@@ -262,6 +268,34 @@ class LgpdRetentionIntegrationTest {
         retentionPolicyExecutor.executePolicy(policy);
 
         assertEquals(0, documentRepository.count(), "Still no documents");
+    }
+
+    @TestConfiguration
+    static class RetentionTestConfiguration {
+        @Bean
+        public PasswordResetTokenRepository passwordResetTokenRepository() {
+            return Mockito.mock(PasswordResetTokenRepository.class);
+        }
+
+        @Bean
+        public LegalConsentRepository legalConsentRepository() {
+            return Mockito.mock(LegalConsentRepository.class);
+        }
+
+        @Bean
+        public AuditLogRepository auditLogRepository() {
+            return Mockito.mock(AuditLogRepository.class);
+        }
+
+        @Bean
+        public CompanyRepository companyRepository() {
+            return Mockito.mock(CompanyRepository.class);
+        }
+
+        @Bean
+        public org.springframework.mail.javamail.JavaMailSender javaMailSender() {
+            return Mockito.mock(org.springframework.mail.javamail.JavaMailSender.class);
+        }
     }
 
     @Test
