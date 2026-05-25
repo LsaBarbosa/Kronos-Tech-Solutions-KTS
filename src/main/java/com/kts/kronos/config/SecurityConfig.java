@@ -113,6 +113,7 @@ public class SecurityConfig {
                                 post("/auth/recover-password"),
                                 post("/auth/reset-password"),
                                 post("/auth/logout"),
+                                post("/auth/refresh"),
                                 post("/geolocation/resolve")
                         )
                 )
@@ -133,7 +134,8 @@ public class SecurityConfig {
                     "/auth/login-face",
                     "/auth/recover-password",
                     "/auth/reset-password",
-                    "/auth/logout"
+                    "/auth/logout",
+                    "/auth/refresh"
             ).permitAll();
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.GET,

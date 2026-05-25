@@ -415,6 +415,73 @@ public class AuthService implements AuthUseCase {
         tokenBlacklistProvider.addToBlacklist(rawToken, expiration);
     }
 
+    @Override
+    public String refreshToken(String rawToken) {
+        var auditContext = auditRequestContextService.extractContext();
+        String ipAddress = auditContext.ipAddress();
+        String userAgent = auditContext.userAgent();
+
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new BadRequestException("Token não fornecido.");
+        }
+
+        var claims = jwtUtils.getClaimsFromExpiredToken(rawToken);
+        if (claims == null) {
+            throw new BadRequestException("Token ainda é válido. Nenhuma renovação necessária.");
+        }
+
+        if (tokenBlacklistProvider.isBlacklisted(rawToken)) {
+            throw new BadRequestException("Token foi revogado.");
+        }
+
+        var userId = java.util.UUID.fromString(claims.get("userId", String.class));
+        var user = userProvider.findById(userId)
+                .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
+
+        if (!user.active()) {
+            throw new ForbiddenException("Conta de usuário inativa.");
+        }
+
+        long tokenSessionVersion = claims.get("session_version", Long.class);
+        if (user.sessionVersion() != tokenSessionVersion) {
+            throw new BadRequestException("Sessão invalidada. Faça login novamente.");
+        }
+
+        var termsAccepted = legalConsentProvider.existsActive(
+                user.employeeId(),
+                ConsentType.BIOMETRIC_AUTHENTICATION
+        );
+
+        String newToken = jwtUtils.generateToken(
+                user.employeeId(),
+                user.username(),
+                user.role().name(),
+                user.userId(),
+                termsAccepted,
+                user.sessionVersion()
+        );
+
+        Date oldExpiration = claims.getExpiration();
+        tokenBlacklistProvider.addToBlacklist(rawToken, oldExpiration);
+
+        try {
+            auditService.registerSecurity(
+                    AuditAction.AUTH_TOKEN_REFRESH,
+                    user.userId(),
+                    "LOW",
+                    "USER",
+                    null,
+                    "token_refresh_success",
+                    ipAddress,
+                    userAgent
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de refresh de token", auditEx);
+        }
+
+        return newToken;
+    }
+
     // Método auxiliar (copiado de UserService) para validar a política de senha
     private void validatePasswordPolicy(String raw) {
         if (raw == null || !raw.matches("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$")) {
