@@ -53,6 +53,9 @@ public class AuditLogEntity {
     @Column(name = "risk_level")
     private String riskLevel;
 
+    @Column(name = "minimized_at")
+    private LocalDateTime minimizedAt;
+
     public AuditLog toDomain() {
         return new AuditLog(
                 id,
