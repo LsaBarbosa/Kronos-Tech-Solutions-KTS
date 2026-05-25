@@ -1,14 +1,18 @@
 package com.kts.kronos.application.service.retention;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.application.port.out.provider.RetentionExecutionLogProvider;
+import com.kts.kronos.application.service.AuditService;
 import com.kts.kronos.domain.model.RetentionExecutionLog;
 import com.kts.kronos.domain.model.RetentionPolicy;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +25,8 @@ import java.util.stream.Collectors;
 public class RetentionPolicyExecutor {
     private final List<RetentionDomainProcessor> processors;
     private final RetentionExecutionLogProvider executionLogProvider;
+    private final AuditService auditService;
+    private final ObjectMapper objectMapper;
 
     @Value("${kronos.lgpd.retention.allow-apply:false}")
     private boolean allowApply;
@@ -46,6 +52,7 @@ public class RetentionPolicyExecutor {
             );
             var executionLog = RetentionExecutionLog.fromResult(blockedResult);
             executionLogProvider.save(executionLog);
+            auditRetentionBlocked(executionId, policy.policyCode(), policy.resourceType());
             return;
         }
 
@@ -81,6 +88,8 @@ public class RetentionPolicyExecutor {
                 result.skippedCount(),
                 result.errorCount()
         );
+
+        auditRetentionExecution(executionId, executionMode, policy.policyCode(), policy.resourceType(), result);
     }
 
     private void validatePolicy(RetentionPolicy policy) {
@@ -122,5 +131,46 @@ public class RetentionPolicyExecutor {
                         p -> p.supports().name(),
                         p -> p
                 ));
+    }
+
+    private void auditRetentionExecution(UUID executionId, String mode, String policyCode, String resourceType,
+                                          com.kts.kronos.domain.model.RetentionExecutionResult result) {
+        try {
+            Map<String, Object> details = new HashMap<>();
+            details.put("executionId", executionId.toString());
+            details.put("mode", mode);
+            details.put("policyCode", policyCode);
+            details.put("resourceType", resourceType);
+            details.put("totalScanned", result.scannedCount());
+            details.put("totalAffected", result.affectedCount());
+            details.put("totalEligible", result.scannedCount());
+            details.put("action", "RETENTION_" + mode);
+
+            String detailsJson = objectMapper.writeValueAsString(details);
+            AuditAction action = "DRY_RUN".equals(mode) ?
+                    AuditAction.LGPD_RETENTION_DRY_RUN_EXECUTED :
+                    AuditAction.LGPD_RETENTION_APPLY_EXECUTED;
+
+            auditService.registerRetentionAudit(action, resourceType, detailsJson);
+        } catch (Exception e) {
+            log.error("event=retention_audit_failed executionId={} policyCode={}", executionId, policyCode, e);
+        }
+    }
+
+    private void auditRetentionBlocked(UUID executionId, String policyCode, String resourceType) {
+        try {
+            Map<String, Object> details = new HashMap<>();
+            details.put("executionId", executionId.toString());
+            details.put("mode", "APPLY");
+            details.put("policyCode", policyCode);
+            details.put("resourceType", resourceType);
+            details.put("action", "APPLY");
+            details.put("blockedReason", "allow-apply flag disabled");
+
+            String detailsJson = objectMapper.writeValueAsString(details);
+            auditService.registerRetentionAudit(AuditAction.LGPD_RETENTION_APPLY_BLOCKED, resourceType, detailsJson);
+        } catch (Exception e) {
+            log.error("event=retention_audit_blocked_failed executionId={} policyCode={}", executionId, policyCode, e);
+        }
     }
 }

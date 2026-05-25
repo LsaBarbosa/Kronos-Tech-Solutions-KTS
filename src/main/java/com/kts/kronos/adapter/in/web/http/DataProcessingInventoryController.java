@@ -36,7 +36,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @GetMapping(ApiPaths.LGPD_INVENTORY_ACTIVE)
+    @GetMapping("/active")
     public ResponseEntity<Page<DataProcessingInventoryResponse>> listActiveInventories(Pageable pageable) {
         var page = service.listActiveInventories(pageable)
                 .map(DataProcessingInventoryResponse::fromDomain);
@@ -44,7 +44,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @GetMapping(ApiPaths.LGPD_INVENTORY_BY_CODE)
+    @GetMapping("/{processCode}")
     public ResponseEntity<DataProcessingInventoryResponse> getByProcessCode(@PathVariable String processCode) {
         var inventory = service.getInventoryByProcessCode(processCode);
         return ResponseEntity.ok(DataProcessingInventoryResponse.fromDomain(inventory));
@@ -60,7 +60,7 @@ public class DataProcessingInventoryController {
     }
 
     @PreAuthorize("hasAnyRole('CTO')")
-    @PatchMapping(ApiPaths.LGPD_INVENTORY_ID)
+    @PatchMapping("/{inventoryId}")
     public ResponseEntity<DataProcessingInventoryResponse> updateInventory(
             @PathVariable UUID inventoryId,
             @Valid @RequestBody CreateInventoryRequest request) {

@@ -1,6 +1,8 @@
 package com.kts.kronos.application.service.retention;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.application.port.out.provider.RetentionExecutionLogProvider;
+import com.kts.kronos.application.service.AuditService;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
@@ -15,11 +17,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.UUID;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RetentionPolicyExecutorApplyBlockingTest {
@@ -27,11 +32,17 @@ class RetentionPolicyExecutorApplyBlockingTest {
     @Mock
     private RetentionExecutionLogProvider executionLogProvider;
 
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
     private RetentionPolicyExecutor executor;
 
     @BeforeEach
     void setUp() {
-        executor = new RetentionPolicyExecutor(Collections.emptyList(), executionLogProvider);
+        executor = new RetentionPolicyExecutor(Collections.emptyList(), executionLogProvider, auditService, objectMapper);
     }
 
     @Test
@@ -54,6 +65,16 @@ class RetentionPolicyExecutorApplyBlockingTest {
         executor.executePolicy(policy);
 
         verify(executionLogProvider, times(0)).save(any());
+    }
+
+    @Test
+    void testAuditLogsApplyBlockedAction() throws JsonProcessingException {
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        var policy = createApplyPolicy();
+
+        executor.executePolicy(policy);
+
+        verify(auditService, times(1)).registerRetentionAudit(any(), eq("BLACKLISTED_TOKEN"), any());
     }
 
     private RetentionPolicy createApplyPolicy() {
