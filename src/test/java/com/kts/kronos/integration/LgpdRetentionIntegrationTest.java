@@ -19,8 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -37,11 +36,22 @@ import com.kts.kronos.adapter.out.persistence.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@DataJpaTest
 @ActiveProfiles("test")
 @Transactional
-@Import(LgpdRetentionIntegrationTest.RetentionTestConfiguration.class)
+@Import({
+    com.kts.kronos.application.service.retention.RetentionPolicyExecutor.class,
+    com.kts.kronos.application.legal.RetentionPolicyCatalog.class,
+    com.kts.kronos.application.service.AuditService.class,
+    com.kts.kronos.adapter.out.persistence.impl.AuditLogProviderImpl.class,
+    com.kts.kronos.adapter.out.persistence.impl.RetentionExecutionLogProviderImpl.class,
+    com.kts.kronos.adapter.out.persistence.mapper.RetentionExecutionLogMapper.class,
+    com.kts.kronos.application.service.retention.DocumentRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.MessageRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.PasswordResetTokenRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.AuditLogRetentionProcessor.class,
+    LgpdRetentionIntegrationTest.RetentionTestConfiguration.class
+})
 @DisplayName("LGPD Retention Integration Tests")
 class LgpdRetentionIntegrationTest {
 
@@ -273,23 +283,13 @@ class LgpdRetentionIntegrationTest {
     @TestConfiguration
     static class RetentionTestConfiguration {
         @Bean
-        public PasswordResetTokenRepository passwordResetTokenRepository() {
-            return Mockito.mock(PasswordResetTokenRepository.class);
+        public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
+            return new com.fasterxml.jackson.databind.ObjectMapper();
         }
 
         @Bean
-        public LegalConsentRepository legalConsentRepository() {
-            return Mockito.mock(LegalConsentRepository.class);
-        }
-
-        @Bean
-        public AuditLogRepository auditLogRepository() {
-            return Mockito.mock(AuditLogRepository.class);
-        }
-
-        @Bean
-        public CompanyRepository companyRepository() {
-            return Mockito.mock(CompanyRepository.class);
+        public com.kts.kronos.application.port.out.provider.BucketStorageProvider bucketStorageProvider() {
+            return Mockito.mock(com.kts.kronos.application.port.out.provider.BucketStorageProvider.class);
         }
 
         @Bean
