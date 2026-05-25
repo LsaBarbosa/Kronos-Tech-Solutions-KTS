@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
@@ -440,28 +441,28 @@ class LgpdControllerWebMvcTest {
     @Test
     @WithMockUser(roles = "CTO")
     void shouldReturnProcessingCatalogForCto() throws Exception {
-        List<DataProcessingPurpose> catalog = List.of(
-                new DataProcessingPurpose(
+        List<PublicDataProcessingPurposeResponse> catalog = List.of(
+                new PublicDataProcessingPurposeResponse(
                         "EMPLOYEE_IDENTIFICATION",
                         DataCategory.IDENTIFICATION,
                         LegalBasis.CONTRACT_EXECUTION,
-                        "Identificação de colaboradores",
+                        "Gerenciamento da sua identificação para cumprimento do contrato de trabalho.",
                         "RETENTION_EMPLOYEE_CONTRACT",
                         false,
                         true
                 ),
-                new DataProcessingPurpose(
+                new PublicDataProcessingPurposeResponse(
                         "BIOMETRIC_AUTHENTICATION",
                         DataCategory.BIOMETRIC,
                         LegalBasis.CONSENT,
-                        "Autenticação biométrica",
+                        "Autenticação segura com dados biométricos (requer consentimento).",
                         "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
                         true,
                         true
                 )
         );
 
-        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+        when(dataProcessingCatalog.getPublicTreatments()).thenReturn(catalog);
 
         mockMvc.perform(get("/lgpd/processing-catalog"))
                 .andExpect(status().isOk())
@@ -476,19 +477,19 @@ class LgpdControllerWebMvcTest {
     @Test
     @WithMockUser(roles = "MANAGER")
     void shouldReturnProcessingCatalogForManager() throws Exception {
-        List<DataProcessingPurpose> catalog = List.of(
-                new DataProcessingPurpose(
+        List<PublicDataProcessingPurposeResponse> catalog = List.of(
+                new PublicDataProcessingPurposeResponse(
                         "EMPLOYEE_IDENTIFICATION",
                         DataCategory.IDENTIFICATION,
                         LegalBasis.CONTRACT_EXECUTION,
-                        "Identificação de colaboradores",
+                        "Gerenciamento da sua identificação para cumprimento do contrato de trabalho.",
                         "RETENTION_EMPLOYEE_CONTRACT",
                         false,
                         true
                 )
         );
 
-        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+        when(dataProcessingCatalog.getPublicTreatments()).thenReturn(catalog);
 
         mockMvc.perform(get("/lgpd/processing-catalog"))
                 .andExpect(status().isOk())
@@ -505,7 +506,7 @@ class LgpdControllerWebMvcTest {
     @Test
     @WithMockUser(roles = "PARTNER")
     void shouldAllowPartnerToAccessProcessingCatalog() throws Exception {
-        DataProcessingPurpose purpose = new DataProcessingPurpose(
+        PublicDataProcessingPurposeResponse purpose = new PublicDataProcessingPurposeResponse(
                 "TEST_PURPOSE",
                 DataCategory.IDENTIFICATION,
                 LegalBasis.CONSENT,
@@ -514,7 +515,7 @@ class LgpdControllerWebMvcTest {
                 false,
                 true
         );
-        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(List.of(purpose));
+        when(dataProcessingCatalog.getPublicTreatments()).thenReturn(List.of(purpose));
 
         mockMvc.perform(get("/lgpd/processing-catalog"))
                 .andExpect(status().isOk())

@@ -15,8 +15,8 @@ The validator runs on application startup via `@EventListener(ApplicationReadyEv
 1. **Checks if production profile is active** → if not, validation is skipped with debug log
 2. **Runs 7 mandatory validation checks** in sequence
 3. **Throws `IllegalStateException`** if any mandatory check fails
-4. **Logs warnings** for non-blocking issues (e.g., missing AWS credentials)
-5. **Logs success messages** for each validated component
+4. **Logs success messages** for each validated component
+5. **No application startup if validation fails**
 
 ```
 Application Startup
@@ -27,17 +27,17 @@ ProductionSecurityPropertiesValidator.validateProductionConfiguration()
     ↓
 if (!isProduction) return;  // Skip if not prod profile
     ↓
-validateCookieSecurity() → Cookie flags checked
+validateCookieSecurity() → Cookie security checked
 validateCORS() → Origins validated
 validateSwagger() → UI disabled check
 validateJwtSecret() → Secret length check
-validateAwsCredentials() → AWS setup (warns on missing)
-validateActuatorEndpoints() → Endpoints validated
+validateAwsCredentials() → AWS region + credentials checked
+validateActuatorEndpoints() → Sensitive endpoints blocked
 validateAntivirus() → Upload scanning check
     ↓
 Success: All validations passed → Application starts
 OR
-Failure: Validation failed → IllegalStateException thrown → Application stops
+Failure: Validation failed → IllegalStateException thrown → Application stops immediately
 ```
 
 ---
@@ -48,12 +48,13 @@ Failure: Validation failed → IllegalStateException thrown → Application stop
 
 **Mandatory Properties**:
 - `kronos.security.auth-cookie.secure` = `true`
-- `kronos.security.auth-cookie.http-only` = `true`
 
 **Rules**:
 - ✅ Cookies transmitted only via HTTPS (`secure=true`)
-- ✅ Cookies inaccessible to JavaScript (`http-only=true`)
-- ❌ Fails if either flag is `false` in production
+- ✅ HttpOnly flag **hardcoded** in `AuthCookieService.baseCookie()` (cannot be disabled)
+- ❌ Fails if `secure=false` in production
+
+**Note on HttpOnly**: The `HttpOnly` flag is automatically set by `AuthCookieService` and cannot be disabled via configuration. This ensures cookies are inaccessible to JavaScript regardless of application configuration.
 
 **Error Message**:
 ```
@@ -141,17 +142,43 @@ jwt.secret=this-is-a-very-secure-secret-with-32-characters
 ### 5. AWS Credentials (`validateAwsCredentials`)
 
 **Related Properties**:
-- `aws.access-key-id`
-- `aws.secret-access-key`
-- `aws.region`
+- `aws.region` (mandatory)
+- `aws.access-key-id` (optional if using IAM Role)
+- `aws.secret-access-key` (optional if using IAM Role)
 
-**Behavior**:
-- ⚠️ **Warning only** (does not fail validation)
-- Logs warning if access key or secret key is missing
-- Logs warning if region is not configured
-- Does not block application startup if AWS is unavailable
+**Validation Rules**:
 
-**Note**: S3 operations will fail at runtime if credentials are not configured, but application will start.
+#### Region (Always Required)
+- ✅ `aws.region` must be configured (e.g., `us-east-1`)
+- ❌ Fails if `aws.region` is missing or empty in production
+
+#### Credentials (Two Supported Modes)
+
+**Mode 1: Static Credentials** (explicit keys)
+- ✅ Both `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` must be provided together
+- ❌ Fails if only one is provided without the other
+- ✅ S3 and Rekognition operations work immediately with these keys
+
+**Mode 2: IAM Role** (recommended in containers)
+- ✅ Neither `AWS_ACCESS_KEY_ID` nor `AWS_SECRET_ACCESS_KEY` provided
+- ✅ Application uses EC2 instance profile, ECS task role, or Kubernetes service account (IRSA)
+- ❌ Fails if credentials are incomplete (only access key without secret, or vice versa)
+
+**Error Examples**:
+```
+# Fails: Missing region
+SECURITY ERROR: AWS region is not configured in production.
+
+# Fails: Incomplete credentials (only access key)
+SECURITY ERROR: AWS credentials are incomplete. Either provide both 
+aws.access-key-id and aws.secret-access-key, or use IAM Role (provide neither)
+
+# Passes: Static credentials
+✓ AWS credentials mode: Static credentials (access-key-id + secret-access-key)
+
+# Passes: IAM Role mode
+✓ AWS credentials mode: IAM Role (will use instance profile, ECS task role, or web identity)
+```
 
 ---
 
@@ -160,16 +187,22 @@ jwt.secret=this-is-a-very-secure-secret-with-32-characters
 **Mandatory Property**:
 - `management.endpoints.web.exposure.include` (comma-separated list)
 
-**Endpoints That Are Logged as Warnings**:
-- ⚠️ `env` - Exposes environment variables
-- ⚠️ `heapdump` - Allows memory dump downloads
-- ⚠️ `configprops` - Shows all configuration properties
-- ⚠️ `*` (wildcard) - Exposes all endpoints
+**Blocked Endpoints (Application Fails to Start)**:
+- ❌ `*` (wildcard) - Exposes all endpoints
+- ❌ `env` - Exposes environment variables (potential secrets leak)
+- ❌ `heapdump` - Allows memory dump downloads (sensitive data)
+- ❌ `beans` - Shows all Spring beans
+- ❌ `configprops` - Shows all configuration properties
+- ❌ `threaddump` - Allows thread dump downloads
+- ❌ `flyway` - Shows database migration history
+- ❌ `logfile` - Exposes application logs
+- ❌ `loggers` - Allows logger level modification
 
-**Safe Endpoints**:
+**Safe Endpoints** (explicitly permitted):
 - ✅ `health` - Application health status
 - ✅ `info` - Application metadata
 - ✅ `metrics` - Application metrics
+- ✅ `prometheus` - Prometheus metrics endpoint
 
 **Recommended Configuration**:
 ```yaml
@@ -178,6 +211,19 @@ management:
     web:
       exposure:
         include: health,info
+
+# OR with metrics:
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+```
+
+**Error Message**:
+```
+SECURITY ERROR: Sensitive Actuator endpoint 'env' is exposed in production. 
+Remove from management.endpoints.web.exposure.include
 ```
 
 ---
@@ -197,23 +243,52 @@ management:
 
 ## Environment Variables Reference
 
-| Property Name | Environment Variable | Description | Required | Default |
+### Critical Security Properties (Validation Fails Without These)
+
+| Property | Env Variable | Description | Required |
+|---|---|---|---|
+| `kronos.security.auth-cookie.secure` | `KRONOS_SECURITY_AUTH_COOKIE_SECURE` | Cookies transmitted only via HTTPS | ✅ Prod |
+| `frontend.allowed-origins` | `FRONTEND_ALLOWED_ORIGINS` | CORS domains (comma-separated HTTPS) | ✅ Prod |
+| `jwt.secret` | `JWT_SECRET` | JWT signing secret (minimum 32 chars) | ✅ Prod |
+| `springdoc.swagger-ui.enabled` | `SPRINGDOC_SWAGGER_UI_ENABLED` | Swagger UI must be disabled (`false`) | ✅ Prod |
+| `springdoc.api-docs.enabled` | `SPRINGDOC_API_DOCS_ENABLED` | API docs must be disabled (`false`) | ✅ Prod |
+| `management.endpoints.web.exposure.include` | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | Actuator endpoints (no sensitive ones) | ✅ Prod |
+| `kronos.security.upload.antivirus.enabled` | `KRONOS_SECURITY_UPLOAD_ANTIVIRUS_ENABLED` | Antivirus must be enabled (`true`) | ✅ Prod |
+| `aws.region` | `AWS_REGION` | AWS region (e.g., `us-east-1`) | ✅ Prod |
+
+### AWS Credentials (Conditional - Choose One Mode)
+
+| Property | Env Variable | Description | Mode |
+|---|---|---|---|
+| `aws.access-key-id` | `AWS_ACCESS_KEY_ID` | AWS IAM access key | Static Credentials |
+| `aws.secret-access-key` | `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | Static Credentials |
+| (none) | (none) | Use EC2/ECS/K8s IAM | IAM Role ✅ |
+
+### Cookie Configuration (HttpOnly is Hardcoded)
+
+| Property | Env Variable | Description | Default | Notes |
 |---|---|---|---|---|
-| `kronos.security.auth-cookie.secure` | `KRONOS_SECURITY_AUTH_COOKIE_SECURE` | HTTPS-only cookies | ✅ Prod | `false` |
-| `kronos.security.auth-cookie.http-only` | `KRONOS_SECURITY_AUTH_COOKIE_HTTP_ONLY` | JS-inaccessible cookies | ✅ Prod | `false` |
-| `kronos.security.auth-cookie.same-site` | `KRONOS_SECURITY_AUTH_COOKIE_SAME_SITE` | CSRF protection (Strict/Lax) | ⚠️ Recommended | `Lax` |
-| `kronos.security.auth-cookie.domain` | `KRONOS_SECURITY_AUTH_COOKIE_DOMAIN` | Cookie domain scope | ⚠️ Recommended | - |
-| `frontend.allowed-origins` | `FRONTEND_ALLOWED_ORIGINS` | CORS domains (comma-separated) | ✅ Prod | `*` |
-| `jwt.secret` | `JWT_SECRET` | JWT signing secret (min 32 chars) | ✅ Prod | - |
-| `jwt.expiration` | `JWT_EXPIRATION` | Access token TTL (seconds) | ⚠️ Recommended | `3600` |
-| `jwt.refresh-expiration` | `JWT_REFRESH_EXPIRATION` | Refresh token TTL (seconds) | ⚠️ Recommended | `604800` |
-| `springdoc.swagger-ui.enabled` | `SPRINGDOC_SWAGGER_UI_ENABLED` | Swagger UI visibility | ✅ Prod | `true` |
-| `springdoc.api-docs.enabled` | `SPRINGDOC_API_DOCS_ENABLED` | OpenAPI schema visibility | ✅ Prod | `true` |
-| `management.endpoints.web.exposure.include` | `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | Actuator endpoints (comma-separated) | ✅ Prod | - |
-| `kronos.security.upload.antivirus.enabled` | `KRONOS_SECURITY_UPLOAD_ANTIVIRUS_ENABLED` | Antivirus scanning | ✅ Prod | `false` |
-| `aws.access-key-id` | `AWS_ACCESS_KEY_ID` | AWS authentication | ⚠️ For S3 | - |
-| `aws.secret-access-key` | `AWS_SECRET_ACCESS_KEY` | AWS authentication | ⚠️ For S3 | - |
-| `aws.region` | `AWS_REGION` | AWS region (e.g., us-east-1) | ⚠️ For S3 | - |
+| `kronos.security.auth-cookie.same-site` | `KRONOS_SECURITY_AUTH_COOKIE_SAME_SITE` | CSRF protection | `Lax` | Use `Strict` for higher security |
+| `kronos.security.auth-cookie.domain` | `KRONOS_SECURITY_AUTH_COOKIE_DOMAIN` | Cookie domain scope | - | Set to `.yourdomain.com` |
+| (HttpOnly hardcoded) | - | JS-inaccessible cookies | `true` | **Cannot be disabled** |
+
+### JWT Configuration
+
+| Property | Env Variable | Description | Default |
+|---|---|---|---|
+| `jwt.expiration` | `JWT_EXPIRATION` | Access token TTL (seconds) | `3600` (1 hour) |
+| `jwt.refresh-expiration` | `JWT_REFRESH_EXPIRATION` | Refresh token TTL (seconds) | `604800` (7 days) |
+
+### S3 Buckets Configuration
+
+| Property | Env Variable | Description |
+|---|---|---|
+| `aws.s3.bucket-name` | `AWS_S3_BUCKET` | Main S3 bucket |
+| `aws.s3.bucket-name-docs` | `AWS_S3_BUCKET_NAME_DOCS` | Document uploads |
+| `aws.s3.bucket-documents` | `AWS_S3_BUCKET_DOCUMENTS` | General documents |
+| `aws.s3.bucket-employee-documents` | `AWS_S3_BUCKET_EMPLOYEE_DOCUMENTS` | Employee docs |
+| `aws.s3.bucket-payslip` | `AWS_S3_BUCKET_PAYSLIP` | Payslip storage |
+| `aws.s3.bucket-time-off` | `AWS_S3_BUCKET_TIME_OFF` | Time off documents |
 
 ---
 
@@ -221,16 +296,27 @@ management:
 
 ### Production Profile (`prod`)
 
-- **All 7 validations enforced** as mandatory checks
-- ❌ Application **fails to start** if any mandatory validation fails
-- Cookie security, CORS, Swagger, JWT, Antivirus are hard stops
-- AWS and Actuator endpoints trigger warnings only
+**All 7 validations are mandatory and block startup if they fail:**
+
+1. ❌ Cookie security validation fails if `secure=false`
+2. ❌ CORS validation fails if origins are invalid/missing
+3. ❌ Swagger validation fails if UI is enabled
+4. ❌ JWT validation fails if secret is missing or < 32 chars
+5. ❌ AWS validation fails if:
+   - `aws.region` is missing, or
+   - Credentials are incomplete (only one key), or
+   - Both keys are provided along with neither (ambiguous)
+6. ❌ Actuator validation fails if any sensitive endpoint is exposed
+7. ❌ Antivirus validation fails if scanning is disabled
+
+**Result**: Application **fails to start immediately** if any mandatory validation fails. No startup warnings.
 
 ### Non-Production Profiles (`dev`, `local`, `test`)
 
 - **All validations skipped** (no checks performed)
 - ✅ Application starts regardless of configuration
-- Allows flexible development/testing setup
+- Allows flexible development/testing setup without security constraints
+- Debug log only: `Production validation skipped: not running in prod profile`
 
 ---
 

@@ -40,12 +40,12 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
         when(environment.getProperty("frontend.allowed-origins", "*")).thenReturn("https://kronostechsolutions.com");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("aws.access-key-id")).thenReturn("test-key");
         when(environment.getProperty("aws.secret-access-key")).thenReturn("test-secret");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -69,7 +69,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("jwt.secret")).thenReturn(null);
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
 
@@ -80,7 +79,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("jwt.secret")).thenReturn("short");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
 
@@ -91,7 +89,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", true);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
@@ -101,10 +98,10 @@ public class ProductionSecurityPropertiesValidatorTest {
     void testApiDocsEnabled() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
@@ -117,7 +114,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,env");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
@@ -130,7 +126,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,heapdump");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
@@ -143,7 +138,6 @@ public class ProductionSecurityPropertiesValidatorTest {
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("*");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
@@ -153,10 +147,10 @@ public class ProductionSecurityPropertiesValidatorTest {
     void testAwsCredentialsAbsent() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -168,10 +162,10 @@ public class ProductionSecurityPropertiesValidatorTest {
     void testAntivirusDisabled() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
@@ -182,10 +176,10 @@ public class ProductionSecurityPropertiesValidatorTest {
     void testLivenessFalse() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -193,24 +187,151 @@ public class ProductionSecurityPropertiesValidatorTest {
     }
 
     @Test
-    @DisplayName("14. HTTP-Only cookie false fails")
-    void testHttpOnlyFalse() throws Exception {
+    @DisplayName("14. Actuator beans endpoint exposed fails")
+    void testActuatorBeansEndpoint() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,beans");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", false);
+        setField(validator, "swaggerEnabled", false);
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
     }
 
     @Test
-    @DisplayName("15. CORS wildcard fails")
+    @DisplayName("15. Actuator configprops endpoint exposed fails")
+    void testActuatorConfigpropsEndpoint() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,configprops");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "swaggerEnabled", false);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("16. Actuator threaddump endpoint exposed fails")
+    void testActuatorThreaddumpEndpoint() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,threaddump");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "swaggerEnabled", false);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("17. Actuator flyway endpoint exposed fails")
+    void testActuatorFlywayEndpoint() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,flyway");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "swaggerEnabled", false);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("18. Actuator logfile endpoint exposed fails")
+    void testActuatorLogfileEndpoint() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,logfile");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "swaggerEnabled", false);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("19. Actuator loggers endpoint exposed fails")
+    void testActuatorLoggersEndpoint() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info,loggers");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "swaggerEnabled", false);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("20. CORS wildcard fails")
     void testCorsWildcard() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "*");
         assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("21. AWS static credentials provided passes")
+    void testAwsStaticCredentialsProvided() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
+        when(environment.getProperty("aws.access-key-id")).thenReturn("AKIA123456789");
+        when(environment.getProperty("aws.secret-access-key")).thenReturn("wJalrXUtnFEMI/K7MDENG+41bIqoH8R5N7xwS9TX");
+
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
+        setField(validator, "swaggerEnabled", false);
+        setField(validator, "antivirusEnabled", true);
+
+        assertDoesNotThrow(() -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("22. AWS region missing fails")
+    void testAwsRegionMissing() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn(null);
+
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("23. AWS credentials incomplete (only access key) fails")
+    void testAwsCredentialsIncomplete() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("aws.access-key-id")).thenReturn("AKIA123456789");
+        when(environment.getProperty("aws.secret-access-key")).thenReturn(null);
+
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("24. AWS IAM Role mode (no credentials) passes")
+    void testAwsIamRoleMode() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
+        when(environment.getProperty("aws.access-key-id")).thenReturn(null);
+        when(environment.getProperty("aws.secret-access-key")).thenReturn(null);
+
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
+        setField(validator, "swaggerEnabled", false);
+        setField(validator, "antivirusEnabled", true);
+
+        assertDoesNotThrow(() -> validator.validateProductionConfiguration());
     }
 }

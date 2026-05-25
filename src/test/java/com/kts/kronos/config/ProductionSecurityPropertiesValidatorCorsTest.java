@@ -30,11 +30,11 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
     void testSingleHttpsOriginPasses() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -47,11 +47,11 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
     void testMultipleHttpsOriginsPasses() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com,https://www.kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -64,11 +64,11 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
     void testSubdomainHttpsOriginPasses() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://app.kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -81,11 +81,11 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
     void testHttpsOriginWithPortPasses() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com:8443");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
@@ -101,7 +101,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "");
         setField(validator, "swaggerEnabled", false);
 
@@ -116,7 +115,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "*");
         setField(validator, "swaggerEnabled", false);
 
@@ -131,7 +129,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "*.kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
 
@@ -146,7 +143,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "http://kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
 
@@ -161,7 +157,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
 
@@ -176,7 +171,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com/path");
         setField(validator, "swaggerEnabled", false);
 
@@ -191,7 +185,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com?x=1");
         setField(validator, "swaggerEnabled", false);
 
@@ -206,7 +199,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com#frag");
         setField(validator, "swaggerEnabled", false);
 
@@ -221,7 +213,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://krono tech.com");
         setField(validator, "swaggerEnabled", false);
 
@@ -236,7 +227,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com,http://localhost:3000");
         setField(validator, "swaggerEnabled", false);
 
@@ -251,7 +241,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com,,https://www.kronostechsolutions.com");
         setField(validator, "swaggerEnabled", false);
 
@@ -266,7 +255,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", "https://[invalid");
         setField(validator, "swaggerEnabled", false);
 
@@ -281,7 +269,6 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", false);
-        setField(validator, "cookieHttpOnly", false);
         setField(validator, "corsAllowedOrigins", "http://localhost:5173");
         setField(validator, "swaggerEnabled", true);
 
@@ -315,11 +302,11 @@ public class ProductionSecurityPropertiesValidatorCorsTest {
     void testMultipleOriginsWithWhitespacePasses() throws Exception {
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-with-32-characters");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
         when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
 
         ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
         setField(validator, "cookieSecure", true);
-        setField(validator, "cookieHttpOnly", true);
         setField(validator, "corsAllowedOrigins", " https://kronostechsolutions.com , https://www.kronostechsolutions.com ");
         setField(validator, "swaggerEnabled", false);
         setField(validator, "antivirusEnabled", true);
