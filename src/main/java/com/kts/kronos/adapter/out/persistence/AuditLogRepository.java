@@ -24,6 +24,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> 
             SELECT COUNT(a) FROM AuditLogEntity a
              WHERE a.timestamp < :cutoff
                AND a.riskLevel IN ('LGPD', 'SECURITY', 'INCIDENT')
+               AND a.minimizedAt IS NULL
             """)
     long countCriticalLogsBefore(@Param("cutoff") LocalDateTime cutoff);
 
@@ -31,20 +32,29 @@ public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> 
             SELECT COUNT(a) FROM AuditLogEntity a
              WHERE a.timestamp < :cutoff
                AND a.riskLevel NOT IN ('LGPD', 'SECURITY', 'INCIDENT')
+               AND a.minimizedAt IS NULL
             """)
     long countCommonLogsBefore(@Param("cutoff") LocalDateTime cutoff);
 
     @Query("""
-            SELECT a FROM AuditLogEntity a
+            SELECT COUNT(a) FROM AuditLogEntity a
              WHERE a.timestamp < :cutoff
-               AND a.riskLevel IN ('LGPD', 'SECURITY', 'INCIDENT')
+               AND a.minimizedAt IS NULL
             """)
-    List<AuditLogEntity> findCriticalLogsBefore(@Param("cutoff") LocalDateTime cutoff);
+    long countEligibleForMinimization(@Param("cutoff") LocalDateTime cutoff);
 
+    @Modifying
     @Query("""
-            SELECT a FROM AuditLogEntity a
-             WHERE a.timestamp < :cutoff
-               AND a.riskLevel NOT IN ('LGPD', 'SECURITY', 'INCIDENT')
+            UPDATE AuditLogEntity a
+            SET a.ipAddress = '[MINIMIZED]',
+                a.userAgent = '[MINIMIZED]',
+                a.details = '[MINIMIZED]',
+                a.minimizedAt = :minimizedAt
+            WHERE a.timestamp < :cutoff
+              AND a.minimizedAt IS NULL
             """)
-    List<AuditLogEntity> findCommonLogsBefore(@Param("cutoff") LocalDateTime cutoff);
+    int minimizeAuditLogsBefore(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("minimizedAt") LocalDateTime minimizedAt
+    );
 }
