@@ -1,12 +1,14 @@
 package com.kts.kronos.config;
 
-import com.kts.kronos.KronosApplication;
 import com.kts.kronos.adapter.in.web.exceptions.DelegatedAuthenticationEntryPoint;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * UserProvider must be available either as a real component or mocked. This test ensures
  * that the Spring context can load SecurityConfig with all its dependencies properly wired.
  */
-@SpringBootTest(classes = KronosApplication.class)
+@SpringBootTest(classes = SecurityTestApplication.class)
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "spring.mail.username=test@kronos.local",
@@ -65,6 +67,15 @@ class SecurityConfigDependencyRegressionTest {
 
     @MockitoBean
     private AuthCookieService authCookieService;
+
+    @MockitoBean
+    private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private CompanyUseCase companyUseCase;
+
+    @MockitoBean
+    private ObservabilityStatusUseCase observabilityStatusUseCase;
 
     /**
      * Test that SecurityConfig can be created with all dependencies available.

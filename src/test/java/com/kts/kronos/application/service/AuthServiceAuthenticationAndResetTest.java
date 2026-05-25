@@ -15,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.service.AuditRequestContextService;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -78,6 +79,8 @@ class AuthServiceAuthenticationAndResetTest {
     private BiometricProtectionService biometricProtectionService;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
 
     private UUID employeeId;
     private UUID userId;
@@ -88,6 +91,9 @@ class AuthServiceAuthenticationAndResetTest {
         employeeId = UUID.randomUUID();
         userId = UUID.randomUUID();
         activeUser = new User(userId, "alice", "hashed", Role.MANAGER, true, employeeId, 2L, null, null, null);
+        when(auditRequestContextService.extractContext()).thenReturn(
+            new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent", "UNKNOWN", false)
+        );
     }
 
     @Test
