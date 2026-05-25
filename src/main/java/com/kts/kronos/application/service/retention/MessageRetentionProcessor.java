@@ -6,6 +6,7 @@ import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -17,6 +18,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MessageRetentionProcessor implements RetentionDomainProcessor {
     private final MessageRepository messageRepository;
+
+    @Value("${kronos.lgpd.retention.allow-apply:false}")
+    private boolean allowApply;
 
     @Override
     public RetentionResourceType supports() {
@@ -76,6 +80,20 @@ public class MessageRetentionProcessor implements RetentionDomainProcessor {
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
+        if (!allowApply) {
+            log.warn(
+                    "event=message_retention_blocked reason=allow-apply-disabled policyCode={}",
+                    policy.policyCode()
+            );
+            return RetentionExecutionResult.blocked(
+                    executionId,
+                    policy.policyCode(),
+                    RetentionResourceType.MESSAGE,
+                    "APPLY",
+                    "Soft-delete blocked: kronos.lgpd.retention.allow-apply=false"
+            );
+        }
+
         var now = LocalDateTime.now(ZoneId.of("UTC"));
         int softDeleted = messageRepository.softDeleteExpiredMessages(cutoff, now, policy.policyCode());
         long preservedCount = messageRepository.countPreservedMessages(cutoff);
