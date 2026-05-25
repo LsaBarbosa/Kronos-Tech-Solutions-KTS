@@ -7,6 +7,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Arrays;
 
 @Component
@@ -15,13 +17,13 @@ public class ProductionSecurityPropertiesValidator {
     private final Environment environment;
     private final boolean isProduction;
 
-    @Value("${server.servlet.session.cookie.secure:false}")
+    @Value("${kronos.security.auth-cookie.secure:false}")
     private boolean cookieSecure;
 
-    @Value("${spring.security.cors.allowed-origins:*}")
+    @Value("${frontend.allowed-origins:*}")
     private String corsAllowedOrigins;
 
-    @Value("${server.servlet.session.cookie.http-only:false}")
+    @Value("${kronos.security.auth-cookie.http-only:false}")
     private boolean cookieHttpOnly;
 
     @Value("${springdoc.swagger-ui.enabled:true}")
@@ -29,6 +31,9 @@ public class ProductionSecurityPropertiesValidator {
 
     @Value("${spring.jpa.properties.hibernate.jdbc.batch_size:0}")
     private int hibernateBatchSize;
+
+    @Value("${kronos.security.upload.antivirus.enabled:false}")
+    private boolean antivirusEnabled;
 
     public ProductionSecurityPropertiesValidator(Environment environment) {
         this.environment = environment;
@@ -50,6 +55,7 @@ public class ProductionSecurityPropertiesValidator {
         validateJwtSecret();
         validateAwsCredentials();
         validateActuatorEndpoints();
+        validateAntivirus();
 
         log.info("Production security validation completed successfully");
     }
@@ -57,29 +63,108 @@ public class ProductionSecurityPropertiesValidator {
     private void validateCookieSecurity() {
         if (!cookieSecure) {
             var error = "SECURITY ERROR: Authentication cookies are not secure in production. " +
-                    "Set server.servlet.session.cookie.secure=true";
+                    "Set kronos.security.auth-cookie.secure=true";
             log.error(error);
             throw new IllegalStateException(error);
         }
 
         if (!cookieHttpOnly) {
-            var warning = "WARNING: Authentication cookies are not HTTP-only in production. " +
-                    "Set server.servlet.session.cookie.http-only=true recommended";
-            log.warn(warning);
+            var error = "SECURITY ERROR: Authentication cookies are not HTTP-only in production. " +
+                    "Set kronos.security.auth-cookie.http-only=true";
+            log.error(error);
+            throw new IllegalStateException(error);
         }
 
         log.info("✓ Cookie security validated");
     }
 
     private void validateCORS() {
-        if (corsAllowedOrigins != null && corsAllowedOrigins.contains("*")) {
-            var error = "SECURITY ERROR: CORS is configured with wildcard (*) in production. " +
-                    "Set spring.security.cors.allowed-origins to specific domains";
+        if (!isProduction) {
+            log.info("✓ CORS validation skipped: not running in prod profile");
+            return;
+        }
+
+        if (corsAllowedOrigins == null || corsAllowedOrigins.trim().isEmpty()) {
+            var error = "SECURITY ERROR: frontend.allowed-origins is empty in production. " +
+                    "Set it to specific HTTPS domains";
             log.error(error);
             throw new IllegalStateException(error);
         }
 
+        String[] origins = corsAllowedOrigins.split(",");
+        for (String origin : origins) {
+            origin = origin.trim();
+
+            if (origin.isEmpty()) {
+                var error = "SECURITY ERROR: empty origin found in frontend.allowed-origins. " +
+                        "Remove empty values from the list";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (origin.contains("*")) {
+                var error = "SECURITY ERROR: wildcard (*) found in CORS origin: " + origin + ". " +
+                        "Use specific HTTPS domains only";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (origin.contains(" ")) {
+                var error = "SECURITY ERROR: origin contains spaces: " + origin + ". " +
+                        "Remove all spaces from CORS origins";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (!origin.startsWith("https://")) {
+                var error = "SECURITY ERROR: origin does not use HTTPS: " + origin + ". " +
+                        "All production CORS origins must use HTTPS";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            validateOriginFormat(origin);
+        }
+
         log.info("✓ CORS configuration validated");
+    }
+
+    private void validateOriginFormat(String origin) {
+        try {
+            URL url = new URL(origin);
+
+            if (url.getPath() != null && !url.getPath().isEmpty() && !url.getPath().equals("/")) {
+                var error = "SECURITY ERROR: CORS origin contains path: " + origin + ". " +
+                        "Origins must be scheme://host[:port] only, without path";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (url.getQuery() != null && !url.getQuery().isEmpty()) {
+                var error = "SECURITY ERROR: CORS origin contains query string: " + origin + ". " +
+                        "Origins must not contain query parameters";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (url.getRef() != null && !url.getRef().isEmpty()) {
+                var error = "SECURITY ERROR: CORS origin contains fragment: " + origin + ". " +
+                        "Origins must not contain fragments";
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+
+            if (url.getHost() == null || url.getHost().isEmpty()) {
+                var error = "SECURITY ERROR: CORS origin has no valid host: " + origin;
+                log.error(error);
+                throw new IllegalStateException(error);
+            }
+        } catch (MalformedURLException e) {
+            var error = "SECURITY ERROR: malformed CORS origin: " + origin + ". " +
+                    "Must be a valid URL in format https://host[:port]";
+            log.error(error);
+            throw new IllegalStateException(error, e);
+        }
     }
 
     private void validateSwagger() {
@@ -94,10 +179,10 @@ public class ProductionSecurityPropertiesValidator {
     }
 
     private void validateJwtSecret() {
-        String jwtSecret = environment.getProperty("app.jwt.secret");
+        String jwtSecret = environment.getProperty("jwt.secret");
         if (jwtSecret == null || jwtSecret.length() < 32) {
             var error = "SECURITY ERROR: JWT secret is not configured or too short in production. " +
-                    "Set app.jwt.secret to a string with at least 32 characters";
+                    "Set jwt.secret to a string with at least 32 characters";
             log.error(error);
             throw new IllegalStateException(error);
         }
@@ -106,8 +191,8 @@ public class ProductionSecurityPropertiesValidator {
     }
 
     private void validateAwsCredentials() {
-        String awsAccessKey = environment.getProperty("aws.accessKeyId");
-        String awsSecretKey = environment.getProperty("aws.secretAccessKey");
+        String awsAccessKey = environment.getProperty("aws.access-key-id");
+        String awsSecretKey = environment.getProperty("aws.secret-access-key");
         String awsRegion = environment.getProperty("aws.region");
 
         if (awsAccessKey == null || awsAccessKey.isEmpty()) {
@@ -144,5 +229,16 @@ public class ProductionSecurityPropertiesValidator {
         }
 
         log.info("✓ Actuator endpoints validation completed");
+    }
+
+    private void validateAntivirus() {
+        if (!antivirusEnabled) {
+            var error = "SECURITY ERROR: Antivirus protection is disabled in production. " +
+                    "Set kronos.security.upload.antivirus.enabled=true";
+            log.error(error);
+            throw new IllegalStateException(error);
+        }
+
+        log.info("✓ Antivirus protection enabled");
     }
 }
