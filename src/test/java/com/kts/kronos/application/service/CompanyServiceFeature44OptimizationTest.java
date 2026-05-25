@@ -15,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
+import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
@@ -62,6 +63,8 @@ class CompanyServiceFeature44OptimizationTest {
     private UserUseCase userUseCase;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("createCompany: cria empresa com endereço consultado")

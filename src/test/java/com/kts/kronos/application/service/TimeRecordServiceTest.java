@@ -12,6 +12,7 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
@@ -62,6 +63,7 @@ class TimeRecordServiceTest {
     @Mock private DomainAuthorizationService domainAuthorizationService;
     @Mock private BiometricProtectionService biometricProtectionService;
     @Mock private LegalConsentProvider legalConsentProvider;
+    @Mock private KronosMetrics kronosMetrics;
 
     private UUID employeeId;
     private UUID companyId;

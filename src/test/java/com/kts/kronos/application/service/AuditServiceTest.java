@@ -54,7 +54,7 @@ class AuditServiceTest {
         assertNotNull(capturedLog);
         assertNotNull(capturedLog.details());
         assertFalse(capturedLog.details().contains("12345678901"), "CPF bruto não deve estar no log");
-        assertTrue(capturedLog.details().contains("***.456.789-**"), "CPF deve estar mascarado");
+        assertTrue(capturedLog.details().contains("123.***.901"), "CPF deve estar mascarado");
     }
 
     @Test
@@ -280,7 +280,7 @@ class AuditServiceTest {
         AuditLog capturedLog = captor.getValue();
         assertNotNull(capturedLog);
         assertFalse(capturedLog.details().contains("12345678901"));
-        assertTrue(capturedLog.details().contains("***.456.789-**"));
+        assertTrue(capturedLog.details().contains("123.***.901"));
     }
 
     @Test
@@ -427,7 +427,7 @@ class AuditServiceTest {
         AuditLog capturedLog = captor.getValue();
         assertNotNull(capturedLog);
         assertFalse(capturedLog.details().contains("12345678901"), "CPF bruto nao deve estar no log");
-        assertTrue(capturedLog.details().contains("***.456.789-**"), "CPF deve estar mascarado");
+        assertTrue(capturedLog.details().contains("123.***.901"), "CPF deve estar mascarado");
         assertTrue(capturedLog.details().contains("ipSource"), "Details deve conter ipSource");
     }
 }

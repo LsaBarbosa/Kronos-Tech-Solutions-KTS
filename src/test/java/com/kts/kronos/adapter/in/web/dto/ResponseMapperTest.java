@@ -177,7 +177,7 @@ class ResponseMapperTest {
 
         assertEquals(employee.employeeId(), response.employeeId());
         assertEquals(employee.fullName(), response.fullName());
-        assertEquals("***.456.789-**", response.maskedCpf());
+        assertEquals("123.***.909", response.maskedCpf());
         assertEquals("Kronos Tech", response.companyName());
         assertEquals("MANAGER", response.role());
         assertEquals(employee.scheduleType(), response.scheduleType());

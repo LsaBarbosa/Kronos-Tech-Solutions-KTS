@@ -23,7 +23,7 @@ public final class SensitiveDataMasker {
         if (digits.length() != 11) {
             return "***";
         }
-        return "***." + digits.substring(3, 6) + "." + digits.substring(6, 9) + "-**";
+        return digits.substring(0, 3) + "." + "***" + "." + digits.substring(8) ;
     }
 
     public static String maskEmail(String email) {

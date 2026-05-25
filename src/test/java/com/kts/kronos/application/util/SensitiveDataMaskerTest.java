@@ -11,7 +11,7 @@ class SensitiveDataMaskerTest {
     void maskCpf_shouldMaskValidCpf() {
         String cpf = "12345678901";
         String masked = SensitiveDataMasker.maskCpf(cpf);
-        assertEquals("***.456.789-**", masked);
+        assertEquals("123.***.901", masked);
         assertFalse(masked.contains("12345678901"));
     }
 
@@ -19,7 +19,7 @@ class SensitiveDataMaskerTest {
     void maskCpf_shouldHandleFormattedCpf() {
         String cpf = "123.456.789-01";
         String masked = SensitiveDataMasker.maskCpf(cpf);
-        assertEquals("***.456.789-**", masked);
+        assertEquals("123.***.901", masked);
     }
 
     @Test
@@ -41,8 +41,8 @@ class SensitiveDataMaskerTest {
 
         assertNotEquals(cpf, masked);
         assertFalse(masked.contains(cpf));
-        assertTrue(masked.startsWith("***."));
-        assertTrue(masked.endsWith("-**"));
+        assertTrue(masked.startsWith("123."));
+        assertTrue(masked.endsWith("901"));
     }
 
     @Test
@@ -136,7 +136,7 @@ class SensitiveDataMaskerTest {
     void shouldSanitizeDetailsMaskingCpf() {
         String details = "Employee CPF 12345678901 was verified";
         String sanitized = SensitiveDataMasker.sanitizeDetails(details);
-        assertTrue(sanitized.contains("***.456.789-**"));
+        assertTrue(sanitized.contains("123.***.901"));
         assertFalse(sanitized.contains("12345678901"));
     }
 
