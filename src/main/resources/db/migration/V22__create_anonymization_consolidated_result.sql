@@ -29,25 +29,5 @@ CREATE INDEX idx_anonymization_result_request_id ON tb_anonymization_consolidate
 -- Create index for lookups by employee_id and company_id
 CREATE INDEX idx_anonymization_result_employee_company ON tb_anonymization_consolidated_result(employee_id, company_id);
 
--- Log the migration
-INSERT INTO tb_audit_log (
-    audit_log_id,
-    action,
-    resource_type,
-    resource_id,
-    severity,
-    details,
-    ip_address,
-    user_agent,
-    created_at
-) VALUES (
-    gen_random_uuid(),
-    'MIGRATION_APPLIED',
-    'ANONYMIZATION_CONSOLIDATED_RESULT',
-    NULL,
-    'INFO',
-    '{"migration": "V22__create_anonymization_consolidated_result", "description": "Created table for persisting anonymization consolidated results"}',
-    '0.0.0.0',
-    'Migration',
-    now()
-);
+-- Note: Audit logging is optional for migrations
+-- The tb_audit_logs table may not have all expected columns at this point

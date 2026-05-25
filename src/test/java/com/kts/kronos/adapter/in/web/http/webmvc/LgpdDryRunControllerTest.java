@@ -3,8 +3,10 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
+import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.application.service.LgpdRetentionDryRunService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,12 @@ class LgpdDryRunControllerTest {
 
     @MockitoBean
     private ClientIpResolver clientIpResolver;
+
+    @MockitoBean
+    private DataProcessingCatalog dataProcessingCatalog;
+
+    @MockitoBean
+    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
 
     @TestConfiguration
     @EnableMethodSecurity
