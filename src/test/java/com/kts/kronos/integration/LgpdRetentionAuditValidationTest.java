@@ -19,8 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -39,11 +38,22 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@DataJpaTest
 @ActiveProfiles("test")
 @Transactional
-@Import(LgpdRetentionAuditValidationTest.AuditValidationTestConfiguration.class)
+@Import({
+    com.kts.kronos.application.service.retention.RetentionPolicyExecutor.class,
+    com.kts.kronos.application.legal.RetentionPolicyCatalog.class,
+    com.kts.kronos.application.service.AuditService.class,
+    com.kts.kronos.adapter.out.persistence.impl.AuditLogProviderImpl.class,
+    com.kts.kronos.adapter.out.persistence.impl.RetentionExecutionLogProviderImpl.class,
+    com.kts.kronos.adapter.out.persistence.mapper.RetentionExecutionLogMapper.class,
+    com.kts.kronos.application.service.retention.DocumentRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.MessageRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.PasswordResetTokenRetentionProcessor.class,
+    com.kts.kronos.application.service.retention.AuditLogRetentionProcessor.class,
+    LgpdRetentionAuditValidationTest.AuditValidationTestConfiguration.class
+})
 @DisplayName("LGPD Retention Audit Validation Tests")
 class LgpdRetentionAuditValidationTest {
 
@@ -362,7 +372,7 @@ class LgpdRetentionAuditValidationTest {
         UUID employeeId = UUID.randomUUID();
         LocalDateTime expiredDate = LocalDateTime.now(ZoneId.of("UTC")).minusDays(10);
 
-        String tokenValue = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP1THsR8U";
+        String tokenValue = "test-token-" + System.nanoTime();
         PasswordResetTokenEntity token = PasswordResetTokenEntity.builder()
                 .token(tokenValue)
                 .userId(employeeId)
@@ -402,23 +412,13 @@ class LgpdRetentionAuditValidationTest {
     @TestConfiguration
     static class AuditValidationTestConfiguration {
         @Bean
-        public PasswordResetTokenRepository passwordResetTokenRepository() {
-            return Mockito.mock(PasswordResetTokenRepository.class);
+        public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
+            return new com.fasterxml.jackson.databind.ObjectMapper();
         }
 
         @Bean
-        public LegalConsentRepository legalConsentRepository() {
-            return Mockito.mock(LegalConsentRepository.class);
-        }
-
-        @Bean
-        public AuditLogRepository auditLogRepository() {
-            return Mockito.mock(AuditLogRepository.class);
-        }
-
-        @Bean
-        public CompanyRepository companyRepository() {
-            return Mockito.mock(CompanyRepository.class);
+        public com.kts.kronos.application.port.out.provider.BucketStorageProvider bucketStorageProvider() {
+            return Mockito.mock(com.kts.kronos.application.port.out.provider.BucketStorageProvider.class);
         }
 
         @Bean
