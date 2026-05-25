@@ -29,7 +29,7 @@ class EmployeeResponseTest {
 
         assertNotEquals(employee.cpf(), response.maskedCpf());
         assertFalse(response.maskedCpf().contains(employee.cpf()));
-        assertEquals("***.456.789-**", response.maskedCpf());
+        assertEquals("123.***.901", response.maskedCpf());
     }
 
     @Test

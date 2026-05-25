@@ -10,6 +10,8 @@ import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
+import com.kts.kronos.application.service.AuditRequestContextService;
+import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -19,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,6 +42,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AuthServiceRecoverPasswordTest {
 
     private static final String SAFE_FRONTEND_URL = "https://frontend.safe";
@@ -65,6 +70,10 @@ class AuthServiceRecoverPasswordTest {
     private DocumentProvider documentProvider;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     private UUID employeeId;
     private UUID userId;
@@ -105,6 +114,9 @@ class AuthServiceRecoverPasswordTest {
         user = new User(userId, "user.login", "passwordHash", Role.PARTNER, true, employeeId);
 
         ReflectionTestUtils.setField(authService, "defaultFrontendBaseUrl", SAFE_FRONTEND_URL);
+        when(auditRequestContextService.extractContext()).thenReturn(
+            new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent", "UNKNOWN", false)
+        );
     }
 
     @Test
