@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.geolocation.GeolocationResolveRequest;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.GeolocationProvider;
+import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.domain.model.Address;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,9 @@ class GeolocationServiceTest {
 
     @Mock
     private GeolocationProvider geolocationProvider;
+
+    @Mock
+    private KronosMetrics kronosMetrics;
 
     @Test
     @DisplayName("resolve: compõe endereço via ViaCEP e delega geocodificação")

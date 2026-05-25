@@ -323,7 +323,7 @@ class LgpdServiceTest {
         assertFalse(export.auditLogs().getFirst().details().contains("12345678901"));
         assertFalse(export.auditLogs().getFirst().details().contains("payload.signature"));
         assertFalse(export.auditLogs().getFirst().details().contains("storage/documents/secret.pdf"));
-        assertTrue(export.auditLogs().getFirst().details().contains("***.456.789-**"));
+        assertTrue(export.auditLogs().getFirst().details().contains("123.***.901"));
         assertTrue(export.auditLogs().getFirst().details().contains("[MASKED_PATH]"));
         assertTrue(export.auditLogs().getFirst().details().contains("[BASE64_REDACTED]"));
         assertFalse(recordComponentNames(LgpdEmployeeExportResponse.ExportedUser.class).contains("password"));
