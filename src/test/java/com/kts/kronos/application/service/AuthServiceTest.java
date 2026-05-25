@@ -15,11 +15,13 @@ import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.service.AuditRequestContextService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,6 +74,15 @@ class AuthServiceTest {
     private BiometricProtectionService biometricProtectionService;
     @Mock
     private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
+
+    @BeforeEach
+    void setup() {
+        when(auditRequestContextService.extractContext()).thenReturn(
+            new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent", "UNKNOWN", false)
+        );
+    }
 
     @Test
     @DisplayName("login: deve autenticar usuario e gerar JWT com aceite atual")

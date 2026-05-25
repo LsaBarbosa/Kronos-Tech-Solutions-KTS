@@ -6,6 +6,8 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import org.junit.jupiter.api.Test;
@@ -57,6 +59,12 @@ class UserEnumerationExposureIntegrationTest {
 
     @MockitoBean
     private TokenBlacklistProvider tokenBlacklistProvider;
+
+    @MockitoBean
+    private UserProvider userProvider;
+
+    @MockitoBean
+    private ObservabilityStatusUseCase observabilityStatusUseCase;
 
     @Test
     void shouldBlockPublicCnpjEnumerationEndpoint() throws Exception {
