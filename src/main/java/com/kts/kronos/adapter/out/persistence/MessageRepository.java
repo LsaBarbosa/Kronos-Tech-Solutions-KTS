@@ -23,6 +23,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
         SELECT m FROM MessageEntity m
         WHERE m.companyId = :companyId
         AND (m.employeeId = :employeeId OR m.recipientEmployeeId = :employeeId)
+        AND m.deletedAt IS NULL
         ORDER BY m.createdAt DESC
     """)
     List<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
@@ -34,6 +35,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
         SELECT m FROM MessageEntity m
         WHERE m.companyId = :companyId
         AND (m.employeeId = :employeeId OR m.recipientEmployeeId = :employeeId)
+        AND m.deletedAt IS NULL
         ORDER BY m.createdAt DESC
     """)
     Page<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
