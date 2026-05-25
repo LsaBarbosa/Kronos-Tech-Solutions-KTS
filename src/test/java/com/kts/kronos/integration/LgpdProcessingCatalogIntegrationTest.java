@@ -23,9 +23,16 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 
 import java.util.List;
 
+import org.springframework.http.MediaType;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.mockito.Mockito.when;
 
 @WebMvcTest(LgpdController.class)
@@ -187,6 +194,132 @@ class LgpdProcessingCatalogIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$[0].active").value(true));
+    }
+
+    @Test
+    @DisplayName("Processing catalog should return valid DTO structure with no null fields")
+    @WithMockUser(username = "cto-user", roles = "CTO")
+    void processingCatalogDtoStructureIsValid() throws Exception {
+        List<DataProcessingPurpose> catalog = createSampleCatalog();
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].code").exists())
+                .andExpect(jsonPath("$[0].code").isNotEmpty())
+                .andExpect(jsonPath("$[0].dataCategory").exists())
+                .andExpect(jsonPath("$[0].legalBasis").exists())
+                .andExpect(jsonPath("$[0].purpose").exists())
+                .andExpect(jsonPath("$[0].purpose").isNotEmpty())
+                .andExpect(jsonPath("$[0].retentionPolicyCode").exists())
+                .andExpect(jsonPath("$[0].retentionPolicyCode").isNotEmpty())
+                .andExpect(jsonPath("$[0].sensitive").exists())
+                .andExpect(jsonPath("$[0].active").exists());
+    }
+
+    @Test
+    @DisplayName("Processing catalog should handle empty catalog gracefully")
+    @WithMockUser(username = "cto-user", roles = "CTO")
+    void processingCatalogHandlesEmptyList() throws Exception {
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(List.of());
+
+        mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("Processing catalog should correctly identify all sensitive items")
+    @WithMockUser(username = "manager-user", roles = "MANAGER")
+    void processingCatalogIdentifiesAllSensitiveItems() throws Exception {
+        List<DataProcessingPurpose> catalogWithMultipleSensitive = List.of(
+                new DataProcessingPurpose(
+                        "BIOMETRIC_DATA",
+                        DataCategory.BIOMETRIC,
+                        LegalBasis.CONSENT,
+                        "Biometric authentication",
+                        "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
+                        true,
+                        true
+                ),
+                new DataProcessingPurpose(
+                        "GEOLOCATION_DATA",
+                        DataCategory.GEOLOCATION,
+                        LegalBasis.LEGAL_OBLIGATION,
+                        "Time record geolocation",
+                        "RETENTION_TIME_RECORD",
+                        true,
+                        true
+                ),
+                new DataProcessingPurpose(
+                        "EMPLOYEE_ID",
+                        DataCategory.IDENTIFICATION,
+                        LegalBasis.CONTRACT_EXECUTION,
+                        "Employee identification",
+                        "RETENTION_EMPLOYEE_CONTRACT",
+                        false,
+                        true
+                )
+        );
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalogWithMultipleSensitive);
+
+        mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].sensitive").value(true))
+                .andExpect(jsonPath("$[1].sensitive").value(true))
+                .andExpect(jsonPath("$[2].sensitive").value(false));
+    }
+
+    @Test
+    @DisplayName("Processing catalog should maintain data consistency across calls")
+    @WithMockUser(username = "cto-user", roles = "CTO")
+    void processingCatalogMaintainsConsistency() throws Exception {
+        List<DataProcessingPurpose> catalog = createSampleCatalog();
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        // First call
+        String firstResponse = mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Second call should return same data
+        String secondResponse = mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertEquals(firstResponse, secondResponse);
+    }
+
+    @Test
+    @DisplayName("Processing catalog response should include proper content type")
+    @WithMockUser(username = "manager-user", roles = "MANAGER")
+    void processingCatalogResponseContentType() throws Exception {
+        List<DataProcessingPurpose> catalog = createSampleCatalog();
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @DisplayName("Processing catalog should have consistent field values across items")
+    @WithMockUser(username = "cto-user", roles = "CTO")
+    void processingCatalogFieldConsistency() throws Exception {
+        List<DataProcessingPurpose> catalog = createSampleCatalog();
+        when(dataProcessingCatalog.getActiveTreatments()).thenReturn(catalog);
+
+        mockMvc.perform(get(PROCESSING_CATALOG_ENDPOINT))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].code", containsInAnyOrder("EMPLOYEE_IDENTIFICATION", "BIOMETRIC_AUTHENTICATION")))
+                .andExpect(jsonPath("$[*].active", everyItem(is(true))));
     }
 
     private List<DataProcessingPurpose> createSampleCatalog() {
