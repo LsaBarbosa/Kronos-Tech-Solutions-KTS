@@ -24,6 +24,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * DEPRECATED: Use RetentionPolicyExecutor directly.
+ * This service is an orchestrator for retention APPLY mode using RetentionDomainProcessors.
+ * For backward compatibility, this service is maintained but marked for removal.
+ */
+@Deprecated(since = "2026-05-25", forRemoval = true)
 @Service
 @RequiredArgsConstructor
 @Slf4j
