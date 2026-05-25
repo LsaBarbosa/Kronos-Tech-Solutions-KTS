@@ -129,31 +129,62 @@ A aplicação valida automaticamente cada CORS origin:
 
 ---
 
-## 5. AWS S3
+## 5. AWS Credentials
 
-### Obrigatório (Production)
+### Modo de Autenticação
 
+A aplicação suporta **dois modos** de autenticação AWS:
+
+#### 1. Static Credentials (explícitas)
 ```env
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_S3_BUCKET=kronos-documents-prod
 ```
 
-### Recomendado
+**Use quando:** Variáveis de ambiente personalizadas ou ambientes não-containerizados.
 
-- [ ] Usar IAM Role em EC2/ECS (não keys hardcoded)
+#### 2. IAM Role (recomendado em containers)
+```env
+AWS_REGION=us-east-1
+# Não defina AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY
+# A aplicação usará EC2 instance profile, ECS task role ou web identity token
+```
+
+**Use quando:** EC2 instance profiles, ECS task roles, Kubernetes service accounts (IRSA).
+
+### ⚠️ Validação em Produção
+
+- `aws.region` é **sempre obrigatório**
+- Ou forneça **ambos** `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY`, ou forneça **nenhum** (IAM Role)
+- Credenciais incompletas (ex: apenas access key sem secret) bloqueiam a inicialização
+
+### AWS S3
+
+```env
+AWS_S3_BUCKET=kronos-documents-prod
+AWS_S3_BUCKET_NAME_DOCS=kronos-docs-prod
+AWS_S3_BUCKET_DOCUMENTS=kronos-docs-general-prod
+AWS_S3_BUCKET_EMPLOYEE_DOCUMENTS=kronos-docs-employee-prod
+```
+
+### Recomendações de Segurança
+
 - [ ] Encryption at rest: `AES256`
 - [ ] Versioning habilitado
 - [ ] Logging habilitado
 - [ ] Lifecycle policy para arquivos antigos
 - [ ] MFA Delete habilitado
+- [ ] Block Public Access habilitado
+- [ ] IAM policy restrita (principle of least privilege)
 
 ### Checklist
 
-- [ ] AWS credentials configuradas via variáveis de ambiente
-- [ ] Bucket name configurado
-- [ ] Region configurado
+- [ ] Region configurado (AWS_REGION)
+- [ ] **Uma das duas opções:**
+  - [ ] Static: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+  - [ ] IAM Role: sem credenciais (instance profile/ECS/IRSA)
+- [ ] S3 bucket names configurados
 - [ ] Permissions restringidas (não public read)
 
 ---
@@ -163,19 +194,33 @@ AWS_S3_BUCKET=kronos-documents-prod
 ### Obrigatório (Production)
 
 ```env
-AWS_REKOGNITION_REGION=us-east-1
 BIOMETRIC_LIVENESS_REQUIRED=false
+# AWS_REGION já configurado acima (seção 5)
 ```
 
-### ⚠️ Importante
+### ⚠️ Importante: Liveness
 
 **Liveness permanece `false` por decisão de custo.** Não altere para `true` sem aprovação legal/financeira.
 
+### Autenticação
+
+Rekognition usa **as mesmas credenciais AWS** que S3:
+- Static credentials (if provided), ou
+- IAM Role (if no credentials provided)
+
+Certifique-se que o IAM Role ou usuário tenha permissões para:
+- `rekognition:IndexFaces`
+- `rekognition:SearchFacesByImage`
+- `rekognition:DeleteFaces`
+- `rekognition:CreateCollection`
+- `rekognition:ListFaces`
+
 ### Checklist
 
-- [ ] Region configurado
-- [ ] IAM permissions para Rekognition
+- [ ] AWS_REGION configurado (requerido)
+- [ ] AWS credentials configurados (static ou IAM)
 - [ ] Liveness explicitamente desabilitado (`false`)
+- [ ] IAM policy permite Rekognition
 - [ ] Nenhuma tentativa de ativar liveness
 
 ---

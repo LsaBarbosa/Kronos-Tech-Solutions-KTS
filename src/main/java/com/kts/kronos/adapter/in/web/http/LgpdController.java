@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.DataProcessingPurposeResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
@@ -168,11 +169,8 @@ public class LgpdController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(LGPD_PROCESSING_CATALOG)
-    public ResponseEntity<List<DataProcessingPurposeResponse>> getProcessingCatalog() {
-        return ResponseEntity.ok(dataProcessingCatalog.getActiveTreatments()
-                .stream()
-                .map(DataProcessingPurposeResponse::fromDomain)
-                .toList());
+    public ResponseEntity<List<PublicDataProcessingPurposeResponse>> getProcessingCatalog() {
+        return ResponseEntity.ok(dataProcessingCatalog.getPublicTreatments());
     }
 
     @PreAuthorize("hasRole('CTO')")
