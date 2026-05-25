@@ -1,12 +1,12 @@
 package com.kts.kronos.application.service.retention;
 
 import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
-import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -18,6 +18,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
     private final AuditLogRepository auditLogRepository;
+
+    @Value("${kronos.lgpd.retention.allow-apply:false}")
+    private boolean allowApply;
 
     @Override
     public RetentionResourceType supports() {
@@ -54,16 +57,12 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
     }
 
     private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
-        long countCritical = auditLogRepository.countCriticalLogsBefore(cutoff);
-        long countCommon = auditLogRepository.countCommonLogsBefore(cutoff);
-        long totalCount = countCritical + countCommon;
+        long eligible = auditLogRepository.countEligibleForMinimization(cutoff);
 
         log.info(
-                "event=audit_log_retention_dry_run policyCode={} totalCount={} criticalLogs={} commonLogs={}",
+                "event=audit_log_retention_dry_run policyCode={} eligible={} action=MINIMIZE",
                 policy.policyCode(),
-                totalCount,
-                countCritical,
-                countCommon
+                eligible
         );
 
         return RetentionExecutionResult.success(
@@ -71,49 +70,36 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.AUDIT_LOG,
                 "DRY_RUN",
-                totalCount,
+                eligible,
                 0,
                 0
         );
     }
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
-        var criticalLogs = auditLogRepository.findCriticalLogsBefore(cutoff);
-        var commonLogs = auditLogRepository.findCommonLogsBefore(cutoff);
-
-        long sanitized = 0;
-
-        for (var auditLog : criticalLogs) {
-            if (auditLog.getDetails() != null && !auditLog.getDetails().isBlank()) {
-                var sanitized_details = SensitiveDataMasker.sanitizeDetails(auditLog.getDetails());
-                auditLog.setDetails(sanitized_details);
-                auditLogRepository.save(auditLog);
-                sanitized++;
-                log.debug("event=critical_audit_log_sanitized auditLogId={} action={} riskLevel={}",
-                        auditLog.getId(), auditLog.getAction(), auditLog.getRiskLevel());
-            }
+        if (!allowApply) {
+            log.warn(
+                    "event=audit_log_retention_blocked reason=allow-apply-disabled policyCode={}",
+                    policy.policyCode()
+            );
+            return RetentionExecutionResult.blocked(
+                    executionId,
+                    policy.policyCode(),
+                    RetentionResourceType.AUDIT_LOG,
+                    "APPLY",
+                    "Minimization blocked: kronos.lgpd.retention.allow-apply=false"
+            );
         }
 
-        for (var auditLog : commonLogs) {
-            if (auditLog.getDetails() != null && !auditLog.getDetails().isBlank()) {
-                var sanitized_details = SensitiveDataMasker.sanitizeDetails(auditLog.getDetails());
-                auditLog.setDetails(sanitized_details);
-            }
-            auditLog.setUserId(null);
-            auditLog.setIpAddress(null);
-            auditLog.setUserAgent(null);
-            auditLogRepository.save(auditLog);
-            sanitized++;
-            log.debug("event=common_audit_log_anonymized auditLogId={} action={} riskLevel={}",
-                    auditLog.getId(), auditLog.getAction(), auditLog.getRiskLevel());
-        }
+        long eligible = auditLogRepository.countEligibleForMinimization(cutoff);
+        var now = LocalDateTime.now(ZoneId.of("UTC"));
+        int minimized = auditLogRepository.minimizeAuditLogsBefore(cutoff, now);
 
         log.info(
-                "event=audit_log_retention_apply policyCode={} sanitized={} critical={} common={}",
+                "event=audit_log_retention_apply policyCode={} eligible={} minimized={} action=MINIMIZE",
                 policy.policyCode(),
-                sanitized,
-                criticalLogs.size(),
-                commonLogs.size()
+                eligible,
+                minimized
         );
 
         return RetentionExecutionResult.success(
@@ -121,8 +107,8 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.AUDIT_LOG,
                 "APPLY",
-                criticalLogs.size() + commonLogs.size(),
-                sanitized,
+                eligible,
+                minimized,
                 0
         );
     }
