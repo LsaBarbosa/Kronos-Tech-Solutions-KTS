@@ -82,6 +82,10 @@ public class AuditService {
         }
     }
 
+    public void registerRetentionAudit(AuditAction action, String resourceType, String details) {
+        register(action, null, null, resourceType, null, "SYSTEM", null, null, details);
+    }
+
     public List<AuditLog> findByUserId(UUID userId) {
         return auditLogProvider.findByUserId(userId);
     }
