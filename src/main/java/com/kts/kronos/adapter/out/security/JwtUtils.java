@@ -1,5 +1,7 @@
 package com.kts.kronos.adapter.out.security;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -164,5 +166,14 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getExpiration();
+    }
+
+    public Claims getClaimsFromExpiredToken(String token) {
+        try {
+            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
+            return null;
+        } catch (ExpiredJwtException e) {
+            return e.getClaims();
+        }
     }
 }
