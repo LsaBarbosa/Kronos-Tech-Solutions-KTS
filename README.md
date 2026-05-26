@@ -52,6 +52,12 @@ docker run -p 8080:8080 \
 - **[Database Migrations](docs/database/migrations.md)** - Flyway strategy, migration patterns, best practices
 - **[Pre-Production Checklist](PRE_PRODUCTION_CHECKLIST.md)** - Complete checklist before deploying to production
 
+### Validate documentation links
+
+```bash
+./scripts/check-doc-links.sh
+```
+
 ## Project Structure
 
 ```
