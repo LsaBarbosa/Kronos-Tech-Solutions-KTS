@@ -16,6 +16,7 @@ import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.enuns.AnonymizationConsolidatedStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,6 +69,18 @@ class LgpdServiceAnonymizationTest {
 
     @Mock
     private LgpdRequestNotificationService notificationService;
+
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
+
+    @Mock
+    private AuditService auditService;
+
+    @BeforeEach
+    void setUp() {
+        var mockContext = new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent/1.0", "LOCAL", false);
+        lenient().when(auditRequestContextService.extractContext()).thenReturn(mockContext);
+    }
 
     @Test
     void shouldExecuteAnonymizationForAnonymizationRequest() {
