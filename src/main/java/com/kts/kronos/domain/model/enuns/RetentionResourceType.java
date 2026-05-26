@@ -8,5 +8,7 @@ public enum RetentionResourceType {
     AUDIT_LOG,
     LEGAL_CONSENT,
     BIOMETRIC_ARTIFACT,
-    LGPD_REQUEST
+    LGPD_REQUEST,
+    TIME_RECORD,
+    EMPLOYEE_CONTRACT
 }

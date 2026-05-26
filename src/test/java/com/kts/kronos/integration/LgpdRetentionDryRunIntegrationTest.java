@@ -17,7 +17,8 @@ import com.kts.kronos.adapter.in.web.http.LgpdController;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
-import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.application.service.retention.RetentionBatchExecutionSummary;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.domain.model.RetentionDryRunResult;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -27,6 +28,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -56,7 +59,7 @@ class LgpdRetentionDryRunIntegrationTest {
     private ClientIpResolver clientIpResolver;
 
     @MockitoBean
-    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
+    private RetentionExecutionService retentionExecutionService;
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -67,7 +70,9 @@ class LgpdRetentionDryRunIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(lgpdRetentionDryRunService.executeDryRun()).thenReturn(createMockRetentionResults());
+        var results = createMockRetentionResults();
+        when(retentionExecutionService.executeActivePolicies(any(), any(), anyBoolean(), any()))
+                .thenReturn(new RetentionBatchExecutionSummary("DRY_RUN", results.size(), 400, 0, 0, false, results));
     }
 
     private List<RetentionDryRunResult> createMockRetentionResults() {

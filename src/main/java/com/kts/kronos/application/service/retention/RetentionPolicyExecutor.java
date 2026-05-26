@@ -6,6 +6,7 @@ import com.kts.kronos.application.service.AuditService;
 import com.kts.kronos.domain.model.RetentionExecutionLog;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.AuditAction;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -106,11 +107,23 @@ public class RetentionPolicyExecutor {
     }
 
     private void validatePolicy(RetentionPolicy policy) {
+        if (policy.policyType() == null) {
+            throw new IllegalArgumentException("RetentionPolicy policyType is required");
+        }
         if (policy.resourceType() == null || policy.resourceType().isEmpty()) {
             throw new IllegalArgumentException("RetentionPolicy resourceType is required");
         }
-        if (policy.retentionDays() <= 0) {
-            throw new IllegalArgumentException("RetentionPolicy retentionDays must be positive");
+        if (requiresPositiveRetentionDays(policy.policyType())) {
+            if (policy.retentionDays() == null) {
+                throw new IllegalArgumentException("RetentionPolicy retentionDays is required for TIME_BASED policies");
+            }
+            if (policy.retentionDays() <= 0) {
+                throw new IllegalArgumentException("RetentionPolicy retentionDays must be positive for TIME_BASED policies");
+            }
+        } else if (policy.retentionDays() != null && policy.retentionDays() <= 0) {
+            throw new IllegalArgumentException(
+                    "RetentionPolicy retentionDays must be positive when provided for " + policy.policyType() + " policies"
+            );
         }
 
         if (!policy.isDryRun()) {
@@ -121,6 +134,10 @@ public class RetentionPolicyExecutor {
                 );
             }
         }
+    }
+
+    private boolean requiresPositiveRetentionDays(RetentionPolicyType policyType) {
+        return policyType == RetentionPolicyType.TIME_BASED;
     }
 
     private Optional<RetentionDomainProcessor> findProcessor(String resourceType) {

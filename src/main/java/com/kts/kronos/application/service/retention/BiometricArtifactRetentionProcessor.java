@@ -100,29 +100,29 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
 
                     try {
                         faceStorageProvider.deleteFaceImage(s3Key);
-                        log.debug("event=biometric_s3_deletion_success employeeId={}", employeeId);
+                        log.debug("event=biometric_s3_deletion_success");
                     } catch (Exception e) {
-                        log.error("event=biometric_s3_deletion_failed employeeId={} error={}", employeeId, e.getMessage());
-                        errors.add("S3 deletion failed for employee " + employeeId);
+                        log.error("event=biometric_s3_deletion_failed error={}", e.getMessage());
+                        errors.add("S3 deletion failed for one eligible biometric artifact");
                         continue;
                     }
 
                     try {
                         faceRecognitionProvider.deleteFacesByExternalImageId(employeeId);
-                        log.debug("event=biometric_rekognition_deletion_success employeeId={}", employeeId);
+                        log.debug("event=biometric_rekognition_deletion_success");
                     } catch (Exception e) {
-                        log.error("event=biometric_rekognition_deletion_failed employeeId={} error={}", employeeId, e.getMessage());
-                        errors.add("Rekognition deletion failed for employee " + employeeId);
+                        log.error("event=biometric_rekognition_deletion_failed error={}", e.getMessage());
+                        errors.add("Rekognition deletion failed for one eligible biometric artifact");
                         continue;
                     }
 
                     employeeRepository.clearBiometricDataByEmployeeId(employeeId);
                     successCount++;
-                    log.info("event=biometric_artifact_deleted employeeId={} action=CLEARED_S3_REKOGNITION_AND_DB", employeeId);
+                    log.info("event=biometric_artifact_deleted action=CLEARED_S3_REKOGNITION_AND_DB");
                 }
             } catch (Exception e) {
-                log.error("event=biometric_artifact_deletion_error employeeId={} error={}", employee.getEmployeeId(), e.getMessage());
-                errors.add("Unexpected error for employee " + employee.getEmployeeId());
+                log.error("event=biometric_artifact_deletion_error error={}", e.getMessage());
+                errors.add("Unexpected error while deleting one eligible biometric artifact");
             }
         }
 

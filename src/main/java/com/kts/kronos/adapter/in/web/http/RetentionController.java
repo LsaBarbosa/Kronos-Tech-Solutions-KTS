@@ -1,15 +1,18 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.retention.RetentionApplyRequest;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionExecutionResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionExecutionSummaryResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionMetricsResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionPolicyResponse;
 import com.kts.kronos.application.port.out.provider.RetentionExecutionLogProvider;
 import com.kts.kronos.application.port.out.provider.RetentionPolicyProvider;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
 import com.kts.kronos.domain.model.RetentionExecutionLog;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -32,6 +35,7 @@ public class RetentionController {
     private final RetentionPolicyProvider retentionPolicyProvider;
     private final RetentionExecutionLogProvider retentionExecutionLogProvider;
     private final RetentionPolicyExecutor retentionPolicyExecutor;
+    private final RetentionExecutionService retentionExecutionService;
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
     @GetMapping("/dashboard")
@@ -43,7 +47,7 @@ public class RetentionController {
                 .map(policy -> new RetentionMetricsResponse.PolicyMetric(
                         policy.policyCode(),
                         policy.resourceType(),
-                        (long) policy.retentionDays(),
+                        policy.retentionDays() != null ? policy.retentionDays().longValue() : null,
                         policy.enabled(),
                         policy.preserveLaborData(),
                         policy.preserveFiscalData(),
@@ -106,6 +110,7 @@ public class RetentionController {
                 policy.policyId(),
                 policy.policyCode(),
                 policy.description(),
+                policy.policyType(),
                 policy.resourceType(),
                 policy.retentionDays(),
                 RetentionExecutionMode.DRY_RUN,
@@ -116,32 +121,29 @@ public class RetentionController {
                 policy.createdAt(),
                 policy.updatedAt()
         );
-        retentionPolicyExecutor.executePolicy(dryRunPolicy);
-        List<RetentionExecutionLog> logs = retentionExecutionLogProvider.findRecent(1);
-        return ResponseEntity.ok(RetentionExecutionResponse.fromDomain(logs.get(0)));
+        return ResponseEntity.ok(
+                RetentionExecutionResponse.fromResult(retentionPolicyExecutor.executePolicy(dryRunPolicy))
+        );
     }
 
     @PreAuthorize("hasRole('CTO')")
     @PostMapping("/policies/{policyCode}/apply")
-    public ResponseEntity<RetentionExecutionResponse> applyPolicy(@PathVariable String policyCode) {
+    public ResponseEntity<RetentionExecutionResponse> applyPolicy(
+            @PathVariable String policyCode,
+            @Valid @org.springframework.web.bind.annotation.RequestBody RetentionApplyRequest request
+    ) {
         RetentionPolicy policy = retentionPolicyProvider.findByCode(policyCode);
-        var applyPolicy = new RetentionPolicy(
-                policy.policyId(),
-                policy.policyCode(),
-                policy.description(),
-                policy.resourceType(),
-                policy.retentionDays(),
-                RetentionExecutionMode.APPLY,
-                policy.enabled(),
-                policy.preserveLaborData(),
-                policy.preserveFiscalData(),
-                policy.lastExecutedAt(),
-                policy.createdAt(),
-                policy.updatedAt()
+        return ResponseEntity.ok(
+                RetentionExecutionResponse.fromResult(
+                        retentionExecutionService.executePolicy(
+                                policy,
+                                RetentionExecutionMode.APPLY,
+                                request.justification(),
+                                request.confirmed(),
+                                "retention_controller"
+                        )
+                )
         );
-        retentionPolicyExecutor.executePolicy(applyPolicy);
-        List<RetentionExecutionLog> logs = retentionExecutionLogProvider.findRecent(1);
-        return ResponseEntity.ok(RetentionExecutionResponse.fromDomain(logs.get(0)));
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")

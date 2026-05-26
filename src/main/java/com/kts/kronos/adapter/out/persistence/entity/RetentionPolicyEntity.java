@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -35,11 +36,15 @@ public class RetentionPolicyEntity {
     @Column(name = "description", nullable = false, length = 255)
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "policy_type", nullable = false, length = 40)
+    private RetentionPolicyType policyType;
+
     @Column(name = "resource_type", nullable = false, length = 80)
     private String resourceType;
 
-    @Column(name = "retention_days", nullable = false)
-    private int retentionDays;
+    @Column(name = "retention_days")
+    private Integer retentionDays;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "execution_mode", nullable = false, length = 20)

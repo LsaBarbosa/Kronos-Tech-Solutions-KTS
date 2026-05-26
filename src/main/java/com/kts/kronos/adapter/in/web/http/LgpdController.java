@@ -21,9 +21,10 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
-import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.RetentionDryRunResult;
+import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,7 +71,7 @@ public class LgpdController {
     private final LgpdUseCase lgpdUseCase;
     private final ClientIpResolver clientIpResolver;
     private final DataProcessingCatalog dataProcessingCatalog;
-    private final LgpdRetentionDryRunService lgpdRetentionDryRunService;
+    private final RetentionExecutionService retentionExecutionService;
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(LGPD_REQUESTS)
@@ -176,7 +177,14 @@ public class LgpdController {
     @PreAuthorize("hasRole('CTO')")
     @GetMapping(LGPD_RETENTION_DRY_RUN)
     public ResponseEntity<List<RetentionDryRunResult>> executeDryRunRetention() {
-        return ResponseEntity.ok(lgpdRetentionDryRunService.executeDryRun());
+        return ResponseEntity.ok(
+                retentionExecutionService.executeActivePolicies(
+                        RetentionExecutionMode.DRY_RUN,
+                        null,
+                        false,
+                        "lgpd_controller"
+                ).results()
+        );
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")

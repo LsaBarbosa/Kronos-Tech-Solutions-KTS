@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.out.persistence.mapper;
 import com.kts.kronos.adapter.out.persistence.entity.RetentionPolicyEntity;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -22,6 +23,7 @@ class RetentionPolicyMapperTest {
 
         assertEquals(entity.getPolicyCode(), domain.policyCode());
         assertEquals(entity.getExecutionMode(), domain.executionMode());
+        assertEquals(entity.getPolicyType(), domain.policyType());
     }
 
     @Test
@@ -32,6 +34,7 @@ class RetentionPolicyMapperTest {
 
         assertEquals(domain.policyId(), entity.getPolicyId());
         assertEquals(domain.lastExecutedAt(), entity.getLastExecutedAt());
+        assertEquals(domain.policyType(), entity.getPolicyType());
     }
 
     @Test
@@ -65,6 +68,7 @@ class RetentionPolicyMapperTest {
                 .policyId(UUID.randomUUID())
                 .policyCode("LGPD_REQUEST_RETENTION_REVIEW")
                 .description("Review LGPD request retention.")
+                .policyType(RetentionPolicyType.TIME_BASED)
                 .resourceType("LGPD_REQUEST")
                 .retentionDays(1825)
                 .executionMode(RetentionExecutionMode.DRY_RUN)
