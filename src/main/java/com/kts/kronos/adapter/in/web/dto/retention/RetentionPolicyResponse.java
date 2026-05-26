@@ -21,7 +21,7 @@ public record RetentionPolicyResponse(
                 policy.policyCode(),
                 policy.description(),
                 policy.resourceType(),
-                (long) policy.retentionDays(),
+                policy.retentionDays() != null ? policy.retentionDays().longValue() : null,
                 policy.executionMode().name(),
                 policy.enabled(),
                 policy.preserveLaborData(),

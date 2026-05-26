@@ -5,8 +5,10 @@ import com.kts.kronos.domain.model.RetentionDryRunResult;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.RetentionPolicyCatalogEntry;
+import com.kts.kronos.domain.model.enuns.RetentionAction;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import com.kts.kronos.domain.model.enuns.RetentionPolicyCode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import com.kts.kronos.application.service.LgpdRetentionDryRunService;
 import org.junit.jupiter.api.BeforeEach;
@@ -306,15 +308,19 @@ class LgpdRetentionDryRunServiceTest {
     // Helper method
     private RetentionPolicyCatalogEntry createMockPolicyCatalogEntry(
             RetentionPolicyCode code,
-            String action,
+            String resourceType,
             String description) {
         return new RetentionPolicyCatalogEntry(
                 code,
                 description,
+                RetentionPolicyType.TIME_BASED,
+                RetentionResourceType.valueOf(resourceType),
                 30,
-                action,
+                RetentionAction.DELETE,
                 false,
-                true
+                true,
+                false,
+                false
         );
     }
 }

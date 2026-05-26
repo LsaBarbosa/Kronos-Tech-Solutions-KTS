@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.dto.retention;
 
 import com.kts.kronos.application.util.SensitiveDataMasker;
+import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionExecutionLog;
 
 public record RetentionExecutionResponse(
@@ -27,6 +28,21 @@ public record RetentionExecutionResponse(
                 log.skippedCount(),
                 log.errorCount(),
                 SensitiveDataMasker.sanitizeDetails(log.notes())
+        );
+    }
+
+    public static RetentionExecutionResponse fromResult(RetentionExecutionResult result) {
+        return new RetentionExecutionResponse(
+                result.executionId().toString(),
+                result.policyCode(),
+                result.resourceType() != null ? result.resourceType().name() : null,
+                result.executionMode(),
+                result.status(),
+                result.scannedCount(),
+                result.affectedCount(),
+                result.skippedCount(),
+                result.errorCount(),
+                SensitiveDataMasker.sanitizeDetails(result.notes())
         );
     }
 }
