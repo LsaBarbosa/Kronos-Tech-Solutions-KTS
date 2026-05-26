@@ -49,6 +49,7 @@ public class LgpdTestFixtures {
         legalTextRepository.save(legalText);
     }
 
+
     private String computeSha256(String content) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
