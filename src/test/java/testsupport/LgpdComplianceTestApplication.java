@@ -15,7 +15,7 @@ import static org.mockito.Mockito.mock;
 
 @SpringBootApplication
 @ComponentScan(
-        basePackages = "com.kts.kronos",
+        basePackages = {"com.kts.kronos", "testsupport"},
         excludeFilters = @ComponentScan.Filter(
                 type = FilterType.REGEX,
                 pattern = ".*\\$.*TestConfiguration"
