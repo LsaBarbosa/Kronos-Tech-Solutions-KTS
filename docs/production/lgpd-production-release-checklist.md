@@ -2,378 +2,396 @@
 
 **Data:** 2026-05-25  
 **Versão:** 1.0  
-**Status:** Pronto para validação de liberação
+**Status:** ⚠️ PRÉ-PRODUÇÃO (Awaiting Legal Review)
+
+Este checklist deve ser completado antes de qualquer liberação em produção.
 
 ---
 
-## ✅ Pré-Requisitos de Compilação
+## 1. Validação Jurídica (CRÍTICO)
 
-- [ ] Branch `feature/lgpd-compliance` validada e atualizada
-- [ ] Nenhum uncommitted changes em código crítico
-- [ ] Git history limpo e sem merge conflicts
+### 1.1 Parecer Jurídico Formal
 
----
+- [ ] Parecer jurídico assinado confirmando:
+  - Base legal REGULAR_EXERCISE_OF_RIGHTS é válida?
+  - Prazo de 2555 dias (~7 anos) é apropriado?
+  - Transferência internacional (AWS/Rekognition) é permissível?
+  - Minimização (não deleção) é conforme LGPD?
 
-## ✅ Compilação Back-end
-
-- [ ] `./gradlew clean compileJava` sem erros
-- [ ] `./gradlew clean compileTestJava` sem erros
-- [ ] `./gradlew clean build` completa com sucesso
-- [ ] Build time aceitável (< 3 minutos)
-- [ ] Nenhuma dependência deprecated em alert
+**Responsável:** Jurídico Externo  
+**Bloqueador:** ✅ SIM — Não liberar produção sem parecer
 
 ---
 
-## ✅ Compilação Front-end
+### 1.2 Policies Jurídicas Atualizadas
 
-- [ ] `npm ci` completa sem erros
-- [ ] `npm run build` completa em < 15s
-- [ ] Bundle size dentro do esperado (262KB main, 620KB PDF)
-- [ ] Nenhuma dependência deprecated em alert
-- [ ] Build artifacts gerados em `dist/`
+- [ ] Política de Privacidade atualizada
+  - [ ] Seção sobre consentimento biométrico
+  - [ ] Menção explícita a preservação de evidência
+  - [ ] Prazo de retenção (2555 dias) declarado
+  - [ ] Menção a terceiros (AWS, Rekognition)
+  - [ ] Direitos do titular (acesso, exclusão, revogação)
 
----
+- [ ] Termo de Consentimento Biométrico atualizado
+  - [ ] Explica que evidência será preservada
+  - [ ] Descreve período de retenção
+  - [ ] Menciona minimização de dados
+  - [ ] Oferece mecanismo claro de revogação
+  - [ ] Inclui data de versão e hash
 
-## ✅ Testes Back-end
+- [ ] Termos de Uso atualizados (se aplicável)
+  - [ ] Referência a política de privacidade
+  - [ ] Conformidade com LGPD
 
-### Testes Gerais
-- [ ] `./gradlew test` completa com ≥97% passando (1455/1498+)
-- [ ] Nenhuma falha em testes LGPD críticos:
-  - [ ] BiometricConsentComplianceTest (8 testes)
-  - [ ] DataRetentionComplianceTest (12+ testes)
-  - [ ] MultiTenantComplianceTest (8 testes)
-  - [ ] LgpdProcessingCatalogIntegrationTest
-  - [ ] LgpdExportIntegrationTest
-  - [ ] LgpdAdminRequestManagementIntegrationTest
-
-### Testes de Segurança
-- [ ] ProductionSecurityPropertiesValidatorTest passando
-- [ ] ProductionSecurityPropertiesValidatorCorsTest passando
-- [ ] SecurityConfigIntegrationTest passando
-- [ ] Nenhuma falha de AuthenticationTest (crítico)
-
-### Testes de Auditoria
-- [ ] AuditLogRetentionProcessorTest passando
-- [ ] LgpdRetentionAuditValidationTest passando
-- [ ] Audit logging validado para ações LGPD
+**Responsável:** Legal/Marketing  
+**Bloqueador:** ✅ SIM — Não liberar produção sem atualizar
 
 ---
 
-## ✅ Testes Front-end
+## 2. Conformidade com Terceiros
 
-### Testes Unitários
-- [ ] `npm run test` completa com ≥99% passando (382/383+)
-- [ ] Nenhuma falha em testes LGPD críticos:
-  - [ ] BiometricConsentCard.test.tsx
-  - [ ] TermsAcceptanceGate.test.tsx
-  - [ ] ExportManifestDisplay.test.tsx
-  - [ ] ExportConfirmationModal.test.tsx
-  - [ ] AnonymizationResultSummary.test.tsx
+### 2.1 Data Processing Agreement (DPA)
 
-### Testes E2E (Privacy Center)
-- [ ] `npm run test:e2e` completa com 100% passando (9/9)
-  - [ ] Should load Privacy Center with mocked APIs
-  - [ ] Should call processing catalog endpoint
-  - [ ] Should handle biometric consent data
-  - [ ] Should handle LGPD requests list
-  - [ ] Should handle empty processing catalog
-  - [ ] Should handle server error (500)
-  - [ ] Should handle unauthorized (401)
-  - [ ] Should handle network timeout
+**AWS S3:**
+- [ ] DPA assinado incluindo:
+  - [ ] Menção explícita a dados biométricos
+  - [ ] Conformidade com LGPD
+  - [ ] Período de retenção de dados
+  - [ ] Direito de auditoria
+  - [ ] Cláusula de transferência internacional (SCCs)
+  - [ ] Mecanismo de deleção em fim de contrato
 
----
+**Amazon Rekognition:**
+- [ ] Contrato/DPA incluindo:
+  - [ ] Confirmação: dados não serão usados para treinamento
+  - [ ] Conformidade com LGPD
+  - [ ] Período de retenção
+  - [ ] Cláusulas de segurança (encryption, access control)
+  - [ ] Transferência internacional (Standard Contractual Clauses)
 
-## ✅ Segurança - Dependências
+**Outros Provedores (se aplicável):**
+- [ ] (Listar e validar)
 
-### npm Audit
-- [ ] `npm audit` completa com 0 vulnerabilidades críticas
-- [ ] Nenhuma high/critical vulnerability identificada
-- [ ] Warnings (deprecated) documentados
-- [ ] Plano de atualização futuro para mediums
-
-### Dependências Java
-- [ ] `./gradlew dependencyCheck` sem vulnerabilidades críticas (se disponível)
-- [ ] Todas as bibliotecas OWASP-validadas
+**Responsável:** Procurement/Legal  
+**Bloqueador:** ✅ SIM — Não liberar produção sem DPA
 
 ---
 
-## ✅ Segurança - Configuração
+### 2.2 Conformidade com Legislação Estrangeira
 
-### CORS (Cross-Origin Resource Sharing)
-- [ ] CORS não usa wildcard `*`
-- [ ] Apenas HTTPS permitido em produção
-- [ ] Origins específicas configuradas (não http://)
-- [ ] Credentials permitido apenas para mesma origem
-- [ ] Preflight requests validadas
-- [ ] Teste: POST request de origem diferente é rejeitado
+**Se processamento em múltiplos países:**
+- [ ] Validar conformidade com GDPR (UE)
+- [ ] Validar conformidade com CCPA (Califórnia)
+- [ ] Validar conformidade com PIPEDA (Canadá)
+- [ ] Validar conformidade com PDPA (Singapura)
+- [ ] Outras legislações conforme localização dos dados
 
-### Cookies
-- [ ] Cookie `Secure` flag ativo em produção (HTTPS obrigatório)
-- [ ] Cookie `HttpOnly` flag ativo (sem acesso JavaScript)
-- [ ] Cookie `SameSite` configurado (Strict ou Lax)
-- [ ] Sessão com timeout definido (15 minutos máximo)
-- [ ] Teste: Acesso direto a cookies via JavaScript é bloqueado
-
-### JWT (JSON Web Tokens)
-- [ ] JWT_SECRET forte (≥32 caracteres, alphanumêrico + símbolos)
-- [ ] JWT_SECRET **NÃO** em código fonte (variável de ambiente)
-- [ ] Token expiration configurado (≤1 hora)
-- [ ] Refresh token com expiration maior (≤7 dias)
-- [ ] Validação de assinatura ativa
-- [ ] Teste: Token inválido é rejeitado
-
-### Actuator (Spring Boot Admin)
-- [ ] Actuator endpoints não expostos publicamente
-- [ ] `/actuator` requer autenticação
-- [ ] Apenas endpoints essenciais habilitados:
-  - [ ] `/actuator/health` (público, info básica)
-  - [ ] `/actuator/metrics` (autenticado)
-  - Todos os outros desabilitados
-
-### Swagger/OpenAPI
-- [ ] Swagger **DESLIGADO** em produção
-- [ ] Nenhuma documentação de API em `/swagger-ui`
-- [ ] Nenhuma exposição de endpoints em `/api-docs`
-- [ ] Teste: GET `/swagger-ui.html` retorna 404
+**Responsável:** Legal/Compliance  
+**Bloqueador:** ⚠️ SIM (se aplicável)
 
 ---
 
-## ✅ Segurança - AWS/S3/Rekognition
+## 3. Governança de Dados Pessoais
 
-### AWS Credentials
-- [ ] AWS_ACCESS_KEY_ID presente e válido
-- [ ] AWS_SECRET_ACCESS_KEY presente e válido
-- [ ] AWS_REGION configurado (ex: us-east-1)
-- [ ] Credentials **NÃO** em código fonte
-- [ ] IAM policy restritivo (apenas S3, Rekognition necessários)
+### 3.1 Encarregado de Proteção de Dados (DPO)
 
-### S3 Buckets
-- [ ] `bucket-name` (documentos) existe e acessível
-- [ ] `bucket-name-docs` (payroll) existe e acessível
-- [ ] Bucket versioning ativo (para audit)
-- [ ] Bucket public access bloqueado
-- [ ] Servidor-side encryption (AES-256) ativo
-- [ ] Teste: Upload de arquivo bem-sucedido
-- [ ] Teste: Download de arquivo bem-sucedido
+- [ ] DPO designado ou terceirizado
+- [ ] DPO informado sobre:
+  - [ ] Retenção de evidência de consentimento
+  - [ ] Política de 2555 dias
+  - [ ] Transferência para AWS/Rekognition
+  - [ ] Procedimento de resposta a incidentes
+- [ ] DPO confirmou conformidade
 
-### Rekognition
-- [ ] Collection ID configurado e existe
-- [ ] Permissões de IndexFaces, SearchFacesByImage ativas
-- [ ] Liveness check será desabilitado em produção (decisão documentada)
-- [ ] Teste: Indexação de face bem-sucedida
-- [ ] Teste: Busca de face bem-sucedida
-
-### Antivírus / File Scanning
-- [ ] Arquivo de teste (.eicar) é rejeitado no upload
-- [ ] FileScanningProvider implementado e ativo
-- [ ] Logs de rejeição registrados em auditoria
-- [ ] Teste: Upload de arquivo malicioso é bloqueado
+**Responsável:** RH/Legal  
+**Bloqueador:** ✅ SIM — DPO deve estar designado
 
 ---
 
-## ✅ LGPD Específico
+### 3.2 Avaliação de Impacto à Proteção de Dados (DPIA)
 
-### Privacy Center
-- [ ] Front-end `/privacy-center` carrega com sucesso
-- [ ] Catálogo de processamento exibe corretamente
-- [ ] Biometric consent card mostra status correto
-- [ ] Formulário de solicitação LGPD funcional:
-  - [ ] Acesso (ACCESS) funciona
-  - [ ] Retificação (RECTIFICATION) funciona
-  - [ ] Exclusão (DELETION) funciona
-  - [ ] Portabilidade (PORTABILITY) funciona
-- [ ] Histórico de consentimento exibe corretamente
-- [ ] Mensagens de erro tratadas adequadamente
+- [ ] DPIA conduzido para:
+  - [ ] Consentimento biométrico
+  - [ ] Retenção de evidência (2555 dias)
+  - [ ] Transferência internacional
+  - [ ] Acesso por terceiros
 
-### Exportação de Dados
-- [ ] Endpoint `/lgpd/employees/{id}/export` retorna JSON válido
-- [ ] Manifest contém: exportId, exportedAt, targetEmployeeId, sections
-- [ ] Geolocalização precisa **NÃO** incluída (apenas autorizado)
-- [ ] Dados sensíveis (CPF, salário) inclusos quando autorizado
-- [ ] Arquivo de download funcional
-- [ ] Teste: Usuário não-autorizado não pode exportar outro
+- [ ] DPIA documenta:
+  - [ ] Descrição do processamento
+  - [ ] Justificativa da necessidade
+  - [ ] Avaliação de riscos
+  - [ ] Medidas de mitigação
+  - [ ] Conclusão: risco residual aceitável?
 
-### Solicitações LGPD
-- [ ] Endpoint `/lgpd/requests` lista solicitações do titular
-- [ ] Criação de solicitação funciona (POST)
-- [ ] Mudança de status funciona (OPEN → IN_PROGRESS → COMPLETED)
-- [ ] Notificações enviadas ao titular
-- [ ] Manager/CTO podem listar todas as solicitações (com filtros)
-- [ ] Status de solicitação visível ao titular em tempo real
+- [ ] Se risco elevado:
+  - [ ] Parecer da ANPD solicitado (art. 38, §5º)
+  - [ ] Parecer da ANPD obtido
 
-### Auditoria LGPD
-- [ ] AuditLog registra todas as ações LGPD:
-  - [ ] LGPD_REQUEST_CREATED
-  - [ ] LGPD_REQUEST_ASSIGNED
-  - [ ] LGPD_EXPORT_INITIATED
-  - [ ] LGPD_RETENTION_DRY_RUN
-  - [ ] LGPD_RETENTION_APPLY
-- [ ] Details de audit **NÃO** contêm: CPF, email, token, senha, mensagem
-- [ ] IP address e User-Agent minimizados (não em details)
-- [ ] Teste: Query de audit logs sem PII bem-sucedida
-
-### Consentimento Biométrico
-- [ ] Solicitação de consentimento aparece antes de usar biometria
-- [ ] Revogação de consentimento funciona e bloqueia uso
-- [ ] Template biométrico deletado imediatamente após revogação
-- [ ] Histórico de consentimento preservado indefinidamente
-- [ ] Teste: Usuário sem consentimento não pode usar biometria
-
-### Retenção de Dados
-- [ ] Dry-run calcula elegibilidade real (não zero)
-- [ ] Dry-run **NÃO** altera dados
-- [ ] Apply está **controlado por flag** `kronos.lgpd.retention.allow-apply`
-- [ ] Apply bloqueado com motivo quando flag desabilitado
-- [ ] Apply executado corretamente quando flag habilitado:
-  - [ ] Mensagens internas soft-deleted
-  - [ ] Audit logs minimizados
-  - [ ] Contagens agregadas retornadas (sem PII)
-- [ ] Teste: Apply com flag desabilitado é rejeitado
-- [ ] Teste: Apply com flag habilitado executa corretamente
+**Responsável:** DPO/Compliance  
+**Bloqueador:** ✅ SIM — Obrigatório se risco elevado
 
 ---
 
-## ✅ Documentação e Conformidade
+### 3.3 Registro de Atividades de Tratamento
 
-### Política de Privacidade
-- [ ] Política de privacidade redigida e revisada por jurídico
-- [ ] Menciona: consentimento, direitos do titular, retenção, segurança
-- [ ] Disponível em `/privacy-policy` ou similar
-- [ ] Versão e data de atualização clara
-- [ ] Teste: Acesso público à política bem-sucedido
+- [ ] Registro documenta:
+  - [ ] Identificação do controlador
+  - [ ] Finalidade: "Preservação de evidência de consentimento"
+  - [ ] Categorias de dados: Biometria, consentimento, timestamps
+  - [ ] Categorias de destinatários: AWS, Rekognition, auditores
+  - [ ] Período de retenção: 2555 dias
+  - [ ] Medidas de segurança: Encryption, sanitização, auditoria
+  - [ ] Transferência internacional: SIM (AWS, Rekognition)
 
-### Termo de Uso
-- [ ] Termo de uso redigido e revisado por jurídico
-- [ ] Menciona: LGPD, biometria, auditoria, responsabilidades
-- [ ] Disponível em `/terms` ou similar
-- [ ] Versão e data de atualização clara
-- [ ] Teste: Acesso público ao termo bem-sucedido
-
-### Documentação Técnica
-- [ ] Relatório final técnico LGPD finalizado (lgpd-final-technical-status.md)
-- [ ] Checklist de aceite LGPD finalizado (lgpd-final-acceptance-checklist.md)
-- [ ] Documentação de produção (lgpd-production-env-checklist.md)
-- [ ] Documentação de variáveis de ambiente completa
-- [ ] Diagrama de fluxo LGPD atualizado
-
-### Parecer Jurídico
-- [ ] Parecer jurídico formal emitido
-- [ ] Validação de bases legais (especialmente preservação de evidência)
-- [ ] Conformidade com Lei nº 13.709/2018 (LGPD) confirmada
-- [ ] Sem recomendações bloqueantes
-- [ ] Documento assinado e datado
+**Responsável:** DPO/Compliance  
+**Bloqueador:** ✅ SIM — Obrigatório por lei
 
 ---
 
-## ✅ Deployment e Infraestrutura
+## 4. Segurança Técnica
 
-### Variáveis de Ambiente
-- [ ] JWT_SECRET configurado (forte, único)
-- [ ] FRONTEND_ALLOWED_ORIGINS configurado (HTTPS, sem wildcard)
-- [ ] DATABASE_URL validada
-- [ ] AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY configurados
-- [ ] AWS_REGION configurado
-- [ ] SMTP/Email configurado (se necessário)
-- [ ] Todas as variáveis documentadas em `.env.example`
+### 4.1 Configuração de Produção
 
-### Database
-- [ ] Migrations executadas com sucesso (V1-V24)
-- [ ] Schema validado e sem erros
-- [ ] Indices criados (performance)
-- [ ] Backups configurados e testados
-- [ ] Retention policy aplicada (se aplicável)
-- [ ] Teste: Query de dados LGPD bem-sucedida
+**Autenticação e Sessão:**
+- [ ] JWT_SECRET é seguro (min 32 caracteres, alfanumérico)
+- [ ] JWT_SECRET não é hardcoded
+- [ ] JWT_EXPIRATION está configurado (recomendado: 1h)
+- [ ] REFRESH_TOKEN_EXPIRATION está configurado (recomendado: 7 dias)
+- [ ] Cookies são SECURE (HTTPS only)
+- [ ] Cookies são HttpOnly (não acessível via JavaScript)
+- [ ] Cookies têm SameSite=STRICT
 
-### Deployment
-- [ ] Container/VM provisionado com recursos adequados
-- [ ] Certificado SSL/TLS válido e configurado
-- [ ] HTTPS obrigatório (redirecionamento de HTTP)
-- [ ] Load balancer configurado (se aplicável)
-- [ ] Monitoramento de logs ativo
-- [ ] Alertas configurados (CPU, memory, errors)
+**Comunicação:**
+- [ ] HTTPS/TLS 1.2+ é obrigatório
+- [ ] Certificado é válido e não auto-assinado
+- [ ] HSTS (HTTP Strict Transport Security) está ativo
+- [ ] CORS whitelist é restritivo (não "*")
+- [ ] CORS não expõe credentials sem necessidade
 
-### Rollback Plan
-- [ ] Versão anterior testada e pronta
-- [ ] Plano de rollback documentado (passo a passo)
-- [ ] Backup de database anterior disponível
-- [ ] Tempo de RTO/RPO definido (ex: 15 min / zero data loss)
-- [ ] Time de on-call notificado do plano
-- [ ] Teste de rollback simulado completado
+**Autorização:**
+- [ ] Endpoints LGPD requerem autenticação
+- [ ] Endpoints sensíveis requerem papel específico (CTO, Admin)
+- [ ] Rate limiting está ativo (e.g., 100 req/min por IP)
+- [ ] Rate limiting é mais restritivo para endpoints sensíveis
 
----
+**Data Storage:**
+- [ ] S3 bucket é privado (não público)
+- [ ] S3 bucket tem versionamento ativado
+- [ ] S3 bucket tem MFA delete ativado
+- [ ] S3 bucket tem encryption padrão (AES-256)
+- [ ] S3 bucket tem ACL mínimo (não "Everyone")
+- [ ] Backup é automático e encriptado
+- [ ] Replicação (se multi-region) é encriptada
 
-## ✅ Validação Pré-Go-Live (24h antes)
+**Logging:**
+- [ ] Logs não contêm PII (validar amostras)
+- [ ] Logs são enviados para sistema centralizado
+- [ ] Retenção de logs está configurada (recomendado: 90 dias)
+- [ ] Logs são imutáveis (append-only)
+- [ ] Acesso a logs é auditado
 
-- [ ] Smoke tests em produção staging executados com sucesso
-- [ ] Load testing realizado (throughput aceitável)
-- [ ] Teste de failover/HA validado
-- [ ] Monitoramento ativo em staging
-- [ ] Time de suporte notificado
-- [ ] Plano de comunicação (usuários, stakeholders) preparado
+**Monitoramento:**
+- [ ] Alerts para acesso suspeito estão ativados
+- [ ] Alerts para mudanças de configuração estão ativados
+- [ ] Dashboards de segurança estão configurados
+- [ ] Incident response plan existe e está testado
 
----
-
-## ✅ Go-Live
-
-- [ ] Checklist 100% marcado
-- [ ] Parecer jurídico aprovado
-- [ ] Produto owner aprova liberação
-- [ ] Security team aprova liberação
-- [ ] Deployment executado durante janela de manutenção
-- [ ] Validação pós-deploy bem-sucedida
-- [ ] Notificação de usuários enviada
-- [ ] Monitoramento intensificado (24h)
+**Responsável:** DevOps/Security  
+**Bloqueador:** ✅ SIM — Segurança é prerequisito
 
 ---
 
-## ✅ Pós-Go-Live (Primeiras 24h)
+### 4.2 Teste de Segurança
 
-- [ ] Monitoramento de logs contínuo (sem erros críticos)
-- [ ] Monitoramento de performance (latência aceitável)
-- [ ] Zero relatórios críticos de usuários
-- [ ] Auditoria de login/acesso normal
-- [ ] Exportações LGPD funcionando
-- [ ] Solicitações LGPD processando
+- [ ] Teste de penetração realizado
+  - [ ] Foco em LGPD (consentimento, retenção, exportação)
+  - [ ] Certificado por terceiro independente
+  - [ ] Vulnerabilidades críticas corrigidas
+  - [ ] Vulnerabilidades altas: mitigação implementada
 
----
+- [ ] Auditoria de segurança de código
+  - [ ] Análise SAST (Static Application Security Testing)
+  - [ ] Não há vulnerabilidades críticas
+  - [ ] Não há vulnerabilidades altas não mitigadas
 
-## Pendências Finais (Antes de Liberar)
+- [ ] Teste de vazamento de dados
+  - [ ] Validar que PII não está em logs
+  - [ ] Validar que PII não está em responses
+  - [ ] Validar que PII não está em cache
 
-| Item | Responsável | Status | Data |
-|------|-------------|--------|------|
-| Parecer jurídico LGPD | Jurídico | ⚠️ Pendente | --- |
-| Aprovação de security | Security | ⚠️ Pendente | --- |
-| Aprovação de produto | Product Owner | ⚠️ Pendente | --- |
-| Testes de penetração (opcional) | Security | ⚠️ Recomendado | --- |
-| Validação em staging (24h antes) | QA | ⚠️ Pendente | --- |
-| Plano de comunicação | Marketing | ⚠️ Pendente | --- |
-
----
-
-## Notas de Conformidade
-
-### ✅ O que foi validado
-- Implementação técnica LGPD completa
-- Testes 97%+ back-end, 99.7% front-end
-- E2E Privacy Center 100%
-- Zero vulnerabilidades críticas npm
-- Configuração segura de CORS, cookies, JWT
-
-### ⚠️ O que depende de revisão jurídica
-- Bases legais (especialmente preservação de evidência)
-- Política de privacidade
-- Termo de uso
-- Conformidade plena com LGPD
-
-### ⚠️ O que depende de produção real
-- Variáveis de ambiente (JWT_SECRET, credentials)
-- Certificado SSL válido
-- Configuração de backup/DR
-- Teste de failover
-- Monitoramento em tempo real
+**Responsável:** Security/QA  
+**Bloqueador:** ✅ SIM — Segurança é obrigatória
 
 ---
 
-**Versão:** 1.0  
-**Última Atualização:** 2026-05-25  
-**Próxima Revisão:** Após go-live (7 dias)
+## 5. Teste de Conformidade LGPD
+
+### 5.1 Smoke Test — Fluxos LGPD
+
+**Login e Consentimento:**
+- [ ] Usuário pode fazer login
+- [ ] Usuário pode ver Privacy Center
+- [ ] Usuário pode aceitar consentimento biométrico
+- [ ] Aceitação é registrada com timestamp
+
+**Revogação:**
+- [ ] Usuário pode revogar consentimento
+- [ ] Revogação é registrada
+- [ ] Dados biométricos são deletados de sistemas operacionais
+- [ ] Evidência é minimizada (não deletada)
+
+**Exportação de Dados:**
+- [ ] Usuário pode solicitar exportação
+- [ ] Exportação contém todos os dados processados
+- [ ] Exportação não contém PII de terceiros
+- [ ] Exportação é em formato estruturado (JSON/CSV)
+- [ ] Exportação é entregue em prazo (30 dias)
+
+**Retenção Técnica:**
+- [ ] Dry-run de retenção retorna contagens corretas
+- [ ] Apply de retenção executa sem erros
+- [ ] Dados são minimizados (não deletados) conforme política
+- [ ] Dados são retidos pelo prazo configurado
+
+**Direitos do Titular:**
+- [ ] Usuário pode acessar dados pessoais
+- [ ] Usuário pode corrigir dados (se aplicável)
+- [ ] Usuário pode solicitar exclusão (respeitando retenção)
+- [ ] Usuário pode revogar consentimento
+- [ ] Usuário pode exportar dados
+
+**Responsável:** QA  
+**Bloqueador:** ✅ SIM — Funcionalidade LGPD deve estar 100%
+
+---
+
+### 5.2 Teste de Resposta a Incidente
+
+- [ ] Simulado: vazamento de dados de consentimento
+  - [ ] Time é notificado em < 1 hora
+  - [ ] Incidente é documentado
+  - [ ] ANPD é notificada (conforme LGPD)
+  - [ ] Titulares são notificados (se risco alto)
+  - [ ] Causa raiz é identificada
+  - [ ] Medidas corretivas são implementadas
+
+**Responsável:** Security/Incident Response  
+**Bloqueador:** ✅ SIM — Plano deve estar testado
+
+---
+
+## 6. Verificação Pré-Produção (Go/No-Go)
+
+### GO Criteria (Tudo deve estar ✅)
+
+- [ ] Parecer jurídico formal obtido
+- [ ] Políticas públicas atualizadas
+- [ ] DPA com terceiros assinado
+- [ ] DPO designado e informado
+- [ ] DPIA conduzido (se risco elevado, parecer ANPD obtido)
+- [ ] Registro de Atividades preenchido
+- [ ] Configuração de produção validada
+- [ ] Teste de segurança passado
+- [ ] Smoke test LGPD passado
+- [ ] Plano de resposta a incidente testado
+- [ ] Backup e rollback testados
+- [ ] Monitoramento está ativo
+- [ ] Logs estão centralizados
+- [ ] Time de produção foi treinado
+- [ ] Runbook de operação existe
+
+### NO-GO Criteria (Qualquer um bloqueia)
+
+- ❌ Parecer jurídico não está obtido
+- ❌ Vulnerabilidades críticas de segurança não corrigidas
+- ❌ PII está em logs ou responses
+- ❌ HTTPS não está ativo
+- ❌ DPA não está assinado
+- ❌ Smoke test LGPD falhou
+
+---
+
+## 7. Rollback Plan
+
+### Preparação
+
+- [ ] Backup de produção é feito antes do deploy
+- [ ] Backup foi testado (restore funciona)
+- [ ] Versão anterior está pronta para rollback
+- [ ] Database migration pode ser revertida
+
+### Execução (se necessário)
+
+- [ ] Rollback é executado em < 1 hora
+- [ ] Dados retornam ao estado anterior
+- [ ] Verificação: Sistem está operacional
+- [ ] Comunicação: Usuários são notificados
+- [ ] Root cause analysis é conduzido
+
+**Responsável:** DevOps  
+**Bloqueador:** ✅ SIM — Teste antes de produção
+
+---
+
+## 8. Comunicação e Treinamento
+
+### 8.1 Time Interno
+
+- [ ] DevOps: Treinado em deploy, rollback, monitoramento
+- [ ] Support: Treinado em procedimentos LGPD
+- [ ] Security: Escalação de incidentes definida
+- [ ] Compliance: Ponto de contato designado
+
+### 8.2 Usuários Finais
+
+- [ ] Documentação de Privacy Center está disponível
+- [ ] FAQ sobre consentimento está disponível
+- [ ] Processo de revogação é claro
+- [ ] Contato de suporte/DPO está comunicado
+
+### 8.3 Stakeholders
+
+- [ ] Executivos foram informados de status
+- [ ] Parecer jurídico foi aprovado internamente
+- [ ] Plano de produção foi aprovado
+
+**Responsável:** Product/Marketing/Legal  
+**Bloqueador:** ⚠️ RECOMENDADO
+
+---
+
+## 9. Monitoramento Pós-Produção (Primeiro Mês)
+
+- [ ] Daily: Verificar logs de erro
+- [ ] Daily: Verificar alerts de segurança
+- [ ] Weekly: Revisar métricas de conformidade
+- [ ] Weekly: Validar que retenção está funcionando
+- [ ] Weekly: Validar que revogação está funcionando
+- [ ] Monthly: Revisar incidentes (zero esperado)
+- [ ] Monthly: Relatório de conformidade
+
+---
+
+## 10. Sign-Off
+
+| Papel | Nome | Data | Assinatura |
+|---|---|---|---|
+| CTO/Arquitetura | | | |
+| Head of Security | | | |
+| Head of Legal | | | |
+| DPO | | | |
+| Head of Compliance | | | |
+| VP Operations | | | |
+
+---
+
+**Documento de:** Release Engineering  
+**Última revisão:** 2026-05-25  
+**Próxima revisão:** Após parecer jurídico  
+**Status:** ⚠️ AWAITING LEGAL REVIEW
+
+## Notas
+
+Este checklist é baseado em práticas recomendadas de LGPD e boas práticas de segurança. Não substitui parecer jurídico formal ou avaliação de compliance profissional.
+
+Para qualquer dúvida, contactar: legal@kronos.com ou dpo@kronos.com

@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.retention.RetentionExecutionResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionExecutionSummaryResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionMetricsResponse;
 import com.kts.kronos.adapter.in.web.dto.retention.RetentionPolicyResponse;
@@ -99,7 +100,7 @@ public class RetentionController {
 
     @PreAuthorize("hasRole('CTO')")
     @PostMapping("/policies/{policyCode}/dry-run")
-    public ResponseEntity<RetentionExecutionSummaryResponse> dryRunPolicy(@PathVariable String policyCode) {
+    public ResponseEntity<RetentionExecutionResponse> dryRunPolicy(@PathVariable String policyCode) {
         RetentionPolicy policy = retentionPolicyProvider.findByCode(policyCode);
         var dryRunPolicy = new RetentionPolicy(
                 policy.policyId(),
@@ -117,12 +118,12 @@ public class RetentionController {
         );
         retentionPolicyExecutor.executePolicy(dryRunPolicy);
         List<RetentionExecutionLog> logs = retentionExecutionLogProvider.findRecent(1);
-        return ResponseEntity.ok(RetentionExecutionSummaryResponse.fromDomain(logs.get(0)));
+        return ResponseEntity.ok(RetentionExecutionResponse.fromDomain(logs.get(0)));
     }
 
     @PreAuthorize("hasRole('CTO')")
     @PostMapping("/policies/{policyCode}/apply")
-    public ResponseEntity<RetentionExecutionSummaryResponse> applyPolicy(@PathVariable String policyCode) {
+    public ResponseEntity<RetentionExecutionResponse> applyPolicy(@PathVariable String policyCode) {
         RetentionPolicy policy = retentionPolicyProvider.findByCode(policyCode);
         var applyPolicy = new RetentionPolicy(
                 policy.policyId(),
@@ -140,18 +141,18 @@ public class RetentionController {
         );
         retentionPolicyExecutor.executePolicy(applyPolicy);
         List<RetentionExecutionLog> logs = retentionExecutionLogProvider.findRecent(1);
-        return ResponseEntity.ok(RetentionExecutionSummaryResponse.fromDomain(logs.get(0)));
+        return ResponseEntity.ok(RetentionExecutionResponse.fromDomain(logs.get(0)));
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
     @GetMapping("/executions")
-    public ResponseEntity<Page<RetentionExecutionSummaryResponse>> listExecutions(Pageable pageable) {
+    public ResponseEntity<Page<RetentionExecutionResponse>> listExecutions(Pageable pageable) {
         Page<RetentionExecutionLog> executionLogs = retentionExecutionLogProvider.findAll(pageable);
-        List<RetentionExecutionSummaryResponse> responses = executionLogs.getContent().stream()
-                .map(RetentionExecutionSummaryResponse::fromDomain)
+        List<RetentionExecutionResponse> responses = executionLogs.getContent().stream()
+                .map(RetentionExecutionResponse::fromDomain)
                 .toList();
 
-        Page<RetentionExecutionSummaryResponse> responsePage = new PageImpl<>(
+        Page<RetentionExecutionResponse> responsePage = new PageImpl<>(
                 responses,
                 pageable,
                 executionLogs.getTotalElements()
