@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.lenient;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -61,6 +62,8 @@ class DocumentServiceSecurityTest {
     private FileScanningProvider fileScanningProvider;
     @Mock
     private AuditService auditService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
 
     private UUID loggedEmployeeId;
     private UUID managerEmployeeId;
@@ -76,6 +79,9 @@ class DocumentServiceSecurityTest {
         companyAId = UUID.randomUUID();
         companyBId = UUID.randomUUID();
         ReflectionTestUtils.setField(service, "maxUploadBytes", 5 * 1024 * 1024L);
+
+        var mockContext = new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent/1.0", "LOCAL", false);
+        lenient().when(auditRequestContextService.extractContext()).thenReturn(mockContext);
     }
 
     @Test
