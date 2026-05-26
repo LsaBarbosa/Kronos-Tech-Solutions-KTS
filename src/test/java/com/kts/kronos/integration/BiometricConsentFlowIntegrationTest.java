@@ -1,5 +1,6 @@
 package com.kts.kronos.integration;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.kts.kronos.adapter.out.persistence.UserRepository;
 import testsupport.LgpdComplianceTestApplication;
+import testsupport.LgpdTestFixtures;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -29,8 +31,16 @@ class BiometricConsentFlowIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private LgpdTestFixtures lgpdTestFixtures;
+
     @MockitoBean
     private UserRepository userRepository;
+
+    @BeforeEach
+    void setupTestData() {
+        lgpdTestFixtures.seedBiometricTerm();
+    }
 
     @Test
     @DisplayName("Should return current biometric term details")
@@ -38,7 +48,7 @@ class BiometricConsentFlowIntegrationTest {
     void shouldReturnCurrentBiometricTermDetails() throws Exception {
         mockMvc.perform(get("/terms/biometric/current"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.documentType").isNotEmpty())
+                .andExpect(jsonPath("$.type").isNotEmpty())
                 .andExpect(jsonPath("$.version").isNotEmpty())
                 .andExpect(jsonPath("$.title").isNotEmpty())
                 .andExpect(jsonPath("$.content").isNotEmpty())
