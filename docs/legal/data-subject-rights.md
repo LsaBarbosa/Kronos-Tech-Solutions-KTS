@@ -73,12 +73,48 @@ Quando o pedido vier incompleto, o fluxo deve permitir complementação. Exemplo
 
 ## Exportação de dados
 
-O projeto já possui fluxo de exportação LGPD e consolidação de múltiplos domínios de dados. A exportação deve:
+O projeto possui dois fluxos de exportação LGPD, ambos com consolidação de múltiplos domínios de dados:
+
+### Exportação própria do titular
+- **Endpoint**: `GET /lgpd/me/export`
+- **Autenticação**: Qualquer funcionário autenticado
+- **Dados exportados**: Minimizados, sem geolocalização precisa
+- **Auditoria**: Registrada como `LGPD_OWN_DATA_EXPORTED`
+- **Escopo**: Dados do próprio solicitante apenas
+
+### Exportação administrativa vinculada a solicitação aprovada
+- **Endpoint**: `POST /lgpd/admin/requests/{requestId}/export`
+- **Autenticação**: CTO ou Manager
+- **Pré-requisitos**:
+  - Solicitação LGPD deve existir e estar autorizada por domínio
+  - Status OBRIGATÓRIO: `APPROVED_FOR_EXPORT`
+  - Tipos permitidos: `ACCESS`, `PORTABILITY`, `SHARING_INFORMATION`, `CONFIRM_PROCESSING`
+  - Tipos bloqueados: `CORRECTION`, `ANONYMIZATION`, `BLOCKING`, `DELETION`, `CONSENT_REVOCATION`
+- **Campos obrigatórios**:
+  - `legalBasis`: Fundamento legal da exportação
+  - `operationalReason`: Motivo operacional documentado
+  - `reviewerNotes`: Notas do revisor
+- **Geolocalização precisa**:
+  - Por padrão: `false`
+  - `true` apenas com:
+    - Usuário com role `CTO`
+    - `reviewerNotes` não vazio (justificativa explícita)
+- **Auditoria**: 
+  - Sucesso: `LGPD_ADMIN_DATA_EXPORTED`
+  - Bloqueio: `LGPD_ADMIN_DATA_EXPORT_BLOCKED`
+
+### Endpoint legado (mantido com segurança)
+- **Endpoint**: `GET /lgpd/employees/{employeeId}/export`
+- **Comportamento seguro**:
+  - Se `employeeId` == usuário autenticado: délega para exportação própria
+  - Se `employeeId` != usuário autenticado: retorna 403 com mensagem "Exportação administrativa exige solicitação LGPD aprovada."
+
+Todas as exportações devem:
 
 - limitar o escopo ao que o titular pode legitimamente acessar;
 - evitar exposição de dados de terceiros;
-- preservar trilha de auditoria;
-- ser revisada antes de uso em produção.
+- preservar trilha de auditoria completa;
+- ser revisadas antes de uso em produção;
 
 ## Correção de dados
 

@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.DataProcessingPurposeResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdAdminExportRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestAdminListResponse;
@@ -53,8 +54,10 @@ import java.util.UUID;
 import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME;
 
 import static com.kts.kronos.constants.ApiPaths.LGPD;
+import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_REQUEST_EXPORT;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_ANONYMIZE;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_EXPORT;
+import static com.kts.kronos.constants.ApiPaths.LGPD_ME_EXPORT;
 import static com.kts.kronos.constants.ApiPaths.LGPD_PROCESSING_CATALOG;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUESTS;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_HISTORY;
@@ -125,6 +128,37 @@ public class LgpdController {
                 .map(LgpdRequestHistoryResponse::fromDomain)
                 .toList();
         return ResponseEntity.ok(history);
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(LGPD_ME_EXPORT)
+    public ResponseEntity<LgpdEmployeeExportResponse> exportOwnData(
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletRequest httpServletRequest
+    ) {
+        return ResponseEntity.ok(lgpdUseCase.exportOwnEmployeeData(
+                clientIpResolver.resolve(httpServletRequest),
+                userAgent
+        ));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping(LGPD_ADMIN_REQUEST_EXPORT)
+    public ResponseEntity<LgpdEmployeeExportResponse> exportForApprovedRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody LgpdAdminExportRequest request,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletRequest httpServletRequest
+    ) {
+        return ResponseEntity.ok(lgpdUseCase.exportEmployeeDataForApprovedRequest(
+                requestId,
+                request.includePreciseGeolocation(),
+                request.legalBasis(),
+                request.operationalReason(),
+                request.reviewerNotes(),
+                clientIpResolver.resolve(httpServletRequest),
+                userAgent
+        ));
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
