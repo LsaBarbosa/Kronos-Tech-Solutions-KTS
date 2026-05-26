@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = LgpdComplianceTestApplication.class)
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 @Transactional
 @DisplayName("Biometric Consent Flow Integration Tests")
@@ -34,7 +34,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should return current biometric term details")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldReturnCurrentBiometricTermDetails() throws Exception {
         mockMvc.perform(get("/terms/biometric/current"))
                 .andExpect(status().isOk())
@@ -48,7 +48,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should check consent status and return boolean")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldCheckConsentStatusReturnsBoolean() throws Exception {
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
@@ -57,7 +57,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should accept biometric term successfully")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldAcceptBiometricTermSuccessfully() throws Exception {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
@@ -67,7 +67,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should reflect status change after acceptance")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldReflectStatusChangeAfterAcceptance() throws Exception {
         // Accept
         mockMvc.perform(post("/terms/accept-biometric")
@@ -83,7 +83,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should revoke biometric consent successfully")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldRevokeBiometricConsentSuccessfully() throws Exception {
         // Accept first
         mockMvc.perform(post("/terms/accept-biometric")
@@ -103,7 +103,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should reflect status change after revocation")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldReflectStatusChangeAfterRevocation() throws Exception {
         // Accept
         mockMvc.perform(post("/terms/accept-biometric")
@@ -128,7 +128,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should handle multiple accept/revoke cycles")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldHandleMultipleAcceptRevokeCycles() throws Exception {
         for (int i = 0; i < 3; i++) {
             // Accept
@@ -153,7 +153,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should retrieve consent history")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldRetrieveConsentHistory() throws Exception {
         mockMvc.perform(get("/terms/consents/history"))
                 .andExpect(status().isOk())
@@ -177,7 +177,7 @@ class BiometricConsentFlowIntegrationTest {
 
     @Test
     @DisplayName("Should reject invalid accept request with missing fields")
-    @WithMockUser(username = "testuser", roles = "EMPLOYEE")
+    @WithMockUser(username = "testuser", roles = "MANAGER")
     void shouldRejectInvalidAcceptRequest() throws Exception {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")

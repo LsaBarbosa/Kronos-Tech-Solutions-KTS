@@ -4,6 +4,8 @@ import com.kts.kronos.RekognitionSetup;
 import com.kts.kronos.adapter.in.web.exceptions.JsonAccessDeniedHandler;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.persistence.impl.EmailSenderProviderImpl;
+import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.config.SecurityConfig;
 import com.kts.kronos.observability.adapter.in.web.CorrelationIdFilter;
 import com.kts.kronos.observability.adapter.in.web.ObservabilityController;
@@ -16,7 +18,9 @@ import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfig
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import static org.mockito.Mockito.mock;
 
 @SpringBootConfiguration
 @EnableAutoConfiguration(exclude = {
@@ -38,4 +42,14 @@ import org.springframework.context.annotation.Import;
         KronosTracing.class
 })
 public class ContextSmokeTestApplication {
+
+	@Bean
+	public UserProvider userProvider() {
+		return mock(UserProvider.class);
+	}
+
+	@Bean
+	public TokenBlacklistProvider tokenBlacklistProvider() {
+		return mock(TokenBlacklistProvider.class);
+	}
 }
