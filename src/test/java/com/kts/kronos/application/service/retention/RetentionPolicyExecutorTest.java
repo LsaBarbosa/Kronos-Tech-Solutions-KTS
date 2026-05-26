@@ -8,6 +8,7 @@ import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -320,14 +321,89 @@ class RetentionPolicyExecutorTest {
         assertTrue(result.notes().contains("APPLY execution is currently disabled"));
     }
 
+    @Test
+    @DisplayName("TIME_BASED policies require retentionDays")
+    void testTimeBasedPolicyRequiresRetentionDays() {
+        var policy = createPolicy("RETENTION_INTERNAL_MESSAGE", "MESSAGE", RetentionExecutionMode.DRY_RUN, RetentionPolicyType.TIME_BASED, null);
+
+        var error = assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+
+        assertEquals("RetentionPolicy retentionDays is required for TIME_BASED policies", error.getMessage());
+    }
+
+    @Test
+    @DisplayName("TIME_BASED policies reject non-positive retentionDays")
+    void testTimeBasedPolicyRejectsNonPositiveRetentionDays() {
+        var policy = createPolicy("RETENTION_INTERNAL_MESSAGE", "MESSAGE", RetentionExecutionMode.DRY_RUN, RetentionPolicyType.TIME_BASED, 0);
+
+        var error = assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+
+        assertEquals("RetentionPolicy retentionDays must be positive for TIME_BASED policies", error.getMessage());
+    }
+
+    @Test
+    @DisplayName("CONSENT_BASED policies allow null retentionDays")
+    void testConsentBasedPolicyAllowsNullRetentionDays() {
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        when(mockProcessor.execute(any(), eq("DRY_RUN"))).thenReturn(
+                RetentionExecutionResult.success(
+                        UUID.randomUUID(),
+                        "RETENTION_INTERNAL_MESSAGE",
+                        RetentionResourceType.MESSAGE,
+                        "DRY_RUN",
+                        1L,
+                        0L,
+                        0L
+                )
+        );
+
+        var policy = createPolicy("RETENTION_INTERNAL_MESSAGE", "MESSAGE", RetentionExecutionMode.DRY_RUN, RetentionPolicyType.CONSENT_BASED, null);
+        var result = executor.executePolicy(policy);
+
+        assertEquals("SUCCESS", result.status());
+    }
+
+    @Test
+    @DisplayName("LEGAL_HOLD policies allow null retentionDays")
+    void testLegalHoldPolicyAllowsNullRetentionDays() {
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        when(mockProcessor.execute(any(), eq("DRY_RUN"))).thenReturn(
+                RetentionExecutionResult.success(
+                        UUID.randomUUID(),
+                        "RETENTION_INTERNAL_MESSAGE",
+                        RetentionResourceType.MESSAGE,
+                        "DRY_RUN",
+                        1L,
+                        0L,
+                        0L
+                )
+        );
+
+        var policy = createPolicy("RETENTION_INTERNAL_MESSAGE", "MESSAGE", RetentionExecutionMode.DRY_RUN, RetentionPolicyType.LEGAL_HOLD, null);
+        var result = executor.executePolicy(policy);
+
+        assertEquals("SUCCESS", result.status());
+    }
+
     // Helper methods
     private RetentionPolicy createPolicy(String policyCode, String resourceType, RetentionExecutionMode mode) {
+        return createPolicy(policyCode, resourceType, mode, RetentionPolicyType.TIME_BASED, 30);
+    }
+
+    private RetentionPolicy createPolicy(
+            String policyCode,
+            String resourceType,
+            RetentionExecutionMode mode,
+            RetentionPolicyType policyType,
+            Integer retentionDays
+    ) {
         return new RetentionPolicy(
                 UUID.randomUUID(),
                 policyCode,
                 "Test retention policy",
+                policyType,
                 resourceType,
-                30,
+                retentionDays,
                 mode,
                 true,
                 false,

@@ -1,6 +1,7 @@
 package com.kts.kronos.domain.model;
 
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -28,6 +29,11 @@ class RetentionPolicyTest {
         assertEquals(executedAt, executed.updatedAt());
         assertFalse(executed.enabled() != policy().enabled());
         assertNotNull(executed.updatedAt());
+    }
+
+    @Test
+    void shouldDefaultLegacyConstructorToTimeBasedPolicy() {
+        assertEquals(RetentionPolicyType.TIME_BASED, policy().policyType());
     }
 
     private RetentionPolicy policy() {

@@ -10,7 +10,8 @@ import com.kts.kronos.adapter.in.web.http.LgpdController;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
-import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.application.service.retention.RetentionBatchExecutionSummary;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,7 +69,7 @@ class LgpdControllerWebMvcTest {
     private DataProcessingCatalog dataProcessingCatalog;
 
     @MockitoBean
-    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
+    private RetentionExecutionService retentionExecutionService;
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -545,7 +547,8 @@ class LgpdControllerWebMvcTest {
                 )
         );
 
-        when(lgpdRetentionDryRunService.executeDryRun()).thenReturn(results);
+        when(retentionExecutionService.executeActivePolicies(any(), any(), anyBoolean(), any()))
+                .thenReturn(new RetentionBatchExecutionSummary("DRY_RUN", results.size(), 5100, 250, 0, true, results));
 
         mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
                 .andExpect(status().isOk())

@@ -1,23 +1,39 @@
 package com.kts.kronos.integration;
 
+import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
+import com.kts.kronos.adapter.in.web.http.LgpdController;
+import com.kts.kronos.application.legal.DataProcessingCatalog;
+import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
+import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.application.service.retention.RetentionBatchExecutionSummary;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
+import com.kts.kronos.domain.model.LgpdRequest;
+import com.kts.kronos.domain.model.RetentionDryRunResult;
+import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
+import com.kts.kronos.domain.model.enuns.LgpdRequestType;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
-import com.kts.kronos.adapter.in.web.http.LgpdController;
-import com.kts.kronos.application.legal.DataProcessingCatalog;
-import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
-import com.kts.kronos.application.security.ClientIpResolver;
-import com.kts.kronos.application.service.LgpdRetentionDryRunService;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -46,13 +62,47 @@ class LgpdAdminRequestManagementIntegrationTest {
     private DataProcessingCatalog dataProcessingCatalog;
 
     @MockitoBean
-    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
+    private RetentionExecutionService retentionExecutionService;
 
     @Autowired
     private MockMvc mockMvc;
 
     private static final String ADMIN_REQUESTS_ENDPOINT = "/lgpd/admin/requests";
     private static final String RETENTION_DRYRUN_ENDPOINT = "/lgpd/admin/retention/dry-run";
+    private static final UUID REQUEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID COMPANY_ID = UUID.fromString("00000000-0000-0000-0000-000000000102");
+    private static final UUID ASSIGNED_TO_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000103");
+
+    @BeforeEach
+    void setUp() {
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any(Pageable.class)))
+                .thenReturn(Page.empty());
+        when(lgpdUseCase.assignRequest(any(UUID.class), any(UUID.class)))
+                .thenReturn(sampleRequest());
+        when(lgpdUseCase.addNote(any(UUID.class), anyString(), any()))
+                .thenReturn(sampleRequest());
+        when(lgpdUseCase.completeRequest(any(UUID.class), anyString(), any()))
+                .thenReturn(sampleRequest());
+        when(lgpdUseCase.rejectRequest(any(UUID.class), anyString(), anyString(), any()))
+                .thenReturn(sampleRequest());
+        when(retentionExecutionService.executeActivePolicies(any(), any(), anyBoolean(), anyString()))
+                .thenReturn(new RetentionBatchExecutionSummary(
+                        "DRY_RUN",
+                        1,
+                        5,
+                        2,
+                        0,
+                        false,
+                        List.of(new RetentionDryRunResult(
+                                "RETENTION_INTERNAL_MESSAGE",
+                                "message",
+                                5,
+                                2,
+                                "DELETE",
+                                false
+                        ))
+                ));
+    }
 
     @Test
     @DisplayName("CTO should be able to access admin LGPD requests endpoint")
@@ -138,7 +188,7 @@ class LgpdAdminRequestManagementIntegrationTest {
     @WithMockUser(username = "cto-user", roles = "CTO")
     void adminRequestsShouldSupportCompanyFilter() throws Exception {
         mockMvc.perform(get(ADMIN_REQUESTS_ENDPOINT)
-                .param("companyId", "company-123"))
+                .param("companyId", COMPANY_ID.toString()))
                 .andExpect(status().isOk());
     }
 
@@ -146,9 +196,9 @@ class LgpdAdminRequestManagementIntegrationTest {
     @DisplayName("CTO should be able to access request assignment endpoint")
     @WithMockUser(username = "cto-user", roles = "CTO")
     void ctoShouldAccessAssignEndpoint() throws Exception {
-        mockMvc.perform(patch("/lgpd/admin/requests/request-123/assign")
+        mockMvc.perform(patch("/lgpd/admin/requests/{requestId}/assign", REQUEST_ID)
                 .contentType("application/json")
-                .content("{\"assignedToUserId\":\"user-456\"}"))
+                .content("{\"assignedToUserId\":\"" + ASSIGNED_TO_USER_ID + "\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -156,7 +206,7 @@ class LgpdAdminRequestManagementIntegrationTest {
     @DisplayName("Manager should be able to add note to LGPD request endpoint")
     @WithMockUser(username = "manager-user", roles = "MANAGER")
     void managerShouldAccessNoteEndpoint() throws Exception {
-        mockMvc.perform(post("/lgpd/admin/requests/request-123/notes")
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/notes", REQUEST_ID)
                 .contentType("application/json")
                 .content("{\"publicNote\":\"Processing in progress\"}"))
                 .andExpect(status().isOk());
@@ -192,7 +242,7 @@ class LgpdAdminRequestManagementIntegrationTest {
     @DisplayName("CTO should be able to access request completion endpoint")
     @WithMockUser(username = "cto-user", roles = "CTO")
     void ctoShouldAccessCompleteEndpoint() throws Exception {
-        mockMvc.perform(post("/lgpd/admin/requests/request-123/complete")
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/complete", REQUEST_ID)
                 .contentType("application/json")
                 .content("{\"publicResolutionNotes\":\"Request processed\"}"))
                 .andExpect(status().isOk());
@@ -202,9 +252,14 @@ class LgpdAdminRequestManagementIntegrationTest {
     @DisplayName("Manager should be able to access request rejection endpoint")
     @WithMockUser(username = "manager-user", roles = "MANAGER")
     void managerShouldAccessRejectEndpoint() throws Exception {
-        mockMvc.perform(post("/lgpd/admin/requests/request-123/reject")
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/reject", REQUEST_ID)
                 .contentType("application/json")
-                .content("{\"closedReason\":\"Request cannot be fulfilled\"}"))
+                .content("""
+                        {
+                          "closedReason":"Request cannot be fulfilled",
+                          "publicNote":"Request cannot be fulfilled"
+                        }
+                        """))
                 .andExpect(status().isOk());
     }
 
@@ -213,7 +268,7 @@ class LgpdAdminRequestManagementIntegrationTest {
     @WithMockUser(username = "manager-user", roles = "MANAGER")
     void adminEndpointsShouldHandleCompanyFilter() throws Exception {
         mockMvc.perform(get(ADMIN_REQUESTS_ENDPOINT)
-                .param("companyId", "other-company-456"))
+                .param("companyId", COMPANY_ID.toString()))
                 .andExpect(status().isOk());
     }
 
@@ -223,5 +278,29 @@ class LgpdAdminRequestManagementIntegrationTest {
     void retentionEndpointShouldValidateParameters() throws Exception {
         mockMvc.perform(get(RETENTION_DRYRUN_ENDPOINT))
                 .andExpect(status().isOk());
+    }
+
+    private LgpdRequest sampleRequest() {
+        Instant now = Instant.parse("2026-05-26T12:00:00Z");
+        return new LgpdRequest(
+                REQUEST_ID,
+                UUID.fromString("00000000-0000-0000-0000-000000000104"),
+                UUID.fromString("00000000-0000-0000-0000-000000000105"),
+                COMPANY_ID,
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                "Sample request",
+                null,
+                now,
+                now,
+                null,
+                null,
+                ASSIGNED_TO_USER_ID,
+                now.plusSeconds(86_400),
+                "HIGH",
+                null,
+                null,
+                null
+        );
     }
 }

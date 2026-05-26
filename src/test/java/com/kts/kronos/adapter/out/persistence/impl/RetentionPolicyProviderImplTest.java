@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.persistence.entity.RetentionPolicyEntity;
 import com.kts.kronos.adapter.out.persistence.mapper.RetentionPolicyMapper;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -77,6 +78,7 @@ class RetentionPolicyProviderImplTest {
                 .policyId(policy.policyId())
                 .policyCode(policy.policyCode())
                 .description(policy.description())
+                .policyType(RetentionPolicyType.TIME_BASED)
                 .resourceType(policy.resourceType())
                 .retentionDays(policy.retentionDays())
                 .executionMode(policy.executionMode())

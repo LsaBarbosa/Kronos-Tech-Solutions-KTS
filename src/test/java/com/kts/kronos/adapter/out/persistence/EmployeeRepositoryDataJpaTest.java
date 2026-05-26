@@ -2,7 +2,10 @@ package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
+import com.kts.kronos.adapter.out.persistence.entity.LegalConsentEntity;
 import com.kts.kronos.application.port.out.projection.CompanyEmployeeCountsProjection;
+import com.kts.kronos.domain.model.enuns.ConsentType;
+import com.kts.kronos.domain.model.enuns.LegalBasis;
 import com.kts.kronos.support.jpa.AbstractPostgresDataJpaTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,6 +22,9 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
 
     @Autowired
     private EmployeeRepository repository;
+
+    @Autowired
+    private LegalConsentRepository legalConsentRepository;
 
     @Test
     @DisplayName("countByCompanyIds: deve retornar ativos e inativos por empresa")
@@ -101,7 +108,44 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
         assertTrue(repository.findById(saved.getEmployeeId()).isEmpty());
     }
 
+    @Test
+    @DisplayName("findEligibleBiometricArtifactsByMissingConsent: deve ignorar consentimento ativo e incluir ausencia de consentimento")
+    void shouldFindEligibleBiometricArtifactsByMissingConsent() {
+        UUID companyId = UUID.randomUUID();
+        EmployeeEntity withoutConsent = repository.save(employee(companyId, "12345678909", true, "face-a"));
+        EmployeeEntity withActiveConsent = repository.save(employee(companyId, "98765432100", true, "face-b"));
+        legalConsentRepository.save(activeBiometricConsent(withActiveConsent.getEmployeeId()));
+
+        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsByMissingConsent();
+
+        assertTrue(result.stream().anyMatch(employee -> employee.getEmployeeId().equals(withoutConsent.getEmployeeId())));
+        assertTrue(result.stream().noneMatch(employee -> employee.getEmployeeId().equals(withActiveConsent.getEmployeeId())));
+    }
+
+    @Test
+    @DisplayName("findEligibleBiometricArtifactsByRevokedConsent: deve incluir apenas consentimento revogado antes do cutoff")
+    void shouldFindEligibleBiometricArtifactsByRevokedConsent() {
+        UUID companyId = UUID.randomUUID();
+        Instant cutoff = Instant.parse("2026-05-20T00:00:00Z");
+        EmployeeEntity revokedOld = repository.save(employee(companyId, "12345678909", true, "face-a"));
+        EmployeeEntity revokedRecent = repository.save(employee(companyId, "98765432100", true, "face-b"));
+        EmployeeEntity activeConsent = repository.save(employee(companyId, "11144477735", true, "face-c"));
+
+        legalConsentRepository.save(revokedBiometricConsent(revokedOld.getEmployeeId(), cutoff.minusSeconds(3600)));
+        legalConsentRepository.save(revokedBiometricConsent(revokedRecent.getEmployeeId(), cutoff.plusSeconds(3600)));
+        legalConsentRepository.save(activeBiometricConsent(activeConsent.getEmployeeId()));
+
+        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+
+        assertEquals(1, result.size());
+        assertEquals(revokedOld.getEmployeeId(), result.getFirst().getEmployeeId());
+    }
+
     private EmployeeEntity employee(UUID companyId, String cpf, boolean active) {
+        return employee(companyId, cpf, active, null);
+    }
+
+    private EmployeeEntity employee(UUID companyId, String cpf, boolean active, String faceS3ObjectKey) {
         return EmployeeEntity.builder()
                 .employeeId(UUID.randomUUID())
                 .fullName("Employee " + cpf)
@@ -112,6 +156,7 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
                 .salary(3000.0)
                 .phone("21999999999")
                 .active(active)
+                .faceS3ObjectKey(faceS3ObjectKey)
                 .address(AddressEmbeddable.builder()
                         .street("Rua A")
                         .number("10")
@@ -121,6 +166,36 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
                         .build())
                 .companyId(companyId)
                 .homeOffice(false)
+                .build();
+    }
+
+    private LegalConsentEntity activeBiometricConsent(UUID employeeId) {
+        Instant now = Instant.parse("2026-05-26T12:00:00Z");
+        return LegalConsentEntity.builder()
+                .consentId(UUID.randomUUID())
+                .employeeId(employeeId)
+                .consentType(ConsentType.BIOMETRIC_AUTHENTICATION)
+                .legalBasis(LegalBasis.CONSENT)
+                .purpose("Biometric authentication")
+                .version("v1")
+                .grantedAt(now.minusSeconds(7200))
+                .createdAt(now.minusSeconds(7200))
+                .updatedAt(now.minusSeconds(7200))
+                .build();
+    }
+
+    private LegalConsentEntity revokedBiometricConsent(UUID employeeId, Instant revokedAt) {
+        return LegalConsentEntity.builder()
+                .consentId(UUID.randomUUID())
+                .employeeId(employeeId)
+                .consentType(ConsentType.BIOMETRIC_AUTHENTICATION)
+                .legalBasis(LegalBasis.CONSENT)
+                .purpose("Biometric authentication")
+                .version("v1")
+                .grantedAt(revokedAt.minusSeconds(7200))
+                .revokedAt(revokedAt)
+                .createdAt(revokedAt.minusSeconds(7200))
+                .updatedAt(revokedAt)
                 .build();
     }
 }

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -131,6 +132,7 @@ class BiometricArtifactRetentionProcessorTest {
         assertEquals(0L, result.affectedCount());
         assertEquals("PARTIAL", result.status());
         assertNotNull(result.notes());
+        assertFalse(result.notes().contains(employeeId.toString()));
 
         verify(faceStorageProvider, times(1)).deleteFaceImage("s3-key-1");
         verify(faceRecognitionProvider, times(0)).deleteFacesByExternalImageId(any());
@@ -157,6 +159,7 @@ class BiometricArtifactRetentionProcessorTest {
         assertEquals(0L, result.affectedCount());
         assertEquals("PARTIAL", result.status());
         assertNotNull(result.notes());
+        assertFalse(result.notes().contains(employeeId.toString()));
 
         verify(faceStorageProvider, times(1)).deleteFaceImage("s3-key-1");
         verify(faceRecognitionProvider, times(1)).deleteFacesByExternalImageId(employeeId);

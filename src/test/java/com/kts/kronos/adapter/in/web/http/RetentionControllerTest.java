@@ -1,9 +1,11 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.application.port.out.provider.RetentionExecutionLogProvider;
 import com.kts.kronos.application.port.out.provider.RetentionPolicyProvider;
 import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
+import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionExecutionLog;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +52,9 @@ class RetentionControllerTest {
 
     @MockitoBean
     private RetentionPolicyExecutor retentionPolicyExecutor;
+
+    @MockitoBean
+    private RetentionExecutionService retentionExecutionService;
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -106,8 +112,47 @@ class RetentionControllerTest {
     @Test
     @WithMockUser(roles = "MANAGER")
     void shouldForbidManagerFromApplyingPolicy() throws Exception {
-        mockMvc.perform(post("/admin/retention/policies/POLICY_1/apply"))
+        mockMvc.perform(post("/admin/retention/policies/POLICY_1/apply")
+                        .contentType("application/json")
+                        .content("""
+                                {"justification":"maintenance","confirmed":true}
+                                """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldRejectApplyWithoutConfirmation() throws Exception {
+        mockMvc.perform(post("/admin/retention/policies/POLICY_1/apply")
+                        .contentType("application/json")
+                        .content("""
+                                {"justification":"maintenance","confirmed":false}
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldApplyPolicyWhenConfirmed() throws Exception {
+        var policy = createPolicy("POLICY_1", true);
+        when(retentionPolicyProvider.findByCode("POLICY_1")).thenReturn(policy);
+        when(retentionExecutionService.executePolicy(any(), any(), any(), anyBoolean(), any()))
+                .thenReturn(RetentionExecutionResult.success(
+                        UUID.randomUUID(),
+                        "POLICY_1",
+                        RetentionResourceType.MESSAGE,
+                        "APPLY",
+                        5L,
+                        2L,
+                        0L
+                ));
+
+        mockMvc.perform(post("/admin/retention/policies/POLICY_1/apply")
+                        .contentType("application/json")
+                        .content("""
+                                {"justification":"maintenance","confirmed":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.policyCode").value("POLICY_1"))
+                .andExpect(jsonPath("$.mode").value("APPLY"));
     }
 
     @Test

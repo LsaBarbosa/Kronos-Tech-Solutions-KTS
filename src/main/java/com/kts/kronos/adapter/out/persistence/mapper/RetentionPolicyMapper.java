@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.mapper;
 
 import com.kts.kronos.adapter.out.persistence.entity.RetentionPolicyEntity;
 import com.kts.kronos.domain.model.RetentionPolicy;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -11,6 +12,7 @@ public class RetentionPolicyMapper {
                 entity.getPolicyId(),
                 entity.getPolicyCode(),
                 entity.getDescription(),
+                entity.getPolicyType() != null ? entity.getPolicyType() : RetentionPolicyType.TIME_BASED,
                 entity.getResourceType(),
                 entity.getRetentionDays(),
                 entity.getExecutionMode(),
@@ -28,6 +30,7 @@ public class RetentionPolicyMapper {
                 .policyId(domain.policyId())
                 .policyCode(domain.policyCode())
                 .description(domain.description())
+                .policyType(domain.policyType())
                 .resourceType(domain.resourceType())
                 .retentionDays(domain.retentionDays())
                 .executionMode(domain.executionMode())

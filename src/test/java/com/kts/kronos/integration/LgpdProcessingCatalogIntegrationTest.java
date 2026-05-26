@@ -15,7 +15,7 @@ import com.kts.kronos.adapter.in.web.http.LgpdController;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
-import com.kts.kronos.application.service.LgpdRetentionDryRunService;
+import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.enuns.DataCategory;
@@ -56,7 +56,7 @@ class LgpdProcessingCatalogIntegrationTest {
     private ClientIpResolver clientIpResolver;
 
     @MockitoBean
-    private LgpdRetentionDryRunService lgpdRetentionDryRunService;
+    private RetentionExecutionService retentionExecutionService;
 
     @TestConfiguration
     @EnableMethodSecurity

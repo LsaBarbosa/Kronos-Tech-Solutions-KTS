@@ -187,6 +187,9 @@ kronos:
       scheduler:
         enabled: ${LGPD_RETENTION_SCHEDULER_ENABLED:false}
         cron: ${LGPD_RETENTION_SCHEDULER_CRON:0 15 4 * * ?}
+        mode: ${LGPD_RETENTION_SCHEDULER_MODE:DRY_RUN}
+        apply-confirmed: ${LGPD_RETENTION_SCHEDULER_APPLY_CONFIRMED:false}
+        justification: ${LGPD_RETENTION_SCHEDULER_JUSTIFICATION:Scheduled LGPD retention batch}
       allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:false}
 
 biometric:

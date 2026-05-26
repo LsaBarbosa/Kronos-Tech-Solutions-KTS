@@ -13,8 +13,6 @@ import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.RetentionPolicyCatalogEntry;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
-import com.kts.kronos.domain.model.enuns.RetentionPolicyCode;
-import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,58 +52,39 @@ public class LgpdRetentionApplyService {
         if (!allowApply) {
             log.warn("event=lgpd_retention_apply_blocked reason=allow-apply-flag-disabled totalPolicies={}", policies.size());
             for (var policy : policies) {
-                var blockedResult = new RetentionDryRunResult(
-                    policy.code().name(),
-                    mapPolicyCodeToResourceType(policy.code()) != null
-                        ? toSnakeCase(mapPolicyCodeToResourceType(policy.code()))
-                        : "UNKNOWN",
-                    0,
-                    0,
-                    policy.action(),
-                    true
-                );
-                results.add(blockedResult);
+                results.add(new RetentionDryRunResult(
+                        policy.code().name(),
+                        toSnakeCase(policy.resourceType().name()),
+                        0,
+                        0,
+                        policy.action().name(),
+                        true
+                ));
             }
             return results;
         }
 
         for (var policy : policies) {
-            if (policy.requiresManualApproval()) {
-                log.info("event=lgpd_retention_apply_skipped policyCode={} reason=requires-manual-approval", policy.code());
-                var skippedResult = new RetentionDryRunResult(
-                    policy.code().name(),
-                    mapPolicyCodeToResourceType(policy.code()) != null
-                        ? toSnakeCase(mapPolicyCodeToResourceType(policy.code()))
-                        : "UNKNOWN",
-                    0,
-                    0,
-                    policy.action(),
-                    true
-                );
-                results.add(skippedResult);
-                continue;
-            }
-
             try {
                 var executionResult = executeRetentionPolicy(policy);
 
-                var applyResult = new RetentionDryRunResult(
-                    policy.code().name(),
-                    executionResult.resourceType() != null
-                        ? toSnakeCase(executionResult.resourceType().name())
-                        : "UNKNOWN",
-                    executionResult.scannedCount(),
-                    executionResult.affectedCount(),
-                    policy.action(),
-                    "PARTIAL".equals(executionResult.status()) || "ERROR".equals(executionResult.status())
-                );
-                results.add(applyResult);
+                results.add(new RetentionDryRunResult(
+                        policy.code().name(),
+                        executionResult.resourceType() != null
+                                ? toSnakeCase(executionResult.resourceType().name())
+                                : "UNKNOWN",
+                        executionResult.scannedCount(),
+                        executionResult.affectedCount(),
+                        policy.action().name(),
+                        "PARTIAL".equals(executionResult.status()) || "ERROR".equals(executionResult.status())
+                ));
 
                 log.info("event=lgpd_retention_apply_executed policyCode={} action={} status={} scanned={} affected={}",
-                    policy.code(), policy.action(), executionResult.status(),
-                    executionResult.scannedCount(), executionResult.affectedCount());
+                        policy.code(), policy.action(), executionResult.status(),
+                        executionResult.scannedCount(), executionResult.affectedCount());
             } catch (Exception e) {
-                log.error("event=lgpd_retention_apply_error policyCode={} action={} error={}", policy.code(), policy.action(), e.getMessage(), e);
+                log.error("event=lgpd_retention_apply_error policyCode={} action={} error={}",
+                        policy.code(), policy.action(), e.getMessage(), e);
             }
         }
 
@@ -114,56 +93,23 @@ public class LgpdRetentionApplyService {
     }
 
     private RetentionExecutionResult executeRetentionPolicy(RetentionPolicyCatalogEntry policy) {
-        String resourceType = mapPolicyCodeToResourceType(policy.code());
-
-        if (resourceType == null) {
-            log.warn("event=lgpd_retention_apply_no_processor policyCode={} reason=no-resource-type-mapping", policy.code());
-            return RetentionExecutionResult.error(
+        RetentionPolicy retentionPolicy = new RetentionPolicy(
                 UUID.randomUUID(),
                 policy.code().name(),
+                policy.description(),
+                policy.policyType(),
+                policy.resourceType().name(),
+                policy.retentionDays(),
+                RetentionExecutionMode.APPLY,
+                true,
+                policy.preserveLaborData(),
+                policy.preserveFiscalData(),
                 null,
-                "APPLY",
-                0,
-                "No processor found for resource type mapping"
-            );
-        }
-
-        boolean preserveLaborData = shouldPreserveLaborData(policy.code());
-        boolean preserveFiscalData = shouldPreserveFiscalData(policy.code());
-
-        RetentionPolicy retentionPolicy = new RetentionPolicy(
-            UUID.randomUUID(),
-            policy.code().name(),
-            policy.description(),
-            resourceType,
-            policy.retentionDays(),
-            RetentionExecutionMode.APPLY,
-            true,
-            preserveLaborData,
-            preserveFiscalData,
-            null,
-            Instant.now(),
-            Instant.now()
+                Instant.now(),
+                Instant.now()
         );
 
         return retentionPolicyExecutor.executePolicy(retentionPolicy);
-    }
-
-    private boolean shouldPreserveLaborData(RetentionPolicyCode policyCode) {
-        return switch (policyCode) {
-            case RETENTION_TIME_RECORD,
-                 RETENTION_EMPLOYEE_CONTRACT,
-                 RETENTION_DOCUMENT_LABOR -> true;
-            default -> false;
-        };
-    }
-
-    private boolean shouldPreserveFiscalData(RetentionPolicyCode policyCode) {
-        return switch (policyCode) {
-            case RETENTION_EMPLOYEE_CONTRACT,
-                 RETENTION_DOCUMENT_LABOR -> true;
-            default -> false;
-        };
     }
 
     private String toSnakeCase(String input) {
@@ -171,22 +117,6 @@ public class LgpdRetentionApplyService {
             return input;
         }
         return input.toLowerCase();
-    }
-
-    private String mapPolicyCodeToResourceType(RetentionPolicyCode policyCode) {
-        return switch (policyCode) {
-            case RETENTION_BIOMETRIC_ACTIVE_CONSENT -> RetentionResourceType.BIOMETRIC_ARTIFACT.name();
-            case RETENTION_BIOMETRIC_EVIDENCE -> RetentionResourceType.LEGAL_CONSENT.name();
-            case RETENTION_TIME_RECORD -> null;
-            case RETENTION_EMPLOYEE_CONTRACT -> RetentionResourceType.DOCUMENT.name();
-            case RETENTION_DOCUMENT_GENERAL -> RetentionResourceType.DOCUMENT.name();
-            case RETENTION_DOCUMENT_LABOR -> RetentionResourceType.DOCUMENT.name();
-            case RETENTION_SECURITY_LOG -> RetentionResourceType.AUDIT_LOG.name();
-            case RETENTION_LGPD_REQUEST -> RetentionResourceType.LGPD_REQUEST.name();
-            case RETENTION_INTERNAL_MESSAGE -> RetentionResourceType.MESSAGE.name();
-            case RETENTION_PASSWORD_RESET_TOKEN -> RetentionResourceType.PASSWORD_RESET_TOKEN.name();
-            default -> null;
-        };
     }
 
     public boolean isApplyEnabled() {
