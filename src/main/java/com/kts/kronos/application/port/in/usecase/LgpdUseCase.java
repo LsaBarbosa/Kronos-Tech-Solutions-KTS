@@ -36,6 +36,21 @@ public interface LgpdUseCase {
             String exportReason
     );
 
+    LgpdEmployeeExportResponse exportOwnEmployeeData(
+            String ipAddress,
+            String userAgent
+    );
+
+    LgpdEmployeeExportResponse exportEmployeeDataForApprovedRequest(
+            UUID requestId,
+            boolean includePreciseGeolocation,
+            String legalBasis,
+            String operationalReason,
+            String reviewerNotes,
+            String ipAddress,
+            String userAgent
+    );
+
     void anonymizeEmployee(UUID employeeId, String ipAddress, String userAgent);
 
     AnonymizationDryRunResponse dryRunAnonymizeEmployee(UUID employeeId);
