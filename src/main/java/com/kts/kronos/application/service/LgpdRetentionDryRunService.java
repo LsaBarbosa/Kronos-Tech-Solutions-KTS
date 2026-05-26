@@ -49,7 +49,30 @@ public class LgpdRetentionDryRunService {
                     Instant.now()
                 );
 
-                retentionPolicyExecutor.executePolicy(retentionPolicy);
+                var executionResult = retentionPolicyExecutor.executePolicy(retentionPolicy);
+
+                String resourceTypeStr = executionResult.resourceType() != null
+                    ? toSnakeCase(executionResult.resourceType().name())
+                    : "UNKNOWN";
+
+                var dryRunResult = new RetentionDryRunResult(
+                    policy.code().name(),
+                    resourceTypeStr,
+                    executionResult.scannedCount(),
+                    executionResult.affectedCount(),
+                    policy.action(),
+                    "PARTIAL".equals(executionResult.status()) || "ERROR".equals(executionResult.status())
+                );
+                results.add(dryRunResult);
+
+                log.debug(
+                    "event=lgpd_retention_dry_run_policy policyCode={} resourceType={} scanned={} affected={} status={}",
+                    policy.code().name(),
+                    resourceTypeStr,
+                    executionResult.scannedCount(),
+                    executionResult.affectedCount(),
+                    executionResult.status()
+                );
 
             } catch (Exception e) {
                 log.error(
@@ -64,6 +87,13 @@ public class LgpdRetentionDryRunService {
         log.info("event=lgpd_retention_dry_run_completed totalResults={}", results.size());
 
         return results;
+    }
+
+    private String toSnakeCase(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        return input.toLowerCase();
     }
 
     private String mapPolicyCodeToResourceType(String policyCode) {

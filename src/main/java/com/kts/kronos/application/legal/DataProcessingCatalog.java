@@ -115,8 +115,8 @@ public class DataProcessingCatalog {
             new DataProcessingPurpose(
                 "LEGAL_CONSENT_EVIDENCE",
                 DataCategory.LEGAL_CONSENT,
-                LegalBasis.CONSENT,
-                "Registro e evidência de consentimentos legais (biometria, processamento)",
+                LegalBasis.REGULAR_EXERCISE_OF_RIGHTS,
+                "Registro e evidência de consentimentos legais para validação de direitos e conformidade jurídica formal (sujeito a parecer jurídico)",
                 "RETENTION_BIOMETRIC_EVIDENCE",
                 false,
                 true
@@ -177,7 +177,7 @@ public class DataProcessingCatalog {
             case "LGPD_REQUEST_MANAGEMENT" ->
                 "Processamento de seus direitos de acesso, correção e exclusão.";
             case "LEGAL_CONSENT_EVIDENCE" ->
-                "Registro legal dos consentimentos que você forneceu.";
+                "Registros dos consentimentos que você forneceu, que podem ser preservados para fins de conformidade jurídica ou validação de direitos conforme necessário.";
             default -> technicalPurpose;
         };
     }

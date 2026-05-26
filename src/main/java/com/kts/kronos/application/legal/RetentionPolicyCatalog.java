@@ -21,7 +21,7 @@ public class RetentionPolicyCatalog {
             ),
             new RetentionPolicyCatalogEntry(
                 RetentionPolicyCode.RETENTION_BIOMETRIC_EVIDENCE,
-                "Retenção de evidência de consentimento biométrico",
+                "Retenção de evidência de consentimento biométrico (validação jurídica formal necessária)",
                 2555,
                 "PRESERVE_LEGAL_EVIDENCE",
                 true,

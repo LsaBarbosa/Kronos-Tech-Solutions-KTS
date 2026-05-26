@@ -174,8 +174,8 @@ class LgpdProcessingCatalogIntegrationTest {
                 new PublicDataProcessingPurposeResponse(
                         "LEGAL_CONSENT_EVIDENCE",
                         DataCategory.LEGAL_CONSENT,
-                        LegalBasis.CONSENT,
-                        "Registro legal dos consentimentos que você forneceu.",
+                        LegalBasis.REGULAR_EXERCISE_OF_RIGHTS,
+                        "Registros dos consentimentos que você forneceu, que podem ser preservados para fins de conformidade jurídica ou validação de direitos conforme necessário.",
                         "RETENTION_BIOMETRIC_EVIDENCE",
                         false,
                         true
