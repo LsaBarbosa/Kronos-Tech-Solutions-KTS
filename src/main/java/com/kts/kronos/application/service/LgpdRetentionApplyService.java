@@ -9,6 +9,7 @@ import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
 import com.kts.kronos.application.legal.RetentionPolicyCatalog;
 import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
 import com.kts.kronos.domain.model.RetentionDryRunResult;
+import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.RetentionPolicyCatalogEntry;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
@@ -47,38 +48,84 @@ public class LgpdRetentionApplyService {
     private boolean allowApply;
 
     public List<RetentionDryRunResult> executeApply() {
-        if (!allowApply) {
-            log.warn("event=lgpd_retention_apply_blocked reason=allow-apply-flag-disabled");
-            throw new IllegalStateException("Retention apply is disabled. Set kronos.lgpd.retention.allow-apply=true to enable.");
-        }
-
         List<RetentionDryRunResult> results = new ArrayList<>();
         var policies = retentionPolicyCatalog.getActivePolicies();
+
+        if (!allowApply) {
+            log.warn("event=lgpd_retention_apply_blocked reason=allow-apply-flag-disabled totalPolicies={}", policies.size());
+            for (var policy : policies) {
+                var blockedResult = new RetentionDryRunResult(
+                    policy.code().name(),
+                    mapPolicyCodeToResourceType(policy.code()) != null
+                        ? toSnakeCase(mapPolicyCodeToResourceType(policy.code()))
+                        : "UNKNOWN",
+                    0,
+                    0,
+                    policy.action(),
+                    true
+                );
+                results.add(blockedResult);
+            }
+            return results;
+        }
 
         for (var policy : policies) {
             if (policy.requiresManualApproval()) {
                 log.info("event=lgpd_retention_apply_skipped policyCode={} reason=requires-manual-approval", policy.code());
+                var skippedResult = new RetentionDryRunResult(
+                    policy.code().name(),
+                    mapPolicyCodeToResourceType(policy.code()) != null
+                        ? toSnakeCase(mapPolicyCodeToResourceType(policy.code()))
+                        : "UNKNOWN",
+                    0,
+                    0,
+                    policy.action(),
+                    true
+                );
+                results.add(skippedResult);
                 continue;
             }
 
             try {
-                executeRetentionPolicy(policy);
-                log.info("event=lgpd_retention_apply_executing policyCode={} action={} status=success", policy.code(), policy.action());
+                var executionResult = executeRetentionPolicy(policy);
+
+                var applyResult = new RetentionDryRunResult(
+                    policy.code().name(),
+                    executionResult.resourceType() != null
+                        ? toSnakeCase(executionResult.resourceType().name())
+                        : "UNKNOWN",
+                    executionResult.scannedCount(),
+                    executionResult.affectedCount(),
+                    policy.action(),
+                    "PARTIAL".equals(executionResult.status()) || "ERROR".equals(executionResult.status())
+                );
+                results.add(applyResult);
+
+                log.info("event=lgpd_retention_apply_executed policyCode={} action={} status={} scanned={} affected={}",
+                    policy.code(), policy.action(), executionResult.status(),
+                    executionResult.scannedCount(), executionResult.affectedCount());
             } catch (Exception e) {
                 log.error("event=lgpd_retention_apply_error policyCode={} action={} error={}", policy.code(), policy.action(), e.getMessage(), e);
             }
         }
 
-        log.info("event=lgpd_retention_apply_completed totalExecuted={}", results.size());
+        log.info("event=lgpd_retention_apply_completed totalResults={}", results.size());
         return results;
     }
 
-    private void executeRetentionPolicy(RetentionPolicyCatalogEntry policy) {
+    private RetentionExecutionResult executeRetentionPolicy(RetentionPolicyCatalogEntry policy) {
         String resourceType = mapPolicyCodeToResourceType(policy.code());
 
         if (resourceType == null) {
-            log.warn("event=lgpd_retention_apply_skipped policyCode={} reason=no-resource-type-mapping", policy.code());
-            return;
+            log.warn("event=lgpd_retention_apply_no_processor policyCode={} reason=no-resource-type-mapping", policy.code());
+            return RetentionExecutionResult.error(
+                UUID.randomUUID(),
+                policy.code().name(),
+                null,
+                "APPLY",
+                0,
+                "No processor found for resource type mapping"
+            );
         }
 
         boolean preserveLaborData = shouldPreserveLaborData(policy.code());
@@ -99,7 +146,7 @@ public class LgpdRetentionApplyService {
             Instant.now()
         );
 
-        retentionPolicyExecutor.executePolicy(retentionPolicy);
+        return retentionPolicyExecutor.executePolicy(retentionPolicy);
     }
 
     private boolean shouldPreserveLaborData(RetentionPolicyCode policyCode) {
@@ -119,6 +166,13 @@ public class LgpdRetentionApplyService {
         };
     }
 
+    private String toSnakeCase(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        return input.toLowerCase();
+    }
+
     private String mapPolicyCodeToResourceType(RetentionPolicyCode policyCode) {
         return switch (policyCode) {
             case RETENTION_BIOMETRIC_ACTIVE_CONSENT -> RetentionResourceType.BIOMETRIC_ARTIFACT.name();
@@ -131,6 +185,7 @@ public class LgpdRetentionApplyService {
             case RETENTION_LGPD_REQUEST -> RetentionResourceType.LGPD_REQUEST.name();
             case RETENTION_INTERNAL_MESSAGE -> RetentionResourceType.MESSAGE.name();
             case RETENTION_PASSWORD_RESET_TOKEN -> RetentionResourceType.PASSWORD_RESET_TOKEN.name();
+            default -> null;
         };
     }
 

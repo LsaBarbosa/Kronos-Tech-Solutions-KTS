@@ -76,12 +76,12 @@ class LgpdRetentionApplyServiceTest {
 
         var policy = createAuditLogPolicy(RetentionExecutionMode.APPLY);
 
-        // This will fail because there are no processors, but it verifies the flag allows execution
-        // The allow-apply check passes and it tries to find a processor
+        // When allow-apply is true, the flag check passes and it tries to find a processor
+        // Since no processor is found, an error result is saved
         executor.executePolicy(policy);
 
-        // Verify it attempted to execute (no processor found is expected)
-        verify(executionLogProvider, times(0)).save(any());
+        // Verify it attempted to execute and logged the error
+        verify(executionLogProvider, times(1)).save(any());
     }
 
     @Test

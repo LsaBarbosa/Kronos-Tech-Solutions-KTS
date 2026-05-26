@@ -31,7 +31,7 @@ public class RetentionPolicyExecutor {
     @Value("${kronos.lgpd.retention.allow-apply:false}")
     private boolean allowApply;
 
-    public void executePolicy(RetentionPolicy policy) {
+    public com.kts.kronos.domain.model.RetentionExecutionResult executePolicy(RetentionPolicy policy) {
         validatePolicy(policy);
 
         var executionId = UUID.randomUUID();
@@ -53,7 +53,7 @@ public class RetentionPolicyExecutor {
             var executionLog = RetentionExecutionLog.fromResult(blockedResult);
             executionLogProvider.save(executionLog);
             auditRetentionBlocked(executionId, policy.policyCode(), policy.resourceType());
-            return;
+            return blockedResult;
         }
 
         var processor = findProcessor(policy.resourceType());
@@ -63,7 +63,19 @@ public class RetentionPolicyExecutor {
                     policy.policyCode(),
                     policy.resourceType()
             );
-            return;
+            var errorResult = com.kts.kronos.domain.model.RetentionExecutionResult.error(
+                    executionId,
+                    policy.policyCode(),
+                    com.kts.kronos.domain.model.enuns.RetentionResourceType.valueOf(policy.resourceType()),
+                    executionMode,
+                    0,
+                    "No processor found for resource type: " + policy.resourceType()
+            );
+            if ("APPLY".equals(executionMode)) {
+                var executionLog = RetentionExecutionLog.fromResult(errorResult);
+                executionLogProvider.save(executionLog);
+            }
+            return errorResult;
         }
 
         log.info(
@@ -90,6 +102,7 @@ public class RetentionPolicyExecutor {
         );
 
         auditRetentionExecution(executionId, executionMode, policy.policyCode(), policy.resourceType(), result);
+        return result;
     }
 
     private void validatePolicy(RetentionPolicy policy) {
