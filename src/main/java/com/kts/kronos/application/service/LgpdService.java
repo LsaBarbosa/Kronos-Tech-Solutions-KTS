@@ -249,6 +249,221 @@ public class LgpdService implements LgpdUseCase {
         return response;
     }
 
+    @Override
+    public LgpdEmployeeExportResponse exportOwnEmployeeData(String ipAddress, String userAgent) {
+        UUID requestedByEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
+        Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(requestedByEmployeeId);
+
+        LgpdEmployeeExportResponse response = buildExport(
+                targetEmployee,
+                requestedByUserId,
+                false,
+                requestedByEmployeeId
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_OWN_DATA_EXPORTED,
+                targetEmployee.employeeId(),
+                targetEmployee.companyId(),
+                "EMPLOYEE",
+                response.manifest().exportId().toString(),
+                "MEDIUM",
+                String.format(
+                        "Exportação LGPD própria gerada. exportId=%s, employeeId=%s, preciseGeolocationIncluded=false",
+                        response.manifest().exportId(),
+                        targetEmployee.employeeId()
+                ),
+                ipAddress,
+                userAgent
+        );
+
+        return response;
+    }
+
+    @Override
+    public LgpdEmployeeExportResponse exportEmployeeDataForApprovedRequest(
+            UUID requestId,
+            boolean includePreciseGeolocation,
+            String legalBasis,
+            String operationalReason,
+            String reviewerNotes,
+            String ipAddress,
+            String userAgent
+    ) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
+
+        validateAdministrativeExportRequest(request, includePreciseGeolocation, reviewerNotes);
+
+        Employee targetEmployee = employeeProvider.findById(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+
+        LgpdEmployeeExportResponse response = buildExport(
+                targetEmployee,
+                requestedByUserId,
+                includePreciseGeolocation,
+                requestedByUserId
+        );
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_ADMIN_DATA_EXPORTED,
+                targetEmployee.employeeId(),
+                targetEmployee.companyId(),
+                "LGPD_REQUEST",
+                requestId.toString(),
+                includePreciseGeolocation ? "HIGH" : "MEDIUM",
+                String.format(
+                        "Exportação LGPD administrativa gerada. exportId=%s, requestId=%s, employeeId=%s, approvedByUserId=%s, preciseGeolocationIncluded=%s, legalBasis=%s",
+                        response.manifest().exportId(),
+                        requestId,
+                        targetEmployee.employeeId(),
+                        requestedByUserId,
+                        includePreciseGeolocation,
+                        legalBasis
+                ),
+                ipAddress,
+                userAgent
+        );
+
+        return response;
+    }
+
+    private LgpdEmployeeExportResponse buildExport(
+            Employee targetEmployee,
+            UUID requestedByUserId,
+            boolean includePreciseGeolocation,
+            UUID targetEmployeeId
+    ) {
+        var company = companyProvider.findById(targetEmployee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + targetEmployee.companyId()));
+        var user = userProvider.findByEmployeeId(targetEmployee.employeeId()).orElse(null);
+        var documents = documentProvider.findAllByEmployeeId(targetEmployee.employeeId());
+        var timeRecords = timeRecordProvider.findByEmployeeId(targetEmployee.employeeId());
+        var messages = messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(targetEmployee.companyId(), targetEmployee.employeeId());
+        List<com.kts.kronos.domain.model.AuditLog> auditLogs = user != null ? auditService.findByUserId(user.userId()) : List.of();
+        var legalConsents = legalConsentProvider.findAllByEmployeeId(targetEmployee.employeeId());
+
+        return LgpdEmployeeExportResponse.from(
+                targetEmployee,
+                user,
+                company,
+                documents,
+                timeRecords,
+                messages,
+                auditLogs,
+                legalConsents,
+                includePreciseGeolocation,
+                requestedByUserId
+        );
+    }
+
+    private void validateAdministrativeExportRequest(
+            LgpdRequest request,
+            boolean includePreciseGeolocation,
+            String reviewerNotes
+    ) {
+        if (request.status() != LgpdRequestStatus.APPROVED_FOR_EXPORT) {
+            auditService.registerLgpd(
+                    AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                    request.employeeId(),
+                    request.companyId(),
+                    "LGPD_REQUEST",
+                    request.requestId().toString(),
+                    "MEDIUM",
+                    String.format(
+                            "Tentativa de exportação bloqueada. requestId=%s, statusAttempted=%s, expectedStatus=APPROVED_FOR_EXPORT",
+                            request.requestId(),
+                            request.status().name()
+                    ),
+                    "",
+                    ""
+            );
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Exportação exige status APPROVED_FOR_EXPORT. Status atual: " + request.status()
+            );
+        }
+
+        if (!isExportableRequestType(request.requestType())) {
+            auditService.registerLgpd(
+                    AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                    request.employeeId(),
+                    request.companyId(),
+                    "LGPD_REQUEST",
+                    request.requestId().toString(),
+                    "MEDIUM",
+                    String.format(
+                            "Exportação bloqueada por tipo de requisição. requestId=%s, requestType=%s",
+                            request.requestId(),
+                            request.requestType()
+                    ),
+                    "",
+                    ""
+            );
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Tipo de solicitação não permite exportação: " + request.requestType()
+            );
+        }
+
+        validatePreciseGeolocationForAdminExport(includePreciseGeolocation, reviewerNotes, request);
+    }
+
+    private void validatePreciseGeolocationForAdminExport(
+            boolean includePreciseGeolocation,
+            String reviewerNotes,
+            LgpdRequest request
+    ) {
+        if (includePreciseGeolocation) {
+            if (jwtAuthenticatedUser.getCurrentRole() != Role.CTO) {
+                auditService.registerLgpd(
+                        AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                        request.employeeId(),
+                        request.companyId(),
+                        "LGPD_REQUEST",
+                        request.requestId().toString(),
+                        "HIGH",
+                        String.format(
+                                "Geolocalização precisa bloqueada. requestId=%s, userRole=%s, requerido=CTO",
+                                request.requestId(),
+                                jwtAuthenticatedUser.getCurrentRole()
+                        ),
+                        "",
+                        ""
+                );
+                throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                        "Apenas CTO pode incluir geolocalização precisa."
+                );
+            }
+
+            if (reviewerNotes == null || reviewerNotes.trim().isEmpty()) {
+                auditService.registerLgpd(
+                        AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                        request.employeeId(),
+                        request.companyId(),
+                        "LGPD_REQUEST",
+                        request.requestId().toString(),
+                        "HIGH",
+                        String.format(
+                                "Geolocalização precisa requer justificativa. requestId=%s",
+                                request.requestId()
+                        ),
+                        "",
+                        ""
+                );
+                throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                        "reviewerNotes é obrigatório para incluir geolocalização precisa."
+                );
+            }
+        }
+    }
+
+    private boolean isExportableRequestType(LgpdRequestType type) {
+        return type == LgpdRequestType.ACCESS ||
+               type == LgpdRequestType.PORTABILITY ||
+               type == LgpdRequestType.SHARING_INFORMATION ||
+               type == LgpdRequestType.CONFIRM_PROCESSING;
+    }
+
     private void validateExportReason(UUID targetEmployeeId, UUID requestedByEmployeeId, String exportReason) {
         boolean isOwnData = targetEmployeeId.equals(requestedByEmployeeId);
         if (!isOwnData && (exportReason == null || exportReason.trim().isEmpty())) {
@@ -965,7 +1180,8 @@ public class LgpdService implements LgpdUseCase {
             case OPEN -> List.of(LgpdRequestStatus.IN_ANALYSIS, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
             case IN_ANALYSIS -> List.of(LgpdRequestStatus.WAITING_CONTROLLER, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
             case WAITING_CONTROLLER -> List.of(LgpdRequestStatus.WAITING_LEGAL_REVIEW, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
-            case WAITING_LEGAL_REVIEW -> List.of(LgpdRequestStatus.WAITING_DATA_SUBJECT, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case WAITING_LEGAL_REVIEW -> List.of(LgpdRequestStatus.APPROVED_FOR_EXPORT, LgpdRequestStatus.WAITING_DATA_SUBJECT, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
+            case APPROVED_FOR_EXPORT -> List.of(LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
             case WAITING_DATA_SUBJECT -> List.of(LgpdRequestStatus.IN_ANALYSIS, LgpdRequestStatus.COMPLETED, LgpdRequestStatus.PARTIALLY_COMPLETED, LgpdRequestStatus.REJECTED, LgpdRequestStatus.CANCELLED);
             case COMPLETED, REJECTED, PARTIALLY_COMPLETED, CANCELLED -> List.of();
         };
