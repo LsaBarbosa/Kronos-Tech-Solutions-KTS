@@ -12,9 +12,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.kts.kronos.adapter.out.persistence.UserRepository;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.domain.model.enuns.Role;
 import testsupport.LgpdComplianceTestApplication;
 import testsupport.LgpdTestFixtures;
 
+import java.util.UUID;
+
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,9 +42,26 @@ class BiometricConsentFlowIntegrationTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private JwtAuthenticatedUser jwtAuthenticatedUser;
+
+    private UUID testEmployeeId;
+    private String biometricTermHash;
+    private static final UUID TEST_USER_ID = UUID.randomUUID();
+
     @BeforeEach
     void setupTestData() {
-        lgpdTestFixtures.seedBiometricTerm();
+        testEmployeeId = lgpdTestFixtures.seedTestEmployee();
+        biometricTermHash = lgpdTestFixtures.seedBiometricTermAndReturnHash();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(testEmployeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(TEST_USER_ID);
+        when(jwtAuthenticatedUser.getUsername()).thenReturn("testuser");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+    }
+
+    private String acceptBiometricJson() {
+        return "{\"version\":\"1.0\",\"contentHashSha256\":\"" + biometricTermHash + "\"}";
     }
 
     @Test
@@ -71,7 +93,7 @@ class BiometricConsentFlowIntegrationTest {
     void shouldAcceptBiometricTermSuccessfully() throws Exception {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
-                .content("{\"version\":\"1.0\",\"contentHashSha256\":\"abc123def456\"}"))
+                .content(acceptBiometricJson()))
                 .andExpect(status().isNoContent());
     }
 
@@ -82,7 +104,7 @@ class BiometricConsentFlowIntegrationTest {
         // Accept
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
-                .content("{\"version\":\"1.0\",\"contentHashSha256\":\"abc123\"}"))
+                .content(acceptBiometricJson()))
                 .andExpect(status().isNoContent());
 
         // Check new status is true
@@ -98,7 +120,7 @@ class BiometricConsentFlowIntegrationTest {
         // Accept first
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
-                .content("{\"version\":\"1.0\",\"contentHashSha256\":\"abc123\"}"))
+                .content(acceptBiometricJson()))
                 .andExpect(status().isNoContent());
 
         // Revoke
@@ -118,7 +140,7 @@ class BiometricConsentFlowIntegrationTest {
         // Accept
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
-                .content("{\"version\":\"1.0\",\"contentHashSha256\":\"abc123\"}"))
+                .content(acceptBiometricJson()))
                 .andExpect(status().isNoContent());
 
         // Verify active
@@ -144,7 +166,7 @@ class BiometricConsentFlowIntegrationTest {
             // Accept
             mockMvc.perform(post("/terms/accept-biometric")
                     .contentType("application/json")
-                    .content("{\"version\":\"1.0\",\"contentHashSha256\":\"hash" + i + "\"}"))
+                    .content(acceptBiometricJson()))
                     .andExpect(status().isNoContent());
 
             mockMvc.perform(get("/terms/status"))
@@ -178,7 +200,7 @@ class BiometricConsentFlowIntegrationTest {
 
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
-                .content("{\"version\":\"1.0\",\"contentHashSha256\":\"abc123\"}"))
+                .content(acceptBiometricJson()))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(delete("/terms/revoke-biometric"))

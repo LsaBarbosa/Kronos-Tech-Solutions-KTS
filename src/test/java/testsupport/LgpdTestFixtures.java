@@ -1,27 +1,85 @@
 package testsupport;
 
+import com.kts.kronos.adapter.out.persistence.CompanyRepository;
+import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.LegalTextRepository;
+import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
+import com.kts.kronos.adapter.out.persistence.entity.CompanyEntity;
+import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.adapter.out.persistence.entity.LegalTextEntity;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.springframework.stereotype.Component;
 
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Component
 public class LgpdTestFixtures {
 
     private final LegalTextRepository legalTextRepository;
+    private final EmployeeRepository employeeRepository;
+    private final CompanyRepository companyRepository;
 
-    public LgpdTestFixtures(LegalTextRepository legalTextRepository) {
+    public LgpdTestFixtures(
+            LegalTextRepository legalTextRepository,
+            EmployeeRepository employeeRepository,
+            CompanyRepository companyRepository
+    ) {
         this.legalTextRepository = legalTextRepository;
+        this.employeeRepository = employeeRepository;
+        this.companyRepository = companyRepository;
     }
 
-    public void seedBiometricTerm() {
+    public UUID seedTestEmployee() {
+        var companyId = UUID.randomUUID();
+
+        var address = new AddressEmbeddable();
+        address.setPostalCode("01310-100");
+        address.setCity("São Paulo");
+        address.setState("SP");
+        address.setStreet("Avenida Paulista");
+        address.setNumber("1578");
+
+        var company = new CompanyEntity();
+        company.setId(companyId);
+        company.setName("Test Company");
+        company.setCnpj("00000000000100");
+        company.setEmail("company@example.com");
+        company.setActive(true);
+        company.setAddress(address);
+        companyRepository.save(company);
+
+        var employeeAddress = new AddressEmbeddable();
+        employeeAddress.setPostalCode("01310-100");
+        employeeAddress.setCity("São Paulo");
+        employeeAddress.setState("SP");
+        employeeAddress.setStreet("Rua das Flores");
+        employeeAddress.setNumber("100");
+
+        var employeeId = UUID.randomUUID();
+        var employee = new EmployeeEntity();
+        employee.setEmployeeId(employeeId);
+        employee.setFullName("Test Employee");
+        employee.setCpf("000.000.000-00");
+        employee.setJobPosition("Manager");
+        employee.setEmail("test@example.com");
+        employee.setSalary(5000.0);
+        employee.setCompanyId(companyId);
+        employee.setActive(true);
+        employee.setWorkStartTime(LocalTime.of(8, 0));
+        employee.setWorkEndTime(LocalTime.of(17, 0));
+        employee.setAddress(employeeAddress);
+
+        employeeRepository.save(employee);
+        return employeeId;
+    }
+
+    public String seedBiometricTermAndReturnHash() {
         var existingTerm = legalTextRepository.findByDocumentTypeAndActiveTrue(DocumentType.BIOMETRIC_CONSENT_TERM);
         if (existingTerm.isPresent()) {
-            return;
+            return existingTerm.get().getContentHashSha256();
         }
 
         String biometricContent = "TERMO DE CONSENTIMENTO PARA TRATAMENTO DE DADOS BIOMÉTRICOS\n\n" +
@@ -47,6 +105,11 @@ public class LgpdTestFixtures {
         legalText.setPublishedAt(Instant.now());
 
         legalTextRepository.save(legalText);
+        return contentHash;
+    }
+
+    public void seedBiometricTerm() {
+        seedBiometricTermAndReturnHash();
     }
 
 
