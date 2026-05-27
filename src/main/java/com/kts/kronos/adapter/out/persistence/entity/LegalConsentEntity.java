@@ -54,6 +54,9 @@ public class LegalConsentEntity {
     @Column(name = "version", nullable = false, length = 30)
     private String version;
 
+    @Column(name = "content_hash_sha256", length = 128)
+    private String contentHashSha256;
+
     @Column(name = "granted_at", nullable = false)
     private Instant grantedAt;
 

@@ -16,6 +16,7 @@ public class LegalConsentMapper {
                 entity.getLegalBasis(),
                 entity.getPurpose(),
                 entity.getVersion(),
+                entity.getContentHashSha256(),
                 entity.getGrantedAt(),
                 entity.getRevokedAt(),
                 entity.getIpAddress(),
@@ -36,6 +37,7 @@ public class LegalConsentMapper {
                 .legalBasis(domain.legalBasis())
                 .purpose(domain.purpose())
                 .version(domain.version())
+                .contentHashSha256(domain.contentHashSha256())
                 .grantedAt(domain.grantedAt())
                 .revokedAt(domain.revokedAt())
                 .ipAddress(domain.ipAddress())

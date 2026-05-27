@@ -42,4 +42,11 @@ public class LegalConsentProviderImpl implements LegalConsentProvider {
                 .map(mapper::toDomain)
                 .toList();
     }
+
+    @Override
+    public Optional<LegalConsent> findValidCurrentConsent(UUID employeeId, ConsentType type, String version, String contentHashSha256) {
+        return repository.findFirstByEmployeeIdAndConsentTypeAndVersionAndContentHashSha256AndRevokedAtIsNull(
+                employeeId, type, version, contentHashSha256
+        ).map(mapper::toDomain);
+    }
 }

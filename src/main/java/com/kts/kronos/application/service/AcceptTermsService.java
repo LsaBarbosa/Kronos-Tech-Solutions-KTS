@@ -4,6 +4,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.LegalConsent;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.AuditAction;
@@ -61,14 +62,18 @@ public class AcceptTermsService implements AcceptTermsUseCase {
             String version,
             String contentHashSha256
     ) {
+        var currentBiometricTerm = getCurrentBiometricTerm();
+        validateCurrentBiometricTerm(currentBiometricTerm, version, contentHashSha256);
 
-        boolean exists = legalConsentProvider.existsActive(
+        var existsValidConsent = legalConsentProvider.findValidCurrentConsent(
                 employeeId,
-                ConsentType.BIOMETRIC_AUTHENTICATION
-        );
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                version,
+                contentHashSha256
+        ).isPresent();
 
-        if (exists) {
-            log.warn("Usuário {} tentou aceitar o termo novamente, mas já possui registro.", employeeId);
+        if (existsValidConsent) {
+            log.info("Usuário {} já possui consentimento ativo para a versão vigente. Retornando sucesso idempotente.", employeeId);
             return;
         }
 
@@ -77,18 +82,13 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
-        var currentBiometricTerm = getCurrentBiometricTerm();
-        validateCurrentBiometricTerm(currentBiometricTerm, version, contentHashSha256);
-
         var company = companyProvider.findById(employee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-        // 1. Gera o PDF assinado eletronicamente
         byte[] pdfBytes = pdfService.generateConsentTerm(employee, company, ipAddress, userAgent, currentBiometricTerm);
 
         var filename = String.format("Termo_Aceite_Biometria_%s.pdf", employee.employeeId());
 
-        // 3. Fonte única de verdade: persiste o documento apenas pelo fluxo canônico
         documentUseCase.uploadGeneratedDocument(
                 DocumentType.BIOMETRIC_CONSENT_TERM,
                 employee.employeeId(),
@@ -97,7 +97,6 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 filename
         );
 
-        // 4. Busca o metadado recém-persistido para usar o mesmo artefato na auditoria
         var persistedDocument = documentProvider.findByEmployeeAndType(
                         employee.employeeId(),
                         DocumentType.BIOMETRIC_CONSENT_TERM,
@@ -116,6 +115,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 LegalBasis.CONSENT,
                 BIOMETRIC_CONSENT_PURPOSE,
                 currentBiometricTerm.version(),
+                currentBiometricTerm.contentHashSha256(),
                 grantedAt,
                 null,
                 ipAddress,
@@ -137,9 +137,11 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 ipAddress,
                 userAgent,
                 String.format(
-                        "Consentimento biometrico registrado. documentId=%s, documentType=%s",
+                        "Consentimento biometrico registrado. documentId=%s, documentType=%s, version=%s, contentHash=%s",
                         persistedDocument.documentId(),
-                        persistedDocument.type()
+                        persistedDocument.type(),
+                        currentBiometricTerm.version(),
+                        currentBiometricTerm.contentHashSha256()
                 )
         );
 
@@ -201,6 +203,36 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         return legalConsentProvider.findAllByEmployeeId(employeeId);
+    }
+
+    @Override
+    public BiometricConsentStatus getBiometricConsentStatus(UUID employeeId) {
+        var currentTerm = getCurrentBiometricTerm();
+        var activeConsent = legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION);
+
+        if (activeConsent.isEmpty()) {
+            return new BiometricConsentStatus(
+                    false,
+                    null,
+                    null,
+                    currentTerm.version(),
+                    currentTerm.contentHashSha256(),
+                    true
+            );
+        }
+
+        var consent = activeConsent.get();
+        boolean accepted = consent.version().equals(currentTerm.version())
+                && consent.contentHashSha256().equals(currentTerm.contentHashSha256());
+
+        return new BiometricConsentStatus(
+                accepted,
+                consent.version(),
+                consent.contentHashSha256(),
+                currentTerm.version(),
+                currentTerm.contentHashSha256(),
+                !accepted
+        );
     }
 
     private String calculateSha256(byte[] payload) {

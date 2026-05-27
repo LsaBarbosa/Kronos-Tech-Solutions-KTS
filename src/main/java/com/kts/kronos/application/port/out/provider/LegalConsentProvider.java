@@ -12,4 +12,5 @@ public interface LegalConsentProvider {
     Optional<LegalConsent> findActive(UUID employeeId, ConsentType type);
     boolean existsActive(UUID employeeId, ConsentType type);
     List<LegalConsent> findAllByEmployeeId(UUID employeeId);
+    Optional<LegalConsent> findValidCurrentConsent(UUID employeeId, ConsentType type, String version, String contentHashSha256);
 }
