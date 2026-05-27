@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.lgpd.AddLgpdRequestNoteRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationApplyRequest;
+import com.kts.kronos.adapter.in.web.dto.retention.RetentionApplyRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationConsolidatedResultResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse;
@@ -33,6 +34,7 @@ import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -51,6 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME;
@@ -68,6 +71,7 @@ import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_HISTORY;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_ID;
 import static com.kts.kronos.constants.ApiPaths.LGPD_REQUEST_STATUS;
 import static com.kts.kronos.constants.ApiPaths.LGPD_RETENTION_DRY_RUN;
+import static com.kts.kronos.constants.ApiPaths.LGPD_RETENTION_APPLY;
 import static com.kts.kronos.constants.Messages.ADMINISTRATOR;
 import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
 
@@ -79,6 +83,9 @@ public class LgpdController {
     private final ClientIpResolver clientIpResolver;
     private final DataProcessingCatalog dataProcessingCatalog;
     private final RetentionExecutionService retentionExecutionService;
+
+    @Value("${kronos.lgpd.retention.allow-apply:false}")
+    private boolean allowApply;
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(LGPD_REQUESTS)
@@ -223,6 +230,29 @@ public class LgpdController {
                         "lgpd_controller"
                 ).results()
         );
+    }
+
+    @PreAuthorize("hasRole('CTO')")
+    @PostMapping(LGPD_RETENTION_APPLY)
+    public ResponseEntity<?> applyRetention(
+            @Valid @RequestBody RetentionApplyRequest request
+    ) {
+        if (!allowApply) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of(
+                            "error", "RETENTION_APPLY_DISABLED",
+                            "message", "Data retention APPLY is currently disabled. Set LGPD_RETENTION_ALLOW_APPLY=true to enable."
+                    ));
+        }
+
+        var summary = retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.APPLY,
+                request.justification(),
+                request.confirmed(),
+                "lgpd_controller"
+        );
+
+        return ResponseEntity.ok(summary);
     }
 
     @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")

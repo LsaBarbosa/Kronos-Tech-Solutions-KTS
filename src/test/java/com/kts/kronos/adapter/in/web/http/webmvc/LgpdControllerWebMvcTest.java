@@ -50,6 +50,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @WebMvcTest(LgpdController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -58,6 +59,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LgpdControllerWebMvcTest {
     @Resource
     private MockMvc mockMvc;
+
+    @Resource
+    private LgpdController lgpdController;
 
     @MockitoBean
     private LgpdUseCase lgpdUseCase;
@@ -578,5 +582,132 @@ class LgpdControllerWebMvcTest {
     void shouldForbidAnonymousFromExecutingDryRunRetention() throws Exception {
         mockMvc.perform(get("/lgpd/admin/retention/dry-run"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldApplyRetentionSuccessfully() throws Exception {
+        ReflectionTestUtils.setField(lgpdController, "allowApply", true);
+
+        var results = List.of(
+                new RetentionDryRunResult(
+                        "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
+                        "legal_consent",
+                        100,
+                        0,
+                        "PRESERVE_WHILE_CONSENT_ACTIVE",
+                        false
+                ),
+                new RetentionDryRunResult(
+                        "RETENTION_SECURITY_LOG",
+                        "audit_log",
+                        5000,
+                        250,
+                        "MINIMIZE",
+                        false
+                )
+        );
+
+        when(retentionExecutionService.executeActivePolicies(any(), any(), anyBoolean(), any()))
+                .thenReturn(new RetentionBatchExecutionSummary("APPLY", results.size(), 5100, 250, 0, true, results));
+
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Regular schedule retention execution",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("APPLY"))
+                .andExpect(jsonPath("$.totalPolicies").value(2))
+                .andExpect(jsonPath("$.totalScanned").value(5100))
+                .andExpect(jsonPath("$.totalEligible").value(250));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldForbidManagerFromApplyingRetention() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Test",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "PARTNER")
+    void shouldForbidPartnerFromApplyingRetention() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Test",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldForbidAnonymousFromApplyingRetention() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Test",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldRejectApplyRetentionWithMissingJustification() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldRejectApplyRetentionWithoutConfirmation() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Regular execution",
+                          "confirmed": false
+                        }
+                        """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldRejectApplyRetentionWhenFeatureFlagDisabled() throws Exception {
+        mockMvc.perform(post("/lgpd/admin/retention/apply")
+                .contentType("application/json")
+                .content("""
+                        {
+                          "justification": "Regular execution",
+                          "confirmed": true
+                        }
+                        """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("RETENTION_APPLY_DISABLED"))
+                .andExpect(jsonPath("$.message").value("Data retention APPLY is currently disabled. Set LGPD_RETENTION_ALLOW_APPLY=true to enable."));
     }
 }
