@@ -84,7 +84,10 @@ class BiometricConsentFlowIntegrationTest {
     void shouldCheckConsentStatusReturnsBoolean() throws Exception {
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").isBoolean());
+                .andExpect(jsonPath("$.biometricConsentAccepted").isBoolean())
+                .andExpect(jsonPath("$.currentVersion").isNotEmpty())
+                .andExpect(jsonPath("$.currentHash").isNotEmpty())
+                .andExpect(jsonPath("$.requiresNewAcceptance").isBoolean());
     }
 
     @Test
@@ -94,7 +97,9 @@ class BiometricConsentFlowIntegrationTest {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
                 .content(acceptBiometricJson()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(true))
+                .andExpect(jsonPath("$.requiresNewAcceptance").value(false));
     }
 
     @Test
@@ -105,12 +110,12 @@ class BiometricConsentFlowIntegrationTest {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
                 .content(acceptBiometricJson()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Check new status is true
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").value(true));
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(true));
     }
 
     @Test
@@ -121,16 +126,16 @@ class BiometricConsentFlowIntegrationTest {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
                 .content(acceptBiometricJson()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Revoke
         mockMvc.perform(delete("/terms/revoke-biometric"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Verify revoked status
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").value(false));
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(false));
     }
 
     @Test
@@ -141,21 +146,21 @@ class BiometricConsentFlowIntegrationTest {
         mockMvc.perform(post("/terms/accept-biometric")
                 .contentType("application/json")
                 .content(acceptBiometricJson()))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Verify active
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").value(true));
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(true));
 
         // Revoke
         mockMvc.perform(delete("/terms/revoke-biometric"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // Verify revoked
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").value(false));
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(false));
     }
 
     @Test
@@ -167,19 +172,19 @@ class BiometricConsentFlowIntegrationTest {
             mockMvc.perform(post("/terms/accept-biometric")
                     .contentType("application/json")
                     .content(acceptBiometricJson()))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
 
             mockMvc.perform(get("/terms/status"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accepted").value(true));
+                    .andExpect(jsonPath("$.biometricConsentAccepted").value(true));
 
             // Revoke
             mockMvc.perform(delete("/terms/revoke-biometric"))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
 
             mockMvc.perform(get("/terms/status"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.accepted").value(false));
+                    .andExpect(jsonPath("$.biometricConsentAccepted").value(false));
         }
     }
 

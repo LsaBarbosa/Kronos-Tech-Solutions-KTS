@@ -1,12 +1,14 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.legal.AcceptBiometricTermsRequest;
+import com.kts.kronos.adapter.in.web.dto.legal.BiometricConsentStatusResponse;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.config.ClientIpResolverProperties;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -50,17 +52,39 @@ class TermsControllerTest {
         );
     }
 
+    private BiometricConsentStatus buildBiometricConsentStatus(
+            boolean accepted,
+            String acceptedVersion,
+            String acceptedHash,
+            String currentVersion,
+            String currentHash,
+            boolean requiresNewAcceptance
+    ) {
+        return new BiometricConsentStatus(
+                accepted,
+                acceptedVersion,
+                acceptedHash,
+                currentVersion,
+                currentHash,
+                requiresNewAcceptance
+        );
+    }
+
     @Test
     @DisplayName("accept-biometric: deve usar X-Forwarded-For para IP real em proxy")
     void shouldUseForwardedHeaderForRealClientIp() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                true, "2026.05.21", "current-hash", "2026.05.21", "current-hash", false
+        );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, true)).thenReturn("new-token");
+        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
@@ -71,9 +95,9 @@ class TermsControllerTest {
                 request
         );
 
-        assertEquals(204, response.getStatusCode().value());
+        assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "203.0.113.10", "Desconhecido", "2026.05.21", "current-hash");
-        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, true);
+        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L);
     }
 
     @Test
@@ -81,12 +105,16 @@ class TermsControllerTest {
     void shouldUseRemoteAddressWhenForwardedHeaderIsMissing() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                true, "2026.05.21", "current-hash", "2026.05.21", "current-hash", false
+        );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("bob");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "bob", "MANAGER", userId, true)).thenReturn("new-token");
+        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "bob", "MANAGER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.setRemoteAddr("127.0.0.1");
@@ -97,9 +125,9 @@ class TermsControllerTest {
                 request
         );
 
-        assertEquals(204, response.getStatusCode().value());
+        assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash");
-        verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, true);
+        verify(jwtUtils).generateToken(employeeId, "bob", "MANAGER", userId, consentStatus, 0L);
     }
 
     @Test
@@ -107,12 +135,16 @@ class TermsControllerTest {
     void shouldHandleEmptyForwardedHeaderAndNullRemoteAddress() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                true, "2026.05.21", "current-hash", "2026.05.21", "current-hash", false
+        );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("carol");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(jwtUtils.generateToken(employeeId, "carol", "PARTNER", userId, true)).thenReturn("new-token");
+        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "carol", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
         request.addHeader("X-Forwarded-For", "");
@@ -124,8 +156,9 @@ class TermsControllerTest {
                 request
         );
 
-        assertEquals(204, response.getStatusCode().value());
+        assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).acceptBiometricTerms(employeeId, userId, "unknown", "JUnit-Agent", "2026.05.21", "current-hash");
+        verify(jwtUtils).generateToken(employeeId, "carol", "PARTNER", userId, consentStatus, 0L);
     }
 
     @Test
@@ -133,35 +166,49 @@ class TermsControllerTest {
     void shouldUseFallbacksWhenRevokingBiometricTerms() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                false, null, null, "2026.05.21", "current-hash", false
+        );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, false)).thenReturn("new-token");
+        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("DELETE", "/terms/revoke-biometric");
         request.setRemoteAddr("");
 
         var response = controller.revokeBiometricTerms(request);
 
-        assertEquals(204, response.getStatusCode().value());
+        assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).revokeBiometricTerms(employeeId, "unknown", "Desconhecido");
-        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, false);
+        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L);
     }
 
     @Test
     @DisplayName("status: deve retornar resultado do caso de uso")
     void shouldReturnTermsStatusFromUseCase() {
         UUID employeeId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                true, "2026.05.21", "current-hash", "2026.05.21", "current-hash", false
+        );
+
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(acceptanceUseCase.hasAcceptedBiometricTerm(employeeId)).thenReturn(true);
+        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
 
         var response = controller.checkTermsStatus();
 
         assertEquals(200, response.getStatusCode().value());
-        assertEquals(Map.of("accepted", true), response.getBody());
-        verify(acceptanceUseCase).hasAcceptedBiometricTerm(employeeId);
+        BiometricConsentStatusResponse body = response.getBody();
+        assertEquals(true, body.biometricConsentAccepted());
+        assertEquals("2026.05.21", body.acceptedVersion());
+        assertEquals("current-hash", body.acceptedHash());
+        assertEquals("2026.05.21", body.currentVersion());
+        assertEquals("current-hash", body.currentHash());
+        assertEquals(false, body.requiresNewAcceptance());
+        verify(acceptanceUseCase).getBiometricConsentStatus(employeeId);
     }
 
     @Test
