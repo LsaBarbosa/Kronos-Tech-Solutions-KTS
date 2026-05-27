@@ -27,6 +27,13 @@ public interface LegalConsentRepository extends JpaRepository<LegalConsentEntity
 
     boolean existsByEmployeeIdAndConsentTypeAndRevokedAtIsNull(UUID employeeId, ConsentType consentType);
 
+    Optional<LegalConsentEntity> findFirstByEmployeeIdAndConsentTypeAndVersionAndContentHashSha256AndRevokedAtIsNull(
+            UUID employeeId,
+            ConsentType consentType,
+            String version,
+            String contentHashSha256
+    );
+
     @Query("""
             SELECT COUNT(c) FROM LegalConsentEntity c
              WHERE c.createdAt < :cutoff

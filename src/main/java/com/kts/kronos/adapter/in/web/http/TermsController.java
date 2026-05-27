@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.legal.AcceptBiometricTermsRequest;
+import com.kts.kronos.adapter.in.web.dto.legal.BiometricConsentStatusResponse;
 import com.kts.kronos.adapter.in.web.dto.legal.CurrentLegalTextResponse;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
@@ -39,7 +40,7 @@ public class TermsController {
     @PreAuthorize(ANY_EMPLOYEE)
     @Operation(summary = "Registrar Aceite do Termo de Biometria",
             description = "Gera um PDF assinado com IP e data, e salva nos documentos do usuário.")
-    public ResponseEntity<Void> acceptBiometricTerms(
+    public ResponseEntity<BiometricConsentStatusResponse> acceptBiometricTerms(
             @Valid @RequestBody AcceptBiometricTermsRequest payload,
             HttpServletRequest request
     ) {
@@ -64,17 +65,18 @@ public class TermsController {
                 payload.contentHashSha256()
         );
 
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, true);
-        return ResponseEntity.noContent()
+        var consentStatus = acceptanceUseCase.getBiometricConsentStatus(employeeId);
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, consentStatus, 0L);
+        return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(newToken).toString())
-                .build();
+                .body(BiometricConsentStatusResponse.fromDomain(consentStatus));
     }
 
     @DeleteMapping("/revoke-biometric")
     @PreAuthorize(ANY_EMPLOYEE)
     @Operation(summary = "Revogar Consentimento Biométrico",
             description = "Revoga o consentimento, remove imagem/template biométrico e invalida a flag de aceite no JWT.")
-    public ResponseEntity<Void> revokeBiometricTerms(HttpServletRequest request) {
+    public ResponseEntity<BiometricConsentStatusResponse> revokeBiometricTerms(HttpServletRequest request) {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         UUID userId = jwtAuthenticatedUser.getuserId();
         String username = jwtAuthenticatedUser.getUsername();
@@ -89,20 +91,21 @@ public class TermsController {
 
         acceptanceUseCase.revokeBiometricTerms(employeeId, ipAddress, userAgent);
 
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, false);
-        return ResponseEntity.noContent()
+        var consentStatus = acceptanceUseCase.getBiometricConsentStatus(employeeId);
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, consentStatus, 0L);
+        return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(newToken).toString())
-                .build();
+                .body(BiometricConsentStatusResponse.fromDomain(consentStatus));
     }
 
     @GetMapping("/status")
     @PreAuthorize(ANY_EMPLOYEE)
-    @Operation(summary = "Verificar Status do Aceite", description = "Retorna true se o usuário já aceitou os termos.")
-    public ResponseEntity<Map<String, Boolean>> checkTermsStatus() {
+    @Operation(summary = "Verificar Status do Aceite", description = "Retorna o status versionado do consentimento biométrico.")
+    public ResponseEntity<BiometricConsentStatusResponse> checkTermsStatus() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-        boolean hasAccepted = acceptanceUseCase.hasAcceptedBiometricTerm(employeeId);
+        var consentStatus = acceptanceUseCase.getBiometricConsentStatus(employeeId);
 
-        return ResponseEntity.ok(Map.of("accepted", hasAccepted));
+        return ResponseEntity.ok(BiometricConsentStatusResponse.fromDomain(consentStatus));
     }
 
     @GetMapping("/biometric/current")

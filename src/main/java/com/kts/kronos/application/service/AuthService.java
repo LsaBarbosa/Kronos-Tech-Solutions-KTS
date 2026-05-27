@@ -9,6 +9,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
@@ -57,6 +58,7 @@ public class AuthService implements AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final LegalConsentProvider legalConsentProvider;
+    private final AcceptTermsUseCase acceptTermsUseCase;
     private final BiometricProtectionService biometricProtectionService;
     private final TokenBlacklistProvider tokenBlacklistProvider;
     private final AuthenticationRateLimitService authenticationRateLimitService;
@@ -122,10 +124,7 @@ public class AuthService implements AuthUseCase {
                     return new ResourceNotFoundException(USER_NOT_FOUND);
                 });
 
-        var termsAccepted = legalConsentProvider.existsActive(
-                user.employeeId(),
-                ConsentType.BIOMETRIC_AUTHENTICATION
-        );
+        var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
         kronosMetrics.authLoginSuccess();
         log.info("event=auth_login result=success");
@@ -151,7 +150,7 @@ public class AuthService implements AuthUseCase {
                 user.username(),
                 user.role().name(),
                 user.userId(),
-                termsAccepted,
+                consentStatus,
                 user.sessionVersion()
         );
     }
@@ -181,11 +180,8 @@ public class AuthService implements AuthUseCase {
                     throw new BadRequestException(INACTIVE_USER);
                 }
 
-                var termsAccepted = legalConsentProvider.existsActive(
-                        user.employeeId(),
-                        ConsentType.BIOMETRIC_AUTHENTICATION
-                );
-                if (!termsAccepted) {
+                var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
+                if (!consentStatus.accepted()) {
                     throw new TermsNotAcceptedException(
                             BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN,
                             "https://termo.kronossolutions.tech/"
@@ -197,7 +193,7 @@ public class AuthService implements AuthUseCase {
                         user.username(),
                         user.role().name(),
                         user.userId(),
-                        termsAccepted,
+                        consentStatus,
                         user.sessionVersion()
                 );
             });
@@ -447,17 +443,14 @@ public class AuthService implements AuthUseCase {
             throw new BadRequestException("Sessão invalidada. Faça login novamente.");
         }
 
-        var termsAccepted = legalConsentProvider.existsActive(
-                user.employeeId(),
-                ConsentType.BIOMETRIC_AUTHENTICATION
-        );
+        var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
 
         String newToken = jwtUtils.generateToken(
                 user.employeeId(),
                 user.username(),
                 user.role().name(),
                 user.userId(),
-                termsAccepted,
+                consentStatus,
                 user.sessionVersion()
         );
 

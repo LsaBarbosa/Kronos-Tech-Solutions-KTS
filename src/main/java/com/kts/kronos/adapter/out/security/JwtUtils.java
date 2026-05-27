@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.security;
 
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -78,6 +79,32 @@ public class JwtUtils {
                 .claim("role", roleName)
                 .claim("employeeId", employeeId != null ? employeeId.toString() : null)
                 .claim("terms_accepted", termsAccepted)
+                .claim("biometricConsentAccepted", termsAccepted)
+                .claim("session_version", sessionVersion)
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + expirationMs))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String generateToken(
+            UUID employeeId,
+            String username,
+            String roleName,
+            UUID userId,
+            BiometricConsentStatus consentStatus,
+            long sessionVersion
+    ) {
+        var now = new Date();
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("userId", userId != null ? userId.toString() : null)
+                .claim("role", roleName)
+                .claim("employeeId", employeeId != null ? employeeId.toString() : null)
+                .claim("terms_accepted", consentStatus.accepted())
+                .claim("biometricConsentAccepted", consentStatus.accepted())
+                .claim("biometricConsentVersion", consentStatus.acceptedVersion())
+                .claim("biometricConsentHash", consentStatus.acceptedHash())
                 .claim("session_version", sessionVersion)
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + expirationMs))
@@ -148,6 +175,26 @@ public class JwtUtils {
             return number.longValue();
         }
         return Long.parseLong(String.valueOf(sessionVersion));
+    }
+
+    public String getBiometricConsentVersionFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("biometricConsentVersion", String.class);
+    }
+
+    public String getBiometricConsentHashFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.get("biometricConsentHash", String.class);
     }
 
     public boolean validateToken(String token) {
