@@ -83,6 +83,10 @@ class AuthServiceTest {
     private AuditRequestContextService auditRequestContextService;
     @Mock
     private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.TokenBlacklistProvider tokenBlacklistProvider;
+    @Mock
+    private AuditService auditService;
 
     @BeforeEach
     void setup() {
@@ -331,6 +335,28 @@ class AuthServiceTest {
         verify(tokenProvider).deleteToken("valid");
     }
 
+    @Test
+    @DisplayName("refreshToken: deve rejeitar token quando sessionVersion foi incrementado")
+    void refreshToken_shouldRejectTokenWhenSessionVersionWasIncremented() {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId, 4L, null, null, null);
+
+        io.jsonwebtoken.Claims claims = org.mockito.Mockito.mock(io.jsonwebtoken.Claims.class);
+        when(claims.get("userId", String.class)).thenReturn(userId.toString());
+        when(claims.get("session_version", Long.class)).thenReturn(3L);
+        when(claims.getExpiration()).thenReturn(new java.util.Date(System.currentTimeMillis() - 3600000));
+
+        when(jwtUtils.getClaimsFromExpiredToken("expired-token")).thenReturn(claims);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user));
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> service.refreshToken("expired-token")
+        );
+        assertEquals("Sessão invalidada. Faça login novamente.", exception.getMessage());
+    }
+
     private static Employee employee(UUID employeeId, String email) {
         return new Employee(
                 employeeId,
@@ -344,18 +370,21 @@ class AuthServiceTest {
                 true,
                 new Address("Rua A", "10", "65000000", "Sao Luis", "MA"),
                 UUID.randomUUID(),
-                null,
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
+                null,  // lastSeenMessageTimestamp
+                false, // homeOffice
+                null,  // faceS3ObjectKey
+                null,  // workStartTime
+                null,  // workEndTime
+                null,  // breakStartTime
+                null,  // breakEndTime
+                null,  // scheduleType
+                null,  // scaleStartDate
+                null,  // preferredDayOff
+                null,  // weekendOffIndex
+                null,  // fixedWorkDays
+                null,  // deletedAt
+                null,  // deletedBy
+                null   // deactivationReason
         );
     }
 }

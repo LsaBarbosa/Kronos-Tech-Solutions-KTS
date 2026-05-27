@@ -75,6 +75,8 @@ class AcceptTermsServiceTest {
     @Mock
     private LegalTextProvider legalTextProvider;
     @Mock
+    private com.kts.kronos.application.port.out.provider.UserProvider userProvider;
+    @Mock
     private com.kts.kronos.observability.application.KronosMetrics kronosMetrics;
 
     private static final HexFormat HEX = HexFormat.of();
@@ -83,17 +85,34 @@ class AcceptTermsServiceTest {
     @DisplayName("aceite: deve encerrar fluxo quando termo já existe")
     void shouldSkipGenerationWhenTermAlreadyExists() {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LegalConsent existingConsent = buildConsent(employeeId);
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "test@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                1L,
+                null,
+                null,
+                null
+        );
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm()));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(legalConsentProvider.findValidCurrentConsent(
                 employeeId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
                 "2026.05.21",
                 "current-hash"
-        )).thenReturn(Optional.of(buildConsent(employeeId)));
+        )).thenReturn(Optional.of(existingConsent));
 
-        service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit", "2026.05.21", "current-hash");
+        var result = service.acceptBiometricTerms(employeeId, userId, "10.0.0.1", "JUnit", "2026.05.21", "current-hash");
 
+        assertEquals(employeeId, result.employeeId());
+        assertEquals(userId, result.userId());
         verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditService);
     }
 
@@ -103,13 +122,7 @@ class AcceptTermsServiceTest {
         UUID employeeId = UUID.randomUUID();
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm()));
-        when(legalConsentProvider.findValidCurrentConsent(
-                employeeId,
-                ConsentType.BIOMETRIC_AUTHENTICATION,
-                "2026.05.21",
-                "current-hash"
-        )).thenReturn(Optional.empty());
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit", "2026.05.21", "current-hash"));
@@ -142,9 +155,23 @@ class AcceptTermsServiceTest {
     void shouldFailAcceptanceWhenCompanyDoesNotExist() {
         UUID employeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId, "12345678901");
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "test@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                1L,
+                null,
+                null,
+                null
+        );
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm()));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(legalConsentProvider.findValidCurrentConsent(
                 employeeId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
@@ -155,7 +182,7 @@ class AcceptTermsServiceTest {
         when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit", "2026.05.21", "current-hash"));
+                () -> service.acceptBiometricTerms(employeeId, userId, "10.0.0.1", "JUnit", "2026.05.21", "current-hash"));
     }
 
     @Test
@@ -166,6 +193,18 @@ class AcceptTermsServiceTest {
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId, "12345678901");
         Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true, null, null, 0, 0);
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "test@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                1L,
+                null,
+                null,
+                null
+        );
         byte[] pdfBytes = "pdf-content".getBytes(StandardCharsets.UTF_8);
         String expectedFilename = "Termo_Aceite_Biometria_" + employeeId + ".pdf";
         UUID documentId = UUID.randomUUID();
@@ -173,6 +212,7 @@ class AcceptTermsServiceTest {
 
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(legalConsentProvider.findValidCurrentConsent(
                 employeeId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
@@ -200,7 +240,10 @@ class AcceptTermsServiceTest {
                 ));
         when(legalConsentProvider.save(any(LegalConsent.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.acceptBiometricTerms(employeeId, userId, "10.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash");
+        var result = service.acceptBiometricTerms(employeeId, userId, "10.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash");
+
+        assertEquals(employeeId, result.employeeId());
+        assertEquals(userId, result.userId());
 
         verify(documentUseCase).uploadGeneratedDocument(
                 eq(DocumentType.BIOMETRIC_CONSENT_TERM),
@@ -248,13 +291,27 @@ class AcceptTermsServiceTest {
     void shouldFailAcceptanceWhenPersistedDocumentMetadataIsMissing() {
         UUID employeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId, "12345678901");
         Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true, null, null, 0, 0);
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "test@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                1L,
+                null,
+                null,
+                null
+        );
         byte[] pdfBytes = "pdf-content".getBytes(StandardCharsets.UTF_8);
         LegalText currentBiometricTerm = currentBiometricTerm();
 
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(legalConsentProvider.findValidCurrentConsent(
                 employeeId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
@@ -269,7 +326,7 @@ class AcceptTermsServiceTest {
                 .thenReturn(List.of());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash"));
+                () -> service.acceptBiometricTerms(employeeId, userId, "10.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash"));
     }
 
     @Test
@@ -332,11 +389,25 @@ class AcceptTermsServiceTest {
     @DisplayName("revogação: deve remover artefatos biométricos, documentos e registrar auditoria")
     void shouldRevokeBiometricArtifactsAndAudit() {
         UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId, "12345678901").withFaceS3ObjectKey("faces/employee/image.jpg");
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "test@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                5L,
+                null,
+                null,
+                null
+        );
         UUID documentId = UUID.randomUUID();
 
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
                 .thenReturn(List.of(
                         new Document(
@@ -355,7 +426,7 @@ class AcceptTermsServiceTest {
         var activeConsent = new LegalConsent(
                 UUID.randomUUID(),
                 employeeId,
-                UUID.randomUUID(),
+                userId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
                 LegalBasis.CONSENT,
                 "Biometric authentication",
@@ -373,6 +444,8 @@ class AcceptTermsServiceTest {
         when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
                 .thenReturn(Optional.of(activeConsent));
         when(legalConsentProvider.save(any(LegalConsent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
 
         service.revokeBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent");
 
@@ -389,13 +462,107 @@ class AcceptTermsServiceTest {
                 eq(companyId),
                 eq("LEGAL_CONSENT"),
                 eq(employeeId.toString()),
-                eq("MEDIUM"),
+                eq("HIGH"),
                 eq("10.0.0.1"),
                 eq("JUnit-Agent"),
                 auditDetailsCaptor.capture()
         );
         assertTrue(auditDetailsCaptor.getValue().contains("purgados"));
         assertTrue(auditDetailsCaptor.getValue().contains("evidenceDocumentsPreserved=true"));
+    }
+
+    @Test
+    @DisplayName("revogação: deve incrementar sessionVersion do usuário e retornar resultado de revogação")
+    void revokeBiometricTerms_shouldIncrementUserSessionVersionAndReturnRevocationResult() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId, "12345678901")
+                .withFaceS3ObjectKey("faces/employee/image.jpg");
+        com.kts.kronos.domain.model.User user = new com.kts.kronos.domain.model.User(
+                userId,
+                "manager@kts.com",
+                "hash",
+                com.kts.kronos.domain.model.enuns.Role.MANAGER,
+                true,
+                employeeId,
+                5L,
+                null,
+                null,
+                null
+        );
+        UUID documentId = UUID.randomUUID();
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(List.of(
+                        new Document(
+                                documentId,
+                                employeeId,
+                                DocumentType.BIOMETRIC_CONSENT_TERM,
+                                "termo.pdf",
+                                "application/pdf",
+                                "legal/company/file.pdf",
+                                LocalDateTime.now(),
+                                null,
+                                false,
+                                false
+                        )
+                ));
+        var activeConsent = new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                userId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication",
+                "2026.05.21",
+                "abc123sha256content",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null,
+                "10.0.0.1",
+                "JUnit-Agent",
+                documentId,
+                "hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null
+        );
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.of(activeConsent));
+        when(legalConsentProvider.save(any(LegalConsent.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+
+        var result = service.revokeBiometricTerms(employeeId, "10.0.0.1", "JUnit-Agent");
+
+        ArgumentCaptor<com.kts.kronos.domain.model.User> userCaptor = ArgumentCaptor.forClass(com.kts.kronos.domain.model.User.class);
+        verify(userProvider).save(userCaptor.capture());
+        assertEquals(6L, userCaptor.getValue().sessionVersion());
+
+        assertEquals(6L, result.newSessionVersion());
+        assertEquals(employeeId, result.employeeId());
+        assertEquals(userId, result.userId());
+
+        ArgumentCaptor<String> auditDetailsCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditService).register(
+                eq(AuditAction.BIOMETRIC_CONSENT_REVOKED),
+                eq(employeeId),
+                eq(companyId),
+                eq("LEGAL_CONSENT"),
+                eq(employeeId.toString()),
+                eq("HIGH"),
+                eq("10.0.0.1"),
+                eq("JUnit-Agent"),
+                auditDetailsCaptor.capture()
+        );
+        assertTrue(auditDetailsCaptor.getValue().contains("sessions_revoked") ||
+                   auditDetailsCaptor.getValue().contains("sessões invalidadas"));
+
+        verify(faceStorageProvider).deleteFaceImage("faces/employee/image.jpg");
+        verify(faceRecognitionProvider).deleteFacesByExternalImageId(employeeId);
+        verify(employeeProvider).save(employee.withFaceS3ObjectKey(null));
+        verify(kronosMetrics).consentRevoked();
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId, String cpf) {

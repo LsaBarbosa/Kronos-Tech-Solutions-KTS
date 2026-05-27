@@ -56,7 +56,7 @@ public class TermsController {
             userAgent = "Desconhecido";
         }
 
-        acceptanceUseCase.acceptBiometricTerms(
+        var result = acceptanceUseCase.acceptBiometricTerms(
                 employeeId,
                 userId,
                 ipAddress,
@@ -65,22 +65,18 @@ public class TermsController {
                 payload.contentHashSha256()
         );
 
-        var consentStatus = acceptanceUseCase.getBiometricConsentStatus(employeeId);
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, consentStatus, 0L);
+        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, result.consentStatus(), result.sessionVersion());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(newToken).toString())
-                .body(BiometricConsentStatusResponse.fromDomain(consentStatus));
+                .body(BiometricConsentStatusResponse.fromDomain(result.consentStatus()));
     }
 
     @DeleteMapping("/revoke-biometric")
     @PreAuthorize(ANY_EMPLOYEE)
     @Operation(summary = "Revogar Consentimento Biométrico",
-            description = "Revoga o consentimento, remove imagem/template biométrico e invalida a flag de aceite no JWT.")
+            description = "Revoga o consentimento, remove imagem/template biométrico e invalida todas as sessões anteriores.")
     public ResponseEntity<BiometricConsentStatusResponse> revokeBiometricTerms(HttpServletRequest request) {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-        UUID userId = jwtAuthenticatedUser.getuserId();
-        String username = jwtAuthenticatedUser.getUsername();
-        String role = jwtAuthenticatedUser.getCurrentRole().name();
 
         String ipAddress = clientIpResolver.resolve(request);
 
@@ -89,13 +85,13 @@ public class TermsController {
             userAgent = "Desconhecido";
         }
 
-        acceptanceUseCase.revokeBiometricTerms(employeeId, ipAddress, userAgent);
+        var result = acceptanceUseCase.revokeBiometricTerms(employeeId, ipAddress, userAgent);
 
-        var consentStatus = acceptanceUseCase.getBiometricConsentStatus(employeeId);
-        String newToken = jwtUtils.generateToken(employeeId, username, role, userId, consentStatus, 0L);
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(newToken).toString())
-                .body(BiometricConsentStatusResponse.fromDomain(consentStatus));
+                .header(HttpHeaders.SET_COOKIE, authCookieService.clearAccessTokenCookie().toString())
+                .header("X-Session-Revoked", "true")
+                .header("X-Session-Revoked-Reason", "BIOMETRIC_CONSENT_REVOKED")
+                .body(BiometricConsentStatusResponse.fromDomain(result.consentStatus()));
     }
 
     @GetMapping("/status")
