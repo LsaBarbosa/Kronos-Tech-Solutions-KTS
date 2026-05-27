@@ -83,7 +83,8 @@ public class AuditService {
     }
 
     public void registerRetentionAudit(AuditAction action, String resourceType, String details) {
-        register(action, null, null, resourceType, null, "SYSTEM", null, null, details);
+        UUID systemUserId = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        register(action, systemUserId, null, resourceType, null, "SYSTEM", null, null, details);
     }
 
     public List<AuditLog> findByUserId(UUID userId) {

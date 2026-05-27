@@ -173,7 +173,9 @@ public class RetentionPolicyExecutor {
             details.put("resourceType", resourceType);
             details.put("totalScanned", result.scannedCount());
             details.put("totalAffected", result.affectedCount());
+            details.put("totalPreserved", result.skippedCount());
             details.put("totalEligible", result.scannedCount());
+            details.put("status", result.status());
             details.put("action", "RETENTION_" + mode);
 
             String detailsJson = objectMapper.writeValueAsString(details);

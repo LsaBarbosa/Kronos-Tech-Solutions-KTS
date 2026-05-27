@@ -148,8 +148,9 @@ class LgpdRetentionAuditValidationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Retention audit log not found"));
 
-        // Verify no employee/user ID in audit
-        assertNull(retentionAudit.getUserId(), "Audit should not contain userId");
+        // Verify no employee/user ID in audit (retention uses system UUID not null)
+        UUID systemUuid = UUID.fromString("00000000-0000-0000-0000-000000000000");
+        assertEquals(retentionAudit.getUserId(), systemUuid, "Audit should use system UUID");
         assertNull(retentionAudit.getCompanyId(), "Audit should not contain companyId");
         assertNotContainsUUID(retentionAudit.getDetails(), employeeId, "Details should not contain employee UUID");
         assertThat(retentionAudit.getRiskLevel()).isEqualTo("SYSTEM");
