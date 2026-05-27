@@ -323,4 +323,40 @@ class JwtAuthenticationFilterTest {
 
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
     }
+
+    @Test
+    void doFilterInternal_shouldReturn401WhenTokenSessionVersionIsOlderThanCurrentUserSessionVersion() throws Exception {
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+        UUID userId = UUID.randomUUID();
+
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("revoked-session-token"));
+        when(jwtUtils.validateToken("revoked-session-token")).thenReturn(true);
+        when(tokenBlacklistProvider.isBlacklisted("revoked-session-token")).thenReturn(false);
+        when(jwtUtils.getUsernameFromToken("revoked-session-token")).thenReturn("manager.user");
+        when(jwtUtils.getUserIdFromToken("revoked-session-token")).thenReturn(userId);
+        when(jwtUtils.getSessionVersionFromToken("revoked-session-token")).thenReturn(3L);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(
+                new com.kts.kronos.domain.model.User(
+                        userId,
+                        "manager.user",
+                        "encoded",
+                        Role.MANAGER,
+                        true,
+                        UUID.randomUUID(),
+                        4L,
+                        null,
+                        null,
+                        null
+                )
+        ));
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(401, response.getStatus());
+        assertEquals("true", response.getHeader("X-Session-Revoked"));
+        assertEquals("SESSION_VERSION_MISMATCH", response.getHeader("X-Session-Revoked-Reason"));
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
 }
