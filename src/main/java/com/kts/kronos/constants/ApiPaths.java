@@ -86,6 +86,8 @@ public class ApiPaths {
     public static final String LGPD_ADMIN_REQUEST_EXPORT = "/admin/requests/{requestId}/export";
     public static final String LGPD_EMPLOYEE_EXPORT = "/employees/{employeeId}/export";
     public static final String LGPD_EMPLOYEE_ANONYMIZE = "/employees/{employeeId}/anonymize";
+    public static final String LGPD_ADMIN_ANONYMIZATION_DRY_RUN = "/admin/requests/{requestId}/anonymization/dry-run";
+    public static final String LGPD_ADMIN_ANONYMIZATION_APPLY = "/admin/requests/{requestId}/anonymization/apply";
     public static final String LGPD_RETENTION_EXECUTIONS = "/retention/executions";
     public static final String LGPD_RETENTION_EXECUTION_ID = "/retention/executions/{executionId}";
     public static final String LGPD_INVENTORY = "/inventory";
