@@ -1,8 +1,10 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.lgpd.AddLgpdRequestNoteRequest;
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationApplyRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationConsolidatedResultResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.AssignLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
@@ -55,6 +57,8 @@ import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME
 
 import static com.kts.kronos.constants.ApiPaths.LGPD;
 import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_REQUEST_EXPORT;
+import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_ANONYMIZATION_DRY_RUN;
+import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_ANONYMIZATION_APPLY;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_ANONYMIZE;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_EXPORT;
 import static com.kts.kronos.constants.ApiPaths.LGPD_ME_EXPORT;
@@ -319,5 +323,32 @@ public class LgpdController {
             return ResponseEntity.ok(AnonymizationConsolidatedResultResponse.from(result));
         }
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping(LGPD_ADMIN_ANONYMIZATION_DRY_RUN)
+    public ResponseEntity<AnonymizationDryRunWithTokenResponse> dryRunAnonymizationForRequest(
+            @PathVariable UUID requestId
+    ) {
+        return ResponseEntity.ok(lgpdUseCase.executeDryRunAnonymizationForRequest(requestId));
+    }
+
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping(LGPD_ADMIN_ANONYMIZATION_APPLY)
+    public ResponseEntity<AnonymizationConsolidatedResultResponse> applyAnonymizationForRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody AnonymizationApplyRequest request,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletRequest httpServletRequest
+    ) {
+        var result = lgpdUseCase.applyAnonymizationForRequest(
+                requestId,
+                request.justification().trim(),
+                request.confirmed(),
+                request.dryRunToken(),
+                clientIpResolver.resolve(httpServletRequest),
+                userAgent
+        );
+        return ResponseEntity.ok(AnonymizationConsolidatedResultResponse.from(result));
     }
 }

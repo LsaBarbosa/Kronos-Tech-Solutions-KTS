@@ -70,6 +70,7 @@ public class LgpdService implements LgpdUseCase {
     private final LgpdSlaPolicyService lgpdSlaPolicyService;
     private final LgpdRequestNotificationService notificationService;
     private final AuditRequestContextService auditRequestContextService;
+    private final DryRunTokenService dryRunTokenService;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
@@ -1244,6 +1245,239 @@ public class LgpdService implements LgpdUseCase {
                         consolidatedResult.consolidatedStatus()
                 );
             }
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse executeDryRunAnonymizationForRequest(
+            java.util.UUID requestId
+    ) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        validateRequestTypeForAnonymization(request);
+        validateStatusForAnonymization(request);
+
+        var employee = employeeProvider.findById(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+
+        var plan = new AnonymizationPlan(
+                employee.employeeId(),
+                employee.companyId(),
+                jwtAuthenticatedUser.getuserId(),
+                "DRY_RUN_REQUEST_" + requestId,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        );
+
+        var results = anonymizationPlanExecutor.executePlanWithResults(plan, "DRY_RUN");
+
+        long totalScanned = 0;
+        long totalAffected = 0;
+        long totalSkipped = 0;
+        long totalErrors = 0;
+
+        var domains = new java.util.ArrayList<com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain>();
+        var warnings = new java.util.ArrayList<String>();
+
+        for (var result : results) {
+            if (result == null) continue;
+
+            totalScanned += result.scannedCount();
+            totalAffected += result.affectedCount();
+            totalSkipped += result.skippedCount();
+            totalErrors += result.errorCount();
+
+            if (result.resourceType() == com.kts.kronos.domain.model.enuns.AnonymizationResourceType.TIME_RECORD) {
+                domains.add(
+                        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.timeRecord(
+                                result.scannedCount(),
+                                result.affectedCount(),
+                                result.skippedCount(),
+                                plan.preserveLaborData()
+                        )
+                );
+            }
+        }
+
+        if (totalErrors > 0) {
+            warnings.add(String.format("Erros esperados: %d", totalErrors));
+        }
+
+        var dryRunToken = dryRunTokenService.generateToken(
+                requestId,
+                employee.employeeId(),
+                employee.companyId(),
+                jwtAuthenticatedUser.getuserId()
+        );
+
+        long tokenExpiresAtSeconds = 15 * 60; // 15 minutos
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_ANONYMIZATION_DRY_RUN_EXECUTED,
+                employee.employeeId(),
+                employee.companyId(),
+                "LGPD_REQUEST_ANONYMIZATION",
+                requestId.toString(),
+                "HIGH",
+                "Dry-run executado para requisição de anonimização. scanCount=" + totalScanned +
+                ", affectedCount=" + totalAffected + ", dryRunTokenId=" + dryRunToken.tokenId(),
+                "SYSTEM",
+                "SYSTEM"
+        );
+
+        return com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse.from(
+                dryRunToken.tokenValue().toString(),
+                tokenExpiresAtSeconds,
+                com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunResponse.create(
+                        employee.employeeId(),
+                        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunSummary.from(
+                                totalScanned,
+                                totalAffected,
+                                totalSkipped,
+                                totalErrors
+                        ),
+                        domains,
+                        warnings
+                )
+        );
+    }
+
+    @Override
+    @Transactional
+    public AnonymizationConsolidatedResult applyAnonymizationForRequest(
+            java.util.UUID requestId,
+            String justification,
+            boolean confirmed,
+            java.util.UUID dryRunToken,
+            String ipAddress,
+            String userAgent
+    ) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        validateRequestTypeForAnonymization(request);
+        validateStatusForAnonymization(request);
+
+        if (!confirmed) {
+            throw new IllegalArgumentException("Confirmação é obrigatória (confirmed deve ser true)");
+        }
+
+        if (justification == null || justification.trim().isEmpty()) {
+            throw new IllegalArgumentException("Justificativa é obrigatória e não pode estar vazia");
+        }
+
+        var token = dryRunTokenService.validateAndGetToken(dryRunToken);
+
+        if (!token.requestId().equals(requestId)) {
+            throw new IllegalArgumentException(
+                    "Token não pertence a esta solicitação. " +
+                    "requestId=" + requestId + ", tokenRequestId=" + token.requestId()
+            );
+        }
+
+        var existingResult = anonymizationConsolidatedResultRepository.findByRequestId(requestId);
+        if (existingResult.isPresent()) {
+            throw new IllegalStateException(
+                    "Anonimização já foi executada para esta solicitação. " +
+                    "requestId=" + requestId
+            );
+        }
+
+        var employee = employeeProvider.findById(request.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+
+        var plan = new AnonymizationPlan(
+                employee.employeeId(),
+                employee.companyId(),
+                jwtAuthenticatedUser.getuserId(),
+                "LGPD_REQUEST_" + requestId,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        );
+
+        AnonymizationConsolidatedResult consolidatedResult = anonymizationPlanExecutor.executePlanWithConsolidatedResult(
+                plan,
+                "APPLY"
+        );
+
+        var entity = new AnonymizationConsolidatedResultEntity(
+                consolidatedResult.consolidatedExecutionId(),
+                requestId,
+                consolidatedResult.employeeId(),
+                consolidatedResult.companyId(),
+                consolidatedResult.requestedByUserId(),
+                consolidatedResult.consolidatedStatus(),
+                consolidatedResult.executionMode(),
+                consolidatedResult.totalScanned(),
+                consolidatedResult.totalAffected(),
+                consolidatedResult.totalSkipped(),
+                consolidatedResult.totalErrors(),
+                String.join(",", consolidatedResult.failedDomains()),
+                String.join("\n", consolidatedResult.warnings()),
+                consolidatedResult.startedAt(),
+                consolidatedResult.finishedAt(),
+                Instant.now()
+        );
+
+        anonymizationConsolidatedResultRepository.save(entity);
+
+        dryRunTokenService.consumeToken(dryRunToken);
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_ANONYMIZATION_APPLIED,
+                employee.employeeId(),
+                employee.companyId(),
+                "LGPD_REQUEST_ANONYMIZATION_APPLY",
+                requestId.toString(),
+                "CRITICAL",
+                "justificationLength=" + justification.length() + "chars" +
+                ", dryRunTokenUsed=" + dryRunToken +
+                ", consolidatedStatus=" + consolidatedResult.consolidatedStatus() +
+                ", totalAffected=" + consolidatedResult.totalAffected() +
+                ", failedDomains=" + String.join(";", consolidatedResult.failedDomains()),
+                ipAddress != null ? ipAddress : "UNKNOWN",
+                userAgent != null ? userAgent : "UNKNOWN"
+        );
+
+        log.info(
+                "event=lgpd_anonymization_applied_via_request requestId={} consolidatedStatus={} employeeId={}",
+                requestId,
+                consolidatedResult.consolidatedStatus(),
+                employee.employeeId()
+        );
+
+        return consolidatedResult;
+    }
+
+    private void validateRequestTypeForAnonymization(LgpdRequest request) {
+        if (request.requestType() != LgpdRequestType.ANONYMIZATION && request.requestType() != LgpdRequestType.DELETION) {
+            throw new IllegalArgumentException(
+                    "Anonimização só pode ser executada para requisições de tipo ANONYMIZATION ou DELETION. " +
+                    "requestType=" + request.requestType()
+            );
+        }
+    }
+
+    private void validateStatusForAnonymization(LgpdRequest request) {
+        var allowedStatuses = java.util.List.of(
+                LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
+                LgpdRequestStatus.WAITING_CONTROLLER
+        );
+
+        if (!allowedStatuses.contains(request.status())) {
+            throw new IllegalArgumentException(
+                    "Status da solicitação não permite anonimização. " +
+                    "status=" + request.status() + ", allowedStatuses=" + allowedStatuses
+            );
         }
     }
 }

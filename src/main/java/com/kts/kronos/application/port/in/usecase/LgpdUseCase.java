@@ -81,4 +81,15 @@ public interface LgpdUseCase {
     List<LgpdRequestStatus> getAvailableTransitions(LgpdRequestStatus currentStatus);
 
     AnonymizationConsolidatedResult getAnonymizationResult(UUID requestId);
+
+    com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse executeDryRunAnonymizationForRequest(UUID requestId);
+
+    AnonymizationConsolidatedResult applyAnonymizationForRequest(
+            UUID requestId,
+            String justification,
+            boolean confirmed,
+            java.util.UUID dryRunToken,
+            String ipAddress,
+            String userAgent
+    );
 }
