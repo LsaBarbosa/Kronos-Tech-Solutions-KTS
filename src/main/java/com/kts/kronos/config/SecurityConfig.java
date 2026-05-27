@@ -129,6 +129,10 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> {
             auth.requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll();
             auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/public/privacy/**"
+            ).permitAll();
+            auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
                     "/auth/login",
                     "/auth/login-face",
