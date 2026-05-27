@@ -1,5 +1,6 @@
 package com.kts.kronos.application.port.in.usecase;
 
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.LegalConsent;
 import com.kts.kronos.domain.model.LegalText;
 
@@ -12,4 +13,5 @@ public interface AcceptTermsUseCase {
     void revokeBiometricTerms(UUID employeeId, String ipAddress, String userAgent);
     boolean hasAcceptedBiometricTerm(UUID employeeId);
     List<LegalConsent> getConsentHistory(UUID employeeId);
+    BiometricConsentStatus getBiometricConsentStatus(UUID employeeId);
 }
