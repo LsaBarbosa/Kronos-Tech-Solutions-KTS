@@ -5,6 +5,8 @@ import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.BiometricConsentStatus;
+import com.kts.kronos.domain.model.BiometricConsentAcceptanceResult;
+import com.kts.kronos.domain.model.BiometricConsentRevocationResult;
 import com.kts.kronos.domain.model.LegalConsent;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.AuditAction;
@@ -32,6 +34,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
     private final EmployeeProvider employeeProvider;
     private final CompanyProvider companyProvider;
+    private final UserProvider userProvider;
     private final BiometricTermPdfService pdfService;
     private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
@@ -54,7 +57,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
     @Override
     @Transactional
-    public void acceptBiometricTerms(
+    public BiometricConsentAcceptanceResult acceptBiometricTerms(
             UUID employeeId,
             UUID userId,
             String ipAddress,
@@ -65,6 +68,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         var currentBiometricTerm = getCurrentBiometricTerm();
         validateCurrentBiometricTerm(currentBiometricTerm, version, contentHashSha256);
 
+        var user = userProvider.findByEmployeeId(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
         var existsValidConsent = legalConsentProvider.findValidCurrentConsent(
                 employeeId,
                 ConsentType.BIOMETRIC_AUTHENTICATION,
@@ -74,7 +80,8 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         if (existsValidConsent) {
             log.info("Usuário {} já possui consentimento ativo para a versão vigente. Retornando sucesso idempotente.", employeeId);
-            return;
+            var consentStatus = getBiometricConsentStatus(employeeId);
+            return new BiometricConsentAcceptanceResult(employeeId, userId, user.sessionVersion(), consentStatus);
         }
 
         log.info("Iniciando processo de aceite de termos para Employee ID: {}", employeeId);
@@ -147,12 +154,18 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
         kronosMetrics.consentAccepted();
+
+        var consentStatus = getBiometricConsentStatus(employeeId);
+        return new BiometricConsentAcceptanceResult(employeeId, userId, user.sessionVersion(), consentStatus);
     }
 
     @Override
     @Transactional
-    public void revokeBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
+    public BiometricConsentRevocationResult revokeBiometricTerms(UUID employeeId, String ipAddress, String userAgent) {
         var employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        var user = userProvider.findByEmployeeId(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         if (employee.faceS3ObjectKey() != null && !employee.faceS3ObjectKey().isBlank()) {
@@ -164,6 +177,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         faceRecognitionProvider.deleteFacesByExternalImageId(employeeId);
         employeeProvider.save(employee.withFaceS3ObjectKey(null));
+
+        var updatedUser = user.incrementSessionVersion();
+        userProvider.save(updatedUser);
 
         var consentDocuments = documentProvider.findByEmployeeAndType(
                 employeeId,
@@ -177,16 +193,33 @@ public class AcceptTermsService implements AcceptTermsUseCase {
                 employee.companyId(),
                 "LEGAL_CONSENT",
                 employeeId.toString(),
-                "MEDIUM",
+                "HIGH",
                 ipAddress,
                 userAgent,
                 String.format(
-                        "Consentimento biométrico revogado e artefatos biométricos purgados. evidenceDocumentsPreserved=%s",
-                        !consentDocuments.isEmpty()
+                        "Consentimento biométrico revogado, artefatos biométricos purgados e sessões invalidadas. evidenceDocumentsPreserved=%s, newSessionVersion=%s",
+                        !consentDocuments.isEmpty(),
+                        updatedUser.sessionVersion()
                 )
         );
-        log.info("Revogação biométrica concluída com sucesso para o colaborador {}", employeeId);
+
+        log.info(
+                "Revogação biométrica concluída para employeeId={} userId={} newSessionVersion={}",
+                employeeId,
+                user.userId(),
+                updatedUser.sessionVersion()
+        );
+
         kronosMetrics.consentRevoked();
+
+        var consentStatus = getBiometricConsentStatus(employeeId);
+
+        return new BiometricConsentRevocationResult(
+                employeeId,
+                user.userId(),
+                updatedUser.sessionVersion(),
+                consentStatus
+        );
     }
 
     @Override

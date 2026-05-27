@@ -52,6 +52,10 @@ public class AuthCookieService {
                 .build();
     }
 
+    public ResponseCookie clearAccessTokenCookie() {
+        return expireAccessTokenCookie();
+    }
+
     public Optional<String> extractToken(HttpServletRequest request) {
         if (request == null || request.getCookies() == null) {
             return Optional.empty();

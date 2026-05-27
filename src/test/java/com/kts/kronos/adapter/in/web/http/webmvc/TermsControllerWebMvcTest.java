@@ -76,6 +76,13 @@ class TermsControllerWebMvcTest {
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(acceptTermsUseCase.acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit", "2026.05.21", "current-hash"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentAcceptanceResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        consentStatus
+                ));
         when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, consentStatus, 0L))
                 .thenReturn("renewed-token");
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
@@ -170,12 +177,13 @@ class TermsControllerWebMvcTest {
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
-        when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(revokedStatus);
-        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, revokedStatus, 0L))
-                .thenReturn("revoked-token");
+        when(acceptTermsUseCase.revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentRevocationResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        revokedStatus
+                ));
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(delete("/terms/revoke-biometric")
@@ -187,7 +195,7 @@ class TermsControllerWebMvcTest {
                 .andExpect(jsonPath("$.currentHash").value("current-hash"))
                 .andExpect(jsonPath("$.requiresNewAcceptance").value(true))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=revoked-token"),
+                        org.hamcrest.Matchers.containsString("Max-Age=0"),
                         org.hamcrest.Matchers.containsString("HttpOnly"),
                         org.hamcrest.Matchers.containsString("Secure"),
                         org.hamcrest.Matchers.containsString("SameSite=Lax")
@@ -221,5 +229,7 @@ class TermsControllerWebMvcTest {
                         .header("User-Agent", "JUnit"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Termo já aceito"));
+
+        verify(acceptTermsUseCase).acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit", "2026.05.21", "current-hash");
     }
 }

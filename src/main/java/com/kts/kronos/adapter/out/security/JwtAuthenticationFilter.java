@@ -66,8 +66,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         var currentUser = userProvider.findById(userId).orElse(null);
-        if (currentUser == null || currentUser.sessionVersion() != tokenSessionVersion) {
+        if (currentUser == null) {
             chain.doFilter(request, response);
+            return;
+        }
+
+        if (currentUser.sessionVersion() != tokenSessionVersion) {
+            SecurityContextHolder.clearContext();
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.setHeader("X-Session-Revoked", "true");
+            response.setHeader("X-Session-Revoked-Reason", "SESSION_VERSION_MISMATCH");
+            response.getWriter().write("""
+                {"code": "SESSION_REVOKED", "message": "Sessão invalidada. Faça login novamente."}
+                """);
             return;
         }
 

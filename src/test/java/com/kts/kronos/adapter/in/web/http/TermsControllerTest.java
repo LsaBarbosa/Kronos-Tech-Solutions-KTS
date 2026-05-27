@@ -83,7 +83,13 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(acceptanceUseCase.acceptBiometricTerms(employeeId, userId, "203.0.113.10", "Desconhecido", "2026.05.21", "current-hash"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentAcceptanceResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        consentStatus
+                ));
         when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
@@ -113,7 +119,13 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("bob");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(acceptanceUseCase.acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit-Agent", "2026.05.21", "current-hash"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentAcceptanceResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        consentStatus
+                ));
         when(jwtUtils.generateToken(employeeId, "bob", "MANAGER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
@@ -143,7 +155,13 @@ class TermsControllerTest {
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("carol");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(acceptanceUseCase.acceptBiometricTerms(employeeId, userId, "unknown", "JUnit-Agent", "2026.05.21", "current-hash"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentAcceptanceResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        consentStatus
+                ));
         when(jwtUtils.generateToken(employeeId, "carol", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
@@ -171,11 +189,13 @@ class TermsControllerTest {
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
-        when(jwtAuthenticatedUser.getUsername()).thenReturn("alice");
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
-        when(acceptanceUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
-        when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
+        when(acceptanceUseCase.revokeBiometricTerms(employeeId, "unknown", "Desconhecido"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentRevocationResult(
+                        employeeId,
+                        userId,
+                        0L,
+                        consentStatus
+                ));
 
         MockHttpServletRequest request = new MockHttpServletRequest("DELETE", "/terms/revoke-biometric");
         request.setRemoteAddr("");
@@ -184,7 +204,44 @@ class TermsControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         verify(acceptanceUseCase).revokeBiometricTerms(employeeId, "unknown", "Desconhecido");
-        verify(jwtUtils).generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L);
+    }
+
+    @Test
+    @DisplayName("revoke-biometric: deve limpar cookie auth e não emitir novo JWT")
+    void revokeBiometricTerms_shouldClearAuthCookieAndNotIssueNewJwt() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(
+                false, null, null, "2026.05.21", "current-hash", false
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(acceptanceUseCase.revokeBiometricTerms(employeeId, "192.168.1.1", "Test-Agent"))
+                .thenReturn(new com.kts.kronos.domain.model.BiometricConsentRevocationResult(
+                        employeeId,
+                        userId,
+                        6L,
+                        consentStatus
+                ));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("DELETE", "/terms/revoke-biometric");
+        request.setRemoteAddr("192.168.1.1");
+        request.addHeader("User-Agent", "Test-Agent");
+
+        var response = controller.revokeBiometricTerms(request);
+
+        assertEquals(200, response.getStatusCode().value());
+
+        String setCookieHeader = response.getHeaders().getFirst("Set-Cookie");
+        assert (setCookieHeader != null && setCookieHeader.contains("Max-Age=0"));
+
+        assertEquals("true", response.getHeaders().getFirst("X-Session-Revoked"));
+        assertEquals("BIOMETRIC_CONSENT_REVOKED", response.getHeaders().getFirst("X-Session-Revoked-Reason"));
+
+        BiometricConsentStatusResponse body = response.getBody();
+        assert (body != null && !body.biometricConsentAccepted());
+
+        verify(acceptanceUseCase).revokeBiometricTerms(employeeId, "192.168.1.1", "Test-Agent");
     }
 
     @Test
