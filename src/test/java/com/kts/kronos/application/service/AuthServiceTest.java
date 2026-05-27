@@ -7,6 +7,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
@@ -17,6 +18,7 @@ import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.service.AuditRequestContextService;
 import com.kts.kronos.domain.model.Address;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.ConsentType;
@@ -79,11 +81,24 @@ class AuthServiceTest {
     private AuthenticationRateLimitService authenticationRateLimitService;
     @Mock
     private AuditRequestContextService auditRequestContextService;
+    @Mock
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     @BeforeEach
     void setup() {
         when(auditRequestContextService.extractContext()).thenReturn(
             new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent", "UNKNOWN", false)
+        );
+    }
+
+    private BiometricConsentStatus buildBiometricConsentStatus(boolean accepted) {
+        return new BiometricConsentStatus(
+            accepted,
+            "v1.0",
+            "hash123",
+            "v1.0",
+            "hash123",
+            false
         );
     }
 
@@ -93,9 +108,10 @@ class AuthServiceTest {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(true);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true, 0L)).thenReturn("jwt");
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L)).thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
 
@@ -164,9 +180,10 @@ class AuthServiceTest {
         UUID employeeId = UUID.randomUUID();
         String image = Base64.getEncoder().encodeToString("face".getBytes());
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(false);
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
 
         TermsNotAcceptedException exception = assertThrows(
                 TermsNotAcceptedException.class,
@@ -174,7 +191,7 @@ class AuthServiceTest {
         );
 
         assertEquals(AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN, exception.getMessage());
-        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), any(Long.class));
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(BiometricConsentStatus.class), any(Long.class));
     }
 
     @Test
@@ -184,10 +201,11 @@ class AuthServiceTest {
         UUID employeeId = UUID.randomUUID();
         String image = Base64.getEncoder().encodeToString("face".getBytes());
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
+        BiometricConsentStatus consentStatus = buildBiometricConsentStatus(true);
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, true, 0L)).thenReturn("face-jwt");
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L)).thenReturn("face-jwt");
 
         assertEquals("face-jwt", service.loginFace(image, true));
     }

@@ -7,6 +7,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
@@ -16,6 +17,7 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.service.AuditRequestContextService;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -84,6 +86,8 @@ class AuthServiceAuthenticationAndResetTest {
     private AuthenticationRateLimitService authenticationRateLimitService;
     @Mock
     private AuditRequestContextService auditRequestContextService;
+    @Mock
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     private UUID employeeId;
     private UUID userId;
@@ -99,12 +103,25 @@ class AuthServiceAuthenticationAndResetTest {
         );
     }
 
+    private BiometricConsentStatus buildBiometricConsentStatus(boolean accepted, String acceptedVersion, String acceptedHash) {
+        return new BiometricConsentStatus(
+                accepted,
+                acceptedVersion,
+                acceptedHash,
+                "2026.05.21",
+                "current-hash",
+                !accepted
+        );
+    }
+
     @Test
     @DisplayName("login: autentica, verifica aceite e gera token")
     void shouldLoginAndGenerateToken() {
+        var consentStatus = buildBiometricConsentStatus(true, "2026.05.21", "current-hash");
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true, 2L)).thenReturn("jwt-token");
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
 
@@ -145,9 +162,11 @@ class AuthServiceAuthenticationAndResetTest {
     @DisplayName("loginFace: deve rejeitar quando consentimento biométrico não está ativo")
     void loginFace_shouldRejectWhenBiometricConsentIsNotActive() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
+        var revokedStatus = buildBiometricConsentStatus(false, null, null);
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(revokedStatus);
 
         TermsNotAcceptedException exception = assertThrows(
                 TermsNotAcceptedException.class,
@@ -156,17 +175,19 @@ class AuthServiceAuthenticationAndResetTest {
 
         assertEquals(AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN, exception.getMessage());
         verify(biometricProtectionService).protectPublicLogin(imageBase64, true);
-        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(Boolean.class), any(Long.class));
+        verify(jwtUtils, never()).generateToken(any(), any(), any(), any(), any(BiometricConsentStatus.class), any(Long.class));
     }
 
     @Test
     @DisplayName("loginFace: deve gerar token quando consentimento biométrico está ativo")
     void loginFace_shouldGenerateTokenWhenBiometricConsentIsActive() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
+        var consentStatus = buildBiometricConsentStatus(true, "2026.05.21", "current-hash");
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, true, 2L)).thenReturn("face-jwt");
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L)).thenReturn("face-jwt");
 
         String token = authService.loginFace(imageBase64, true);
 

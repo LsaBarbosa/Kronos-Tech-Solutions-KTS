@@ -299,6 +299,7 @@ class LgpdServiceTest {
                         LegalBasis.CONSENT,
                         "Autenticação biométrica",
                         "2026.05.21",
+                        "abc123sha256content",
                         Instant.now(),
                         null,
                         "127.0.0.1",
