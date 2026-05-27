@@ -83,20 +83,32 @@ class AcceptTermsServiceTest {
     @DisplayName("aceite: deve encerrar fluxo quando termo já existe")
     void shouldSkipGenerationWhenTermAlreadyExists() {
         UUID employeeId = UUID.randomUUID();
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(true);
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(legalConsentProvider.findValidCurrentConsent(
+                employeeId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "2026.05.21",
+                "current-hash"
+        )).thenReturn(Optional.of(buildConsent(employeeId)));
 
         service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit", "2026.05.21", "current-hash");
 
-        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditService, legalTextProvider);
+        verifyNoInteractions(employeeProvider, companyProvider, pdfService, documentUseCase, auditService);
     }
 
     @Test
     @DisplayName("aceite: falha quando colaborador não existe")
     void shouldFailAcceptanceWhenEmployeeDoesNotExist() {
         UUID employeeId = UUID.randomUUID();
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(false);
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(legalConsentProvider.findValidCurrentConsent(
+                employeeId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "2026.05.21",
+                "current-hash"
+        )).thenReturn(Optional.empty());
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -107,11 +119,6 @@ class AcceptTermsServiceTest {
     @DisplayName("aceite: falha quando não existe termo biométrico ativo")
     void shouldFailAcceptanceWhenCurrentLegalTextDoesNotExist() {
         UUID employeeId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee employee = buildEmployee(employeeId, companyId, "12345678901");
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(false);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.empty());
 
@@ -123,11 +130,6 @@ class AcceptTermsServiceTest {
     @DisplayName("aceite: falha quando versão ou hash não correspondem ao termo ativo")
     void shouldFailAcceptanceWhenCurrentLegalTextPayloadDoesNotMatch() {
         UUID employeeId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee employee = buildEmployee(employeeId, companyId, "12345678901");
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(false);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm()));
 
@@ -141,11 +143,15 @@ class AcceptTermsServiceTest {
         UUID employeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId, "12345678901");
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(false);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm()));
+        when(legalConsentProvider.findValidCurrentConsent(
+                employeeId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "2026.05.21",
+                "current-hash"
+        )).thenReturn(Optional.empty());
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -165,10 +171,15 @@ class AcceptTermsServiceTest {
         UUID documentId = UUID.randomUUID();
         LegalText currentBiometricTerm = currentBiometricTerm();
 
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm));
+        when(legalConsentProvider.findValidCurrentConsent(
+                employeeId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "2026.05.21",
+                "current-hash"
+        )).thenReturn(Optional.empty());
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(pdfService.generateConsentTerm(employee, company, "10.0.0.1", "JUnit-Agent", currentBiometricTerm))
                 .thenReturn(pdfBytes);
@@ -242,10 +253,15 @@ class AcceptTermsServiceTest {
         byte[] pdfBytes = "pdf-content".getBytes(StandardCharsets.UTF_8);
         LegalText currentBiometricTerm = currentBiometricTerm();
 
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(false);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
                 .thenReturn(Optional.of(currentBiometricTerm));
+        when(legalConsentProvider.findValidCurrentConsent(
+                employeeId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "2026.05.21",
+                "current-hash"
+        )).thenReturn(Optional.empty());
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(pdfService.generateConsentTerm(employee, company, "10.0.0.1", "JUnit-Agent", currentBiometricTerm))
                 .thenReturn(pdfBytes);
@@ -344,6 +360,7 @@ class AcceptTermsServiceTest {
                 LegalBasis.CONSENT,
                 "Biometric authentication",
                 "2026.05.21",
+                "abc123sha256content",
                 Instant.parse("2026-05-21T09:00:00Z"),
                 null,
                 "10.0.0.1",
@@ -415,6 +432,27 @@ class AcceptTermsServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private LegalConsent buildConsent(UUID employeeId) {
+        return new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                UUID.randomUUID(),
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication and identity validation in authorized Kronos flows.",
+                "2026.05.21",
+                "current-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null,
+                "10.0.0.1",
+                "JUnit",
+                UUID.randomUUID(),
+                "pdf-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null
+        );
     }
 
     private LegalText currentBiometricTerm() {

@@ -107,6 +107,8 @@ class FlywayMigrationTest {
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_data_processing_inventory' AND column_name = 'operators'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_inventory_risk_level'"));
         assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_inventory_ripd_required'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'tb_legal_consent' AND column_name = 'content_hash_sha256'"));
+        assertEquals(1, count(jdbcTemplate, "SELECT COUNT(*) FROM pg_indexes WHERE indexname = 'idx_legal_consent_biometric_current'"));
     }
 
     private Integer count(JdbcTemplate jdbcTemplate, String sql) {

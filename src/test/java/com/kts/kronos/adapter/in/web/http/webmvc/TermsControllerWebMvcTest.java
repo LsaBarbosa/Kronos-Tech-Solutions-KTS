@@ -8,6 +8,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -61,11 +62,21 @@ class TermsControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        var consentStatus = new BiometricConsentStatus(
+                true,
+                "2026.05.21",
+                "current-hash",
+                "2026.05.21",
+                "current-hash",
+                false
+        );
+
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, true))
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
+        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, consentStatus, 0L))
                 .thenReturn("renewed-token");
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
@@ -79,8 +90,13 @@ class TermsControllerWebMvcTest {
                                 }
                                 """)
                         .header("User-Agent", "JUnit"))
-                .andExpect(status().isNoContent())
-                .andExpect(content().string(""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(true))
+                .andExpect(jsonPath("$.acceptedVersion").value("2026.05.21"))
+                .andExpect(jsonPath("$.acceptedHash").value("current-hash"))
+                .andExpect(jsonPath("$.currentVersion").value("2026.05.21"))
+                .andExpect(jsonPath("$.currentHash").value("current-hash"))
+                .andExpect(jsonPath("$.requiresNewAcceptance").value(false))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
                         org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=renewed-token"),
                         org.hamcrest.Matchers.containsString("HttpOnly"),
@@ -95,12 +111,26 @@ class TermsControllerWebMvcTest {
     void shouldReturnAcceptedStatus() throws Exception {
         UUID employeeId = UUID.randomUUID();
 
+        var consentStatus = new BiometricConsentStatus(
+                true,
+                "2026.05.21",
+                "current-hash",
+                "2026.05.21",
+                "current-hash",
+                false
+        );
+
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(acceptTermsUseCase.hasAcceptedBiometricTerm(employeeId)).thenReturn(true);
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
 
         mockMvc.perform(get("/terms/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accepted").value(true));
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(true))
+                .andExpect(jsonPath("$.acceptedVersion").value("2026.05.21"))
+                .andExpect(jsonPath("$.acceptedHash").value("current-hash"))
+                .andExpect(jsonPath("$.currentVersion").value("2026.05.21"))
+                .andExpect(jsonPath("$.currentHash").value("current-hash"))
+                .andExpect(jsonPath("$.requiresNewAcceptance").value(false));
     }
 
     @Test
@@ -130,19 +160,32 @@ class TermsControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        var revokedStatus = new BiometricConsentStatus(
+                false,
+                null,
+                null,
+                "2026.05.21",
+                "current-hash",
+                true
+        );
+
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(jwtAuthenticatedUser.getUsername()).thenReturn("lucas");
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, false))
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(revokedStatus);
+        when(jwtUtils.generateToken(employeeId, "lucas", "MANAGER", userId, revokedStatus, 0L))
                 .thenReturn("revoked-token");
         when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
 
         mockMvc.perform(delete("/terms/revoke-biometric")
                         .header("Authorization", "Bearer token")
                         .header("User-Agent", "JUnit"))
-                .andExpect(status().isNoContent())
-                .andExpect(content().string(""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.biometricConsentAccepted").value(false))
+                .andExpect(jsonPath("$.currentVersion").value("2026.05.21"))
+                .andExpect(jsonPath("$.currentHash").value("current-hash"))
+                .andExpect(jsonPath("$.requiresNewAcceptance").value(true))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
                         org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=revoked-token"),
                         org.hamcrest.Matchers.containsString("HttpOnly"),
@@ -177,6 +220,6 @@ class TermsControllerWebMvcTest {
                                 """)
                         .header("User-Agent", "JUnit"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("Termo já aceito"));
+                .andExpect(jsonPath("$.message").value("Termo já aceito"));
     }
 }

@@ -47,6 +47,7 @@ class LegalConsentTest {
                 LegalBasis.CONSENT,
                 "Biometric authentication",
                 "2026.05.21",
+                "abc123sha256content",
                 Instant.parse("2026-05-21T09:00:00Z"),
                 revokedAt,
                 "127.0.0.1",
