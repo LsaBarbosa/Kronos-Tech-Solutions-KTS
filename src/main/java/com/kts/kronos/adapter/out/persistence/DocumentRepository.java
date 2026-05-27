@@ -81,8 +81,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
         SELECT d FROM DocumentEntity d
         WHERE d.uploadedAt < :cutoff
         AND d.deletedByRetention = false
-        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
-        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+        AND d.type IN ('DOCUMENTS')
     """)
     List<DocumentEntity> findRemovableByRetention(@Param("cutoff") LocalDateTime cutoff);
 
@@ -90,8 +89,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
         SELECT COUNT(d) FROM DocumentEntity d
         WHERE d.uploadedAt < :cutoff
         AND d.deletedByRetention = false
-        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
-        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+        AND d.type IN ('DOCUMENTS')
     """)
     long countRemovableByRetention(@Param("cutoff") LocalDateTime cutoff);
 
@@ -99,7 +97,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
         SELECT COUNT(d) FROM DocumentEntity d
         WHERE d.uploadedAt < :cutoff
         AND d.deletedByRetention = false
-        AND (d.type IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT', 'MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+        AND d.type IN ('BIOMETRIC_CONSENT_TERM', 'PAYSLIP', 'SERVICE_CONTRACT_TERMS', 'POINT_RECORD_RECEIPT', 'TIME_OFF', 'EMPLOYEE_DOCUMENTS')
     """)
     long countPreservedByType(@Param("cutoff") LocalDateTime cutoff);
 
@@ -112,8 +110,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             d.retentionPolicyCode = :policyCode
         WHERE d.uploadedAt < :cutoff
         AND d.deletedByRetention = false
-        AND d.type NOT IN ('BIOMETRIC_CONSENT_TERM', 'LEGAL_REPORT')
-        AND NOT (d.type IN ('MEDICAL_CERTIFICATE', 'TIME_RECORD_ATTACHMENT', 'EMPLOYEE_DOCUMENT'))
+        AND d.type IN ('DOCUMENTS')
     """)
     int markAsDeletedByRetention(
             @Param("cutoff") LocalDateTime cutoff,
