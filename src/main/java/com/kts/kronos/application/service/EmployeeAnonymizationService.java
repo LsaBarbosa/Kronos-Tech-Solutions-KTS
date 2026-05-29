@@ -54,6 +54,7 @@ public class EmployeeAnonymizationService {
 
             auditService.registerLgpd(
                     AuditAction.LGPD_DATA_ANONYMIZED,
+                    actorUserId,
                     employee.employeeId(),
                     employee.companyId(),
                     "EMPLOYEE",

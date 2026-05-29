@@ -109,33 +109,43 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
     }
 
     @Test
-    @DisplayName("findEligibleBiometricArtifactsByMissingConsent: deve ignorar consentimento ativo e incluir ausencia de consentimento")
-    void shouldFindEligibleBiometricArtifactsByMissingConsent() {
+    @DisplayName("findEligibleBiometricArtifactsWithoutValidCurrentConsent: deve incluir ausencia de consentimento e consentimento desatualizado")
+    void shouldFindEligibleBiometricArtifactsWithoutValidCurrentConsent() {
         UUID companyId = UUID.randomUUID();
         EmployeeEntity withoutConsent = repository.save(employee(companyId, "12345678909", true, "face-a"));
         EmployeeEntity withActiveConsent = repository.save(employee(companyId, "98765432100", true, "face-b"));
-        legalConsentRepository.save(activeBiometricConsent(withActiveConsent.getEmployeeId()));
+        EmployeeEntity withOutdatedActiveConsent = repository.save(employee(companyId, "11144477735", true, "face-c"));
+        EmployeeEntity withRevokedConsent = repository.save(employee(companyId, "22233344455", true, "face-d"));
 
-        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsByMissingConsent();
+        legalConsentRepository.save(activeBiometricConsent(withActiveConsent.getEmployeeId(), "v2", "hash-v2"));
+        legalConsentRepository.save(activeBiometricConsent(withOutdatedActiveConsent.getEmployeeId(), "v1", "hash-v1"));
+        legalConsentRepository.save(revokedBiometricConsent(withRevokedConsent.getEmployeeId(), Instant.parse("2026-05-19T12:00:00Z")));
+
+        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsWithoutValidCurrentConsent("v2", "hash-v2");
 
         assertTrue(result.stream().anyMatch(employee -> employee.getEmployeeId().equals(withoutConsent.getEmployeeId())));
+        assertTrue(result.stream().anyMatch(employee -> employee.getEmployeeId().equals(withOutdatedActiveConsent.getEmployeeId())));
         assertTrue(result.stream().noneMatch(employee -> employee.getEmployeeId().equals(withActiveConsent.getEmployeeId())));
+        assertTrue(result.stream().noneMatch(employee -> employee.getEmployeeId().equals(withRevokedConsent.getEmployeeId())));
     }
 
     @Test
-    @DisplayName("findEligibleBiometricArtifactsByRevokedConsent: deve incluir apenas consentimento revogado antes do cutoff")
+    @DisplayName("findEligibleBiometricArtifactsByRevokedConsent: deve respeitar o ultimo revokedAt e excluir consentimento atual valido")
     void shouldFindEligibleBiometricArtifactsByRevokedConsent() {
         UUID companyId = UUID.randomUUID();
         Instant cutoff = Instant.parse("2026-05-20T00:00:00Z");
         EmployeeEntity revokedOld = repository.save(employee(companyId, "12345678909", true, "face-a"));
         EmployeeEntity revokedRecent = repository.save(employee(companyId, "98765432100", true, "face-b"));
         EmployeeEntity activeConsent = repository.save(employee(companyId, "11144477735", true, "face-c"));
+        EmployeeEntity revokedTwice = repository.save(employee(companyId, "22233344455", true, "face-d"));
 
         legalConsentRepository.save(revokedBiometricConsent(revokedOld.getEmployeeId(), cutoff.minusSeconds(3600)));
         legalConsentRepository.save(revokedBiometricConsent(revokedRecent.getEmployeeId(), cutoff.plusSeconds(3600)));
-        legalConsentRepository.save(activeBiometricConsent(activeConsent.getEmployeeId()));
+        legalConsentRepository.save(activeBiometricConsent(activeConsent.getEmployeeId(), "v2", "hash-v2"));
+        legalConsentRepository.save(revokedBiometricConsent(revokedTwice.getEmployeeId(), cutoff.minusSeconds(7200)));
+        legalConsentRepository.save(revokedBiometricConsent(revokedTwice.getEmployeeId(), cutoff.plusSeconds(7200)));
 
-        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+        List<EmployeeEntity> result = repository.findEligibleBiometricArtifactsByRevokedConsent(cutoff, "v2", "hash-v2");
 
         assertEquals(1, result.size());
         assertEquals(revokedOld.getEmployeeId(), result.getFirst().getEmployeeId());
@@ -169,7 +179,7 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
                 .build();
     }
 
-    private LegalConsentEntity activeBiometricConsent(UUID employeeId) {
+    private LegalConsentEntity activeBiometricConsent(UUID employeeId, String version, String contentHashSha256) {
         Instant now = Instant.parse("2026-05-26T12:00:00Z");
         return LegalConsentEntity.builder()
                 .consentId(UUID.randomUUID())
@@ -177,7 +187,8 @@ class EmployeeRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
                 .consentType(ConsentType.BIOMETRIC_AUTHENTICATION)
                 .legalBasis(LegalBasis.CONSENT)
                 .purpose("Biometric authentication")
-                .version("v1")
+                .version(version)
+                .contentHashSha256(contentHashSha256)
                 .grantedAt(now.minusSeconds(7200))
                 .createdAt(now.minusSeconds(7200))
                 .updatedAt(now.minusSeconds(7200))

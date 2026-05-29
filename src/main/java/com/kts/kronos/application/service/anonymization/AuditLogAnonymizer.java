@@ -52,7 +52,7 @@ public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
     }
 
     private AnonymizationExecutionResult executeDryRun(UUID executionId, AnonymizationPlan plan) {
-        var auditLogs = auditLogRepository.findByUserIdOrderByTimestampDesc(plan.requestedByUserId());
+        var auditLogs = auditLogRepository.findRelatedToDataSubject(null, plan.employeeId());
 
         log.info(
                 "event=audit_log_anonymization_dry_run employeeId={} auditLogCount={}",
@@ -74,7 +74,7 @@ public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
     }
 
     private AnonymizationExecutionResult executeApply(UUID executionId, AnonymizationPlan plan) {
-        var auditLogs = auditLogRepository.findByUserIdOrderByTimestampDesc(plan.requestedByUserId());
+        var auditLogs = auditLogRepository.findRelatedToDataSubject(null, plan.employeeId());
 
         for (var auditLog : auditLogs) {
             auditLog.setIpAddress(null);

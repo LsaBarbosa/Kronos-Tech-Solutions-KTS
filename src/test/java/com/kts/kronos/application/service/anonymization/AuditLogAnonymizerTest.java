@@ -35,7 +35,7 @@ class AuditLogAnonymizerTest {
 
     @Test
     void testExecuteDryRunWithNoAuditLogs() {
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(new ArrayList<>());
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(new ArrayList<>());
 
         var plan = createPlan();
         var result = anonymizer.execute(plan, "DRY_RUN");
@@ -48,7 +48,7 @@ class AuditLogAnonymizerTest {
     @Test
     void testExecuteDryRunWithAuditLogs() {
         var logs = Arrays.asList(createAuditLog(), createAuditLog());
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(logs);
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(logs);
 
         var plan = createPlan();
         var result = anonymizer.execute(plan, "DRY_RUN");
@@ -63,7 +63,7 @@ class AuditLogAnonymizerTest {
     void testExecuteApplyAnonymizesAuditLogs() {
         var log1 = createAuditLog();
         var log2 = createAuditLog();
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(Arrays.asList(log1, log2));
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(Arrays.asList(log1, log2));
 
         var plan = createPlan();
         var result = anonymizer.execute(plan, "APPLY");
@@ -79,7 +79,7 @@ class AuditLogAnonymizerTest {
     void testExecuteApplyRemovesIpAddress() {
         var log = createAuditLog();
         log.setIpAddress("192.168.1.1");
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(Arrays.asList(log));
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(Arrays.asList(log));
 
         anonymizer.execute(createPlan(), "APPLY");
 
@@ -94,7 +94,7 @@ class AuditLogAnonymizerTest {
     void testExecuteApplyRemovesUserAgent() {
         var log = createAuditLog();
         log.setUserAgent("Mozilla/5.0");
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(Arrays.asList(log));
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(Arrays.asList(log));
 
         anonymizer.execute(createPlan(), "APPLY");
 
@@ -109,7 +109,7 @@ class AuditLogAnonymizerTest {
     void testExecuteApplyRemovesDetails() {
         var log = createAuditLog();
         log.setDetails("Some sensitive details");
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenReturn(Arrays.asList(log));
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenReturn(Arrays.asList(log));
 
         anonymizer.execute(createPlan(), "APPLY");
 
@@ -122,7 +122,7 @@ class AuditLogAnonymizerTest {
 
     @Test
     void testExecuteApplyHandlesException() {
-        when(auditLogRepository.findByUserIdOrderByTimestampDesc(any())).thenThrow(new RuntimeException("DB error"));
+        when(auditLogRepository.findRelatedToDataSubject(any(), any())).thenThrow(new RuntimeException("DB error"));
 
         var plan = createPlan();
         var result = anonymizer.execute(plan, "APPLY");
@@ -150,7 +150,8 @@ class AuditLogAnonymizerTest {
     private AuditLogEntity createAuditLog() {
         return AuditLogEntity.builder()
                 .id(UUID.randomUUID())
-                .userId(UUID.randomUUID())
+                .actorUserId(UUID.randomUUID())
+                .targetEmployeeId(UUID.randomUUID())
                 .action("TEST_ACTION")
                 .ipAddress("192.168.1.1")
                 .userAgent("Mozilla/5.0")

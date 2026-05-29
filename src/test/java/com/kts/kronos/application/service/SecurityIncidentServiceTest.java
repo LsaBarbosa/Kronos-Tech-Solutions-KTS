@@ -27,6 +27,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -100,6 +101,7 @@ class SecurityIncidentServiceTest {
         verify(auditService).registerSecurity(
                 eq(AuditAction.SECURITY_INCIDENT_CREATED),
                 eq(userId),
+                isNull(),
                 eq(SecurityIncidentSeverity.HIGH.name()),
                 eq("SECURITY_INCIDENT"),
                 any(),
@@ -172,6 +174,7 @@ class SecurityIncidentServiceTest {
         verify(auditService).registerSecurity(
                 eq(AuditAction.SECURITY_INCIDENT_UPDATED),
                 eq(userId),
+                isNull(),
                 eq(SecurityIncidentSeverity.HIGH.name()),
                 eq("SECURITY_INCIDENT"),
                 eq(incidentId.toString()),

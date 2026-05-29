@@ -47,22 +47,44 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
                     WHERE lc.employeeId = e.employeeId
                       AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
                       AND lc.revokedAt IS NULL
+                      AND lc.version = :version
+                      AND lc.contentHashSha256 = :contentHashSha256
                )
-            """)
-    List<EmployeeEntity> findEligibleBiometricArtifactsByMissingConsent();
-
-    @Query("""
-            SELECT e FROM EmployeeEntity e
-             WHERE e.faceS3ObjectKey IS NOT NULL
-               AND EXISTS (
+               AND NOT EXISTS (
                    SELECT 1 FROM LegalConsentEntity lc
                     WHERE lc.employeeId = e.employeeId
                       AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
                       AND lc.revokedAt IS NOT NULL
-                      AND lc.revokedAt < :cutoff
                )
             """)
-    List<EmployeeEntity> findEligibleBiometricArtifactsByRevokedConsent(@Param("cutoff") Instant cutoff);
+    List<EmployeeEntity> findEligibleBiometricArtifactsWithoutValidCurrentConsent(
+            @Param("version") String version,
+            @Param("contentHashSha256") String contentHashSha256
+    );
+
+    @Query("""
+            SELECT e FROM EmployeeEntity e
+             WHERE e.faceS3ObjectKey IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM LegalConsentEntity lc
+                    WHERE lc.employeeId = e.employeeId
+                      AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
+                      AND lc.revokedAt IS NULL
+                      AND lc.version = :version
+                      AND lc.contentHashSha256 = :contentHashSha256
+               )
+               AND (
+                   SELECT MAX(lc.revokedAt) FROM LegalConsentEntity lc
+                    WHERE lc.employeeId = e.employeeId
+                      AND lc.consentType = 'BIOMETRIC_AUTHENTICATION'
+                      AND lc.revokedAt IS NOT NULL
+               ) <= :cutoff
+            """)
+    List<EmployeeEntity> findEligibleBiometricArtifactsByRevokedConsent(
+            @Param("cutoff") Instant cutoff,
+            @Param("version") String version,
+            @Param("contentHashSha256") String contentHashSha256
+    );
 
     @Modifying
     @Query("UPDATE EmployeeEntity e SET e.faceS3ObjectKey = NULL WHERE e.employeeId = :employeeId")

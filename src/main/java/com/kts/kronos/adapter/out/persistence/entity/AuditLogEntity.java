@@ -20,8 +20,11 @@ public class AuditLogEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, name = "user_id")
-    private UUID userId;
+    @Column(name = "user_id")
+    private UUID actorUserId;
+
+    @Column(name = "target_employee_id")
+    private UUID targetEmployeeId;
 
     @Column(nullable = false)
     private String action; // Ex: ACEITE_TERMOS
@@ -59,7 +62,8 @@ public class AuditLogEntity {
     public AuditLog toDomain() {
         return new AuditLog(
                 id,
-                userId,
+                actorUserId,
+                targetEmployeeId,
                 action,
                 ipAddress,
                 userAgent,

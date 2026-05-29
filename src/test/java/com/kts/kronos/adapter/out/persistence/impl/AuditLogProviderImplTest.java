@@ -37,7 +37,7 @@ class AuditLogProviderImplTest {
         LocalDateTime timestamp = LocalDateTime.of(2026, 4, 18, 10, 15);
 
         AuditLog domain = AuditLog.builder()
-                .userId(userId)
+                .actorUserId(userId)
                 .action("ACEITE_TERMOS")
                 .ipAddress("127.0.0.1")
                 .userAgent("JUnit")
@@ -51,7 +51,7 @@ class AuditLogProviderImplTest {
         verify(repository).save(captor.capture());
 
         AuditLogEntity entity = captor.getValue();
-        assertEquals(userId, entity.getUserId());
+        assertEquals(userId, entity.getActorUserId());
         assertEquals("ACEITE_TERMOS", entity.getAction());
         assertEquals("127.0.0.1", entity.getIpAddress());
         assertEquals("JUnit", entity.getUserAgent());
@@ -63,7 +63,7 @@ class AuditLogProviderImplTest {
     @DisplayName("registerLog: deve sanitizar detalhes sensíveis antes de persistir")
     void shouldSanitizeSensitiveDetailsBeforePersisting() {
         AuditLog domain = AuditLog.builder()
-                .userId(UUID.randomUUID())
+                .actorUserId(UUID.randomUUID())
                 .action("LGPD_EXPORT")
                 .ipAddress("127.0.0.1")
                 .userAgent("JUnit")
@@ -91,7 +91,7 @@ class AuditLogProviderImplTest {
     @DisplayName("registerLog: não deve propagar exceção do repository")
     void shouldNotPropagateRepositoryFailure() {
         AuditLog domain = AuditLog.builder()
-                .userId(UUID.randomUUID())
+                .actorUserId(UUID.randomUUID())
                 .action("ACEITE_TERMOS")
                 .ipAddress("127.0.0.1")
                 .userAgent("JUnit")

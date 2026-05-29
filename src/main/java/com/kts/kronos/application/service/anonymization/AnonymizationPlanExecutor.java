@@ -47,9 +47,7 @@ public class AnonymizationPlanExecutor {
 
         var processorsByType = getAvailableProcessors();
 
-        if (plan.preserveLaborData()) {
-            results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode));
-        } else {
+        if (!plan.preserveLaborData()) {
             results.add(executeProcessorWithResult(processorsByType, AnonymizationResourceType.TIME_RECORD, plan, executionMode));
         }
 

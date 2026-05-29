@@ -3,15 +3,21 @@ package com.kts.kronos.application.service.retention;
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.port.out.provider.LegalTextProvider;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
+import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +28,10 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
     private final EmployeeRepository employeeRepository;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final LegalTextProvider legalTextProvider;
+
+    @Value("${kronos.lgpd.biometric.revoked-consent-grace-days:0}")
+    private int revokedConsentGraceDays;
 
     @Override
     public RetentionResourceType supports() {
@@ -31,13 +41,16 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
     @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
-        var cutoff = Instant.now().minus(java.time.Duration.ofDays(policy.retentionDays()));
 
         try {
+            var currentBiometricTerm = legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM)
+                    .orElseThrow(() -> new IllegalStateException("Active biometric consent term not found"));
+            var cutoff = resolveRevokedConsentCutoff(policy);
+
             if ("DRY_RUN".equals(executionMode)) {
-                return executeDryRun(executionId, policy, cutoff);
+                return executeDryRun(executionId, policy, cutoff, currentBiometricTerm.version(), currentBiometricTerm.contentHashSha256());
             } else {
-                return executeApply(executionId, policy, cutoff);
+                return executeApply(executionId, policy, cutoff, currentBiometricTerm.version(), currentBiometricTerm.contentHashSha256());
             }
         } catch (Exception e) {
             log.error(
@@ -57,9 +70,22 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
         }
     }
 
-    private RetentionExecutionResult executeDryRun(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsByMissingConsent();
-        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+    private RetentionExecutionResult executeDryRun(
+            UUID executionId,
+            RetentionPolicy policy,
+            Instant cutoff,
+            String currentVersion,
+            String currentContentHash
+    ) {
+        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(
+                currentVersion,
+                currentContentHash
+        );
+        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(
+                cutoff,
+                currentVersion,
+                currentContentHash
+        );
 
         long totalEligible = eligibleMissingConsent.size() + eligibleRevokedConsent.size();
 
@@ -82,12 +108,24 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
         );
     }
 
-    private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, Instant cutoff) {
-        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsByMissingConsent();
-        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(cutoff);
+    private RetentionExecutionResult executeApply(
+            UUID executionId,
+            RetentionPolicy policy,
+            Instant cutoff,
+            String currentVersion,
+            String currentContentHash
+    ) {
+        var eligibleMissingConsent = employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(
+                currentVersion,
+                currentContentHash
+        );
+        var eligibleRevokedConsent = employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(
+                cutoff,
+                currentVersion,
+                currentContentHash
+        );
 
-        var allEligible = new ArrayList<>(eligibleMissingConsent);
-        allEligible.addAll(eligibleRevokedConsent);
+        var allEligible = mergeEligibleEmployees(eligibleMissingConsent, eligibleRevokedConsent);
 
         long successCount = 0;
         List<String> errors = new ArrayList<>();
@@ -162,5 +200,27 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
                 successCount,
                 0
         );
+    }
+
+    private Instant resolveRevokedConsentCutoff(RetentionPolicy policy) {
+        if (policy.policyType() == RetentionPolicyType.CONSENT_BASED) {
+            return Instant.now().minus(Duration.ofDays(Math.max(0, revokedConsentGraceDays)));
+        }
+
+        if (policy.retentionDays() == null) {
+            throw new IllegalArgumentException("RetentionPolicy retentionDays is required for non-consent-based biometric retention");
+        }
+
+        return Instant.now().minus(Duration.ofDays(policy.retentionDays()));
+    }
+
+    private List<com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity> mergeEligibleEmployees(
+            List<com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity> eligibleMissingConsent,
+            List<com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity> eligibleRevokedConsent
+    ) {
+        var merged = new LinkedHashMap<UUID, com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity>();
+        eligibleMissingConsent.forEach(employee -> merged.put(employee.getEmployeeId(), employee));
+        eligibleRevokedConsent.forEach(employee -> merged.put(employee.getEmployeeId(), employee));
+        return new ArrayList<>(merged.values());
     }
 }

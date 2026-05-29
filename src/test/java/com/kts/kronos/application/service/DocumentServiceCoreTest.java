@@ -35,6 +35,7 @@ import java.util.HexFormat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -220,6 +221,7 @@ class DocumentServiceCoreTest {
 
         verify(auditService).register(
                 eq(AuditAction.DOCUMENT_UPLOADED),
+                isNull(),
                 eq(employeeId),
                 eq(companyId),
                 eq("DOCUMENT"),
@@ -263,6 +265,7 @@ class DocumentServiceCoreTest {
 
         verify(auditService).register(
                 eq(AuditAction.DOCUMENT_DOWNLOADED),
+                isNull(),
                 eq(employeeId),
                 eq(companyId),
                 eq("DOCUMENT"),
@@ -305,6 +308,7 @@ class DocumentServiceCoreTest {
 
         verify(auditService).register(
                 eq(AuditAction.DOCUMENT_SOFT_DELETED_BY_EMPLOYEE),
+                isNull(),
                 eq(employeeId),
                 eq(companyId),
                 eq("DOCUMENT"),
@@ -348,6 +352,7 @@ class DocumentServiceCoreTest {
 
         verify(auditService).register(
                 eq(AuditAction.DOCUMENT_SOFT_DELETED_BY_MANAGER),
+                isNull(),
                 eq(employeeId),
                 eq(companyId),
                 eq("DOCUMENT"),
@@ -382,6 +387,7 @@ class DocumentServiceCoreTest {
 
         verify(auditService).register(
                 eq(AuditAction.DOCUMENT_GENERATED),
+                isNull(),
                 eq(employeeId),
                 eq(companyId),
                 eq("DOCUMENT"),

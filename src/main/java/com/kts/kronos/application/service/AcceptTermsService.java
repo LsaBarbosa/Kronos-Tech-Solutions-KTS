@@ -136,6 +136,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         auditService.register(
                 AuditAction.BIOMETRIC_CONSENT_ACCEPTED,
+                userId,
                 employeeId,
                 employee.companyId(),
                 "LEGAL_CONSENT",
@@ -189,6 +190,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         auditService.register(
                 AuditAction.BIOMETRIC_CONSENT_REVOKED,
+                user.userId(),
                 employeeId,
                 employee.companyId(),
                 "LEGAL_CONSENT",
