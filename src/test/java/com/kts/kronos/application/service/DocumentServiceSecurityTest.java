@@ -82,6 +82,12 @@ class DocumentServiceSecurityTest {
 
         var mockContext = new AuditRequestContextService.AuditRequestContext("127.0.0.1", "Test-Agent/1.0", "LOCAL", false);
         lenient().when(auditRequestContextService.extractContext()).thenReturn(mockContext);
+
+        // Mock genérico para authorizeEmployeeAccess (usado para obter companyId em auditoria)
+        lenient().when(domainAuthorizationService.authorizeEmployeeAccess(any())).thenAnswer(invocation -> {
+            UUID empId = invocation.getArgument(0);
+            return buildEmployee(empId != null ? empId : loggedEmployeeId, companyAId);
+        });
     }
 
     @Test
