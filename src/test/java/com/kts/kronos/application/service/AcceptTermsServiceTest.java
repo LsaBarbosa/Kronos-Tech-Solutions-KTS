@@ -622,6 +622,161 @@ class AcceptTermsServiceTest {
         );
     }
 
+    @Test
+    @DisplayName("getBiometricConsentStatus: sem consentimento ativo")
+    void getBiometricConsentStatus_WithoutActiveConsent() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.empty());
+
+        var result = service.getBiometricConsentStatus(employeeId);
+
+        assertFalse(result.accepted());
+        assertEquals(null, result.acceptedVersion());
+        assertEquals(null, result.acceptedHash());
+        assertEquals("2026.05.21", result.currentVersion());
+        assertEquals("current-hash", result.currentHash());
+        assertTrue(result.requiresNewAcceptance());
+    }
+
+    @Test
+    @DisplayName("getBiometricConsentStatus: consentimento com versão e hash vigentes")
+    void getBiometricConsentStatus_WithCurrentVersionAndHash() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+        LegalConsent activeConsent = new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                UUID.randomUUID(),
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication and identity validation in authorized Kronos flows.",
+                "2026.05.21",
+                "current-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null,
+                "10.0.0.1",
+                "JUnit",
+                UUID.randomUUID(),
+                "pdf-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null
+        );
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.of(activeConsent));
+
+        var result = service.getBiometricConsentStatus(employeeId);
+
+        assertTrue(result.accepted());
+        assertEquals("2026.05.21", result.acceptedVersion());
+        assertEquals("current-hash", result.acceptedHash());
+        assertEquals("2026.05.21", result.currentVersion());
+        assertEquals("current-hash", result.currentHash());
+        assertFalse(result.requiresNewAcceptance());
+    }
+
+    @Test
+    @DisplayName("getBiometricConsentStatus: consentimento com versão desatualizada")
+    void getBiometricConsentStatus_WithOldVersion() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+        LegalConsent activeConsent = new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                UUID.randomUUID(),
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication and identity validation in authorized Kronos flows.",
+                "2026.05.20",
+                "old-hash",
+                Instant.parse("2026-05-20T09:00:00Z"),
+                null,
+                "10.0.0.1",
+                "JUnit",
+                UUID.randomUUID(),
+                "pdf-hash",
+                Instant.parse("2026-05-20T09:00:00Z"),
+                null
+        );
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.of(activeConsent));
+
+        var result = service.getBiometricConsentStatus(employeeId);
+
+        assertFalse(result.accepted());
+        assertEquals("2026.05.20", result.acceptedVersion());
+        assertEquals("old-hash", result.acceptedHash());
+        assertEquals("2026.05.21", result.currentVersion());
+        assertEquals("current-hash", result.currentHash());
+        assertTrue(result.requiresNewAcceptance());
+    }
+
+    @Test
+    @DisplayName("getBiometricConsentStatus: consentimento com hash desatualizado")
+    void getBiometricConsentStatus_WithOldHash() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+        LegalConsent activeConsent = new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                UUID.randomUUID(),
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication and identity validation in authorized Kronos flows.",
+                "2026.05.21",
+                "old-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null,
+                "10.0.0.1",
+                "JUnit",
+                UUID.randomUUID(),
+                "pdf-hash",
+                Instant.parse("2026-05-21T09:00:00Z"),
+                null
+        );
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.of(activeConsent));
+
+        var result = service.getBiometricConsentStatus(employeeId);
+
+        assertFalse(result.accepted());
+        assertEquals("2026.05.21", result.acceptedVersion());
+        assertEquals("old-hash", result.acceptedHash());
+        assertEquals("2026.05.21", result.currentVersion());
+        assertEquals("current-hash", result.currentHash());
+        assertTrue(result.requiresNewAcceptance());
+    }
+
+    @Test
+    @DisplayName("getBiometricConsentStatus: consentimento revogado")
+    void getBiometricConsentStatus_WithRevokedConsent() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.empty());
+
+        var result = service.getBiometricConsentStatus(employeeId);
+
+        assertFalse(result.accepted());
+        assertTrue(result.requiresNewAcceptance());
+    }
+
     private LegalText currentBiometricTerm() {
         return new LegalText(
                 UUID.randomUUID(),
