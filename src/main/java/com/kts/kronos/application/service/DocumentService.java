@@ -96,18 +96,15 @@ public class DocumentService implements DocumentUseCase {
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
 
-            var auditContext = auditRequestContextService.extractContext();
+            // Obter companyId do employee para auditoria completa (SPEC-003)
+            var employee = getAuthorizedEmployee(employeeId);
 
-            auditService.register(
+            // Registrar auditoria com severidade apropriada
+            registerDocumentAudit(
                     AuditAction.DOCUMENT_DOWNLOADED,
-                    doc.employeeId(),
-                    null,
-                    "DOCUMENT",
-                    doc.documentId().toString(),
-                    "LOW",
-                    auditContext.ipAddress(),
-                    auditContext.userAgent(),
-                    String.format("documentId=%s, documentType=%s", doc.documentId(), doc.type())
+                    doc,
+                    employee.companyId(),
+                    null
             );
 
             return new DocumentWithData(
@@ -171,6 +168,7 @@ public class DocumentService implements DocumentUseCase {
             var currentUserId = jwtAuthenticatedUser.getEmployeeId();
             var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
             documentType = normalizeDocumentType(doc.type());
+            var employee = getAuthorizedEmployee(employeeId);
 
             var loggedInEmployeeId = jwtAuthenticatedUser.getEmployeeId();
 
@@ -180,15 +178,26 @@ public class DocumentService implements DocumentUseCase {
 
             Document updatedDoc;
             boolean isManager = currentUserRole == Role.MANAGER || currentUserRole == Role.CTO;
+            AuditAction softDeleteAction;
 
             if (isManager) {
                 updatedDoc = doc.markDeletedByManager();
+                softDeleteAction = AuditAction.DOCUMENT_SOFT_DELETED_BY_MANAGER;
             } else {
                 if (!doc.employeeId().equals(currentUserId)) {
                     throw new ForbiddenException(FORBIDDEN_OTHER_EMPLOYEE_DELETE);
                 }
                 updatedDoc = doc.markDeletedByEmployee();
+                softDeleteAction = AuditAction.DOCUMENT_SOFT_DELETED_BY_EMPLOYEE;
             }
+
+            // Registrar soft delete (SPEC-003)
+            registerDocumentAudit(
+                    softDeleteAction,
+                    doc,
+                    employee.companyId(),
+                    null
+            );
 
             if (updatedDoc.deletedByEmployee() && updatedDoc.deletedByManager()) {
                 bucketStorageProvider.deleteFile(
@@ -196,6 +205,14 @@ public class DocumentService implements DocumentUseCase {
                         doc.storagePath()
                 );
                 documentProvider.delete(doc.employeeId(), doc.documentId());
+
+                // Registrar exclusão física (SPEC-003)
+                registerDocumentAudit(
+                        AuditAction.DOCUMENT_PHYSICALLY_DELETED,
+                        doc,
+                        employee.companyId(),
+                        null
+                );
             } else {
                 documentProvider.save(updatedDoc);
             }
@@ -222,8 +239,8 @@ public class DocumentService implements DocumentUseCase {
     private void uploadDocumentInternal(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
         try {
             var uploadData = validateAndPrepareUpload(file);
+            var employee = getAuthorizedEmployee(employeeId);
             kronosTracing.observe("kronos.document.upload", () -> {
-                var employee = getAuthorizedEmployee(employeeId);
                 var uniqueObjectName = buildStorageKey(employee, type, uploadData.fileName());
                 var storagePath = bucketStorageProvider.uploadFile(
                         type,
@@ -244,6 +261,15 @@ public class DocumentService implements DocumentUseCase {
                         calculateSha256(uploadData.data())
                 );
                 documentProvider.save(doc);
+
+                // Registrar auditoria de upload (SPEC-003)
+                var additionalDetails = timeRecordId != null ? String.format("timeRecordId=%d", timeRecordId) : null;
+                registerDocumentAudit(
+                        AuditAction.DOCUMENT_UPLOADED,
+                        doc,
+                        employee.companyId(),
+                        additionalDetails
+                );
             });
             kronosMetrics.documentUploadSuccess(normalizeDocumentType(type));
             log.info("event=document_upload result=success document_type={}", normalizeDocumentType(type));
@@ -299,6 +325,15 @@ public class DocumentService implements DocumentUseCase {
                     calculateSha256(content)
             );
             documentProvider.save(doc);
+
+            // Registrar auditoria de documento gerado (SPEC-003)
+            var additionalDetails = timeRecordId != null ? String.format("timeRecordId=%d", timeRecordId) : null;
+            registerDocumentAudit(
+                    AuditAction.DOCUMENT_GENERATED,
+                    doc,
+                    employee.companyId(),
+                    additionalDetails
+            );
 
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
             log.warn("event=document_upload result=failure document_type={} reason=validation",
@@ -471,6 +506,61 @@ public class DocumentService implements DocumentUseCase {
             return HEX.formatHex(MessageDigest.getInstance("SHA-256").digest(payload));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
+        }
+    }
+
+    /**
+     * Determina a severidade de auditoria conforme tipo documental (SPEC-003).
+     * Documentos sensíveis recebem severidade HIGH, demais recebem MEDIUM.
+     */
+    private String getAuditSeverityForDocumentType(DocumentType type) {
+        if (type == null) {
+            return "MEDIUM";
+        }
+        return switch (type) {
+            case BIOMETRIC_CONSENT_TERM, TIME_OFF, EMPLOYEE_DOCUMENTS -> "HIGH";
+            case POINT_RECORD_RECEIPT, SERVICE_CONTRACT_TERMS -> "MEDIUM";
+            default -> "MEDIUM";
+        };
+    }
+
+    /**
+     * Registra auditoria de operação documental (SPEC-003).
+     * Encapsula lógica de obtenção de contexto e preenchimento de campos.
+     */
+    private void registerDocumentAudit(
+            AuditAction action,
+            Document doc,
+            UUID companyId,
+            String additionalDetails
+    ) {
+        try {
+            var auditContext = auditRequestContextService.extractContext();
+            var severity = getAuditSeverityForDocumentType(doc.type());
+            var details = String.format(
+                    "documentId=%s, documentType=%s%s",
+                    doc.documentId(),
+                    doc.type(),
+                    additionalDetails != null && !additionalDetails.isBlank()
+                            ? ", " + additionalDetails
+                            : ""
+            );
+
+            auditService.register(
+                    action,
+                    doc.employeeId(),
+                    companyId,
+                    "DOCUMENT",
+                    doc.documentId().toString(),
+                    severity,
+                    auditContext.ipAddress(),
+                    auditContext.userAgent(),
+                    details
+            );
+        } catch (Exception e) {
+            log.warn("event=document_audit result=failure action={} document_id={} exception_type={}",
+                    action.name(), doc.documentId(), e.getClass().getSimpleName(), e);
+            // Não bloqueia operação se auditoria falhar
         }
     }
 
