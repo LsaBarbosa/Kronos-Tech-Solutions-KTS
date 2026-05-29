@@ -28,7 +28,7 @@ public class EmployeeController {
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
-    public ResponseEntity<EmployeeResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
+    public ResponseEntity<EmployeeCreatedResponse> registerEmployee(@Valid @RequestBody CreateEmployeeRequest dto) {
         var create = useCase.createEmployee(dto);
         var companyName = companyUseCase.getCompanyNameById(create.companyId());
         var location = ServletUriComponentsBuilder
@@ -36,7 +36,7 @@ public class EmployeeController {
                 .path("/{id}")
                 .buildAndExpand(create.employeeId())
                 .toUri();
-        return ResponseEntity.created(location).body(EmployeeResponse.fromDomain(create, companyName,null));
+        return ResponseEntity.created(location).body(EmployeeCreatedResponse.fromDomain(create, companyName));
     }
 
     @GetMapping
@@ -49,17 +49,17 @@ public class EmployeeController {
         var employeeResponses = employees.stream().map(employee -> {
              String companyName = companyUseCase.getCompanyNameById(employee.companyId());
 
-             return EmployeeResponse.fromDomain(employee, companyName,null);
+             return EmployeeListItemResponse.fromDomain(employee, companyName);
         }).toList();
         return ResponseEntity.ok(new EmployeeListResponse(employeeResponses));
     }
 
     @PreAuthorize(MANAGER)
     @GetMapping(EMPLOYEE_ID)
-    public ResponseEntity<EmployeeResponse> getEmployee(@PathVariable UUID employeeId) {
+    public ResponseEntity<EmployeeDetailResponse> getEmployee(@PathVariable UUID employeeId) {
         var employee = useCase.getEmployee(employeeId);
         var companyName = companyUseCase.getCompanyNameById(employee.companyId());
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee, companyName,null));
+        return ResponseEntity.ok(EmployeeDetailResponse.fromDomain(employee, companyName, null));
     }
 
     @PreAuthorize(MANAGER)
@@ -73,12 +73,12 @@ public class EmployeeController {
 
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(OWN_PROFILE)
-    public ResponseEntity<EmployeeResponse> getOwnProfile() {
+    public ResponseEntity<EmployeeDetailResponse> getOwnProfile() {
         var profile = useCase.getOwnProfile(); // Chama o service e obtém (Employee + Role)
         var employee = profile.employee();
         var role = profile.role(); // Extrai a role
         var companyName = companyUseCase.getCompanyNameById(employee.companyId());
-        return ResponseEntity.ok(EmployeeResponse.fromDomain(employee,companyName, role));
+        return ResponseEntity.ok(EmployeeDetailResponse.fromDomain(employee, companyName, role));
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
