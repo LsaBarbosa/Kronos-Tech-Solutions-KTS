@@ -26,11 +26,7 @@ public record TimeRecordResponse(
         boolean active,
         UUID employeeId,
         EmployeeData employeeData,
-        String documentDownloadPath,
-        Double latitude,
-        Double longitude,
-        Double endLatitude,
-        Double endLongitude
+        String documentDownloadPath
 ) {
     // Adicionado parâmetro 'dailyBalance'
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
@@ -99,11 +95,7 @@ public record TimeRecordResponse(
                 timeRecord.active(),
                 timeRecord.employeeId(),
                 employeeData,
-                documentDownloadPath,
-                timeRecord.latitude(),
-                timeRecord.longitude(),
-                timeRecord.endLatitude(),
-                timeRecord.endLongitude()
+                documentDownloadPath
         );
     }
 
