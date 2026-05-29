@@ -251,6 +251,34 @@ class TimeRecordControllerWebMvcTest {
     }
 
     @Test
+    @DisplayName("report: não deve expor coordenadas precisas no response (SPEC-001)")
+    void shouldNotExposeGeolocationInReport() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        when(useCase.listReport(eq(employeeId), any()))
+                .thenReturn(List.of(timeRecordResponse(employeeId, 1L)));
+
+        mockMvc.perform(post("/records/report")
+                        .param("employeeId", employeeId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reference": "08:00",
+                                  "active": true,
+                                  "statuses": ["CREATED"],
+                                  "dates": ["01-04-2026", "30-04-2026"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].timeRecordId").value(1L))
+                .andExpect(jsonPath("$[0].employeeId").value(employeeId.toString()))
+                // SPEC-001: Não deve expor coordenadas precisas
+                .andExpect(jsonPath("$[0].latitude").doesNotExist())
+                .andExpect(jsonPath("$[0].longitude").doesNotExist())
+                .andExpect(jsonPath("$[0].endLatitude").doesNotExist())
+                .andExpect(jsonPath("$[0].endLongitude").doesNotExist());
+    }
+
+    @Test
     @DisplayName("approveChange/rejectChange: devem delegar decisões de ajuste")
     void shouldApproveAndRejectTimeRecordChange() throws Exception {
         mockMvc.perform(patch("/records/approve/{timeRecordId}", 14L))
@@ -511,11 +539,7 @@ class TimeRecordControllerWebMvcTest {
                 true,
                 employeeId,
                 new EmployeeData("Ana Paula", "Kronos Tech"),
-                null,
-                -22.9,
-                -43.2,
-                -22.91,
-                -43.21
+                null
         );
     }
 
