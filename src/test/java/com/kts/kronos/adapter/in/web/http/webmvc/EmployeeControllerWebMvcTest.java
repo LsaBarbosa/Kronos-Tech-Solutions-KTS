@@ -358,6 +358,52 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("allEmployees: não deve expor salary, email, phone, address em listagem (SPEC-002)")
+    void shouldNotExposeSensitiveDataInListResponse() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        var employee = employee(employeeId, companyId);
+
+        when(useCase.listEmployees(null)).thenReturn(List.of(employee));
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+
+        mockMvc.perform(get("/employee"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.employees[0].employeeId").value(employeeId.toString()))
+                .andExpect(jsonPath("$.employees[0].fullName").value("Lucas Silva"))
+                .andExpect(jsonPath("$.employees[0].jobPosition").value("Software Engineer"))
+                .andExpect(jsonPath("$.employees[0].maskedCpf").value("529.***.725"))
+                .andExpect(jsonPath("$.employees[0].companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.employees[0].active").value(true))
+                .andExpect(jsonPath("$.employees[0].salary").doesNotExist())
+                .andExpect(jsonPath("$.employees[0].email").doesNotExist())
+                .andExpect(jsonPath("$.employees[0].phone").doesNotExist())
+                .andExpect(jsonPath("$.employees[0].address").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("getEmployee: pode expor salary, email, phone, address apenas para gestor (SPEC-002)")
+    void shouldExposeDetailedDataOnlyInDetailResponse() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        var employee = employee(employeeId, companyId);
+
+        when(useCase.getEmployee(employeeId)).thenReturn(employee);
+        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+
+        mockMvc.perform(get("/employee/{employeeId}", employeeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.employeeId").value(employeeId.toString()))
+                .andExpect(jsonPath("$.fullName").value("Lucas Silva"))
+                .andExpect(jsonPath("$.maskedCpf").value("529.***.725"))
+                .andExpect(jsonPath("$.jobPosition").value("Software Engineer"))
+                .andExpect(jsonPath("$.email").value("lucas@kronos.com"))
+                .andExpect(jsonPath("$.salary").value(6500.00))
+                .andExpect(jsonPath("$.phone").value("21999999999"))
+                .andExpect(jsonPath("$.address").exists());
+    }
+
     private Employee employee(UUID employeeId, UUID companyId) {
         return new Employee(
                 employeeId,
