@@ -10,6 +10,8 @@ import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.domain.model.enuns.AuditAction;
+import com.kts.kronos.application.service.AuditRequestContextService.AuditRequestContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,10 +57,16 @@ class DocumentServiceCoreTest {
     private FileScanningProvider fileScanningProvider;
     @Mock
     private AuditService auditService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
 
     @BeforeEach
      void configureUploadLimit() {
         ReflectionTestUtils.setField(service, "maxUploadBytes", 5 * 1024 * 1024L);
+    }
+
+    private AuditRequestContext createAuditContext() {
+        return new AuditRequestContext("192.168.1.1", "Mozilla/5.0", "DIRECT", true);
     }
 
     @Test
@@ -160,6 +168,8 @@ class DocumentServiceCoreTest {
     void shouldDeleteDocumentPhysicallyWhenBothFlagsBecomeTrue() {
         UUID employeeId = UUID.randomUUID();
         UUID documentId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
 
         Document document = new Document(
                 documentId,
@@ -177,6 +187,8 @@ class DocumentServiceCoreTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
 
         service.deleteDocument(null, documentId);
 
@@ -185,7 +197,207 @@ class DocumentServiceCoreTest {
         verify(documentProvider, never()).save(any());
     }
 
+    @Test
+    @DisplayName("uploadDocument: registra auditoria DOCUMENT_UPLOADED com severity apropriada (SPEC-003)")
+    void shouldRegisterUploadAuditWithAppropriateAction() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "documento.pdf",
+                "application/pdf",
+                "%PDF-1.7 valid".getBytes()
+        );
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(bucketStorageProvider.uploadFile(eq(DocumentType.PAYSLIP), anyString(), any(byte[].class), eq("application/pdf")))
+                .thenReturn("bucket/path/documento.pdf");
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
+
+        service.uploadDocument(DocumentType.PAYSLIP, null, file);
+
+        verify(auditService).register(
+                eq(AuditAction.DOCUMENT_UPLOADED),
+                eq(employeeId),
+                eq(companyId),
+                eq("DOCUMENT"),
+                anyString(),
+                eq("MEDIUM"),
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("downloadDocument: registra auditoria DOCUMENT_DOWNLOADED com companyId e severity HIGH para BIOMETRIC_CONSENT_TERM (SPEC-003)")
+    void shouldRegisterDownloadAuditWithCompanyIdAndAppropriateSeverity() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
+
+        byte[] fileData = "%PDF-1.7 test".getBytes();
+        Document document = new Document(
+                documentId,
+                employeeId,
+                DocumentType.BIOMETRIC_CONSENT_TERM,
+                "termo.pdf",
+                "application/pdf",
+                "bucket/path/termo.pdf",
+                LocalDateTime.now(),
+                null,
+                false,
+                false
+        );
+
+        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(bucketStorageProvider.downloadFile(DocumentType.BIOMETRIC_CONSENT_TERM, "bucket/path/termo.pdf"))
+                .thenReturn(fileData);
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
+
+        service.downloadDocument(null, documentId);
+
+        verify(auditService).register(
+                eq(AuditAction.DOCUMENT_DOWNLOADED),
+                eq(employeeId),
+                eq(companyId),
+                eq("DOCUMENT"),
+                eq(documentId.toString()),
+                eq("HIGH"),
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("deleteDocument: registra DOCUMENT_SOFT_DELETED_BY_EMPLOYEE quando colaborador deleta (SPEC-003)")
+    void shouldRegisterSoftDeleteByEmployeeAudit() {
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
+
+        Document document = new Document(
+                documentId,
+                employeeId,
+                DocumentType.PAYSLIP,
+                "holerite.pdf",
+                "application/pdf",
+                "bucket/path/holerite.pdf",
+                LocalDateTime.now(),
+                null,
+                false,
+                false
+        );
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
+
+        service.deleteDocument(null, documentId);
+
+        verify(auditService).register(
+                eq(AuditAction.DOCUMENT_SOFT_DELETED_BY_EMPLOYEE),
+                eq(employeeId),
+                eq(companyId),
+                eq("DOCUMENT"),
+                eq(documentId.toString()),
+                eq("MEDIUM"),
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("deleteDocument: registra DOCUMENT_SOFT_DELETED_BY_MANAGER quando gestor deleta (SPEC-003)")
+    void shouldRegisterSoftDeleteByManagerAudit() {
+        UUID managerId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
+
+        Document document = new Document(
+                documentId,
+                employeeId,
+                DocumentType.PAYSLIP,
+                "holerite.pdf",
+                "application/pdf",
+                "bucket/path/holerite.pdf",
+                LocalDateTime.now(),
+                null,
+                false,
+                false
+        );
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(domainAuthorizationService.authorizeDocumentAccess(documentId, null)).thenReturn(document);
+        when(domainAuthorizationService.authorizeEmployeeAccess(null)).thenReturn(employee);
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
+
+        service.deleteDocument(null, documentId);
+
+        verify(auditService).register(
+                eq(AuditAction.DOCUMENT_SOFT_DELETED_BY_MANAGER),
+                eq(employeeId),
+                eq(companyId),
+                eq("DOCUMENT"),
+                eq(documentId.toString()),
+                eq("MEDIUM"),
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
+
+    @Test
+    @DisplayName("uploadGeneratedDocument: registra auditoria DOCUMENT_GENERATED (SPEC-003)")
+    void shouldRegisterGeneratedDocumentAudit() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        byte[] pdf = "%PDF-1.7 test".getBytes();
+        Employee employee = buildEmployeeWithCompany(employeeId, companyId);
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(bucketStorageProvider.uploadFile(eq(DocumentType.PAYSLIP), anyString(), any(byte[].class), eq("application/pdf")))
+                .thenReturn("bucket/path/file.pdf");
+        when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
+
+        service.uploadGeneratedDocument(
+                DocumentType.PAYSLIP,
+                employeeId,
+                77L,
+                pdf,
+                "Comprovante.pdf"
+        );
+
+        verify(auditService).register(
+                eq(AuditAction.DOCUMENT_GENERATED),
+                eq(employeeId),
+                eq(companyId),
+                eq("DOCUMENT"),
+                anyString(),
+                eq("MEDIUM"),
+                anyString(),
+                anyString(),
+                anyString()
+        );
+    }
+
     private Employee buildEmployee(UUID employeeId) {
+        return buildEmployeeWithCompany(employeeId, UUID.randomUUID());
+    }
+
+    private Employee buildEmployeeWithCompany(UUID employeeId, UUID companyId) {
         return new Employee(
                 employeeId,
                 "Employee",
@@ -197,7 +409,7 @@ class DocumentServiceCoreTest {
                 "21999999999",
                 true,
                 new Address("Rua A", "10", "12345678", "Rio", "RJ"),
-                UUID.randomUUID(),
+                companyId,
                 null,
                 false,
                 null,
