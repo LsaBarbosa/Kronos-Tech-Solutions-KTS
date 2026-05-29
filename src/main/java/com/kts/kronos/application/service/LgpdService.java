@@ -112,6 +112,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_CREATED,
+                jwtAuthenticatedUser.getuserId(),
                 targetEmployee.employeeId(),
                 targetEmployee.companyId(),
                 "LGPD_REQUEST",
@@ -211,7 +212,10 @@ public class LgpdService implements LgpdUseCase {
         var documents = documentProvider.findAllByEmployeeId(targetEmployee.employeeId());
         var timeRecords = timeRecordProvider.findByEmployeeId(targetEmployee.employeeId());
         var messages = messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(targetEmployee.companyId(), targetEmployee.employeeId());
-        List<com.kts.kronos.domain.model.AuditLog> auditLogs = user != null ? auditService.findByUserId(user.userId()) : List.of();
+        List<com.kts.kronos.domain.model.AuditLog> auditLogs = auditService.findRelatedToDataSubject(
+                user != null ? user.userId() : null,
+                targetEmployee.employeeId()
+        );
         var legalConsents = legalConsentProvider.findAllByEmployeeId(targetEmployee.employeeId());
         boolean allowPreciseGeolocation = includePreciseGeolocation && canAccessPreciseGeolocation(targetEmployee.employeeId());
 
@@ -230,6 +234,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_DATA_EXPORTED,
+                requestedByUserId,
                 targetEmployee.employeeId(),
                 targetEmployee.companyId(),
                 "EMPLOYEE",
@@ -259,12 +264,12 @@ public class LgpdService implements LgpdUseCase {
         LgpdEmployeeExportResponse response = buildExport(
                 targetEmployee,
                 requestedByUserId,
-                false,
-                requestedByEmployeeId
+                false
         );
 
         auditService.registerLgpd(
                 AuditAction.LGPD_OWN_DATA_EXPORTED,
+                requestedByUserId,
                 targetEmployee.employeeId(),
                 targetEmployee.companyId(),
                 "EMPLOYEE",
@@ -303,12 +308,12 @@ public class LgpdService implements LgpdUseCase {
         LgpdEmployeeExportResponse response = buildExport(
                 targetEmployee,
                 requestedByUserId,
-                includePreciseGeolocation,
-                requestedByUserId
+                includePreciseGeolocation
         );
 
         auditService.registerLgpd(
                 AuditAction.LGPD_ADMIN_DATA_EXPORTED,
+                requestedByUserId,
                 targetEmployee.employeeId(),
                 targetEmployee.companyId(),
                 "LGPD_REQUEST",
@@ -333,8 +338,7 @@ public class LgpdService implements LgpdUseCase {
     private LgpdEmployeeExportResponse buildExport(
             Employee targetEmployee,
             UUID requestedByUserId,
-            boolean includePreciseGeolocation,
-            UUID targetEmployeeId
+            boolean includePreciseGeolocation
     ) {
         var company = companyProvider.findById(targetEmployee.companyId())
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + targetEmployee.companyId()));
@@ -342,7 +346,10 @@ public class LgpdService implements LgpdUseCase {
         var documents = documentProvider.findAllByEmployeeId(targetEmployee.employeeId());
         var timeRecords = timeRecordProvider.findByEmployeeId(targetEmployee.employeeId());
         var messages = messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(targetEmployee.companyId(), targetEmployee.employeeId());
-        List<com.kts.kronos.domain.model.AuditLog> auditLogs = user != null ? auditService.findByUserId(user.userId()) : List.of();
+        List<com.kts.kronos.domain.model.AuditLog> auditLogs = auditService.findRelatedToDataSubject(
+                user != null ? user.userId() : null,
+                targetEmployee.employeeId()
+        );
         var legalConsents = legalConsentProvider.findAllByEmployeeId(targetEmployee.employeeId());
 
         return LgpdEmployeeExportResponse.from(
@@ -367,6 +374,7 @@ public class LgpdService implements LgpdUseCase {
         if (request.status() != LgpdRequestStatus.APPROVED_FOR_EXPORT) {
             auditService.registerLgpd(
                     AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                    jwtAuthenticatedUser.getuserId(),
                     request.employeeId(),
                     request.companyId(),
                     "LGPD_REQUEST",
@@ -388,6 +396,7 @@ public class LgpdService implements LgpdUseCase {
         if (!isExportableRequestType(request.requestType())) {
             auditService.registerLgpd(
                     AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                    jwtAuthenticatedUser.getuserId(),
                     request.employeeId(),
                     request.companyId(),
                     "LGPD_REQUEST",
@@ -418,6 +427,7 @@ public class LgpdService implements LgpdUseCase {
             if (jwtAuthenticatedUser.getCurrentRole() != Role.CTO) {
                 auditService.registerLgpd(
                         AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                        jwtAuthenticatedUser.getuserId(),
                         request.employeeId(),
                         request.companyId(),
                         "LGPD_REQUEST",
@@ -439,6 +449,7 @@ public class LgpdService implements LgpdUseCase {
             if (reviewerNotes == null || reviewerNotes.trim().isEmpty()) {
                 auditService.registerLgpd(
                         AuditAction.LGPD_ADMIN_DATA_EXPORT_BLOCKED,
+                        jwtAuthenticatedUser.getuserId(),
                         request.employeeId(),
                         request.companyId(),
                         "LGPD_REQUEST",
@@ -502,8 +513,8 @@ public class LgpdService implements LgpdUseCase {
                 employee.companyId(),
                 jwtAuthenticatedUser.getuserId(),
                 "LGPD_REQUEST_" + request.requestId(),
-                false,
-                false,
+                true,
+                true,
                 true,
                 true,
                 true,
@@ -553,8 +564,8 @@ public class LgpdService implements LgpdUseCase {
                 employee.companyId(),
                 jwtAuthenticatedUser.getuserId(),
                 "DRY_RUN_CHECK",
-                false,
-                false,
+                true,
+                true,
                 true,
                 true,
                 true,
@@ -700,6 +711,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_ASSIGNED,
+                jwtAuthenticatedUser.getuserId(),
                 saved.employeeId(),
                 saved.companyId(),
                 "LGPD_REQUEST",
@@ -764,6 +776,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_NOTE_ADDED,
+                jwtAuthenticatedUser.getuserId(),
                 saved.employeeId(),
                 saved.companyId(),
                 "LGPD_REQUEST",
@@ -837,6 +850,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_COMPLETED,
+                jwtAuthenticatedUser.getuserId(),
                 saved.employeeId(),
                 saved.companyId(),
                 "LGPD_REQUEST",
@@ -903,6 +917,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_REJECTED,
+                jwtAuthenticatedUser.getuserId(),
                 saved.employeeId(),
                 saved.companyId(),
                 "LGPD_REQUEST",
@@ -1017,6 +1032,7 @@ public class LgpdService implements LgpdUseCase {
 
             auditService.registerLgpd(
                     AuditAction.LGPD_REQUEST_COMPLETED,
+                    jwtAuthenticatedUser.getuserId(),
                     saved.employeeId(),
                     saved.companyId(),
                     "LGPD_REQUEST",
@@ -1046,6 +1062,7 @@ public class LgpdService implements LgpdUseCase {
 
             auditService.registerLgpd(
                     auditAction,
+                    jwtAuthenticatedUser.getuserId(),
                     saved.employeeId(),
                     saved.companyId(),
                     "LGPD_REQUEST",
@@ -1089,6 +1106,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_COMPLEMENT_REQUESTED,
+                jwtAuthenticatedUser.getuserId(),
                 request.employeeId(),
                 request.companyId(),
                 "LGPD_REQUEST",
@@ -1163,6 +1181,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_REQUEST_CANCELLED,
+                jwtAuthenticatedUser.getuserId(),
                 saved.employeeId(),
                 saved.companyId(),
                 "LGPD_REQUEST",
@@ -1319,6 +1338,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_ANONYMIZATION_DRY_RUN_EXECUTED,
+                jwtAuthenticatedUser.getuserId(),
                 employee.employeeId(),
                 employee.companyId(),
                 "LGPD_REQUEST_ANONYMIZATION",
@@ -1433,6 +1453,7 @@ public class LgpdService implements LgpdUseCase {
 
         auditService.registerLgpd(
                 AuditAction.LGPD_ANONYMIZATION_APPLIED,
+                jwtAuthenticatedUser.getuserId(),
                 employee.employeeId(),
                 employee.companyId(),
                 "LGPD_REQUEST_ANONYMIZATION_APPLY",

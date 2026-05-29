@@ -155,6 +155,7 @@ class LgpdServiceTest {
         ArgumentCaptor<String> detailsCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditService).registerLgpd(
                 eq(AuditAction.LGPD_REQUEST_CREATED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("LGPD_REQUEST"),
@@ -280,14 +281,19 @@ class LgpdServiceTest {
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of(
                 new Message(UUID.randomUUID(), employeeId, companyId, "Aviso", "Texto", MessagePriority.ALERT, LocalDateTime.now(), employeeId)
         ));
-        when(auditService.findByUserId(userId)).thenReturn(List.of(
+        when(auditService.findRelatedToDataSubject(userId, employeeId)).thenReturn(List.of(
                 AuditLog.create(
                         userId,
+                        employeeId,
                         "ACTION",
                         "127.0.0.1",
                         "JUnit",
                         "cpf=12345678901 token=eyJhbGciOiJIUzI1NiJ9.payload.signature storage=storage/documents/secret.pdf image="
-                                + "A".repeat(220)
+                                + "A".repeat(220),
+                        companyId,
+                        "EMPLOYEE",
+                        employeeId.toString(),
+                        "MEDIUM"
                 )
         ));
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of(
@@ -331,6 +337,7 @@ class LgpdServiceTest {
         assertFalse(recordComponentNames(LgpdEmployeeExportResponse.ExportedDocumentMetadata.class).contains("storagePath"));
         verify(auditService).registerLgpd(
                 eq(AuditAction.LGPD_DATA_EXPORTED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
@@ -365,6 +372,7 @@ class LgpdServiceTest {
         )));
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
         LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", null);
@@ -373,6 +381,7 @@ class LgpdServiceTest {
         assertEquals(-43.2096, export.timeRecords().getFirst().longitude());
         verify(auditService).registerLgpd(
                 eq(AuditAction.LGPD_DATA_EXPORTED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
@@ -408,6 +417,7 @@ class LgpdServiceTest {
         )));
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
         LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", "Personnel file");
@@ -416,6 +426,7 @@ class LgpdServiceTest {
         assertEquals(null, export.timeRecords().getFirst().longitude());
         verify(auditService).registerLgpd(
                 eq(AuditAction.LGPD_DATA_EXPORTED),
+                eq(managerUserId),
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
@@ -662,7 +673,7 @@ class LgpdServiceTest {
     }
 
     @Test
-    void exportEmployeeDataShouldFetchAuditLogsByUserIdNotEmployeeId() {
+    void exportEmployeeDataShouldFetchAuditLogsByActorAndTarget() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
@@ -680,8 +691,8 @@ class LgpdServiceTest {
         when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
         when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
-        when(auditService.findByUserId(userId)).thenReturn(List.of(
-                AuditLog.create(userId, "TEST_ACTION", "127.0.0.1", "JUnit", "Test details")
+        when(auditService.findRelatedToDataSubject(userId, employeeId)).thenReturn(List.of(
+                AuditLog.create(userId, employeeId, "TEST_ACTION", "127.0.0.1", "JUnit", "Test details", companyId, "EMPLOYEE", employeeId.toString(), "LOW")
         ));
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
@@ -690,8 +701,9 @@ class LgpdServiceTest {
         assertNotNull(response);
         assertNotNull(response.manifest());
         assertEquals(1, response.auditLogs().size());
-        assertEquals(userId, response.auditLogs().getFirst().userId());
-        verify(auditService).findByUserId(userId);
+        assertEquals(userId, response.auditLogs().getFirst().actorUserId());
+        assertEquals(employeeId, response.auditLogs().getFirst().targetEmployeeId());
+        verify(auditService).findRelatedToDataSubject(userId, employeeId);
     }
 
     @Test
@@ -712,6 +724,7 @@ class LgpdServiceTest {
         when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
         when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
         var response = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
@@ -739,6 +752,7 @@ class LgpdServiceTest {
         when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
         when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
         when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
 
         var response = service.exportEmployeeData(employeeId, false, "127.0.0.1", "JUnit", null);
@@ -792,6 +806,7 @@ class LgpdServiceTest {
         when(documentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
         when(timeRecordProvider.findByEmployeeId(targetEmployeeId)).thenReturn(List.of());
         when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, targetEmployeeId)).thenReturn(List.of());
+        when(auditService.findRelatedToDataSubject(null, targetEmployeeId)).thenReturn(List.of());
         when(legalConsentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
 
         var response = service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", "HR request for personnel file");

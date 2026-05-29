@@ -183,6 +183,8 @@ kronos:
   storage:
     provider: ${KRONOS_STORAGE_PROVIDER:local}
   lgpd:
+    biometric:
+      revoked-consent-grace-days: ${LGPD_BIOMETRIC_REVOKED_CONSENT_GRACE_DAYS:0}
     retention:
       scheduler:
         enabled: ${LGPD_RETENTION_SCHEDULER_ENABLED:false}

@@ -7,7 +7,8 @@ import java.util.UUID;
 @Builder
 public record AuditLog(
         UUID id,
-        UUID userId,
+        UUID actorUserId,
+        UUID targetEmployeeId,
         String action,
         String ipAddress,
         String userAgent,
@@ -19,9 +20,9 @@ public record AuditLog(
         String correlationId,
         String riskLevel
 ) {
-    public static AuditLog create(UUID userId, String action, String ipAddress, String userAgent, String details) {
+    public static AuditLog create(UUID actorUserId, String action, String ipAddress, String userAgent, String details) {
         return AuditLog.builder()
-                .userId(userId)
+                .actorUserId(actorUserId)
                 .action(action)
                 .ipAddress(ipAddress)
                 .userAgent(userAgent)
@@ -30,10 +31,12 @@ public record AuditLog(
                 .build();
     }
 
-    public static AuditLog create(UUID userId, String action, String ipAddress, String userAgent, String details,
+    public static AuditLog create(UUID actorUserId, UUID targetEmployeeId, String action,
+                                  String ipAddress, String userAgent, String details,
                                   UUID companyId, String resourceType, String resourceId, String riskLevel) {
         return AuditLog.builder()
-                .userId(userId)
+                .actorUserId(actorUserId)
+                .targetEmployeeId(targetEmployeeId)
                 .action(action)
                 .ipAddress(ipAddress)
                 .userAgent(userAgent)

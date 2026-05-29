@@ -8,5 +8,7 @@ import java.util.UUID;
 public interface AuditLogProvider {
     void registerLog(AuditLog auditLog);
 
-    List<AuditLog> findByUserId(UUID userId);
+    List<AuditLog> findByActorUserId(UUID actorUserId);
+
+    List<AuditLog> findRelatedToDataSubject(UUID actorUserId, UUID targetEmployeeId);
 }

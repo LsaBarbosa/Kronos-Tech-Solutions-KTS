@@ -325,7 +325,8 @@ public record LgpdEmployeeExportResponse(
 
     public record ExportedAuditLog(
             UUID id,
-            UUID userId,
+            UUID actorUserId,
+            UUID targetEmployeeId,
             String action,
             String ipAddress,
             String userAgent,
@@ -335,7 +336,8 @@ public record LgpdEmployeeExportResponse(
         static ExportedAuditLog from(AuditLog auditLog) {
             return new ExportedAuditLog(
                     auditLog.id(),
-                    auditLog.userId(),
+                    auditLog.actorUserId(),
+                    auditLog.targetEmployeeId(),
                     auditLog.action(),
                     auditLog.ipAddress(),
                     auditLog.userAgent(),

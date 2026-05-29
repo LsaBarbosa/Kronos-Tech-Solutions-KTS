@@ -267,6 +267,7 @@ class AcceptTermsServiceTest {
         ArgumentCaptor<String> auditDetailsCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditService).register(
                 eq(AuditAction.BIOMETRIC_CONSENT_ACCEPTED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("LEGAL_CONSENT"),
@@ -458,6 +459,7 @@ class AcceptTermsServiceTest {
         ArgumentCaptor<String> auditDetailsCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditService).register(
                 eq(AuditAction.BIOMETRIC_CONSENT_REVOKED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("LEGAL_CONSENT"),
@@ -547,6 +549,7 @@ class AcceptTermsServiceTest {
         ArgumentCaptor<String> auditDetailsCaptor = ArgumentCaptor.forClass(String.class);
         verify(auditService).register(
                 eq(AuditAction.BIOMETRIC_CONSENT_REVOKED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("LEGAL_CONSENT"),

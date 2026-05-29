@@ -77,6 +77,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
         auditService.registerSecurity(
                 AuditAction.SECURITY_INCIDENT_CREATED,
                 userId,
+                null,
                 saved.severity().name(),
                 "SECURITY_INCIDENT",
                 saved.incidentId().toString(),
@@ -130,6 +131,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
                 auditService.registerSecurity(
                         AuditAction.SECURITY_INCIDENT_UPDATED,
                         jwtAuthenticatedUser.getuserId(),
+                        null,
                         "CLOSURE_BLOCKED",
                         "SECURITY_INCIDENT",
                         incidentId.toString(),
@@ -157,6 +159,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
         auditService.registerSecurity(
                 AuditAction.SECURITY_INCIDENT_UPDATED,
                 jwtAuthenticatedUser.getuserId(),
+                null,
                 saved.severity().name(),
                 "SECURITY_INCIDENT",
                 saved.incidentId().toString(),
@@ -185,6 +188,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
                 auditService.registerSecurity(
                         AuditAction.SECURITY_INCIDENT_UPDATED,
                         jwtAuthenticatedUser.getuserId(),
+                        null,
                         "RISK_ASSESSMENT_BLOCKED",
                         "SECURITY_INCIDENT",
                         incidentId.toString(),
@@ -216,6 +220,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
         auditService.registerSecurity(
                 AuditAction.SECURITY_INCIDENT_UPDATED,
                 jwtAuthenticatedUser.getuserId(),
+                null,
                 "RISK_ASSESSMENT",
                 "SECURITY_INCIDENT",
                 saved.incidentId().toString(),
@@ -256,6 +261,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
         auditService.registerSecurity(
                 AuditAction.SECURITY_INCIDENT_UPDATED,
                 jwtAuthenticatedUser.getuserId(),
+                null,
                 "CORRECTION_PLAN",
                 "SECURITY_INCIDENT",
                 saved.incidentId().toString(),
