@@ -24,7 +24,8 @@ public class AuditLogProviderImpl implements AuditLogProvider {
     public void registerLog(AuditLog domainLog) {
         try {
             AuditLogEntity entity = AuditLogEntity.builder()
-                    .userId(domainLog.userId())
+                    .actorUserId(domainLog.actorUserId())
+                    .targetEmployeeId(domainLog.targetEmployeeId())
                     .action(domainLog.action())
                     .ipAddress(domainLog.ipAddress())
                     .userAgent(domainLog.userAgent())
@@ -41,8 +42,8 @@ public class AuditLogProviderImpl implements AuditLogProvider {
 
         } catch (DataAccessException e) {
             log.warn(
-                    "Falha absorvida ao salvar log de auditoria. userId={}, action={}",
-                    domainLog.userId(),
+                    "Falha absorvida ao salvar log de auditoria. actorUserId={}, action={}",
+                    domainLog.actorUserId(),
                     domainLog.action(),
                     e
             );
@@ -50,8 +51,16 @@ public class AuditLogProviderImpl implements AuditLogProvider {
     }
 
     @Override
-    public List<AuditLog> findByUserId(UUID userId) {
-        return repository.findByUserIdOrderByTimestampDesc(userId)
+    public List<AuditLog> findByActorUserId(UUID actorUserId) {
+        return repository.findByActorUserIdOrderByTimestampDesc(actorUserId)
+                .stream()
+                .map(AuditLogEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<AuditLog> findRelatedToDataSubject(UUID actorUserId, UUID targetEmployeeId) {
+        return repository.findRelatedToDataSubject(actorUserId, targetEmployeeId)
                 .stream()
                 .map(AuditLogEntity::toDomain)
                 .toList();

@@ -17,16 +17,27 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuditService {
+    public static final UUID SYSTEM_ACTOR_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     private final AuditLogProvider auditLogProvider;
     private final ObjectMapper objectMapper;
 
-    public void register(AuditAction action, UUID employeeId, UUID companyId,
-                        String resourceType, String resourceId, String riskLevel,
-                        String ipAddress, String userAgent, String details) {
+    public void register(
+            AuditAction action,
+            UUID actorUserId,
+            UUID targetEmployeeId,
+            UUID companyId,
+            String resourceType,
+            String resourceId,
+            String riskLevel,
+            String ipAddress,
+            String userAgent,
+            String details
+    ) {
         String safeDetails = SensitiveDataMasker.sanitizeDetails(details);
         AuditLog log = AuditLog.create(
-                employeeId,
+                actorUserId,
+                targetEmployeeId,
                 action.name(),
                 ipAddress,
                 userAgent,
@@ -39,31 +50,65 @@ public class AuditService {
         auditLogProvider.registerLog(log);
     }
 
-    public void registerLgpd(AuditAction action, UUID employeeId, UUID companyId,
-                             String resourceType, String resourceId, String riskLevel,
-                             String details, String ipAddress, String userAgent) {
-        register(action, employeeId, companyId, resourceType, resourceId, riskLevel, ipAddress, userAgent, details);
+    public void registerLgpd(
+            AuditAction action,
+            UUID actorUserId,
+            UUID targetEmployeeId,
+            UUID companyId,
+            String resourceType,
+            String resourceId,
+            String riskLevel,
+            String details,
+            String ipAddress,
+            String userAgent
+    ) {
+        register(action, actorUserId, targetEmployeeId, companyId, resourceType, resourceId, riskLevel, ipAddress, userAgent, details);
     }
 
-    public void registerLgpd(AuditAction action, UUID employeeId, UUID companyId,
-                             String resourceType, String resourceId, String riskLevel,
-                             String details, ClientIpResolution ipResolution, String userAgent) {
+    public void registerLgpd(
+            AuditAction action,
+            UUID actorUserId,
+            UUID targetEmployeeId,
+            UUID companyId,
+            String resourceType,
+            String resourceId,
+            String riskLevel,
+            String details,
+            ClientIpResolution ipResolution,
+            String userAgent
+    ) {
         String enrichedDetails = enrichDetailsWithIpMetadata(details, ipResolution);
-        register(action, employeeId, companyId, resourceType, resourceId, riskLevel,
+        register(action, actorUserId, targetEmployeeId, companyId, resourceType, resourceId, riskLevel,
                 ipResolution.ipAddress(), userAgent, enrichedDetails);
     }
 
-    public void registerSecurity(AuditAction action, UUID employeeId, String riskLevel,
-                                 String resourceType, String resourceId,
-                                 String details, String ipAddress, String userAgent) {
-        register(action, employeeId, null, resourceType, resourceId, riskLevel, ipAddress, userAgent, details);
+    public void registerSecurity(
+            AuditAction action,
+            UUID actorUserId,
+            UUID targetEmployeeId,
+            String riskLevel,
+            String resourceType,
+            String resourceId,
+            String details,
+            String ipAddress,
+            String userAgent
+    ) {
+        register(action, actorUserId, targetEmployeeId, null, resourceType, resourceId, riskLevel, ipAddress, userAgent, details);
     }
 
-    public void registerSecurity(AuditAction action, UUID employeeId, String riskLevel,
-                                 String resourceType, String resourceId,
-                                 String details, ClientIpResolution ipResolution, String userAgent) {
+    public void registerSecurity(
+            AuditAction action,
+            UUID actorUserId,
+            UUID targetEmployeeId,
+            String riskLevel,
+            String resourceType,
+            String resourceId,
+            String details,
+            ClientIpResolution ipResolution,
+            String userAgent
+    ) {
         String enrichedDetails = enrichDetailsWithIpMetadata(details, ipResolution);
-        register(action, employeeId, null, resourceType, resourceId, riskLevel,
+        register(action, actorUserId, targetEmployeeId, null, resourceType, resourceId, riskLevel,
                 ipResolution.ipAddress(), userAgent, enrichedDetails);
     }
 
@@ -83,11 +128,14 @@ public class AuditService {
     }
 
     public void registerRetentionAudit(AuditAction action, String resourceType, String details) {
-        UUID systemUserId = UUID.fromString("00000000-0000-0000-0000-000000000000");
-        register(action, systemUserId, null, resourceType, null, "SYSTEM", null, null, details);
+        register(action, SYSTEM_ACTOR_USER_ID, null, null, resourceType, null, "SYSTEM", null, null, details);
     }
 
-    public List<AuditLog> findByUserId(UUID userId) {
-        return auditLogProvider.findByUserId(userId);
+    public List<AuditLog> findByActorUserId(UUID actorUserId) {
+        return auditLogProvider.findByActorUserId(actorUserId);
+    }
+
+    public List<AuditLog> findRelatedToDataSubject(UUID actorUserId, UUID targetEmployeeId) {
+        return auditLogProvider.findRelatedToDataSubject(actorUserId, targetEmployeeId);
     }
 }

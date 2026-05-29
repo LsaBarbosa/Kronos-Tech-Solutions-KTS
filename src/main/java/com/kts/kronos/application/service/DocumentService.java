@@ -548,6 +548,7 @@ public class DocumentService implements DocumentUseCase {
 
             auditService.register(
                     action,
+                    currentUserIdOrNull(),
                     doc.employeeId(),
                     companyId,
                     "DOCUMENT",
@@ -565,5 +566,13 @@ public class DocumentService implements DocumentUseCase {
     }
 
     private record UploadData(byte[] data, String fileName, String contentType) {}
+
+    private UUID currentUserIdOrNull() {
+        try {
+            return jwtAuthenticatedUser.getuserId();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
 
 }

@@ -89,6 +89,7 @@ public class AuthService implements AuthUseCase {
                 auditService.registerSecurity(
                         AuditAction.AUTH_LOGIN_FAILURE,
                         null,
+                        null,
                         "MEDIUM",
                         "USER",
                         null,
@@ -110,6 +111,7 @@ public class AuthService implements AuthUseCase {
                     try {
                         auditService.registerSecurity(
                                 AuditAction.AUTH_LOGIN_FAILURE,
+                                null,
                                 null,
                                 "MEDIUM",
                                 "USER",
@@ -134,6 +136,7 @@ public class AuthService implements AuthUseCase {
             auditService.registerSecurity(
                     AuditAction.AUTH_LOGIN_SUCCESS,
                     user.userId(),
+                    user.employeeId(),
                     "LOW",
                     "USER",
                     user.userId().toString(),
@@ -161,6 +164,7 @@ public class AuthService implements AuthUseCase {
         var auditContext = auditRequestContextService.extractContext();
         String ipAddress = auditContext.ipAddress();
         String userAgent = auditContext.userAgent();
+        User[] authenticatedFaceUser = new User[1];
 
         try {
             String token = kronosTracing.observe("kronos.auth.face_login", () -> {
@@ -175,6 +179,7 @@ public class AuthService implements AuthUseCase {
 
                 var user = userProvider.findByEmployeeId(employeeId)
                         .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
+                authenticatedFaceUser[0] = user;
 
                 if (!user.active()) {
                     throw new BadRequestException(INACTIVE_USER);
@@ -205,10 +210,11 @@ public class AuthService implements AuthUseCase {
             try {
                 auditService.registerSecurity(
                         AuditAction.AUTH_FACE_LOGIN_SUCCESS,
-                        null,
+                        authenticatedFaceUser[0] != null ? authenticatedFaceUser[0].userId() : null,
+                        authenticatedFaceUser[0] != null ? authenticatedFaceUser[0].employeeId() : null,
                         "MEDIUM",
                         "USER",
-                        null,
+                        authenticatedFaceUser[0] != null ? authenticatedFaceUser[0].userId().toString() : null,
                         "method=face",
                         ipAddress,
                         userAgent
@@ -226,6 +232,7 @@ public class AuthService implements AuthUseCase {
             try {
                 auditService.registerSecurity(
                         AuditAction.AUTH_FACE_LOGIN_FAILURE,
+                        null,
                         null,
                         "HIGH",
                         "USER",
@@ -251,6 +258,7 @@ public class AuthService implements AuthUseCase {
                 auditService.registerSecurity(
                         AuditAction.AUTH_FACE_LOGIN_FAILURE,
                         null,
+                        null,
                         riskLevel,
                         "USER",
                         null,
@@ -272,6 +280,7 @@ public class AuthService implements AuthUseCase {
             try {
                 auditService.registerSecurity(
                         AuditAction.AUTH_FACE_LOGIN_FAILURE,
+                        null,
                         null,
                         "HIGH",
                         "USER",
@@ -376,6 +385,7 @@ public class AuthService implements AuthUseCase {
                 auditService.registerSecurity(
                         AuditAction.AUTH_PASSWORD_RESET,
                         user.userId(),
+                        user.employeeId(),
                         "HIGH",
                         "USER",
                         user.userId().toString(),
@@ -461,6 +471,7 @@ public class AuthService implements AuthUseCase {
             auditService.registerSecurity(
                     AuditAction.AUTH_TOKEN_REFRESH,
                     user.userId(),
+                    user.employeeId(),
                     "LOW",
                     "USER",
                     null,

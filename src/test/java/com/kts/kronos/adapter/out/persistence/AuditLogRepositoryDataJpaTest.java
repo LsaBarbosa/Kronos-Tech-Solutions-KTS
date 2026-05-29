@@ -21,7 +21,7 @@ class AuditLogRepositoryDataJpaTest extends AbstractPostgresDataJpaTest {
     @DisplayName("JpaRepository: deve persistir e buscar log de auditoria")
     void shouldSaveAndFindAuditLog() {
         AuditLogEntity saved = repository.save(AuditLogEntity.builder()
-                .userId(UUID.randomUUID())
+                .actorUserId(UUID.randomUUID())
                 .action("DELETE_DOCUMENT")
                 .ipAddress("127.0.0.1")
                 .userAgent("JUnit")

@@ -11,13 +11,30 @@ import java.util.List;
 import java.util.UUID;
 
 public interface AuditLogRepository extends JpaRepository<AuditLogEntity, UUID> {
-    List<AuditLogEntity> findByUserIdOrderByTimestampDesc(UUID userId);
+    List<AuditLogEntity> findByActorUserIdOrderByTimestampDesc(UUID actorUserId);
+
+    @Query("""
+            SELECT DISTINCT a FROM AuditLogEntity a
+             WHERE (:actorUserId IS NOT NULL AND a.actorUserId = :actorUserId)
+                OR a.targetEmployeeId = :targetEmployeeId
+             ORDER BY a.timestamp DESC
+            """)
+    List<AuditLogEntity> findRelatedToDataSubject(
+            @Param("actorUserId") UUID actorUserId,
+            @Param("targetEmployeeId") UUID targetEmployeeId
+    );
 
     @Query("SELECT COUNT(a) FROM AuditLogEntity a WHERE a.timestamp < :cutoff")
     long countCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
 
     @Modifying
-    @Query("UPDATE AuditLogEntity a SET a.details = 'ANONYMIZED', a.userId = NULL WHERE a.timestamp < :cutoff")
+    @Query("""
+            UPDATE AuditLogEntity a
+               SET a.details = 'ANONYMIZED',
+                   a.actorUserId = NULL,
+                   a.targetEmployeeId = NULL
+             WHERE a.timestamp < :cutoff
+            """)
     int anonymizeCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
 
     @Query("""

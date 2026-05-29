@@ -38,6 +38,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -66,6 +67,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -94,6 +96,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -123,6 +126,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -150,6 +154,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -176,6 +181,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -201,6 +207,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -227,6 +234,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -265,6 +273,7 @@ class AuditServiceTest {
         auditService.registerLgpd(
             AuditAction.LGPD_DATA_EXPORTED,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -291,6 +300,7 @@ class AuditServiceTest {
         auditService.registerSecurity(
             AuditAction.AUTH_LOGIN_FAILURE,
             employeeId,
+            null,
             "HIGH",
             "USER",
             employeeId.toString(),
@@ -317,6 +327,7 @@ class AuditServiceTest {
         auditService.register(
             AuditAction.AUTH_LOGIN_SUCCESS,
             employeeId,
+            null,
             companyId,
             "USER",
             employeeId.toString(),
@@ -348,6 +359,7 @@ class AuditServiceTest {
         auditService.registerLgpd(
             AuditAction.LGPD_DATA_EXPORTED,
             employeeId,
+            null,
             companyId,
             "LGPD_REQUEST",
             "request-123",
@@ -380,6 +392,7 @@ class AuditServiceTest {
         auditService.registerSecurity(
             AuditAction.AUTH_LOGIN_FAILURE,
             employeeId,
+            null,
             "HIGH",
             "USER",
             employeeId.toString(),
@@ -412,6 +425,7 @@ class AuditServiceTest {
         auditService.registerLgpd(
             AuditAction.LGPD_DATA_EXPORTED,
             employeeId,
+            null,
             companyId,
             "LGPD_REQUEST",
             "request-456",

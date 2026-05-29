@@ -87,6 +87,7 @@ public class UserService implements UserUseCase {
                 auditService.registerSecurity(
                         AuditAction.USER_CREATED,
                         currentUserIdOrNull(),
+                        user.employeeId(),
                         "MEDIUM",
                         "USER",
                         user.userId().toString(),
@@ -190,6 +191,7 @@ public class UserService implements UserUseCase {
                 auditService.registerSecurity(
                         AuditAction.USER_UPDATED,
                         currentUserIdOrNull(),
+                        existing.employeeId(),
                         "MEDIUM",
                         "USER",
                         userId.toString(),
@@ -222,6 +224,7 @@ public class UserService implements UserUseCase {
             auditService.registerSecurity(
                     AuditAction.USER_DEACTIVATED,
                     deletedBy,
+                    employeeId,
                     "HIGH",
                     "USER",
                     userId.toString(),
@@ -248,6 +251,7 @@ public class UserService implements UserUseCase {
             auditService.registerSecurity(
                     AuditAction.USER_ACTIVATION_TOGGLED,
                     currentUserIdOrNull(),
+                    existing.employeeId(),
                     "MEDIUM",
                     "USER",
                     userId.toString(),
@@ -282,6 +286,7 @@ public class UserService implements UserUseCase {
             auditService.registerSecurity(
                     AuditAction.AUTH_PASSWORD_CHANGED,
                     userId,
+                    user.employeeId(),
                     "HIGH",
                     "USER",
                     userId.toString(),
