@@ -27,12 +27,13 @@ class RetentionPolicyCatalogTest {
     }
 
     @Test
-    void shouldKeepUnsupportedPoliciesInactiveUntilProcessorExists() {
+    void shouldActivateTimeRecordAndEmployeeContractPoliciesWhenProcessorsExist() {
         var allPolicies = catalog.getAllPolicies();
 
+        // TIME_RECORD and EMPLOYEE_CONTRACT policies should be active now that processors exist
         assertTrue(allPolicies.stream()
                 .filter(policy -> policy.code().name().equals("RETENTION_TIME_RECORD")
                         || policy.code().name().equals("RETENTION_EMPLOYEE_CONTRACT"))
-                .noneMatch(policy -> policy.active()));
+                .allMatch(policy -> policy.active()));
     }
 }
