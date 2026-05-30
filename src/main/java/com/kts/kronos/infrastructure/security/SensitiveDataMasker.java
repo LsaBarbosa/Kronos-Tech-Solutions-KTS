@@ -9,8 +9,10 @@ import java.util.regex.Pattern;
 public class SensitiveDataMasker {
 
     // Padrões regex para detecção de dados sensíveis
-    private static final Pattern CPF_PATTERN = Pattern.compile("\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}");
-    private static final Pattern PIS_PATTERN = Pattern.compile("\\d{3}\\.\\d{5}\\.\\d{2}-\\d{1}");
+    // CPF com ou sem pontuação: 123.456.789-01 ou 12345678901
+    private static final Pattern CPF_PATTERN = Pattern.compile("(?<!\\d)(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})(?!\\d)");
+    // PIS com ou sem pontuação: 123.45678.90-1 ou 12345678901
+    private static final Pattern PIS_PATTERN = Pattern.compile("(?<!\\d)(\\d{3}\\.?\\d{5}\\.?\\d{2}-?\\d{1})(?!\\d)");
     private static final Pattern JWT_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
     private static final Pattern PASSWORD_PATTERN = Pattern.compile("(?i)(password|passwd|pwd)[\\s:=]+[^\\s,}]+");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
