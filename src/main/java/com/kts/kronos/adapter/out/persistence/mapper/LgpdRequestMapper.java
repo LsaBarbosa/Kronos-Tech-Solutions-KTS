@@ -25,7 +25,10 @@ public class LgpdRequestMapper {
                 entity.getPriority(),
                 entity.getClosedReason(),
                 entity.getPublicResolutionNotes(),
-                entity.getInternalNotes()
+                entity.getInternalNotes(),
+                entity.getTargetConsentType(),
+                entity.getConsentRevocationExecutedAt(),
+                entity.isConsentRevocationNoActiveConsent()
         );
     }
 
@@ -49,6 +52,9 @@ public class LgpdRequestMapper {
                 .closedReason(domain.closedReason())
                 .publicResolutionNotes(domain.publicResolutionNotes())
                 .internalNotes(domain.internalNotes())
+                .targetConsentType(domain.targetConsentType())
+                .consentRevocationExecutedAt(domain.consentRevocationExecutedAt())
+                .consentRevocationNoActiveConsent(domain.consentRevocationNoActiveConsent())
                 .build();
     }
 }

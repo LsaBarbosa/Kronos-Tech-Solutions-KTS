@@ -20,6 +20,9 @@ public class LgpdSlaPolicyService {
             case PORTABILITY -> 15;
             case CONSENT_REVOCATION -> 2;
             case SHARING_INFORMATION -> 15;
+            case CONSENT_INFORMATION -> 15;
+            case OPPOSITION -> 15;
+            case AUTOMATED_DECISION_REVIEW -> 15;
         };
 
         return createdAt.plus(days, ChronoUnit.DAYS);

@@ -3,7 +3,7 @@ package com.kts.kronos.integration;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
-import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.CodedForbiddenException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
@@ -73,14 +73,8 @@ class LgpdExportIntegrationTest {
         when(clientIpResolver.resolve(any())).thenReturn("127.0.0.1");
         when(lgpdUseCase.exportOwnEmployeeData(anyString(), any()))
                 .thenReturn(sampleResponse(false));
-        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(false), anyString(), any(), eq("Compliance review")))
-                .thenReturn(sampleResponse(false));
-        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(true), anyString(), any(), eq("Audit")))
-                .thenReturn(sampleResponse(true));
         when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(true), anyString(), any(), eq("Personal access")))
                 .thenReturn(sampleResponse(true));
-        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(true), anyString(), any(), eq("Standard export")))
-                .thenReturn(sampleResponse(false));
     }
 
     @Test
@@ -95,14 +89,19 @@ class LgpdExportIntegrationTest {
     }
 
     @Test
-    @DisplayName("Manager should export employee data with justification")
+    @DisplayName("Manager should not export employee data directly with justification")
     @WithMockUser(username = "manager-user", roles = "MANAGER")
-    void managerShouldExportEmployeeDataWithJustification() throws Exception {
+    void managerShouldNotExportEmployeeDataDirectlyWithJustification() throws Exception {
+        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(false), anyString(), any(), eq("Compliance review")))
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
+
         mockMvc.perform(get("/lgpd/employees/{employeeId}/export", EMPLOYEE_ID)
                         .param("exportReason", "Compliance review"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.manifest.exportId").value(EXPORT_ID.toString()))
-                .andExpect(jsonPath("$.manifest.sections").isArray());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"));
     }
 
     @Test
@@ -130,15 +129,20 @@ class LgpdExportIntegrationTest {
     }
 
     @Test
-    @DisplayName("CTO should export data with geolocation")
+    @DisplayName("CTO should not export data directly with geolocation")
     @WithMockUser(username = "cto-user", roles = "CTO")
-    void ctoShouldExportDataWithGeolocation() throws Exception {
+    void ctoShouldNotExportDataDirectlyWithGeolocation() throws Exception {
+        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(true), anyString(), any(), eq("Audit")))
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
+
         mockMvc.perform(get("/lgpd/employees/{employeeId}/export", EMPLOYEE_ID)
                         .param("exportReason", "Audit")
                         .param("includePreciseGeolocation", "true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.manifest.exportId").value(EXPORT_ID.toString()))
-                .andExpect(jsonPath("$.manifest.includePreciseGeolocation").value(true));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"));
     }
 
     @Test
@@ -154,14 +158,20 @@ class LgpdExportIntegrationTest {
     }
 
     @Test
-    @DisplayName("Manager should not receive precise geolocation for employee unless authorized")
+    @DisplayName("Manager should not receive direct employee export")
     @WithMockUser(username = "manager-user", roles = "MANAGER")
-    void managerShouldNotReceivePreciseGeolocation() throws Exception {
+    void managerShouldNotReceiveDirectEmployeeExport() throws Exception {
+        when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(true), anyString(), any(), eq("Standard export")))
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
+
         mockMvc.perform(get("/lgpd/employees/{employeeId}/export", EMPLOYEE_ID)
                         .param("exportReason", "Standard export")
                         .param("includePreciseGeolocation", "true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.manifest.includePreciseGeolocation").value(false));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"));
     }
 
     @Test
@@ -191,14 +201,18 @@ class LgpdExportIntegrationTest {
     }
 
     @Test
-    @DisplayName("Export without justification should fail")
+    @DisplayName("Direct third-party export without justification should fail")
     @WithMockUser(username = "manager-user", roles = "MANAGER")
-    void exportWithoutJustificationShouldFail() throws Exception {
+    void directThirdPartyExportWithoutJustificationShouldFail() throws Exception {
         when(lgpdUseCase.exportEmployeeData(eq(EMPLOYEE_ID), eq(false), anyString(), any(), isNull()))
-                .thenThrow(new BadRequestException("Justificativa obrigatória para exportação de terceiros."));
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
 
         mockMvc.perform(get("/lgpd/employees/{employeeId}/export", EMPLOYEE_ID))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"));
     }
 
     @Test

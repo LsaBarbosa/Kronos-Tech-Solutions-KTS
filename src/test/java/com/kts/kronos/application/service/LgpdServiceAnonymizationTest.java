@@ -9,8 +9,11 @@ import com.kts.kronos.application.port.out.provider.LgpdRequestProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecutor;
 import com.kts.kronos.application.service.LgpdRequestNotificationService;
+import com.kts.kronos.application.service.DryRunTokenService;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
+import com.kts.kronos.domain.model.AnonymizationExecutionResult;
+import com.kts.kronos.domain.model.DryRunToken;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.enuns.AnonymizationConsolidatedStatus;
@@ -75,6 +78,9 @@ class LgpdServiceAnonymizationTest {
 
     @Mock
     private AuditService auditService;
+
+    @Mock
+    private DryRunTokenService dryRunTokenService;
 
     @BeforeEach
     void setUp() {
@@ -251,6 +257,54 @@ class LgpdServiceAnonymizationTest {
     }
 
     @Test
+    void shouldNotExecuteAnonymizationForAdditionalArt18RequestTypes() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        for (LgpdRequestType type : List.of(
+                LgpdRequestType.CONSENT_INFORMATION,
+                LgpdRequestType.OPPOSITION,
+                LgpdRequestType.AUTOMATED_DECISION_REVIEW
+        )) {
+            UUID requestId = UUID.randomUUID();
+            LgpdRequest request = new LgpdRequest(
+                    requestId,
+                    employeeId,
+                    UUID.randomUUID(),
+                    companyId,
+                    type,
+                    LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                    "Direito do titular",
+                    null,
+                    Instant.now(),
+                    Instant.now(),
+                    null,
+                    null,
+                    null,
+                    Instant.now().plusSeconds(86400 * 15),
+                    "NORMAL",
+                    null,
+                    null,
+                    null
+            );
+
+            when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+
+            IllegalArgumentException exception = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.executeAnonymizationForRequest(requestId)
+            );
+
+            assertTrue(exception.getMessage().contains("ANONYMIZATION ou DELETION"));
+            assertTrue(exception.getMessage().contains(type.name()));
+        }
+    }
+
+    @Test
     void shouldRetrieveAnonymizationResult() {
         UUID requestId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
@@ -363,7 +417,7 @@ class LgpdServiceAnonymizationTest {
                 UUID.randomUUID(),
                 companyId,
                 LgpdRequestType.ANONYMIZATION,
-                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
                 "Anonimizar",
                 null,
                 Instant.now(),
@@ -406,7 +460,7 @@ class LgpdServiceAnonymizationTest {
                 UUID.randomUUID(),
                 companyId,
                 LgpdRequestType.ANONYMIZATION,
-                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
                 "Anonimizar",
                 null,
                 Instant.now(),
@@ -468,7 +522,7 @@ class LgpdServiceAnonymizationTest {
                 UUID.randomUUID(),
                 companyId,
                 LgpdRequestType.ANONYMIZATION,
-                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
                 "Anonimizar",
                 null,
                 Instant.now(),
@@ -532,7 +586,7 @@ class LgpdServiceAnonymizationTest {
                 UUID.randomUUID(),
                 companyId,
                 LgpdRequestType.ANONYMIZATION,
-                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
                 "Anonimizar",
                 null,
                 Instant.now(),
@@ -603,7 +657,7 @@ class LgpdServiceAnonymizationTest {
                 UUID.randomUUID(),
                 companyId,
                 LgpdRequestType.ANONYMIZATION,
-                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
                 "Anonimizar",
                 null,
                 Instant.now(),
@@ -657,6 +711,295 @@ class LgpdServiceAnonymizationTest {
 
         assertNotNull(result);
         assertEquals(LgpdRequestStatus.COMPLETED, result.status());
+    }
+
+    @Test
+    void shouldAllowDryRunForWaitingControllerStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ANONYMIZATION,
+                LgpdRequestStatus.WAITING_CONTROLLER,
+                "Anonimizar",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        Employee employee = buildEmployee(employeeId, companyId);
+        Instant now = Instant.now();
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(anonymizationPlanExecutor.executePlanWithResults(any(), any())).thenReturn(List.of(
+                AnonymizationExecutionResult.success(
+                        UUID.randomUUID(),
+                        employeeId,
+                        companyId,
+                        actorUserId,
+                        com.kts.kronos.domain.model.enuns.AnonymizationResourceType.TIME_RECORD,
+                        "DRY_RUN",
+                        100L,
+                        50L,
+                        10L
+                )
+        ));
+        when(dryRunTokenService.generateToken(requestId, employeeId, companyId, actorUserId))
+                .thenReturn(new DryRunToken(UUID.randomUUID(), requestId, UUID.randomUUID(), employeeId, companyId, actorUserId, now, now.plusSeconds(900), null, DryRunToken.Status.PENDING));
+
+        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse result =
+                service.executeDryRunAnonymizationForRequest(requestId);
+
+        assertNotNull(result);
+        assertNotNull(result.dryRunToken());
+    }
+
+    @Test
+    void shouldAllowDryRunForWaitingLegalReviewStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ANONYMIZATION,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
+                "Anonimizar",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        Employee employee = buildEmployee(employeeId, companyId);
+        Instant now = Instant.now();
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(anonymizationPlanExecutor.executePlanWithResults(any(), any())).thenReturn(List.of(
+                AnonymizationExecutionResult.success(
+                        UUID.randomUUID(),
+                        employeeId,
+                        companyId,
+                        actorUserId,
+                        com.kts.kronos.domain.model.enuns.AnonymizationResourceType.TIME_RECORD,
+                        "DRY_RUN",
+                        100L,
+                        50L,
+                        10L
+                )
+        ));
+        when(dryRunTokenService.generateToken(requestId, employeeId, companyId, actorUserId))
+                .thenReturn(new DryRunToken(UUID.randomUUID(), requestId, UUID.randomUUID(), employeeId, companyId, actorUserId, now, now.plusSeconds(900), null, DryRunToken.Status.PENDING));
+
+        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDryRunWithTokenResponse result =
+                service.executeDryRunAnonymizationForRequest(requestId);
+
+        assertNotNull(result);
+        assertNotNull(result.dryRunToken());
+    }
+
+    @Test
+    void shouldBlockApplyForWaitingControllerStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ANONYMIZATION,
+                LgpdRequestStatus.WAITING_CONTROLLER,
+                "Anonimizar",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.applyAnonymizationForRequest(
+                        requestId,
+                        "Justificativa",
+                        true,
+                        UUID.randomUUID(),
+                        "127.0.0.1",
+                        "Test-Agent"
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("Aprovação formal é obrigatória"));
+    }
+
+    @Test
+    void shouldBlockApplyForWaitingLegalReviewStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ANONYMIZATION,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW,
+                "Anonimizar",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.applyAnonymizationForRequest(
+                        requestId,
+                        "Justificativa",
+                        true,
+                        UUID.randomUUID(),
+                        "127.0.0.1",
+                        "Test-Agent"
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("Aprovação formal é obrigatória"));
+    }
+
+    @Test
+    void shouldAllowApplyForApprovedForExportStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        UUID dryRunTokenId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        LgpdRequest request = new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.ANONYMIZATION,
+                LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                "Anonimizar",
+                null,
+                now,
+                now,
+                null,
+                null,
+                null,
+                now.plusSeconds(86400 * 15),
+                "NORMAL",
+                null,
+                null,
+                null
+        );
+
+        Employee employee = buildEmployee(employeeId, companyId);
+        AnonymizationConsolidatedResult consolidatedResult = new AnonymizationConsolidatedResult(
+                UUID.randomUUID(),
+                employeeId,
+                companyId,
+                actorUserId,
+                AnonymizationConsolidatedStatus.SUCCESS,
+                "APPLY",
+                now,
+                now.plusSeconds(10),
+                100L,
+                50L,
+                10L,
+                0L,
+                null,
+                List.of(),
+                List.of()
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(anonymizationConsolidatedResultRepository.findByRequestId(requestId)).thenReturn(Optional.empty());
+        when(dryRunTokenService.validateAndGetToken(dryRunTokenId))
+                .thenReturn(new DryRunToken(dryRunTokenId, requestId, UUID.randomUUID(), employeeId, companyId, actorUserId, now, now.plusSeconds(900), null, DryRunToken.Status.PENDING));
+        when(anonymizationPlanExecutor.executePlanWithConsolidatedResult(any(), any())).thenReturn(consolidatedResult);
+        when(anonymizationConsolidatedResultRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AnonymizationConsolidatedResult result = service.applyAnonymizationForRequest(
+                requestId,
+                "Justificativa",
+                true,
+                dryRunTokenId,
+                "127.0.0.1",
+                "Test-Agent"
+        );
+
+        assertNotNull(result);
+        assertEquals(AnonymizationConsolidatedStatus.SUCCESS, result.consolidatedStatus());
     }
 
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
