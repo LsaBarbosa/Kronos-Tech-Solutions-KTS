@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,6 +19,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,8 +28,16 @@ class UserAnonymizerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock(lenient = true)
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private UserAnonymizer anonymizer;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> "encoded_" + invocation.getArgument(0));
+    }
 
     @Test
     void testSupports() {
@@ -89,6 +99,23 @@ class UserAnonymizerTest {
         var saved = savedCaptor.getValue();
         assertTrue(saved.getUsername().startsWith("anon_"));
         assertEquals(13, saved.getUsername().length());
+    }
+
+    @Test
+    void testExecuteApplyDeactivatesUserAndIncrementsSessionVersion() {
+        var user = createUser();
+        user.setSessionVersion(5L);
+        when(userRepository.findByEmployeeId(any())).thenReturn(Optional.of(user));
+
+        anonymizer.execute(createPlan(), "APPLY");
+
+        var savedCaptor = org.mockito.ArgumentCaptor.forClass(UserEntity.class);
+        verify(userRepository).save(savedCaptor.capture());
+
+        var saved = savedCaptor.getValue();
+        assertFalse(saved.isActive());
+        assertEquals(6L, saved.getSessionVersion());
+        assertEquals("Anonimização por solicitação LGPD", saved.getDeactivationReason());
     }
 
     @Test
