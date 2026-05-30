@@ -19,7 +19,9 @@ public class RetentionPolicyCatalog {
             RetentionResourceType.AUDIT_LOG,
             RetentionResourceType.LGPD_REQUEST,
             RetentionResourceType.MESSAGE,
-            RetentionResourceType.PASSWORD_RESET_TOKEN
+            RetentionResourceType.PASSWORD_RESET_TOKEN,
+            RetentionResourceType.TIME_RECORD,
+            RetentionResourceType.EMPLOYEE_CONTRACT
     );
 
     public List<RetentionPolicyCatalogEntry> getActivePolicies() {
@@ -62,8 +64,8 @@ public class RetentionPolicyCatalog {
                         RetentionResourceType.TIME_RECORD,
                         1095,
                         RetentionAction.PRESERVE_LEGAL_EVIDENCE,
-                        false,
-                        false,
+                        true,
+                        true,
                         true,
                         false
                 ),
@@ -74,8 +76,8 @@ public class RetentionPolicyCatalog {
                         RetentionResourceType.EMPLOYEE_CONTRACT,
                         2555,
                         RetentionAction.PRESERVE_LEGAL_EVIDENCE,
-                        false,
-                        false,
+                        true,
+                        true,
                         true,
                         true
                 ),
