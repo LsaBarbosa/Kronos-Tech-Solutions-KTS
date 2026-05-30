@@ -9,6 +9,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import org.springframework.data.domain.Page;
@@ -47,6 +48,14 @@ public interface LgpdUseCase {
             String legalBasis,
             String operationalReason,
             String reviewerNotes,
+            String ipAddress,
+            String userAgent
+    );
+
+    LgpdRequest executeConsentRevocation(
+            UUID requestId,
+            ConsentType targetConsentType,
+            String justification,
             String ipAddress,
             String userAgent
     );

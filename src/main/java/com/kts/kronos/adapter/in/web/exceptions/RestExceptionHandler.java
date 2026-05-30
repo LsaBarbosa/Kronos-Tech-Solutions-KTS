@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.exceptions;
 
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.CodedForbiddenException;
 import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -111,7 +112,8 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Object> handleForbiddenException(ForbiddenException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "FORBIDDEN", ex.getMessage(), request, null, null);
+        String code = ex instanceof CodedForbiddenException coded ? coded.getCode() : "FORBIDDEN";
+        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, code, ex.getMessage(), request, null, null);
     }
 
     @ExceptionHandler(TermsNotAcceptedException.class)

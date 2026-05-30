@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -92,6 +93,16 @@ public class LgpdRequestEntity {
 
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_consent_type", length = 80)
+    private ConsentType targetConsentType;
+
+    @Column(name = "consent_revocation_executed_at")
+    private Instant consentRevocationExecutedAt;
+
+    @Column(name = "consent_revocation_no_active_consent", nullable = false)
+    private boolean consentRevocationNoActiveConsent;
 
     @Column(name = "retention_applied_at")
     private Instant retentionAppliedAt;
