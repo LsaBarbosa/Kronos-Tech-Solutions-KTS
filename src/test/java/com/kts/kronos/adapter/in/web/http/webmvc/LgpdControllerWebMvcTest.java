@@ -7,6 +7,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdRequestDetailsResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.LgpdController;
+import com.kts.kronos.application.exceptions.CodedForbiddenException;
 import com.kts.kronos.application.legal.DataProcessingCatalog;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.security.ClientIpResolver;
@@ -16,6 +17,7 @@ import com.kts.kronos.domain.model.DataProcessingPurpose;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
 import com.kts.kronos.domain.model.RetentionDryRunResult;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DataCategory;
 import com.kts.kronos.domain.model.enuns.LegalBasis;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
@@ -175,6 +177,21 @@ class LgpdControllerWebMvcTest {
     }
 
     @Test
+    void shouldExportOwnDataViaMeEndpoint() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.exportOwnEmployeeData("127.0.0.1", "JUnit"))
+                .thenReturn(minimalExportResponse(employeeId, false));
+
+        mockMvc.perform(get("/lgpd/me/export")
+                        .header("User-Agent", "JUnit"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.manifest.targetEmployeeId").value(employeeId.toString()));
+
+        verify(lgpdUseCase).exportOwnEmployeeData("127.0.0.1", "JUnit");
+    }
+
+    @Test
     void shouldExportEmployeeData() throws Exception {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
@@ -286,6 +303,170 @@ class LgpdControllerWebMvcTest {
                 .andExpect(status().isOk());
 
         verify(lgpdUseCase).exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", null);
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldBlockDirectThirdPartyExportForManager() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(false), eq("127.0.0.1"), eq("JUnit"), eq("Compliance")))
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
+
+        mockMvc.perform(get("/lgpd/employees/{employeeId}/export", employeeId)
+                        .queryParam("exportReason", "Compliance")
+                        .header("User-Agent", "JUnit"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Exportação de dados de terceiros exige solicitação LGPD aprovada."));
+    }
+
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldBlockDirectThirdPartyExportForCto() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.exportEmployeeData(eq(employeeId), eq(true), eq("127.0.0.1"), eq("JUnit"), eq("Legal audit")))
+                .thenThrow(new CodedForbiddenException(
+                        "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST",
+                        "Exportação de dados de terceiros exige solicitação LGPD aprovada."
+                ));
+
+        mockMvc.perform(get("/lgpd/employees/{employeeId}/export", employeeId)
+                        .queryParam("includePreciseGeolocation", "true")
+                        .queryParam("exportReason", "Legal audit")
+                        .header("User-Agent", "JUnit"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Exportação de dados de terceiros exige solicitação LGPD aprovada."));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldExportForApprovedAdminRequest() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.exportEmployeeDataForApprovedRequest(
+                eq(requestId),
+                eq(false),
+                eq("Art. 7, II, LGPD"),
+                eq("Compliance request"),
+                eq("Approved by legal"),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        )).thenReturn(minimalExportResponse(employeeId, false));
+
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/export", requestId)
+                        .contentType("application/json")
+                        .header("User-Agent", "JUnit")
+                        .content("""
+                                {
+                                  "includePreciseGeolocation": false,
+                                  "legalBasis": "Art. 7, II, LGPD",
+                                  "operationalReason": "Compliance request",
+                                  "reviewerNotes": "Approved by legal"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.manifest.targetEmployeeId").value(employeeId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldExecuteConsentRevocationForAdminRequest() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.executeConsentRevocation(
+                eq(requestId),
+                eq(ConsentType.BIOMETRIC_AUTHENTICATION),
+                eq("Solicitação confirmada pelo titular."),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        )).thenReturn(new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                LgpdRequestType.CONSENT_REVOCATION,
+                LgpdRequestStatus.COMPLETED,
+                "Revogar consentimento biométrico",
+                "Consentimento revogado conforme solicitação do titular.",
+                Instant.now(),
+                Instant.now(),
+                Instant.now(),
+                UUID.randomUUID(),
+                null,
+                Instant.now().plusSeconds(86400 * 2),
+                "NORMAL",
+                null,
+                "Consentimento revogado conforme solicitação do titular.",
+                "Execução LGPD",
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                Instant.now(),
+                false
+        ));
+
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/execute-consent-revocation", requestId)
+                        .contentType("application/json")
+                        .header("User-Agent", "JUnit")
+                        .content("""
+                                {
+                                  "targetConsentType": "BIOMETRIC_AUTHENTICATION",
+                                  "justification": "Solicitação confirmada pelo titular."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requestType").value("CONSENT_REVOCATION"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.targetConsentType").value("BIOMETRIC_AUTHENTICATION"))
+                .andExpect(jsonPath("$.consentRevocationExecutedAt").exists())
+                .andExpect(jsonPath("$.consentRevocationNoActiveConsent").value(false));
+
+        verify(lgpdUseCase).executeConsentRevocation(
+                eq(requestId),
+                eq(ConsentType.BIOMETRIC_AUTHENTICATION),
+                eq("Solicitação confirmada pelo titular."),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        );
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void shouldReturnForbiddenWhenAdminRequestIsNotApprovedForExport() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        when(clientIpResolver.resolve(any(HttpServletRequest.class))).thenReturn("127.0.0.1");
+        when(lgpdUseCase.exportEmployeeDataForApprovedRequest(
+                eq(requestId),
+                eq(false),
+                eq("Art. 7, II, LGPD"),
+                eq("Compliance request"),
+                eq("Waiting legal review"),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        )).thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException(
+                "Exportação exige status APPROVED_FOR_EXPORT. Status atual: OPEN"
+        ));
+
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/export", requestId)
+                        .contentType("application/json")
+                        .header("User-Agent", "JUnit")
+                        .content("""
+                                {
+                                  "includePreciseGeolocation": false,
+                                  "legalBasis": "Art. 7, II, LGPD",
+                                  "operationalReason": "Compliance request",
+                                  "reviewerNotes": "Waiting legal review"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Exportação exige status APPROVED_FOR_EXPORT. Status atual: OPEN"));
     }
 
     @Test
@@ -503,10 +684,38 @@ class LgpdControllerWebMvcTest {
     }
 
     @Test
-    @WithMockUser(roles = "EMPLOYEE")
-    void shouldForbidEmployeeFromAccessingProcessingCatalog() throws Exception {
+    void shouldAllowAnonymousAccessToProcessingCatalog() throws Exception {
+        List<PublicDataProcessingPurposeResponse> catalog = List.of(
+                new PublicDataProcessingPurposeResponse(
+                        "EMPLOYEE_IDENTIFICATION",
+                        DataCategory.IDENTIFICATION,
+                        LegalBasis.CONTRACT_EXECUTION,
+                        "Gerenciamento da sua identificação para cumprimento do contrato de trabalho.",
+                        "RETENTION_EMPLOYEE_CONTRACT",
+                        false,
+                        true
+                ),
+                new PublicDataProcessingPurposeResponse(
+                        "BIOMETRIC_AUTHENTICATION",
+                        DataCategory.BIOMETRIC,
+                        LegalBasis.CONSENT,
+                        "Autenticação segura com dados biométricos (requer consentimento).",
+                        "RETENTION_BIOMETRIC_ACTIVE_CONSENT",
+                        true,
+                        true
+                )
+        );
+
+        when(dataProcessingCatalog.getPublicTreatments()).thenReturn(catalog);
+
         mockMvc.perform(get("/lgpd/processing-catalog"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").value("EMPLOYEE_IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].dataCategory").value("IDENTIFICATION"))
+                .andExpect(jsonPath("$[0].legalBasis").value("CONTRACT_EXECUTION"))
+                .andExpect(jsonPath("$[0].sensitive").value(false))
+                .andExpect(jsonPath("$[1].code").value("BIOMETRIC_AUTHENTICATION"))
+                .andExpect(jsonPath("$[1].sensitive").value(true));
     }
 
     @Test
@@ -709,5 +918,29 @@ class LgpdControllerWebMvcTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("RETENTION_APPLY_DISABLED"))
                 .andExpect(jsonPath("$.message").value("Data retention APPLY is currently disabled. Set LGPD_RETENTION_ALLOW_APPLY=true to enable."));
+    }
+
+    private LgpdEmployeeExportResponse minimalExportResponse(UUID employeeId, boolean includePreciseGeolocation) {
+        return new LgpdEmployeeExportResponse(
+                new LgpdEmployeeExportResponse.ExportManifest(
+                        UUID.randomUUID(),
+                        Instant.now(),
+                        UUID.randomUUID(),
+                        employeeId,
+                        includePreciseGeolocation,
+                        List.of("employee"),
+                        List.of("Este arquivo contém dados pessoais.")
+                ),
+                null,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                Instant.now()
+        );
     }
 }

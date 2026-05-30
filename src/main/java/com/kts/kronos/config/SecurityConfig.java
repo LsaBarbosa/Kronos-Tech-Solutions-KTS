@@ -149,6 +149,10 @@ public class SecurityConfig {
                     org.springframework.http.HttpMethod.GET,
                     "/observability/status"
             ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/lgpd/processing-catalog"
+            ).permitAll();
 
             if (publicDocsEnabled) {
                 auth.requestMatchers(
