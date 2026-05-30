@@ -3,6 +3,8 @@ package com.kts.kronos.application.security;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class BiometricProtectionService {
 
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
+    private final LivenessVerificationProvider livenessVerificationProvider;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
 
     @Value("${app.biometric.max-base64-chars:${biometric.max-base64-chars:1500000}}")
@@ -58,7 +61,7 @@ public class BiometricProtectionService {
 
     public void protectPublicLogin(String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
-        ensureLiveness(livenessPassed);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.FACE_LOGIN, null);
         consume(
                 "bio:login-face:" + clientIp(),
                 loginFaceLimit,
@@ -69,7 +72,7 @@ public class BiometricProtectionService {
 
     public void protectCheckIn(UUID employeeId, String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
-        ensureLiveness(livenessPassed);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.CHECKIN, employeeId);
         consume(
                 "bio:checkin:" + employeeId + ":" + clientIp(),
                 checkinLimit,
@@ -80,7 +83,7 @@ public class BiometricProtectionService {
 
     public void protectEnrollment(UUID employeeId, String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
-        ensureLiveness(livenessPassed);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.ENROLLMENT, employeeId);
         consume(
                 "bio:enrollment:" + employeeId + ":" + clientIp(),
                 enrollmentLimit,
@@ -99,10 +102,21 @@ public class BiometricProtectionService {
         }
     }
 
-    private void ensureLiveness(Boolean livenessPassed) {
-        if (livenessRequired && !Boolean.TRUE.equals(livenessPassed)) {
+    private void ensureServerSideLiveness(String faceImageBase64, LivenessOperation operation, UUID employeeId) {
+        if (!livenessRequired) {
+            return;
+        }
+
+        var result = livenessVerificationProvider.verify(faceImageBase64, operation, employeeId);
+
+        if (!result.passed()) {
+            log.warn("event=biometric_liveness_failed operation={} employeeId={} reason={}",
+                    operation, employeeId, result.reasonCode());
             throw new ForbiddenException(LIVENESS_REQUIRED);
         }
+
+        log.debug("event=biometric_liveness_passed operation={} employeeId={} provider={}",
+                operation, employeeId, result.provider());
     }
 
     private void consume(String key, int limit, Duration window, String message) {

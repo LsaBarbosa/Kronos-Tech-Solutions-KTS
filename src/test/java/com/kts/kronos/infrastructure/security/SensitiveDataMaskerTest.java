@@ -7,11 +7,29 @@ import static org.junit.jupiter.api.Assertions.*;
 class SensitiveDataMaskerTest {
 
     @Test
-    void shouldMaskCpf() {
+    void shouldMaskCpfFormatted() {
         String input = "CPF: 123.456.789-10";
         String masked = SensitiveDataMasker.maskSensitiveData(input);
         assertNotNull(masked);
         assertFalse(masked.contains("123.456.789-10"));
+        assertTrue(masked.contains("***"));
+    }
+
+    @Test
+    void shouldMaskCpfUnformatted() {
+        String input = "cpf=12345678901";
+        String masked = SensitiveDataMasker.maskSensitiveData(input);
+        assertNotNull(masked);
+        assertFalse(masked.contains("12345678901"));
+        assertTrue(masked.contains("***"));
+    }
+
+    @Test
+    void shouldMaskCpfInQueryString() {
+        String input = "/employee/check-cpf?cpf=12345678901";
+        String masked = SensitiveDataMasker.maskSensitiveData(input);
+        assertNotNull(masked);
+        assertFalse(masked.contains("12345678901"));
         assertTrue(masked.contains("***"));
     }
 

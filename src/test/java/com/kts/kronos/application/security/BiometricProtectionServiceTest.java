@@ -4,6 +4,9 @@ import com.kts.kronos.application.config.ClientIpResolverProperties;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.domain.model.LivenessVerificationResult;
+import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,10 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class BiometricProtectionServiceTest {
 
@@ -24,7 +31,10 @@ class BiometricProtectionServiceTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("198.51.100.42");
         ClientIpResolverProperties properties = new ClientIpResolverProperties();
-        service = new BiometricProtectionService(request, new ClientIpResolver(properties));
+        LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
+        when(mockProvider.verify(any(), any(), any()))
+                .thenReturn(LivenessVerificationResult.passed("MOCK_PROVIDER", 0.9));
+        service = new BiometricProtectionService(request, new ClientIpResolver(properties), mockProvider);
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", false);
         ReflectionTestUtils.setField(service, "loginFaceLimit", 2);
@@ -67,7 +77,10 @@ class BiometricProtectionServiceTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("");
         ClientIpResolverProperties properties = new ClientIpResolverProperties();
-        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver(properties));
+        LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
+        when(mockProvider.verify(any(), any(), any()))
+                .thenReturn(LivenessVerificationResult.passed("MOCK_PROVIDER", 0.9));
+        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver(properties), mockProvider);
         ReflectionTestUtils.setField(blankIpService, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
         ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);
@@ -108,6 +121,15 @@ class BiometricProtectionServiceTest {
     @Test
     @DisplayName("protectCheckIn: deve exigir liveness quando configurado")
     void shouldRequireLivenessWhenEnabled() {
+        LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
+        when(mockProvider.verify(any(), any(), any()))
+                .thenReturn(LivenessVerificationResult.failed("MOCK_PROVIDER", "LIVENESS_FAILED"));
+        service = new BiometricProtectionService(
+                new MockHttpServletRequest(),
+                new ClientIpResolver(new ClientIpResolverProperties()),
+                mockProvider
+        );
+        ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);
 
         assertThrows(ForbiddenException.class,
@@ -117,6 +139,15 @@ class BiometricProtectionServiceTest {
     @Test
     @DisplayName("protectPublicLogin: deve exigir liveness quando configurado para produção")
     void shouldRequireLivenessForPublicLoginWhenEnabled() {
+        LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
+        when(mockProvider.verify(any(), any(), any()))
+                .thenReturn(LivenessVerificationResult.failed("MOCK_PROVIDER", "LIVENESS_FAILED"));
+        service = new BiometricProtectionService(
+                new MockHttpServletRequest(),
+                new ClientIpResolver(new ClientIpResolverProperties()),
+                mockProvider
+        );
+        ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);
 
         assertThrows(ForbiddenException.class, () -> service.protectPublicLogin("abc", false));
@@ -125,6 +156,15 @@ class BiometricProtectionServiceTest {
     @Test
     @DisplayName("protectEnrollment: deve exigir liveness quando configurado (LGPD-S01-03)")
     void shouldRequireLivenessForEnrollmentWhenEnabled() {
+        LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
+        when(mockProvider.verify(any(), any(), any()))
+                .thenReturn(LivenessVerificationResult.failed("MOCK_PROVIDER", "LIVENESS_FAILED"));
+        service = new BiometricProtectionService(
+                new MockHttpServletRequest(),
+                new ClientIpResolver(new ClientIpResolverProperties()),
+                mockProvider
+        );
+        ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);
         UUID employeeId = UUID.randomUUID();
 

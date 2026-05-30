@@ -137,15 +137,9 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldLogoutWithoutBearerAndExpireAuthCookie() throws Exception {
+    void shouldRejectLogoutWithoutCsrfToken() throws Exception {
         mockMvc.perform(post("/auth/logout"))
-                .andExpect(status().isNoContent())
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN="),
-                        org.hamcrest.Matchers.containsString("Max-Age=0"),
-                        org.hamcrest.Matchers.containsString("HttpOnly"),
-                        org.hamcrest.Matchers.containsString("SameSite=Lax")
-                )));
+                .andExpect(status().isForbidden());
     }
 
     @Test
