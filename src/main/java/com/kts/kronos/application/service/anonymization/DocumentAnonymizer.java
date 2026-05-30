@@ -85,6 +85,7 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
             try {
                 bucketStorageProvider.deleteFile(doc.getType(), doc.getStoragePath());
                 doc.setFileName("anon_" + UUID.randomUUID().toString().substring(0, 8));
+                doc.setStoragePath("[ANONYMIZED]");
                 documentRepository.save(doc);
                 anonymized++;
             } catch (Exception e) {

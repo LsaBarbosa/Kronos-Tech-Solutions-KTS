@@ -2,8 +2,8 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
-import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -30,7 +30,7 @@ class BiometricArtifactAnonymizerTest {
     private EmployeeRepository employeeRepository;
 
     @Mock
-    private BucketStorageProvider bucketStorageProvider;
+    private FaceStorageProvider faceStorageProvider;
 
     @Mock
     private FaceRecognitionProvider faceRecognitionProvider;
@@ -83,7 +83,7 @@ class BiometricArtifactAnonymizerTest {
         assertEquals("SUCCESS", result.status());
         assertEquals(1, result.affectedCount());
 
-        verify(bucketStorageProvider, times(1)).deleteFile(any(), anyString());
+        verify(faceStorageProvider, times(1)).deleteFaceImage(anyString());
         verify(faceRecognitionProvider, times(1)).deleteFacesByExternalImageId(any());
         verify(employeeRepository, times(1)).save(any());
     }
@@ -108,7 +108,7 @@ class BiometricArtifactAnonymizerTest {
         var employee = createEmployee();
         employee.setFaceS3ObjectKey("s3://bucket/face.jpg");
         when(employeeRepository.findById(any())).thenReturn(Optional.of(employee));
-        doThrow(new RuntimeException("S3 error")).when(bucketStorageProvider).deleteFile(any(), anyString());
+        doThrow(new RuntimeException("S3 error")).when(faceStorageProvider).deleteFaceImage(anyString());
 
         var plan = createPlan();
         var result = anonymizer.execute(plan, "APPLY");
@@ -124,7 +124,7 @@ class BiometricArtifactAnonymizerTest {
         String rawS3Key = "company/123/employee/456/biometric/face.jpg";
         employee.setFaceS3ObjectKey(rawS3Key);
         when(employeeRepository.findById(any())).thenReturn(Optional.of(employee));
-        doThrow(new RuntimeException("S3 error")).when(bucketStorageProvider).deleteFile(any(), anyString());
+        doThrow(new RuntimeException("S3 error")).when(faceStorageProvider).deleteFaceImage(anyString());
 
         anonymizer.execute(createPlan(), "APPLY");
 
