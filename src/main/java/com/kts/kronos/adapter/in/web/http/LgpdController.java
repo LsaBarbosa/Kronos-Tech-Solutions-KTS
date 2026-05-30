@@ -233,6 +233,7 @@ public class LgpdController {
         return ResponseEntity.ok(lgpdUseCase.dryRunAnonymizeEmployee(employeeId));
     }
 
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER', 'PARTNER')")
     @GetMapping(LGPD_PROCESSING_CATALOG)
     public ResponseEntity<List<PublicDataProcessingPurposeResponse>> getProcessingCatalog() {
         return ResponseEntity.ok(dataProcessingCatalog.getPublicTreatments());
