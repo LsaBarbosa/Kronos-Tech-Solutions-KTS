@@ -11,6 +11,7 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.CancelRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CompleteLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.CreateLgpdRequestRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.DataProcessingPurposeResponse;
+import com.kts.kronos.adapter.in.web.dto.lgpd.ExecuteConsentRevocationRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdAdminExportRequest;
 import com.kts.kronos.adapter.in.web.dto.lgpd.PublicDataProcessingPurposeResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
@@ -60,6 +61,7 @@ import static org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME
 
 import static com.kts.kronos.constants.ApiPaths.LGPD;
 import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_REQUEST_EXPORT;
+import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_REQUEST_CONSENT_REVOCATION;
 import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_ANONYMIZATION_DRY_RUN;
 import static com.kts.kronos.constants.ApiPaths.LGPD_ADMIN_ANONYMIZATION_APPLY;
 import static com.kts.kronos.constants.ApiPaths.LGPD_EMPLOYEE_ANONYMIZE;
@@ -172,6 +174,24 @@ public class LgpdController {
         ));
     }
 
+    @PreAuthorize("hasAnyRole('CTO', 'MANAGER')")
+    @PostMapping(LGPD_ADMIN_REQUEST_CONSENT_REVOCATION)
+    public ResponseEntity<LgpdRequestResponse> executeConsentRevocation(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody ExecuteConsentRevocationRequest request,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletRequest httpServletRequest
+    ) {
+        var updated = lgpdUseCase.executeConsentRevocation(
+                requestId,
+                request.targetConsentType(),
+                request.justification(),
+                clientIpResolver.resolve(httpServletRequest),
+                userAgent
+        );
+        return ResponseEntity.ok(LgpdRequestResponse.fromDomain(updated));
+    }
+
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(LGPD_EMPLOYEE_EXPORT)
     public ResponseEntity<LgpdEmployeeExportResponse> exportEmployeeData(
@@ -213,7 +233,6 @@ public class LgpdController {
         return ResponseEntity.ok(lgpdUseCase.dryRunAnonymizeEmployee(employeeId));
     }
 
-    @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(LGPD_PROCESSING_CATALOG)
     public ResponseEntity<List<PublicDataProcessingPurposeResponse>> getProcessingCatalog() {
         return ResponseEntity.ok(dataProcessingCatalog.getPublicTreatments());
