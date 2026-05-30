@@ -7,6 +7,7 @@ import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserAnonymizer implements AnonymizationDomainProcessor {
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -114,10 +116,14 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
 
         var entity = user.get();
         entity.setUsername("anon_" + entity.getUserId().toString().substring(0, 8));
+        entity.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        entity.setActive(false);
+        entity.setSessionVersion(entity.getSessionVersion() + 1);
+        entity.setDeactivationReason("Anonimização por solicitação LGPD");
         userRepository.save(entity);
 
         log.info(
-                "event=user_anonymization_apply employeeId={}",
+                "event=user_anonymization_apply employeeId={} deactivated=true sessionVersionIncremented=true",
                 plan.employeeId()
         );
 

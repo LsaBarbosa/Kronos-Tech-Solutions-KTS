@@ -113,7 +113,6 @@ public class SecurityConfig {
                                 post("/auth/recover-password"),
                                 post("/auth/reset-password"),
                                 post("/auth/logout"),
-                                post("/auth/refresh"),
                                 post("/geolocation/resolve")
                         )
                 )
