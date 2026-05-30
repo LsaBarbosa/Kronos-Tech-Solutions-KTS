@@ -6,6 +6,8 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.LgpdEmployeeExportResponse;
 import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.adapter.out.persistence.AnonymizationConsolidatedResultRepository;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.exceptions.CodedForbiddenException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -59,8 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -105,6 +107,12 @@ class LgpdServiceTest {
     private LgpdSlaPolicyService lgpdSlaPolicyService;
     @Mock
     private LgpdRequestNotificationService notificationService;
+    @Mock
+    private AuditRequestContextService auditRequestContextService;
+    @Mock
+    private DryRunTokenService dryRunTokenService;
+    @Mock
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     @Test
     void shouldCreateLgpdRequestAndRegisterHistoryAndAudit() {
@@ -169,6 +177,135 @@ class LgpdServiceTest {
     }
 
     @Test
+    void shouldCreateAdditionalLgpdArt18RequestTypes() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(lgpdSlaPolicyService.calculateDueAt(any(), any())).thenAnswer(invocation -> {
+            Instant createdAt = invocation.getArgument(1);
+            return createdAt.plusSeconds(86400 * 15);
+        });
+        when(lgpdSlaPolicyService.priorityBySla(any())).thenReturn("NORMAL");
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> {
+            LgpdRequest request = invocation.getArgument(0);
+            return new LgpdRequest(
+                    UUID.randomUUID(),
+                    request.employeeId(),
+                    request.requestedByUserId(),
+                    request.companyId(),
+                    request.requestType(),
+                    request.status(),
+                    request.description(),
+                    request.resolutionNotes(),
+                    request.createdAt(),
+                    request.updatedAt(),
+                    request.resolvedAt(),
+                    request.resolvedByUserId(),
+                    request.assignedToUserId(),
+                    request.dueAt(),
+                    request.priority(),
+                    request.closedReason(),
+                    request.publicResolutionNotes(),
+                    request.internalNotes()
+            );
+        });
+
+        for (LgpdRequestType type : List.of(
+                LgpdRequestType.CONSENT_INFORMATION,
+                LgpdRequestType.OPPOSITION,
+                LgpdRequestType.AUTOMATED_DECISION_REVIEW
+        )) {
+            LgpdRequest created = service.createRequest(
+                    new CreateLgpdRequestRequest(null, type, "Solicitação Art. 18"),
+                    "127.0.0.1",
+                    "JUnit"
+            );
+
+            assertEquals(type, created.requestType());
+            assertEquals(LgpdRequestStatus.OPEN, created.status());
+            assertEquals(employeeId, created.employeeId());
+        }
+    }
+
+    @Test
+    void shouldCreateConsentRevocationWithTargetConsentType() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> {
+            LgpdRequest request = invocation.getArgument(0);
+            return new LgpdRequest(
+                    UUID.randomUUID(),
+                    request.employeeId(),
+                    request.requestedByUserId(),
+                    request.companyId(),
+                    request.requestType(),
+                    request.status(),
+                    request.description(),
+                    request.resolutionNotes(),
+                    request.createdAt(),
+                    request.updatedAt(),
+                    request.resolvedAt(),
+                    request.resolvedByUserId(),
+                    request.assignedToUserId(),
+                    request.dueAt(),
+                    request.priority(),
+                    request.closedReason(),
+                    request.publicResolutionNotes(),
+                    request.internalNotes(),
+                    request.targetConsentType(),
+                    request.consentRevocationExecutedAt(),
+                    request.consentRevocationNoActiveConsent()
+            );
+        });
+
+        LgpdRequest created = service.createRequest(
+                new CreateLgpdRequestRequest(
+                        null,
+                        LgpdRequestType.CONSENT_REVOCATION,
+                        "Revogar meu consentimento biométrico",
+                        ConsentType.BIOMETRIC_AUTHENTICATION
+                ),
+                "127.0.0.1",
+                "JUnit"
+        );
+
+        assertEquals(LgpdRequestType.CONSENT_REVOCATION, created.requestType());
+        assertEquals(ConsentType.BIOMETRIC_AUTHENTICATION, created.targetConsentType());
+        assertNull(created.consentRevocationExecutedAt());
+        assertFalse(created.consentRevocationNoActiveConsent());
+    }
+
+    @Test
+    void shouldRejectConsentRevocationCreationWithoutTargetConsentType() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.createRequest(
+                        new CreateLgpdRequestRequest(
+                                null,
+                                LgpdRequestType.CONSENT_REVOCATION,
+                                "Revogar consentimento",
+                                null
+                        ),
+                        "127.0.0.1",
+                        "JUnit"
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("targetConsentType"));
+    }
+
+    @Test
     void shouldListCompanyRequestsForManager() {
         UUID companyId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
@@ -222,14 +359,13 @@ class LgpdServiceTest {
 
         LgpdRequest updated = service.updateRequestStatus(
                 requestId,
-                new UpdateLgpdRequestStatusRequest(LgpdRequestStatus.COMPLETED, "Atendido")
+                new UpdateLgpdRequestStatusRequest(LgpdRequestStatus.IN_ANALYSIS, "Iniciando análise")
         );
 
-        assertEquals(LgpdRequestStatus.COMPLETED, updated.status());
-        assertEquals("Atendido", updated.resolutionNotes());
-        assertEquals(userId, updated.resolvedByUserId());
-        assertNotNull(updated.resolvedAt());
+        assertEquals(LgpdRequestStatus.IN_ANALYSIS, updated.status());
+        assertEquals("Iniciando análise", updated.resolutionNotes());
         verify(lgpdRequestHistoryProvider).save(any(LgpdRequestHistory.class));
+        verify(lgpdRequestProvider).save(any(LgpdRequest.class));
     }
 
     @Test
@@ -336,7 +472,7 @@ class LgpdServiceTest {
         assertFalse(recordComponentNames(LgpdEmployeeExportResponse.ExportedUser.class).contains("password"));
         assertFalse(recordComponentNames(LgpdEmployeeExportResponse.ExportedDocumentMetadata.class).contains("storagePath"));
         verify(auditService).registerLgpd(
-                eq(AuditAction.LGPD_DATA_EXPORTED),
+                eq(AuditAction.LGPD_OWN_DATA_EXPORTED),
                 eq(userId),
                 eq(employeeId),
                 eq(companyId),
@@ -350,14 +486,13 @@ class LgpdServiceTest {
     }
 
     @Test
-    void shouldExportPreciseGeolocationForDataSubject() {
+    void directEmployeeExportShouldDelegateToOwnExportAndIgnorePreciseGeolocationFlag() {
         UUID employeeId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
 
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(new Company(
@@ -377,56 +512,11 @@ class LgpdServiceTest {
 
         LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", null);
 
-        assertEquals(-22.9035, export.timeRecords().getFirst().latitude());
-        assertEquals(-43.2096, export.timeRecords().getFirst().longitude());
-        verify(auditService).registerLgpd(
-                eq(AuditAction.LGPD_DATA_EXPORTED),
-                eq(userId),
-                eq(employeeId),
-                eq(companyId),
-                eq("EMPLOYEE"),
-                any(),
-                eq("HIGH"),
-                any(),
-                eq("127.0.0.1"),
-                eq("JUnit")
-        );
-    }
-
-    @Test
-    void shouldKeepManagerExportMinimizedEvenWhenPreciseGeolocationIsRequested() {
-        UUID employeeId = UUID.randomUUID();
-        UUID managerEmployeeId = UUID.randomUUID();
-        UUID managerUserId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee employee = buildEmployee(employeeId, companyId);
-
-        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
-        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
-        when(jwtAuthenticatedUser.getuserId()).thenReturn(managerUserId);
-        when(companyProvider.findById(companyId)).thenReturn(Optional.of(new Company(
-                companyId, "KTS", "12345678000199", "contato@kts.com", true,
-                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
-                new Location(-23.0, -46.0), 5, 1
-        )));
-        when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
-        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of(new TimeRecord(
-                1L, LocalDateTime.now().minusHours(8), LocalDateTime.now(), StatusRecord.CREATED, false, true,
-                employeeId, -22.9035, -43.2096, -22.9040, -43.2101, 10L, 11L, null, null
-        )));
-        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
-        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
-        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
-        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
-
-        LgpdEmployeeExportResponse export = service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", "Personnel file");
-
         assertEquals(null, export.timeRecords().getFirst().latitude());
         assertEquals(null, export.timeRecords().getFirst().longitude());
         verify(auditService).registerLgpd(
-                eq(AuditAction.LGPD_DATA_EXPORTED),
-                eq(managerUserId),
+                eq(AuditAction.LGPD_OWN_DATA_EXPORTED),
+                eq(userId),
                 eq(employeeId),
                 eq(companyId),
                 eq("EMPLOYEE"),
@@ -436,6 +526,22 @@ class LgpdServiceTest {
                 eq("127.0.0.1"),
                 eq("JUnit")
         );
+    }
+
+    @Test
+    void directEmployeeExportShouldBlockThirdPartyExportForManager() {
+        UUID employeeId = UUID.randomUUID();
+        UUID managerEmployeeId = UUID.randomUUID();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.exportEmployeeData(employeeId, true, "127.0.0.1", "JUnit", "Personnel file")
+        );
+
+        assertEquals("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST", exception.getCode());
+        assertEquals("Exportação de dados de terceiros exige solicitação LGPD aprovada.", exception.getMessage());
     }
 
     @Test
@@ -768,51 +874,262 @@ class LgpdServiceTest {
     }
 
     @Test
-    void exportEmployeeDataShouldRequireReasonForThirdPartyExport() {
+    void exportEmployeeDataShouldBlockDirectThirdPartyExportForManager() {
         UUID employeeId = UUID.randomUUID();
         UUID targetEmployeeId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
-        UUID companyId = UUID.randomUUID();
-        Employee employee = buildEmployee(targetEmployeeId, companyId);
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
-        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId)).thenReturn(employee);
 
-        try {
-            service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", null);
-            fail("Should have thrown ForbiddenException");
-        } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
-            assertTrue(e.getMessage().contains("justificativa"));
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", null)
+        );
+
+        assertEquals("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST", exception.getCode());
+        assertEquals("Exportação de dados de terceiros exige solicitação LGPD aprovada.", exception.getMessage());
+    }
+
+    @Test
+    void exportEmployeeDataShouldBlockDirectThirdPartyExportForCto() {
+        UUID employeeId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", "Legal review")
+        );
+
+        assertEquals("LGPD_EXPORT_REQUIRES_APPROVED_REQUEST", exception.getCode());
+        assertEquals("Exportação de dados de terceiros exige solicitação LGPD aprovada.", exception.getMessage());
+    }
+
+    @Test
+    void exportEmployeeDataForApprovedRequestShouldSucceed() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(lgpdRequestProvider.findById(request.requestId())).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(documentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+        when(timeRecordProvider.findByEmployeeId(employeeId)).thenReturn(List.of());
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId)).thenReturn(List.of());
+        when(auditService.findRelatedToDataSubject(null, employeeId)).thenReturn(List.of());
+        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(List.of());
+
+        var response = service.exportEmployeeDataForApprovedRequest(
+                request.requestId(),
+                false,
+                "Art. 7, II, LGPD",
+                "Compliance request",
+                "Approved by legal",
+                "127.0.0.1",
+                "JUnit"
+        );
+
+        assertNotNull(response.manifest());
+        assertEquals(employeeId, response.manifest().targetEmployeeId());
+        verify(auditService).registerLgpd(
+                eq(AuditAction.LGPD_ADMIN_DATA_EXPORTED),
+                eq(userId),
+                eq(employeeId),
+                eq(companyId),
+                eq("LGPD_REQUEST"),
+                eq(request.requestId().toString()),
+                eq("MEDIUM"),
+                any(),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        );
+    }
+
+    @Test
+    void exportEmployeeDataForApprovedRequestShouldRejectNonApprovedStatus() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(lgpdRequestProvider.findById(request.requestId())).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+
+        com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
+                com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.exportEmployeeDataForApprovedRequest(
+                        request.requestId(),
+                        false,
+                        "Art. 7, II, LGPD",
+                        "Compliance request",
+                        "Reviewed",
+                        "127.0.0.1",
+                        "JUnit"
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("APPROVED_FOR_EXPORT"));
+    }
+
+    @Test
+    void exportEmployeeDataForApprovedRequestShouldRejectNewArt18NonExportableTypes() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+
+        for (LgpdRequestType type : List.of(
+                LgpdRequestType.CONSENT_INFORMATION,
+                LgpdRequestType.OPPOSITION,
+                LgpdRequestType.AUTOMATED_DECISION_REVIEW
+        )) {
+            LgpdRequest request = buildRequest(employeeId, companyId, type, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+            when(lgpdRequestProvider.findById(request.requestId())).thenReturn(Optional.of(request));
+
+            com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
+                    com.kts.kronos.application.exceptions.ForbiddenException.class,
+                    () -> service.exportEmployeeDataForApprovedRequest(
+                            request.requestId(),
+                            false,
+                            "Art. 7, II, LGPD",
+                            "Compliance request",
+                            "Reviewed",
+                            "127.0.0.1",
+                            "JUnit"
+                    )
+            );
+
+            assertTrue(exception.getMessage().contains("Tipo de solicitação não permite exportação"));
+            assertTrue(exception.getMessage().contains(type.name()));
         }
     }
 
     @Test
-    void exportEmployeeDataShouldAllowThirdPartyExportWithReason() {
+    void executeConsentRevocationShouldReuseBiometricRevocationFlowAndCompleteRequest() {
+        UUID requestId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
-        UUID targetEmployeeId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
-        Employee employee = buildEmployee(targetEmployeeId, companyId);
-        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
-                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
-                new Location(-23.0, -46.0), 5, 1);
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildConsentRevocationRequest(
+                requestId,
+                employeeId,
+                companyId,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW
+        );
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
-        when(domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId)).thenReturn(employee);
-        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
-        when(userProvider.findByEmployeeId(targetEmployeeId)).thenReturn(Optional.empty());
-        when(documentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
-        when(timeRecordProvider.findByEmployeeId(targetEmployeeId)).thenReturn(List.of());
-        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, targetEmployeeId)).thenReturn(List.of());
-        when(auditService.findRelatedToDataSubject(null, targetEmployeeId)).thenReturn(List.of());
-        when(legalConsentProvider.findAllByEmployeeId(targetEmployeeId)).thenReturn(List.of());
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.of(buildLegalConsent(employeeId, actorUserId)));
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = service.exportEmployeeData(targetEmployeeId, false, "127.0.0.1", "JUnit", "HR request for personnel file");
+        LgpdRequest processed = service.executeConsentRevocation(
+                requestId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "Solicitação confirmada pelo titular",
+                "127.0.0.1",
+                "JUnit"
+        );
 
-        assertNotNull(response);
-        assertNotNull(response.manifest());
+        assertEquals(LgpdRequestStatus.COMPLETED, processed.status());
+        assertEquals(ConsentType.BIOMETRIC_AUTHENTICATION, processed.targetConsentType());
+        assertNotNull(processed.consentRevocationExecutedAt());
+        assertFalse(processed.consentRevocationNoActiveConsent());
+        verify(acceptTermsUseCase).revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+        verify(lgpdRequestHistoryProvider).save(any(LgpdRequestHistory.class));
+        verify(auditService).registerLgpd(
+                eq(AuditAction.LGPD_CONSENT_REVOCATION_EXECUTED),
+                eq(actorUserId),
+                eq(employeeId),
+                eq(companyId),
+                eq("LGPD_REQUEST"),
+                eq(requestId.toString()),
+                eq("HIGH"),
+                any(String.class),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        );
+    }
+
+    @Test
+    void executeConsentRevocationShouldPartiallyCompleteWhenNoActiveConsentExists() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildConsentRevocationRequest(
+                requestId,
+                employeeId,
+                companyId,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW
+        );
+
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(Optional.empty());
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LgpdRequest processed = service.executeConsentRevocation(
+                requestId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "Não consta consentimento ativo no cadastro do titular",
+                "127.0.0.1",
+                "JUnit"
+        );
+
+        assertEquals(LgpdRequestStatus.PARTIALLY_COMPLETED, processed.status());
+        assertNull(processed.consentRevocationExecutedAt());
+        assertTrue(processed.consentRevocationNoActiveConsent());
+        assertEquals("NO_ACTIVE_CONSENT", processed.closedReason());
+    }
+
+    @Test
+    void shouldBlockCompletedConsentRevocationWithoutExecution() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildConsentRevocationRequest(
+                requestId,
+                employeeId,
+                companyId,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.COMPLETED,
+                        "Atendido",
+                        "Sem execução",
+                        null
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("sem execução real"));
     }
 
     private LgpdRequest buildRequest(UUID employeeId, UUID companyId, LgpdRequestType type, LgpdRequestStatus status) {
@@ -836,5 +1153,229 @@ class LgpdServiceTest {
                 null,
                 null
         );
+    }
+
+    private LgpdRequest buildConsentRevocationRequest(
+            UUID requestId,
+            UUID employeeId,
+            UUID companyId,
+            LgpdRequestStatus status
+    ) {
+        return new LgpdRequest(
+                requestId,
+                employeeId,
+                UUID.randomUUID(),
+                companyId,
+                LgpdRequestType.CONSENT_REVOCATION,
+                status,
+                "Revogar consentimento biométrico",
+                null,
+                Instant.now(),
+                Instant.now(),
+                null,
+                null,
+                null,
+                Instant.now().plusSeconds(86400 * 2),
+                "NORMAL",
+                null,
+                null,
+                null,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                null,
+                false
+        );
+    }
+
+    private LegalConsent buildLegalConsent(UUID employeeId, UUID userId) {
+        Instant now = Instant.now();
+        return new LegalConsent(
+                UUID.randomUUID(),
+                employeeId,
+                userId,
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                LegalBasis.CONSENT,
+                "Biometric authentication",
+                "v1",
+                "hash",
+                now,
+                null,
+                "127.0.0.1",
+                "JUnit",
+                UUID.randomUUID(),
+                "evidence-hash",
+                now,
+                null
+        );
+    }
+
+    // Status transition validation tests
+    private void mockAdminRequestFetch(UUID requestId, UUID employeeId, UUID companyId, LgpdRequest request) {
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+    }
+
+    @Test
+    void shouldAllowOpenToInAnalysisTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId,
+                LgpdRequestStatus.IN_ANALYSIS,
+                "Iniciando análise",
+                "Internal note",
+                null
+        );
+
+        assertEquals(LgpdRequestStatus.IN_ANALYSIS, result.status());
+    }
+
+    @Test
+    void shouldBlockOpenToCompletedTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.COMPLETED,
+                        "Atendido",
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("LGPD_INVALID_STATUS_TRANSITION", exception.getCode());
+        assertTrue(exception.getMessage().contains("OPEN") && exception.getMessage().contains("COMPLETED"));
+    }
+
+    @Test
+    void shouldAllowInAnalysisToWaitingControllerTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId,
+                LgpdRequestStatus.WAITING_CONTROLLER,
+                "Aguardando controlador",
+                "Internal note",
+                null
+        );
+
+        assertEquals(LgpdRequestStatus.WAITING_CONTROLLER, result.status());
+    }
+
+    @Test
+    void shouldBlockWaitingControllerToCompletedTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_CONTROLLER);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.COMPLETED,
+                        "Atendido",
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("LGPD_INVALID_STATUS_TRANSITION", exception.getCode());
+        assertTrue(exception.getMessage().contains("WAITING_CONTROLLER") && exception.getMessage().contains("COMPLETED"));
+    }
+
+    @Test
+    void shouldBlockCompletedToInAnalysisTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.COMPLETED);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.IN_ANALYSIS,
+                        "Back to analysis",
+                        null,
+                        null
+                )
+        );
+
+        assertEquals("LGPD_INVALID_STATUS_TRANSITION", exception.getCode());
+    }
+
+    @Test
+    void shouldBlockOpenToCompletedViaUpdateRequestStatus() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        LgpdRequest existing = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(new LgpdRequest(
+                requestId,
+                existing.employeeId(),
+                existing.requestedByUserId(),
+                existing.companyId(),
+                existing.requestType(),
+                existing.status(),
+                existing.description(),
+                existing.resolutionNotes(),
+                existing.createdAt(),
+                existing.updatedAt(),
+                existing.resolvedAt(),
+                existing.resolvedByUserId(),
+                existing.assignedToUserId(),
+                existing.dueAt(),
+                existing.priority(),
+                existing.closedReason(),
+                existing.publicResolutionNotes(),
+                existing.internalNotes()
+        )));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+
+        CodedForbiddenException exception = assertThrows(
+                CodedForbiddenException.class,
+                () -> service.updateRequestStatus(
+                        requestId,
+                        new UpdateLgpdRequestStatusRequest(LgpdRequestStatus.COMPLETED, "Atendido")
+                )
+        );
+
+        assertEquals("LGPD_INVALID_STATUS_TRANSITION", exception.getCode());
     }
 }
