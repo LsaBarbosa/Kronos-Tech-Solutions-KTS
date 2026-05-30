@@ -18,7 +18,7 @@ public class ClientIpResolver {
 
     public ClientIpResolution resolveWithDetails(HttpServletRequest request) {
         if (request == null) {
-            return ClientIpResolution.of("unknown", ClientIpResolution.IpSource.UNKNOWN, false);
+            return ClientIpResolution.of("unknown", ClientIpResolution.IpSource.UNKNOWN, false, false);
         }
 
         String remoteAddr = request.getRemoteAddr();
@@ -30,23 +30,38 @@ public class ClientIpResolver {
 
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {
-            String firstHop = forwardedFor.split(",", 2)[0].trim();
-            if (!firstHop.isBlank()) {
-                return ClientIpResolution.of(firstHop, ClientIpResolution.IpSource.X_FORWARDED_FOR, true);
+            String[] hops = forwardedFor.split(",");
+            if (hops.length > 0 && !hops[0].trim().isBlank()) {
+                String firstHop = hops[0].trim();
+                // Validate proxy chain: all hops except first should be trusted proxies
+                boolean chainValid = validateProxyChain(hops);
+                return ClientIpResolution.of(firstHop, ClientIpResolution.IpSource.X_FORWARDED_FOR, true, chainValid);
             }
         }
 
         String realIp = request.getHeader("X-Real-IP");
         if (realIp != null && !realIp.isBlank()) {
-            return ClientIpResolution.of(realIp.trim(), ClientIpResolution.IpSource.X_REAL_IP, true);
+            return ClientIpResolution.of(realIp.trim(), ClientIpResolution.IpSource.X_REAL_IP, true, true);
         }
 
         return resolveDirect(remoteAddr);
     }
 
+    private boolean validateProxyChain(String[] hops) {
+        // All hops after the first one should be trusted proxies
+        // hops[1..n] should all be trusted, and the last one should match remoteAddr
+        for (int i = 1; i < hops.length; i++) {
+            String hop = hops[i].trim();
+            if (!IpAddressValidator.isTrustedProxy(hop, properties.getTrustedProxyCidrs())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private ClientIpResolution resolveDirect(String remoteAddr) {
         String ipAddress = remoteAddr == null || remoteAddr.isBlank() ? "unknown" : remoteAddr;
         boolean trusted = remoteAddr != null && !remoteAddr.isBlank() && !remoteAddr.equals("unknown");
-        return ClientIpResolution.of(ipAddress, ClientIpResolution.IpSource.REMOTE_ADDR, trusted);
+        return ClientIpResolution.of(ipAddress, ClientIpResolution.IpSource.REMOTE_ADDR, trusted, true);
     }
 }
