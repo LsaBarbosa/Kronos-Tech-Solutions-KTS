@@ -1460,15 +1460,71 @@ public class LgpdService implements LgpdUseCase {
             totalSkipped += result.skippedCount();
             totalErrors += result.errorCount();
 
-            if (result.resourceType() == com.kts.kronos.domain.model.enuns.AnonymizationResourceType.TIME_RECORD) {
-                domains.add(
-                        com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.timeRecord(
-                                result.scannedCount(),
-                                result.affectedCount(),
-                                result.skippedCount(),
-                                plan.preserveLaborData()
-                        )
-                );
+            switch (result.resourceType()) {
+                case TIME_RECORD:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.timeRecord(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount(),
+                                    plan.preserveLaborData()
+                            )
+                    );
+                    break;
+                case USER:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.user(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
+                case DOCUMENT:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.document(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
+                case BIOMETRIC_ARTIFACT:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.biometricArtifact(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
+                case EMPLOYEE:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.employee(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
+                case MESSAGE:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.message(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
+                case AUDIT_LOG:
+                    domains.add(
+                            com.kts.kronos.adapter.in.web.dto.lgpd.AnonymizationDomain.auditLog(
+                                    result.scannedCount(),
+                                    result.affectedCount(),
+                                    result.skippedCount()
+                            )
+                    );
+                    break;
             }
         }
 
@@ -1609,7 +1665,7 @@ public class LgpdService implements LgpdUseCase {
                 requestId.toString(),
                 "CRITICAL",
                 "justificationLength=" + justification.length() + "chars" +
-                ", dryRunTokenUsed=" + dryRunToken +
+                ", dryRunTokenUsed=true" +
                 ", consolidatedStatus=" + consolidatedResult.consolidatedStatus() +
                 ", totalAffected=" + consolidatedResult.totalAffected() +
                 ", failedDomains=" + String.join(";", consolidatedResult.failedDomains()),
