@@ -9,7 +9,9 @@ import com.kts.kronos.adapter.in.web.dto.lgpd.UpdateLgpdRequestStatusRequest;
 import com.kts.kronos.adapter.out.persistence.AnonymizationConsolidatedResultRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AnonymizationConsolidatedResultEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.exceptions.CodedForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.LgpdUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -29,6 +31,7 @@ import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.LgpdRequestHistory;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
+import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -52,6 +55,10 @@ import static com.kts.kronos.constants.Messages.LGPD_REQUEST_NOT_FOUND;
 @Transactional
 @RequiredArgsConstructor
 public class LgpdService implements LgpdUseCase {
+    private static final String LGPD_EXPORT_REQUIRES_APPROVED_REQUEST = "LGPD_EXPORT_REQUIRES_APPROVED_REQUEST";
+    private static final String LGPD_EXPORT_REQUIRES_APPROVED_REQUEST_MESSAGE =
+            "Exportação de dados de terceiros exige solicitação LGPD aprovada.";
+
     private final LgpdRequestProvider lgpdRequestProvider;
     private final LgpdRequestHistoryProvider lgpdRequestHistoryProvider;
     private final DomainAuthorizationService domainAuthorizationService;
@@ -71,9 +78,11 @@ public class LgpdService implements LgpdUseCase {
     private final LgpdRequestNotificationService notificationService;
     private final AuditRequestContextService auditRequestContextService;
     private final DryRunTokenService dryRunTokenService;
+    private final AcceptTermsUseCase acceptTermsUseCase;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
+        validateCreateRequest(request);
         Employee targetEmployee = resolveTargetEmployee(request.employeeId());
         Instant now = Instant.now();
         Instant dueAt = lgpdSlaPolicyService.calculateDueAt(request.type(), now);
@@ -97,7 +106,10 @@ public class LgpdService implements LgpdUseCase {
                 priority,
                 null,
                 null,
-                null
+                null,
+                request.targetConsentType(),
+                null,
+                false
         );
 
         LgpdRequest saved = lgpdRequestProvider.save(toSave);
@@ -124,6 +136,16 @@ public class LgpdService implements LgpdUseCase {
         );
 
         return saved;
+    }
+
+    private void validateCreateRequest(CreateLgpdRequestRequest request) {
+        if (request.type() == LgpdRequestType.CONSENT_REVOCATION && request.targetConsentType() == null) {
+            throw new IllegalArgumentException("targetConsentType é obrigatório para solicitações CONSENT_REVOCATION");
+        }
+
+        if (request.type() != LgpdRequestType.CONSENT_REVOCATION && request.targetConsentType() != null) {
+            throw new IllegalArgumentException("targetConsentType só é permitido para solicitações CONSENT_REVOCATION");
+        }
     }
 
     @Override
@@ -163,6 +185,7 @@ public class LgpdService implements LgpdUseCase {
     @Override
     public LgpdRequest updateRequestStatus(UUID requestId, UpdateLgpdRequestStatusRequest request) {
         LgpdRequest existing = findAuthorizedRequest(requestId);
+        validateStatusTransition(requestId, existing.status(), request.status());
         Instant changedAt = Instant.now();
 
         LgpdRequest updated = existing.updateStatus(
@@ -200,59 +223,15 @@ public class LgpdService implements LgpdUseCase {
             String userAgent,
             String exportReason
     ) {
-        Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
-        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
         UUID requestedByEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        if (!Objects.equals(employeeId, requestedByEmployeeId)) {
+            throw new com.kts.kronos.application.exceptions.CodedForbiddenException(
+                    LGPD_EXPORT_REQUIRES_APPROVED_REQUEST,
+                    LGPD_EXPORT_REQUIRES_APPROVED_REQUEST_MESSAGE
+            );
+        }
 
-        validateExportReason(targetEmployee.employeeId(), requestedByEmployeeId, exportReason);
-
-        var company = companyProvider.findById(targetEmployee.companyId())
-                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + targetEmployee.companyId()));
-        var user = userProvider.findByEmployeeId(targetEmployee.employeeId()).orElse(null);
-        var documents = documentProvider.findAllByEmployeeId(targetEmployee.employeeId());
-        var timeRecords = timeRecordProvider.findByEmployeeId(targetEmployee.employeeId());
-        var messages = messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(targetEmployee.companyId(), targetEmployee.employeeId());
-        List<com.kts.kronos.domain.model.AuditLog> auditLogs = auditService.findRelatedToDataSubject(
-                user != null ? user.userId() : null,
-                targetEmployee.employeeId()
-        );
-        var legalConsents = legalConsentProvider.findAllByEmployeeId(targetEmployee.employeeId());
-        boolean allowPreciseGeolocation = includePreciseGeolocation && canAccessPreciseGeolocation(targetEmployee.employeeId());
-
-        LgpdEmployeeExportResponse response = LgpdEmployeeExportResponse.from(
-                targetEmployee,
-                user,
-                company,
-                documents,
-                timeRecords,
-                messages,
-                auditLogs,
-                legalConsents,
-                allowPreciseGeolocation,
-                requestedByUserId
-        );
-
-        auditService.registerLgpd(
-                AuditAction.LGPD_DATA_EXPORTED,
-                requestedByUserId,
-                targetEmployee.employeeId(),
-                targetEmployee.companyId(),
-                "EMPLOYEE",
-                response.manifest().exportId().toString(),
-                allowPreciseGeolocation ? "HIGH" : "MEDIUM",
-                String.format(
-                        "Exportação LGPD gerada. exportId=%s, employeeId=%s, requestedBy=%s, preciseGeolocationIncluded=%s, reason=%s",
-                        response.manifest().exportId(),
-                        targetEmployee.employeeId(),
-                        requestedByUserId,
-                        allowPreciseGeolocation,
-                        exportReason != null ? "provided" : "own_data"
-                ),
-                ipAddress,
-                userAgent
-        );
-
-        return response;
+        return exportOwnEmployeeData(ipAddress, userAgent);
     }
 
     @Override
@@ -476,13 +455,145 @@ public class LgpdService implements LgpdUseCase {
                type == LgpdRequestType.CONFIRM_PROCESSING;
     }
 
-    private void validateExportReason(UUID targetEmployeeId, UUID requestedByEmployeeId, String exportReason) {
-        boolean isOwnData = targetEmployeeId.equals(requestedByEmployeeId);
-        if (!isOwnData && (exportReason == null || exportReason.trim().isEmpty())) {
-            throw new com.kts.kronos.application.exceptions.ForbiddenException(
-                    "Exportação de dados de terceiros exige justificativa."
+    @Override
+    public LgpdRequest executeConsentRevocation(
+            UUID requestId,
+            ConsentType targetConsentType,
+            String justification,
+            String ipAddress,
+            String userAgent
+    ) {
+        LgpdRequest request = findAuthorizedAdminRequest(requestId);
+
+        if (request.requestType() != LgpdRequestType.CONSENT_REVOCATION) {
+            throw new IllegalArgumentException(
+                    "Execução de revogação só pode ser feita para solicitações CONSENT_REVOCATION. requestType=" +
+                            request.requestType()
             );
         }
+
+        if (targetConsentType == null) {
+            throw new IllegalArgumentException("targetConsentType é obrigatório");
+        }
+
+        if (request.targetConsentType() == null) {
+            throw new IllegalStateException("Solicitação CONSENT_REVOCATION sem targetConsentType modelado");
+        }
+
+        if (request.targetConsentType() != targetConsentType) {
+            throw new IllegalArgumentException(
+                    "targetConsentType da execução diverge da solicitação. requestTargetConsentType=" +
+                            request.targetConsentType() + ", executionTargetConsentType=" + targetConsentType
+            );
+        }
+
+        if (justification == null || justification.trim().isEmpty()) {
+            throw new IllegalArgumentException("Justificativa é obrigatória");
+        }
+
+        if (request.consentRevocationExecutedAt() != null || request.consentRevocationNoActiveConsent()) {
+            throw new IllegalStateException("Revogação de consentimento já foi processada para esta solicitação");
+        }
+
+        boolean activeConsentExists = legalConsentProvider.findActive(request.employeeId(), targetConsentType).isPresent();
+        if (activeConsentExists) {
+            revokeConsent(request, targetConsentType, ipAddress, userAgent);
+        }
+
+        Instant now = Instant.now();
+        LgpdRequestStatus newStatus = activeConsentExists
+                ? LgpdRequestStatus.COMPLETED
+                : LgpdRequestStatus.PARTIALLY_COMPLETED;
+        String publicNote = activeConsentExists
+                ? "Consentimento revogado conforme solicitação do titular."
+                : "Não havia consentimento ativo para o tipo informado. Solicitação encerrada com justificativa formal.";
+        String internalNote = String.format(
+                "targetConsentType=%s, activeConsentFound=%s, justificationLength=%d, actorUserId=%s",
+                targetConsentType,
+                activeConsentExists,
+                justification.trim().length(),
+                jwtAuthenticatedUser.getuserId()
+        );
+
+        LgpdRequest processed = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNote, now);
+        LgpdRequest withRevocationState = new LgpdRequest(
+                processed.requestId(),
+                processed.employeeId(),
+                processed.requestedByUserId(),
+                processed.companyId(),
+                processed.requestType(),
+                processed.status(),
+                processed.description(),
+                processed.resolutionNotes(),
+                processed.createdAt(),
+                processed.updatedAt(),
+                processed.resolvedAt(),
+                processed.resolvedByUserId(),
+                processed.assignedToUserId(),
+                processed.dueAt(),
+                processed.priority(),
+                activeConsentExists ? null : "NO_ACTIVE_CONSENT",
+                publicNote,
+                appendNote(processed.internalNotes(), internalNote),
+                targetConsentType,
+                activeConsentExists ? now : null,
+                !activeConsentExists
+        );
+
+        LgpdRequest saved = lgpdRequestProvider.save(withRevocationState);
+
+        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                null,
+                saved.requestId(),
+                saved.status(),
+                publicNote,
+                jwtAuthenticatedUser.getuserId(),
+                now
+        ));
+
+        auditService.registerLgpd(
+                AuditAction.LGPD_CONSENT_REVOCATION_EXECUTED,
+                jwtAuthenticatedUser.getuserId(),
+                saved.employeeId(),
+                saved.companyId(),
+                "LGPD_REQUEST",
+                saved.requestId().toString(),
+                activeConsentExists ? "HIGH" : "MEDIUM",
+                String.format(
+                        "Revogação LGPD processada. requestId=%s, targetConsentType=%s, activeConsentFound=%s, status=%s, justificationLength=%d",
+                        saved.requestId(),
+                        targetConsentType,
+                        activeConsentExists,
+                        saved.status(),
+                        justification.trim().length()
+                ),
+                ipAddress,
+                userAgent
+        );
+
+        notificationService.notifyCompletionRequest(saved);
+
+        return saved;
+    }
+
+    private void revokeConsent(LgpdRequest request, ConsentType targetConsentType, String ipAddress, String userAgent) {
+        if (targetConsentType == ConsentType.BIOMETRIC_AUTHENTICATION) {
+            acceptTermsUseCase.revokeBiometricTerms(request.employeeId(), ipAddress, userAgent);
+            return;
+        }
+
+        legalConsentProvider.findActive(request.employeeId(), targetConsentType)
+                .ifPresent(consent -> legalConsentProvider.save(consent.revoke(Instant.now())));
+    }
+
+    private String appendNote(String currentNotes, String newNote) {
+        if (newNote == null || newNote.isBlank()) {
+            return currentNotes;
+        }
+        if (currentNotes == null || currentNotes.isBlank()) {
+            return newNote;
+        }
+        return currentNotes + "\n" + newNote;
     }
 
     @Override
@@ -796,6 +907,8 @@ public class LgpdService implements LgpdUseCase {
         Instant now = Instant.now();
         String oldStatus = request.status().name();
 
+        validateConsentRevocationBeforeConclusion(request, LgpdRequestStatus.COMPLETED);
+
         LgpdRequest updated = request.updateStatus(
                 LgpdRequestStatus.COMPLETED,
                 jwtAuthenticatedUser.getuserId(),
@@ -960,13 +1073,9 @@ public class LgpdService implements LgpdUseCase {
         return domainAuthorizationService.authorizeEmployeeAccess(targetEmployeeId);
     }
 
-    private boolean canAccessPreciseGeolocation(UUID targetEmployeeId) {
-        return jwtAuthenticatedUser.getCurrentRole() == Role.CTO
-                || targetEmployeeId.equals(jwtAuthenticatedUser.getEmployeeId());
-    }
-
     public LgpdRequest transitionStatus(UUID requestId, LgpdRequestStatus newStatus, String publicNotes, String internalNotes, String closedReason) {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
+        validateStatusTransition(requestId, request.status(), newStatus);
         Instant now = Instant.now();
 
         if (newStatus == LgpdRequestStatus.REJECTED && (closedReason == null || closedReason.isBlank())) {
@@ -979,6 +1088,7 @@ public class LgpdService implements LgpdUseCase {
         }
 
         validateAnonymizationStatusBeforeConclusion(request, newStatus, publicNotes);
+        validateConsentRevocationBeforeConclusion(request, newStatus);
 
         String oldStatus = request.status().name();
         LgpdRequest updated = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNotes, now);
@@ -1207,6 +1317,19 @@ public class LgpdService implements LgpdUseCase {
         };
     }
 
+    private void validateStatusTransition(UUID requestId, LgpdRequestStatus currentStatus, LgpdRequestStatus newStatus) {
+        if (!getAvailableTransitions(currentStatus).contains(newStatus)) {
+            log.warn(
+                "event=lgpd_invalid_status_transition requestId={} currentStatus={} attemptedStatus={} actorUserId={}",
+                requestId, currentStatus, newStatus, jwtAuthenticatedUser.getuserId()
+            );
+            throw new CodedForbiddenException(
+                "LGPD_INVALID_STATUS_TRANSITION",
+                "Transição de status LGPD inválida: " + currentStatus + " -> " + newStatus + "."
+            );
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public AnonymizationConsolidatedResult getAnonymizationResult(UUID requestId) {
@@ -1264,6 +1387,32 @@ public class LgpdService implements LgpdUseCase {
                         consolidatedResult.consolidatedStatus()
                 );
             }
+        }
+    }
+
+    private void validateConsentRevocationBeforeConclusion(LgpdRequest request, LgpdRequestStatus newStatus) {
+        if (request.requestType() != LgpdRequestType.CONSENT_REVOCATION) {
+            return;
+        }
+
+        if (newStatus != LgpdRequestStatus.COMPLETED && newStatus != LgpdRequestStatus.PARTIALLY_COMPLETED) {
+            return;
+        }
+
+        if (newStatus == LgpdRequestStatus.COMPLETED && request.consentRevocationExecutedAt() == null) {
+            throw new IllegalStateException(
+                    "Não é possível concluir revogação de consentimento sem execução real. requestId=" +
+                            request.requestId()
+            );
+        }
+
+        if (newStatus == LgpdRequestStatus.PARTIALLY_COMPLETED
+                && request.consentRevocationExecutedAt() == null
+                && !request.consentRevocationNoActiveConsent()) {
+            throw new IllegalStateException(
+                    "Não é possível concluir parcialmente revogação de consentimento sem execução ou justificativa de ausência de consentimento ativo. requestId=" +
+                            request.requestId()
+            );
         }
     }
 
