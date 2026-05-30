@@ -1424,7 +1424,7 @@ public class LgpdService implements LgpdUseCase {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
 
         validateRequestTypeForAnonymization(request);
-        validateStatusForAnonymization(request);
+        validateStatusForAnonymizationDryRun(request);
 
         var employee = employeeProvider.findById(request.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
@@ -1529,7 +1529,7 @@ public class LgpdService implements LgpdUseCase {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
 
         validateRequestTypeForAnonymization(request);
-        validateStatusForAnonymization(request);
+        validateStatusForAnonymizationApply(request);
 
         if (!confirmed) {
             throw new IllegalArgumentException("Confirmação é obrigatória (confirmed deve ser true)");
@@ -1636,7 +1636,7 @@ public class LgpdService implements LgpdUseCase {
         }
     }
 
-    private void validateStatusForAnonymization(LgpdRequest request) {
+    private void validateStatusForAnonymizationDryRun(LgpdRequest request) {
         var allowedStatuses = java.util.List.of(
                 LgpdRequestStatus.APPROVED_FOR_EXPORT,
                 LgpdRequestStatus.WAITING_LEGAL_REVIEW,
@@ -1645,8 +1645,20 @@ public class LgpdService implements LgpdUseCase {
 
         if (!allowedStatuses.contains(request.status())) {
             throw new IllegalArgumentException(
-                    "Status da solicitação não permite anonimização. " +
+                    "Status da solicitação não permite dry-run de anonimização. " +
                     "status=" + request.status() + ", allowedStatuses=" + allowedStatuses
+            );
+        }
+    }
+
+    private void validateStatusForAnonymizationApply(LgpdRequest request) {
+        var allowedStatuses = java.util.List.of(LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        if (!allowedStatuses.contains(request.status())) {
+            throw new IllegalArgumentException(
+                    "Status da solicitação não permite aplicação de anonimização. " +
+                    "Aprovação formal é obrigatória antes da execução irreversível. " +
+                    "status=" + request.status() + ", requiredStatus=APPROVED_FOR_EXPORT"
             );
         }
     }
