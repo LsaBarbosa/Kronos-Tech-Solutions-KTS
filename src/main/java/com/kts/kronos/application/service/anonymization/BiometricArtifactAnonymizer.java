@@ -1,13 +1,12 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
-import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
-import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -19,7 +18,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor {
     private final EmployeeRepository employeeRepository;
-    private final BucketStorageProvider bucketStorageProvider;
+    private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
 
     @Override
@@ -122,7 +121,7 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
         int rekognitionErrors = 0;
 
         try {
-            bucketStorageProvider.deleteFile(DocumentType.BIOMETRIC_CONSENT_TERM, s3Key);
+            faceStorageProvider.deleteFaceImage(s3Key);
         } catch (Exception e) {
             log.error(
                     "event=biometric_s3_deletion_error employeeId={} faceStorageRef={} exception_type={}",
