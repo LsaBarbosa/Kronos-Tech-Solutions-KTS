@@ -516,29 +516,11 @@ public class LgpdService implements LgpdUseCase {
         );
 
         LgpdRequest processed = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNote, now);
-        LgpdRequest withRevocationState = new LgpdRequest(
-                processed.requestId(),
-                processed.employeeId(),
-                processed.requestedByUserId(),
-                processed.companyId(),
-                processed.requestType(),
-                processed.status(),
-                processed.description(),
-                processed.resolutionNotes(),
-                processed.createdAt(),
-                processed.updatedAt(),
-                processed.resolvedAt(),
-                processed.resolvedByUserId(),
-                processed.assignedToUserId(),
-                processed.dueAt(),
-                processed.priority(),
-                activeConsentExists ? null : "NO_ACTIVE_CONSENT",
-                publicNote,
-                appendNote(processed.internalNotes(), internalNote),
-                targetConsentType,
-                activeConsentExists ? now : null,
-                !activeConsentExists
-        );
+        LgpdRequest withRevocationState = processed
+                .withPublicResolution(publicNote, appendNote(processed.internalNotes(), internalNote), now)
+                .withClosedReason(activeConsentExists ? null : "NO_ACTIVE_CONSENT")
+                .markConsentRevocationExecuted(activeConsentExists ? now : null)
+                .markConsentRevocationNoActiveConsent(!activeConsentExists);
 
         LgpdRequest saved = lgpdRequestProvider.save(withRevocationState);
 
@@ -787,26 +769,7 @@ public class LgpdService implements LgpdUseCase {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
-        LgpdRequest updated = new LgpdRequest(
-                request.requestId(),
-                request.employeeId(),
-                request.requestedByUserId(),
-                request.companyId(),
-                request.requestType(),
-                request.status(),
-                request.description(),
-                request.resolutionNotes(),
-                request.createdAt(),
-                now,
-                request.resolvedAt(),
-                request.resolvedByUserId(),
-                assignedToUserId,
-                request.dueAt(),
-                request.priority(),
-                request.closedReason(),
-                request.publicResolutionNotes(),
-                request.internalNotes()
-        );
+        LgpdRequest updated = request.withAssignment(assignedToUserId, now);
 
         LgpdRequest saved = lgpdRequestProvider.save(updated);
         notificationService.notifyResponsibilityAssigned(saved, assignedToUserId);
@@ -841,26 +804,11 @@ public class LgpdService implements LgpdUseCase {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
         Instant now = Instant.now();
 
-        LgpdRequest updated = new LgpdRequest(
-                request.requestId(),
-                request.employeeId(),
-                request.requestedByUserId(),
-                request.companyId(),
-                request.requestType(),
-                request.status(),
-                request.description(),
-                request.resolutionNotes(),
-                request.createdAt(),
-                now,
-                request.resolvedAt(),
-                request.resolvedByUserId(),
-                request.assignedToUserId(),
-                request.dueAt(),
-                request.priority(),
-                request.closedReason(),
-                request.publicResolutionNotes(),
-                internalNote != null ? (request.internalNotes() != null ? request.internalNotes() + "\n" + internalNote : internalNote) : request.internalNotes()
-        );
+        String newInternalNotes = internalNote != null
+                ? (request.internalNotes() != null ? request.internalNotes() + "\n" + internalNote : internalNote)
+                : request.internalNotes();
+
+        LgpdRequest updated = request.withInternalNotes(newInternalNotes, now);
 
         LgpdRequest saved = lgpdRequestProvider.save(updated);
         lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
@@ -916,26 +864,7 @@ public class LgpdService implements LgpdUseCase {
                 now
         );
 
-        LgpdRequest withNotes = new LgpdRequest(
-                updated.requestId(),
-                updated.employeeId(),
-                updated.requestedByUserId(),
-                updated.companyId(),
-                updated.requestType(),
-                updated.status(),
-                updated.description(),
-                updated.resolutionNotes(),
-                updated.createdAt(),
-                updated.updatedAt(),
-                updated.resolvedAt(),
-                updated.resolvedByUserId(),
-                updated.assignedToUserId(),
-                updated.dueAt(),
-                updated.priority(),
-                updated.closedReason(),
-                publicResolutionNotes,
-                internalNotes
-        );
+        LgpdRequest withNotes = updated.withPublicResolution(publicResolutionNotes, internalNotes, now);
 
         LgpdRequest saved = lgpdRequestProvider.save(withNotes);
         lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
@@ -983,35 +912,15 @@ public class LgpdService implements LgpdUseCase {
         Instant now = Instant.now();
         String oldStatus = request.status().name();
 
-        LgpdRequest updated = request.updateStatus(
+        LgpdRequest updated = request.withStatus(
                 LgpdRequestStatus.REJECTED,
-                jwtAuthenticatedUser.getuserId(),
+                closedReason,
                 publicNote,
+                internalNote,
                 now
         );
 
-        LgpdRequest withReason = new LgpdRequest(
-                updated.requestId(),
-                updated.employeeId(),
-                updated.requestedByUserId(),
-                updated.companyId(),
-                updated.requestType(),
-                updated.status(),
-                updated.description(),
-                updated.resolutionNotes(),
-                updated.createdAt(),
-                updated.updatedAt(),
-                updated.resolvedAt(),
-                updated.resolvedByUserId(),
-                updated.assignedToUserId(),
-                updated.dueAt(),
-                updated.priority(),
-                closedReason,
-                publicNote,
-                internalNote
-        );
-
-        LgpdRequest saved = lgpdRequestProvider.save(withReason);
+        LgpdRequest saved = lgpdRequestProvider.save(updated);
 
         var auditContext = auditRequestContextService.extractContext();
         boolean hasPublicNote = publicNote != null && !publicNote.isBlank();
@@ -1091,30 +1000,9 @@ public class LgpdService implements LgpdUseCase {
         validateConsentRevocationBeforeConclusion(request, newStatus);
 
         String oldStatus = request.status().name();
-        LgpdRequest updated = request.updateStatus(newStatus, jwtAuthenticatedUser.getuserId(), publicNotes, now);
+        LgpdRequest updated = request.withStatus(newStatus, closedReason, publicNotes, internalNotes, now);
 
-        LgpdRequest withAllNotes = new LgpdRequest(
-                updated.requestId(),
-                updated.employeeId(),
-                updated.requestedByUserId(),
-                updated.companyId(),
-                updated.requestType(),
-                updated.status(),
-                updated.description(),
-                updated.resolutionNotes(),
-                updated.createdAt(),
-                updated.updatedAt(),
-                updated.resolvedAt(),
-                updated.resolvedByUserId(),
-                updated.assignedToUserId(),
-                updated.dueAt(),
-                updated.priority(),
-                closedReason,
-                publicNotes,
-                internalNotes
-        );
-
-        LgpdRequest saved = lgpdRequestProvider.save(withAllNotes);
+        LgpdRequest saved = lgpdRequestProvider.save(updated);
 
         lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
                 null,
@@ -1239,35 +1127,15 @@ public class LgpdService implements LgpdUseCase {
 
         Instant now = Instant.now();
         String oldStatus = request.status().name();
-        LgpdRequest updated = request.updateStatus(
+        LgpdRequest updated = request.withStatus(
                 LgpdRequestStatus.CANCELLED,
-                jwtAuthenticatedUser.getuserId(),
                 cancellationReason,
+                null,
+                null,
                 now
         );
 
-        LgpdRequest withReason = new LgpdRequest(
-                updated.requestId(),
-                updated.employeeId(),
-                updated.requestedByUserId(),
-                updated.companyId(),
-                updated.requestType(),
-                updated.status(),
-                updated.description(),
-                updated.resolutionNotes(),
-                updated.createdAt(),
-                updated.updatedAt(),
-                updated.resolvedAt(),
-                updated.resolvedByUserId(),
-                updated.assignedToUserId(),
-                updated.dueAt(),
-                updated.priority(),
-                null,
-                null,
-                cancellationReason
-        );
-
-        LgpdRequest saved = lgpdRequestProvider.save(withReason);
+        LgpdRequest saved = lgpdRequestProvider.save(updated);
 
         lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
                 null,
