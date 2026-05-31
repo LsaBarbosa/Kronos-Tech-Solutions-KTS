@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -99,6 +100,14 @@ public final class SensitiveDataMasker {
             return base64;
         }
         return "[FACE_IMAGE_REDACTED:" + base64.length() + "chars]";
+    }
+
+    public static String maskEmployeeId(UUID employeeId) {
+        if (employeeId == null) {
+            return "none";
+        }
+        String id = employeeId.toString();
+        return id.substring(0, 8) + "-****";
     }
 
     public static String sanitizeDetails(String details) {

@@ -60,8 +60,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
 
         if (employee.isEmpty() || employee.get().getFaceS3ObjectKey() == null) {
             log.warn(
-                    "event=biometric_artifact_not_found employeeId={}",
-                    plan.employeeId()
+                    "event=biometric_artifact_not_found employeeRef={}",
+                    SensitiveDataMasker.maskEmployeeId(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -77,8 +77,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
         }
 
         log.info(
-                "event=biometric_artifact_anonymization_dry_run employeeId={}",
-                plan.employeeId()
+                "event=biometric_artifact_anonymization_dry_run employeeRef={}",
+                SensitiveDataMasker.maskEmployeeId(plan.employeeId())
         );
 
         return AnonymizationExecutionResult.success(
@@ -99,8 +99,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
 
         if (employee.isEmpty() || employee.get().getFaceS3ObjectKey() == null) {
             log.warn(
-                    "event=biometric_artifact_not_found_apply employeeId={}",
-                    plan.employeeId()
+                    "event=biometric_artifact_not_found_apply employeeRef={}",
+                    SensitiveDataMasker.maskEmployeeId(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -147,8 +147,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
         employeeRepository.save(entity);
 
         log.info(
-                "event=biometric_artifact_anonymization_apply employeeId={} s3Errors={} rekognitionErrors={}",
-                plan.employeeId(),
+                "event=biometric_artifact_anonymization_apply employeeRef={} s3Errors={} rekognitionErrors={}",
+                SensitiveDataMasker.maskEmployeeId(plan.employeeId()),
                 s3Errors,
                 rekognitionErrors
         );

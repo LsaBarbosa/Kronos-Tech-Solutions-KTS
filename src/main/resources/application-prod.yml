@@ -216,7 +216,7 @@ kronos:
       allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:true}
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
-  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:true}
+  liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}
   login-face:
     limit: ${BIOMETRIC_LOGIN_FACE_LIMIT:5}
     window-seconds: ${BIOMETRIC_LOGIN_FACE_WINDOW_SECONDS:60}
