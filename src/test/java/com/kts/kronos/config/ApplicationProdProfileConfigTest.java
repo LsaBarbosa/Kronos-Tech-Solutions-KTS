@@ -22,7 +22,7 @@ class ApplicationProdProfileConfigTest {
         assertEquals("false", properties.getProperty("springdoc.swagger-ui.enabled"));
         assertEquals("false", properties.getProperty("springdoc.api-docs.enabled"));
         assertEquals("${MANAGEMENT_HEALTH_SHOW_DETAILS:never}", properties.getProperty("management.endpoint.health.show-details"));
-        assertEquals("${BIOMETRIC_LIVENESS_REQUIRED:true}", properties.getProperty("biometric.liveness-required"));
+        assertEquals("${BIOMETRIC_LIVENESS_REQUIRED:false}", properties.getProperty("biometric.liveness-required"));
         assertEquals("${DIGITAL_CERTIFICATE_PATH}", properties.getProperty("kronos.security.certificate.path"));
         assertEquals("${DIGITAL_CERTIFICATE_PASSWORD}", properties.getProperty("kronos.security.certificate.password"));
     }

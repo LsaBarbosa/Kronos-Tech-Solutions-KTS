@@ -684,7 +684,7 @@ class LgpdControllerWebMvcTest {
     }
 
     @Test
-    void shouldAllowAnonymousAccessToProcessingCatalog() throws Exception {
+    void shouldReturnProcessingCatalogForAuthenticatedManager() throws Exception {
         List<PublicDataProcessingPurposeResponse> catalog = List.of(
                 new PublicDataProcessingPurposeResponse(
                         "EMPLOYEE_IDENTIFICATION",

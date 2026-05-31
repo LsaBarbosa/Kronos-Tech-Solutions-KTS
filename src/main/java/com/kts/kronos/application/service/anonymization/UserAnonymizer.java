@@ -2,6 +2,7 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.UserRepository;
 import com.kts.kronos.application.service.anonymization.util.AnonymizationUtil;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -59,8 +60,8 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
 
         if (user.isEmpty()) {
             log.warn(
-                    "event=user_not_found_dry_run employeeId={}",
-                    plan.employeeId()
+                    "event=user_not_found_dry_run employeeRef={}",
+                    SensitiveDataMasker.maskEmployeeId(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -76,8 +77,8 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=user_anonymization_dry_run employeeId={}",
-                plan.employeeId()
+                "event=user_anonymization_dry_run employeeRef={}",
+                SensitiveDataMasker.maskEmployeeId(plan.employeeId())
         );
 
         return AnonymizationExecutionResult.success(
@@ -98,8 +99,8 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
 
         if (user.isEmpty()) {
             log.warn(
-                    "event=user_not_found_apply employeeId={}",
-                    plan.employeeId()
+                    "event=user_not_found_apply employeeRef={}",
+                    SensitiveDataMasker.maskEmployeeId(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -123,8 +124,8 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
         userRepository.save(entity);
 
         log.info(
-                "event=user_anonymization_apply employeeId={} deactivated=true sessionVersionIncremented=true",
-                plan.employeeId()
+                "event=user_anonymization_apply employeeRef={} deactivated=true sessionVersionIncremented=true",
+                SensitiveDataMasker.maskEmployeeId(plan.employeeId())
         );
 
         return AnonymizationExecutionResult.success(
