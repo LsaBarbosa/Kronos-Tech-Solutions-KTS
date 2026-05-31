@@ -2,6 +2,7 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -18,6 +19,7 @@ import java.util.UUID;
 public class DocumentAnonymizer implements AnonymizationDomainProcessor {
     private final DocumentRepository documentRepository;
     private final BucketStorageProvider bucketStorageProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -36,8 +38,8 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=document_anonymization_error employeeId={} exception_type={}",
-                    plan.employeeId(),
+                    "event=document_anonymization_error employeeRef={} exception_type={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     e.getClass().getSimpleName()
             );
             return AnonymizationExecutionResult.error(
@@ -57,8 +59,8 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
         var documents = documentRepository.findByEmployeeIdOrderByUploadedAtDesc(plan.employeeId());
 
         log.info(
-                "event=document_anonymization_dry_run employeeId={} documentCount={}",
-                plan.employeeId(),
+                "event=document_anonymization_dry_run employeeRef={} documentCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 documents.size()
         );
 
@@ -100,8 +102,8 @@ public class DocumentAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=document_anonymization_apply employeeId={} anonymized={} s3Errors={}",
-                plan.employeeId(),
+                "event=document_anonymization_apply employeeRef={} anonymized={} s3Errors={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 anonymized,
                 s3Errors
         );

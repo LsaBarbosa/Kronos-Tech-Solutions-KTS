@@ -39,6 +39,16 @@ public class BiometricArtifactRetentionProcessor implements RetentionDomainProce
     }
 
     @Override
+    public boolean supportsApply() {
+        return true;
+    }
+
+    @Override
+    public boolean isDestructive() {
+        return true;
+    }
+
+    @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
 

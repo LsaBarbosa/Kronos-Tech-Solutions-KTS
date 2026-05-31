@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class S3FaceStorageProviderImplTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private S3Client s3Client;

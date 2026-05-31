@@ -25,16 +25,23 @@ import static org.mockito.Mockito.when;
 class BiometricProtectionServiceTest {
 
     private BiometricProtectionService service;
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @BeforeEach
     void setUp() {
+        privacyLogReferenceService = new PrivacyLogReferenceService("test-log-secret");
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("198.51.100.42");
         ClientIpResolverProperties properties = new ClientIpResolverProperties();
         LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
         when(mockProvider.verify(any(), any(), any()))
                 .thenReturn(LivenessVerificationResult.passed("MOCK_PROVIDER", 0.9));
-        service = new BiometricProtectionService(request, new ClientIpResolver(properties), mockProvider);
+        service = new BiometricProtectionService(
+                request,
+                new ClientIpResolver(properties),
+                mockProvider,
+                privacyLogReferenceService
+        );
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", false);
         ReflectionTestUtils.setField(service, "loginFaceLimit", 2);
@@ -80,7 +87,12 @@ class BiometricProtectionServiceTest {
         LivenessVerificationProvider mockProvider = mock(LivenessVerificationProvider.class);
         when(mockProvider.verify(any(), any(), any()))
                 .thenReturn(LivenessVerificationResult.passed("MOCK_PROVIDER", 0.9));
-        BiometricProtectionService blankIpService = new BiometricProtectionService(request, new ClientIpResolver(properties), mockProvider);
+        BiometricProtectionService blankIpService = new BiometricProtectionService(
+                request,
+                new ClientIpResolver(properties),
+                mockProvider,
+                privacyLogReferenceService
+        );
         ReflectionTestUtils.setField(blankIpService, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
         ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);
@@ -127,7 +139,8 @@ class BiometricProtectionServiceTest {
         service = new BiometricProtectionService(
                 new MockHttpServletRequest(),
                 new ClientIpResolver(new ClientIpResolverProperties()),
-                mockProvider
+                mockProvider,
+                privacyLogReferenceService
         );
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);
@@ -145,7 +158,8 @@ class BiometricProtectionServiceTest {
         service = new BiometricProtectionService(
                 new MockHttpServletRequest(),
                 new ClientIpResolver(new ClientIpResolverProperties()),
-                mockProvider
+                mockProvider,
+                privacyLogReferenceService
         );
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);
@@ -162,7 +176,8 @@ class BiometricProtectionServiceTest {
         service = new BiometricProtectionService(
                 new MockHttpServletRequest(),
                 new ClientIpResolver(new ClientIpResolverProperties()),
-                mockProvider
+                mockProvider,
+                privacyLogReferenceService
         );
         ReflectionTestUtils.setField(service, "maxBase64Chars", 10);
         ReflectionTestUtils.setField(service, "livenessRequired", true);

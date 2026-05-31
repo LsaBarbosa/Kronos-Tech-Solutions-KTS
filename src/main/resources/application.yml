@@ -183,6 +183,8 @@ kronos:
   storage:
     provider: ${KRONOS_STORAGE_PROVIDER:local}
   lgpd:
+    log:
+      hash-secret: ${LGPD_LOG_HASH_SECRET:local-dev-lgpd-log-secret}
     biometric:
       revoked-consent-grace-days: ${LGPD_BIOMETRIC_REVOKED_CONSENT_GRACE_DAYS:0}
     retention:

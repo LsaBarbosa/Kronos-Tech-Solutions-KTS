@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.application.port.out.provider.RetentionPolicyProvider;
 import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
+import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +26,16 @@ public class RetentionPolicyService {
 
         for (var policy : policies) {
             try {
-                executor.executePolicy(policy);
-                retentionPolicyProvider.save(policy.markExecuted(executedAt));
+                RetentionExecutionResult result = executor.executePolicy(policy);
+                if (isExecutionCompleted(result)) {
+                    retentionPolicyProvider.save(policy.markExecuted(executedAt));
+                } else {
+                    log.warn(
+                            "event=retention_policy_not_marked_executed policyCode={} status={}",
+                            policy.policyCode(),
+                            result.status()
+                    );
+                }
             } catch (Exception e) {
                 log.error(
                         "event=retention_policy_execution_failed policyCode={} error={}",
@@ -38,5 +47,9 @@ public class RetentionPolicyService {
         }
 
         return policies.size();
+    }
+
+    private boolean isExecutionCompleted(RetentionExecutionResult result) {
+        return "SUCCESS".equals(result.status()) || "PARTIAL".equals(result.status());
     }
 }

@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +27,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("init: deve inicializar client")
     void shouldInitClient() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
         ReflectionTestUtils.setField(provider, "region", "sa-east-1");
@@ -52,7 +53,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("uploadFile: deve fazer upload com sucesso")
     void shouldUploadFileSuccessfully() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -78,7 +79,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("uploadFile: deve falhar no upload")
     void shouldFailOnUpload() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -96,7 +97,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: deve baixar arquivo com sucesso")
     void shouldDownloadFileSuccessfully() throws IOException {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -124,7 +125,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: deve falhar quando arquivo não existir")
     void shouldFailWhenDownloadCannotFindFile() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -140,7 +141,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: traduz S3Exception 404 para ResourceNotFoundException")
     void shouldTranslateS3NotFoundStatus() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -155,7 +156,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: encapsula S3Exception diferente de 404")
     void shouldWrapNonNotFoundS3Exception() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -172,7 +173,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: encapsula IOException de leitura")
     void shouldWrapDownloadIOException() throws IOException {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -191,7 +192,7 @@ class S3StorageProviderImplTest {
     @Test
     @DisplayName("downloadFile: encapsula falha genérica do SDK")
     void shouldWrapGenericSdkFailureOnDownload() {
-        S3StorageProviderImpl provider = new S3StorageProviderImpl();
+        S3StorageProviderImpl provider = newProvider();
         S3Client s3Client = mock(S3Client.class);
 
         ReflectionTestUtils.setField(provider, "bucketName", "bucket-doc");
@@ -203,5 +204,9 @@ class S3StorageProviderImplTest {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> provider.downloadFile("legal/file.pdf"));
 
         assertEquals("Arquivo não encontrado ou erro S3", ex.getMessage());
+    }
+
+    private S3StorageProviderImpl newProvider() {
+        return new S3StorageProviderImpl(new PrivacyLogReferenceService("test-log-secret"));
     }
 }

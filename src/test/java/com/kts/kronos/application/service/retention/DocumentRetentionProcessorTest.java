@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service.retention;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
@@ -29,6 +30,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentRetentionProcessorTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private DocumentRepository documentRepository;

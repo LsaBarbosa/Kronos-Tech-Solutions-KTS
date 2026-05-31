@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kts.kronos.adapter.in.web.dto.security.*;
 import com.kts.kronos.adapter.out.persistence.SecurityIncidentReportRepository;
@@ -24,6 +25,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SecurityIncidentSprint8Test {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @InjectMocks
     private SecurityIncidentService service;

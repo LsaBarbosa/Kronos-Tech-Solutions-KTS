@@ -1,12 +1,22 @@
 package com.kts.kronos.application.config;
 
+import com.kts.kronos.application.legal.RetentionPolicyCatalog;
+import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.service.retention.RetentionDomainProcessor;
+import com.kts.kronos.domain.model.LivenessVerificationResult;
+import com.kts.kronos.domain.model.RetentionPolicyCatalogEntry;
+import com.kts.kronos.domain.model.enuns.RetentionAction;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyCode;
+import com.kts.kronos.domain.model.enuns.RetentionPolicyType;
+import com.kts.kronos.domain.model.enuns.RetentionResourceType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
-import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -18,12 +28,15 @@ class LgpdProductionReadinessValidatorTest {
     private LgpdProductionReadinessValidator validator;
     private Environment environment;
     private ApplicationArguments applicationArguments;
+    private LivenessVerificationProvider realLivenessProvider;
 
     @BeforeEach
     void setUp() {
         validator = new LgpdProductionReadinessValidator();
         environment = mock(Environment.class);
         applicationArguments = mock(ApplicationArguments.class);
+        realLivenessProvider = (faceImageBase64, operation, employeeId) ->
+                LivenessVerificationResult.passed("REAL_PRODUCTION_PROVIDER", 0.99);
     }
 
     @Test
@@ -183,8 +196,56 @@ class LgpdProductionReadinessValidatorTest {
     }
 
     @Test
-    @DisplayName("shouldAcceptBiometricLivenessEnabledInProd")
-    void shouldAcceptBiometricLivenessEnabledInProd() throws Exception {
+    @DisplayName("shouldRejectBiometricLivenessEnabledWithoutRealProviderInProd")
+    void shouldRejectBiometricLivenessEnabledWithoutRealProviderInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(false);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(false);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(true);
+
+        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldAcceptBiometricLivenessEnabledWithRealProviderInProd")
+    void shouldAcceptBiometricLivenessEnabledWithRealProviderInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(false);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(false);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(true);
+
+        ApplicationRunner runner = validator.buildRunner(environment, null, List.of(), realLivenessProvider);
+
+        // Act & Assert - should not throw
+        assertDoesNotThrow(() -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldRejectApplyWhenActiveProcessorDoesNotSupportApply")
+    void shouldRejectApplyWhenActiveProcessorDoesNotSupportApply() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
@@ -197,13 +258,33 @@ class LgpdProductionReadinessValidatorTest {
                 .thenReturn(true);
         when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
                 .thenReturn("false");
-        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
-                .thenReturn(true); // Liveness enabled - should also be accepted
 
-        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+        RetentionDomainProcessor processor = mock(RetentionDomainProcessor.class);
+        when(processor.supports()).thenReturn(RetentionResourceType.TIME_RECORD);
+        when(processor.supportsApply()).thenReturn(false);
 
-        // Act & Assert - should not throw
-        assertDoesNotThrow(() -> runner.run(applicationArguments));
+        var catalog = new RetentionPolicyCatalog() {
+            @Override
+            public List<RetentionPolicyCatalogEntry> getActivePolicies() {
+                return List.of(new RetentionPolicyCatalogEntry(
+                        RetentionPolicyCode.RETENTION_TIME_RECORD,
+                        "Retenção de registros de ponto",
+                        RetentionPolicyType.TIME_BASED,
+                        RetentionResourceType.TIME_RECORD,
+                        1095,
+                        RetentionAction.PRESERVE_LEGAL_EVIDENCE,
+                        true,
+                        true,
+                        true,
+                        false
+                ));
+            }
+        };
+
+        ApplicationRunner runner = validator.buildRunner(environment, catalog, List.of(processor), realLivenessProvider);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
     }
 
     @Test

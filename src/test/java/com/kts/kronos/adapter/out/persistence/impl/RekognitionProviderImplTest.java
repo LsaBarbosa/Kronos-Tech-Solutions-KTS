@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +27,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class RekognitionProviderImplTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private RekognitionClient rekognitionClient;

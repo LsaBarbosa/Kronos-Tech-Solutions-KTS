@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.application.port.out.provider.AnonymizationExecutionLogProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -32,6 +33,8 @@ class AnonymizationPlanExecutorTest {
     @Mock
     private AnonymizationExecutionLogProvider executionLogProvider;
 
+    private final PrivacyLogReferenceService privacyLogReferenceService = new PrivacyLogReferenceService("test-log-secret");
+
     private AnonymizationPlanExecutor executor;
 
     @Test
@@ -42,7 +45,8 @@ class AnonymizationPlanExecutorTest {
 
         executor = new AnonymizationPlanExecutor(
                 Arrays.asList(employeeAnonymizer, userAnonymizer),
-                executionLogProvider
+                executionLogProvider,
+                privacyLogReferenceService
         );
 
         AnonymizationPlan plan = new AnonymizationPlan(
@@ -99,7 +103,7 @@ class AnonymizationPlanExecutorTest {
         UUID companyId = UUID.randomUUID();
         UUID actorId = UUID.randomUUID();
 
-        executor = new AnonymizationPlanExecutor(Arrays.asList(), executionLogProvider);
+        executor = new AnonymizationPlanExecutor(Arrays.asList(), executionLogProvider, privacyLogReferenceService);
 
         AnonymizationPlan plan = new AnonymizationPlan(
                 employeeId,
@@ -130,7 +134,8 @@ class AnonymizationPlanExecutorTest {
 
         executor = new AnonymizationPlanExecutor(
                 Arrays.asList(employeeAnonymizer),
-                executionLogProvider
+                executionLogProvider,
+                privacyLogReferenceService
         );
 
         AnonymizationPlan plan = new AnonymizationPlan(
@@ -165,7 +170,8 @@ class AnonymizationPlanExecutorTest {
 
         executor = new AnonymizationPlanExecutor(
                 Arrays.asList(employeeAnonymizer, userAnonymizer),
-                executionLogProvider
+                executionLogProvider,
+                privacyLogReferenceService
         );
 
         AnonymizationPlan plan = new AnonymizationPlan(
@@ -212,7 +218,8 @@ class AnonymizationPlanExecutorTest {
 
         executor = new AnonymizationPlanExecutor(
                 Arrays.asList(employeeAnonymizer, userAnonymizer),
-                executionLogProvider
+                executionLogProvider,
+                privacyLogReferenceService
         );
 
         AnonymizationPlan plan = new AnonymizationPlan(

@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
@@ -36,6 +37,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class TimeRecordServiceComplexTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @InjectMocks
     private TimeRecordService service;

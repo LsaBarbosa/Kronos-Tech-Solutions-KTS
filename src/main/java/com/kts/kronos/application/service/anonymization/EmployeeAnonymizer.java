@@ -2,6 +2,7 @@ package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AddressEmbeddable;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.service.anonymization.util.AnonymizationUtil;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
     private final EmployeeRepository employeeRepository;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -37,9 +39,9 @@ public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=employee_anonymization_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage(),
+                    "event=employee_anonymization_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName(),
                     e
             );
             return AnonymizationExecutionResult.error(
@@ -60,8 +62,8 @@ public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
 
         if (employee.isEmpty()) {
             log.warn(
-                    "event=employee_not_found employeeId={}",
-                    plan.employeeId()
+                    "event=employee_not_found employeeRef={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -77,8 +79,8 @@ public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=employee_anonymization_dry_run employeeId={}",
-                plan.employeeId()
+                "event=employee_anonymization_dry_run employeeRef={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId())
         );
 
         return AnonymizationExecutionResult.success(
@@ -99,8 +101,8 @@ public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
 
         if (employee.isEmpty()) {
             log.warn(
-                    "event=employee_not_found_apply employeeId={}",
-                    plan.employeeId()
+                    "event=employee_not_found_apply employeeRef={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId())
             );
             return AnonymizationExecutionResult.success(
                     executionId,
@@ -137,8 +139,8 @@ public class EmployeeAnonymizer implements AnonymizationDomainProcessor {
         employeeRepository.save(entity);
 
         log.info(
-                "event=employee_anonymization_apply employeeId={}",
-                plan.employeeId()
+                "event=employee_anonymization_apply employeeRef={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId())
         );
 
         return AnonymizationExecutionResult.success(

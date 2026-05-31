@@ -2,6 +2,8 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.S3StorageProvider; // Sua interface
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,7 +26,9 @@ import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class S3StorageProviderImpl implements S3StorageProvider {
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Value("${aws.s3.bucket-name-doc}")
     private String bucketName;
@@ -48,13 +52,13 @@ public class S3StorageProviderImpl implements S3StorageProvider {
                         AwsBasicCredentials.create(accessKey, secretKey)
                 ))
                 .build();
-        log.info("🚀 Storage Provider S3 ATIVO. Bucket: {}", bucketName);
+        log.info("event=s3_storage_provider_active bucketRef={}", privacyLogReferenceService.storageRef(bucketName));
     }
 
     @Override
     public String uploadFile(String keyName, byte[] content) {
         try {
-            log.info("Enviando arquivo para S3 (Legal): {}", keyName);
+            log.info("event=s3_upload_start storageRef={}", privacyLogReferenceService.storageRef(keyName));
 
             PutObjectRequest.Builder putObBuilder = PutObjectRequest.builder()
                     .bucket(bucketName)
@@ -71,7 +75,7 @@ public class S3StorageProviderImpl implements S3StorageProvider {
 
             s3Client.putObject(putObBuilder.build(), RequestBody.fromBytes(content));
 
-            log.info("✅ Upload S3 com Object Lock concluído: {}", keyName);
+            log.info("event=s3_upload_success storageRef={}", privacyLogReferenceService.storageRef(keyName));
             return keyName;
 
         } catch (SdkException e) {
@@ -95,13 +99,14 @@ public class S3StorageProviderImpl implements S3StorageProvider {
             if (e.statusCode() == 404) {
                 throw new ResourceNotFoundException("Arquivo não encontrado no S3.");
             }
-            log.error("Erro ao baixar arquivo do S3. key={}, statusCode={}", fileKey, e.statusCode(), e);
+            log.error("event=s3_download_error storageRef={} statusCode={}",
+                    privacyLogReferenceService.storageRef(fileKey), e.statusCode(), e);
             throw new RuntimeException("Erro ao baixar arquivo do S3.", e);
         } catch (IOException e) {
-            log.error("Erro de IO ao baixar arquivo do S3. key={}", fileKey, e);
+            log.error("event=s3_download_io_error storageRef={}", privacyLogReferenceService.storageRef(fileKey), e);
             throw new RuntimeException("Erro ao ler arquivo do S3.", e);
         } catch (SdkException e) {
-            log.error("Erro ao baixar arquivo do S3. key={}", fileKey, e);
+            log.error("event=s3_download_sdk_error storageRef={}", privacyLogReferenceService.storageRef(fileKey), e);
             throw new RuntimeException("Arquivo não encontrado ou erro S3", e);
         }
     }

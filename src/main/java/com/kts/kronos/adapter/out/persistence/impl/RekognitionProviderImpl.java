@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
 
     private final RekognitionClient rekognitionClient;
     private final FaceStorageProvider faceStorageProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Value("${aws.rekognition.collection-id}")
     private String collectionId;
@@ -42,7 +44,8 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
         } catch (ResourceAlreadyExistsException e) {
             // Se já existe, é o comportamento esperado no startup.
         } catch (SdkException e) {
-            log.error("❌ Erro fatal ao tentar criar ou verificar coleção '{}': {}", collectionId, e.getMessage(), e);
+            log.error("event=rekognition_collection_init_error collectionRef={} exceptionType={}",
+                    privacyLogReferenceService.storageRef(collectionId), e.getClass().getSimpleName(), e);
             throw new RuntimeException("Falha na inicialização do serviço Rekognition.", e);
         }
     }
@@ -67,14 +70,16 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
             IndexFacesResponse response = rekognitionClient.indexFaces(indexFacesRequest);
 
             if (response.faceRecords().isEmpty()) {
-                log.warn("Nenhuma face detectada na imagem S3 Key: {}", imageS3Key);
+                log.warn("event=rekognition_no_face_detected storageRef={}",
+                        privacyLogReferenceService.storageRef(imageS3Key));
                 return null;
             }
 
             return response.faceRecords().get(0).face().faceId();
 
         } catch (SdkException e) {
-            log.error("Erro ao indexar face do funcionário {}: {}", externalImageId, e.getMessage(), e);
+            log.error("event=rekognition_index_face_error externalImageRef={} exceptionType={}",
+                    privacyLogReferenceService.externalImageRef(externalImageId), e.getClass().getSimpleName(), e);
             throw new RuntimeException("Falha ao registrar face no Rekognition.", e);
         }
     }
@@ -125,7 +130,8 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .build();
             rekognitionClient.deleteFaces(deleteFacesRequest);
         } catch (SdkException e) {
-            log.error("Erro ao deletar face {}: {}", faceId, e.getMessage(), e);
+            log.error("event=rekognition_delete_face_error faceRef={} exceptionType={}",
+                    privacyLogReferenceService.faceRef(faceId), e.getClass().getSimpleName(), e);
         }
     }
 
@@ -161,9 +167,11 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     .faceIds(faceIds)
                     .build());
 
-            log.info("Templates biométricos removidos para externalImageId={}", externalImageId);
+            log.info("event=rekognition_delete_templates_success externalImageRef={}",
+                    privacyLogReferenceService.externalImageRef(externalImageId));
         } catch (SdkException e) {
-            log.error("Erro ao remover templates biométricos de externalImageId={}: {}", externalImageId, e.getMessage(), e);
+            log.error("event=rekognition_delete_templates_error externalImageRef={} exceptionType={}",
+                    privacyLogReferenceService.externalImageRef(externalImageId), e.getClass().getSimpleName(), e);
         }
     }
 }

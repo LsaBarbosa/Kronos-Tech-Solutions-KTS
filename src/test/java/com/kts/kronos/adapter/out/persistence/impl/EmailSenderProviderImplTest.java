@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import jakarta.mail.Session;
 import jakarta.mail.Multipart;
 import jakarta.mail.internet.InternetAddress;
@@ -31,6 +32,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class EmailSenderProviderImplTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @InjectMocks
     private EmailSenderProviderImpl provider;

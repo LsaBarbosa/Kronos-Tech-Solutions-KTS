@@ -3,6 +3,7 @@ package com.kts.kronos.application.service.anonymization;
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -20,6 +21,7 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
     private final EmployeeRepository employeeRepository;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -38,8 +40,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
             }
         } catch (Exception e) {
             log.error(
-                    "event=biometric_artifact_anonymization_error employeeId={} exception_type={}",
-                    plan.employeeId(),
+                    "event=biometric_artifact_anonymization_error employeeRef={} exception_type={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     e.getClass().getSimpleName()
             );
             return AnonymizationExecutionResult.error(
@@ -124,8 +126,8 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
             faceStorageProvider.deleteFaceImage(s3Key);
         } catch (Exception e) {
             log.error(
-                    "event=biometric_s3_deletion_error employeeId={} faceStorageRef={} exception_type={}",
-                    plan.employeeId(),
+                    "event=biometric_s3_deletion_error employeeRef={} faceStorageRef={} exception_type={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     SensitiveDataMasker.maskStorageReference(s3Key),
                     e.getClass().getSimpleName()
             );
@@ -136,9 +138,9 @@ public class BiometricArtifactAnonymizer implements AnonymizationDomainProcessor
             faceRecognitionProvider.deleteFacesByExternalImageId(plan.employeeId());
         } catch (Exception e) {
             log.error(
-                    "event=biometric_rekognition_deletion_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage()
+                    "event=biometric_rekognition_deletion_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName()
             );
             rekognitionErrors++;
         }

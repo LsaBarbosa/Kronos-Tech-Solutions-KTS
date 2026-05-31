@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.port.out.provider.EmailSenderProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Service;
 public class EmailSenderProviderImpl implements EmailSenderProvider {
     private static final String RESET_PASSWORD_ROUTE = "/resetar-senha";
     private final JavaMailSender mailSender;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
+
     @Value("${spring.mail.username}")
     private String emailRemetente;
 
@@ -113,8 +116,8 @@ public class EmailSenderProviderImpl implements EmailSenderProvider {
             throw new RuntimeException("Falha na configuração do e-mail de recuperação.", e);
         } catch (RuntimeException e) {
             // Este log captura o erro de envio (como o MissingFormatArgumentException original)
-            log.error("Falha ao enviar e-mail via SMTP no fluxo de recuperação. toEmail={}, exceptionType={}",
-                    toEmail, e.getClass().getSimpleName(), e);
+            log.error("event=credential_recovery_delivery_error recipientRef={} exceptionType={}",
+                    privacyLogReferenceService.emailRef(toEmail), e.getClass().getSimpleName(), e);
             throw new RuntimeException("Falha no envio do e-mail de recuperação.", e);
         }
     }

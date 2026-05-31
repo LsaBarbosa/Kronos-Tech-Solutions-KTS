@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
 import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,7 @@ public class PasswordResetTokenProviderImpl implements PasswordResetTokenProvide
     private static final HexFormat HEX = HexFormat.of();
 
     private final PasswordResetTokenRepository repository;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public String generateAndSaveToken(UUID userId) {
@@ -47,7 +49,8 @@ public class PasswordResetTokenProviderImpl implements PasswordResetTokenProvide
 
         repository.save(entity);
 
-        log.info("Hash de token de recuperação gerado para userId: {} com expiração de {} minutos.", userId, EXPIRATION_MINUTES);
+        log.info("event=password_reset_token_hash_created userRef={} expirationMinutes={}",
+                privacyLogReferenceService.userRef(userId), EXPIRATION_MINUTES);
         return rawToken;
     }
 
