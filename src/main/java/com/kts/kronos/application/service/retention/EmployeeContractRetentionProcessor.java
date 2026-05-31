@@ -20,6 +20,21 @@ public class EmployeeContractRetentionProcessor implements RetentionDomainProces
     }
 
     @Override
+    public boolean supportsApply() {
+        return false;
+    }
+
+    @Override
+    public boolean isDestructive() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsDryRun() {
+        return true;
+    }
+
+    @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
 
@@ -66,7 +81,7 @@ public class EmployeeContractRetentionProcessor implements RetentionDomainProces
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy) {
         log.warn(
-                "event=employee_contract_retention_not_implemented policyCode={} reason=full-processor-pending",
+                "event=employee_contract_retention_legal_preservation policyCode={} reason=legal-preservation-only",
                 policy.policyCode()
         );
         return RetentionExecutionResult.blocked(
@@ -74,8 +89,8 @@ public class EmployeeContractRetentionProcessor implements RetentionDomainProces
                 policy.policyCode(),
                 RetentionResourceType.EMPLOYEE_CONTRACT,
                 "APPLY",
-                "EMPLOYEE_CONTRACT retention processor not implemented - apply blocked pending implementation. " +
-                "Ensure this policy is marked inactive=true until processor is ready."
+                "EMPLOYEE_CONTRACT retention is legal-preservation only. Destructive APPLY is not supported. " +
+                "Contracts are preserved per labor law and fiscal requirements."
         );
     }
 }

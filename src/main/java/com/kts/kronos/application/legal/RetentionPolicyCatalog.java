@@ -31,6 +31,12 @@ public class RetentionPolicyCatalog {
                 .toList();
     }
 
+    public List<RetentionPolicyCatalogEntry> getSchedulerExecutablePolicies() {
+        return getActivePolicies().stream()
+                .filter(RetentionPolicyCatalogEntry::schedulerExecutable)
+                .toList();
+    }
+
     public List<RetentionPolicyCatalogEntry> getAllPolicies() {
         return List.of(
                 new RetentionPolicyCatalogEntry(
@@ -43,7 +49,8 @@ public class RetentionPolicyCatalog {
                         true,
                         true,
                         false,
-                        false
+                        false,
+                        true
                 ),
                 new RetentionPolicyCatalogEntry(
                         RetentionPolicyCode.RETENTION_BIOMETRIC_EVIDENCE,
@@ -54,6 +61,7 @@ public class RetentionPolicyCatalog {
                         RetentionAction.PRESERVE_LEGAL_EVIDENCE,
                         true,
                         true,
+                        false,
                         false,
                         false
                 ),
@@ -67,6 +75,7 @@ public class RetentionPolicyCatalog {
                         true,
                         true,
                         true,
+                        false,
                         false
                 ),
                 new RetentionPolicyCatalogEntry(
@@ -79,7 +88,8 @@ public class RetentionPolicyCatalog {
                         true,
                         true,
                         true,
-                        true
+                        true,
+                        false
                 ),
                 new RetentionPolicyCatalogEntry(
                         RetentionPolicyCode.RETENTION_DOCUMENT_GENERAL,
@@ -90,6 +100,7 @@ public class RetentionPolicyCatalog {
                         RetentionAction.PRESERVE_LEGAL_EVIDENCE,
                         false,
                         true,
+                        false,
                         false,
                         false
                 ),
@@ -103,7 +114,8 @@ public class RetentionPolicyCatalog {
                         false,
                         true,
                         true,
-                        true
+                        true,
+                        false
                 ),
                 new RetentionPolicyCatalogEntry(
                         RetentionPolicyCode.RETENTION_SECURITY_LOG,
@@ -115,7 +127,8 @@ public class RetentionPolicyCatalog {
                         false,
                         true,
                         false,
-                        false
+                        false,
+                        true
                 ),
                 new RetentionPolicyCatalogEntry(
                         RetentionPolicyCode.RETENTION_LGPD_REQUEST,
@@ -126,6 +139,7 @@ public class RetentionPolicyCatalog {
                         RetentionAction.PRESERVE_LEGAL_EVIDENCE,
                         true,
                         true,
+                        false,
                         false,
                         false
                 ),
@@ -139,7 +153,8 @@ public class RetentionPolicyCatalog {
                         false,
                         true,
                         false,
-                        false
+                        false,
+                        true
                 ),
                 new RetentionPolicyCatalogEntry(
                         RetentionPolicyCode.RETENTION_PASSWORD_RESET_TOKEN,
@@ -151,7 +166,8 @@ public class RetentionPolicyCatalog {
                         true,
                         true,
                         false,
-                        false
+                        false,
+                        true
                 )
         );
     }
