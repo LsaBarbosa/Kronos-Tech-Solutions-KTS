@@ -17,6 +17,8 @@ import java.util.List;
 @Configuration
 public class LgpdProductionReadinessValidator {
 
+    private static final String LOCAL_DEV_LGPD_LOG_SECRET = "local-dev-lgpd-log-secret";
+
     @Bean
     ApplicationRunner validateLgpdProduction(
             Environment environment,
@@ -42,6 +44,7 @@ public class LgpdProductionReadinessValidator {
                 return;
             }
 
+            validatePrivacyLogHashSecret(environment);
             validateRetentionConfiguration(environment, retentionPolicyCatalog, retentionProcessors);
             validateBiometricConfiguration(environment, livenessVerificationProvider);
         };
@@ -118,7 +121,7 @@ public class LgpdProductionReadinessValidator {
             return;
         }
 
-        for (var policy : retentionPolicyCatalog.getActivePolicies()) {
+        for (var policy : retentionPolicyCatalog.getSchedulerExecutablePolicies()) {
             var processor = retentionProcessors.stream()
                     .filter(candidate -> candidate.supports() == policy.resourceType())
                     .findFirst();
@@ -135,6 +138,21 @@ public class LgpdProductionReadinessValidator {
                 );
             }
         }
+    }
+
+    private void validatePrivacyLogHashSecret(Environment environment) {
+        String hashSecret = environment.getProperty("kronos.lgpd.log.hash-secret", "");
+
+        if (hashSecret == null
+                || hashSecret.isBlank()
+                || LOCAL_DEV_LGPD_LOG_SECRET.equals(hashSecret)) {
+            String message = "LGPD_LOG_HASH_SECRET must be configured with a non-default value in production. " +
+                    "Set kronos.lgpd.log.hash-secret or LGPD_LOG_HASH_SECRET environment variable.";
+            logCriticalError(message);
+            throw new IllegalStateException(message);
+        }
+
+        log.info("event=lgpd_log_hash_secret_validated status=OK");
     }
 
     private void validateBiometricConfiguration(
