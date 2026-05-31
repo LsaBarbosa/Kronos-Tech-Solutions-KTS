@@ -86,6 +86,24 @@ Exclusão efetiva em produção deve respeitar análise jurídica, backup, rastr
 
 **Nota:** Processadores para TIME_RECORD e EMPLOYEE_CONTRACT têm implementação bloqueada em APPLY até validação jurídica completa da política de preservação. Os dados podem ser simulados em DRY_RUN e preservados indefinidamente conforme obrigação legal.
 
+### Campo `schedulerExecutable` no catálogo de retenção
+
+O `RetentionPolicyCatalogEntry` diferencia políticas jurídicas (legais) de políticas operacionais (executáveis) através do campo `schedulerExecutable`:
+
+| Atributo | Significado | Exemplos |
+|---|---|---|
+| `active=true` | Policy existe no catálogo jurídico e é reconhecida pelo sistema | Todas as 9 policies |
+| `schedulerExecutable=true` | Policy pode ser executada automaticamente pelo scheduler em modo APPLY | PASSWORD_RESET_TOKEN, MESSAGE, AUDIT_LOG, BIOMETRIC_ARTIFACT |
+| `schedulerExecutable=false` | Policy é preservada por lei e **não** pode ser deletada pelo scheduler | LEGAL_CONSENT, LGPD_REQUEST, TIME_RECORD, EMPLOYEE_CONTRACT, DOCUMENT |
+
+**Exemplo prático:**
+- **TIME_RECORD:** `active=true`, `schedulerExecutable=false`
+  - Jurídico: Preservada conforme obrigação trabalhista (3 anos)
+  - Operacional: Scheduler não pode executar APPLY (deletar registros)
+  - Comportamento: DRY_RUN mostra elegibilidade; APPLY é bloqueado com mensagem "legal-preservation-only"
+
+O validator de produção (`LgpdProductionReadinessValidator`) garante que apenas políticas com `schedulerExecutable=true` sejam processadas pelo scheduler.
+
 ## Execução em modo DRY_RUN
 
 `DRY_RUN` é o modo seguro para simular a política sem apagar ou minimizar dados de forma efetiva.
