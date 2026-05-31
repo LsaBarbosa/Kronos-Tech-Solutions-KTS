@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.application.port.out.provider.AnonymizationExecutionLogProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.AnonymizationExecutionLog;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 public class AnonymizationPlanExecutor {
     private final List<AnonymizationDomainProcessor> processors;
     private final AnonymizationExecutionLogProvider executionLogProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     public void executePlan(AnonymizationPlan plan, String executionMode) {
         executePlanWithResults(plan, executionMode);
@@ -39,9 +41,9 @@ public class AnonymizationPlanExecutor {
         Instant executionStart = Instant.now();
 
         log.info(
-                "event=anonymization_execution_start employeeId={} companyId={} executionMode={}",
-                plan.employeeId(),
-                plan.companyId(),
+                "event=anonymization_execution_start employeeRef={} companyRef={} executionMode={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
+                privacyLogReferenceService.companyRef(plan.companyId()),
                 executionMode
         );
 
@@ -81,9 +83,9 @@ public class AnonymizationPlanExecutor {
         );
 
         log.info(
-                "event=anonymization_execution_complete employeeId={} companyId={} executionMode={} consolidatedStatus={} resultCount={}",
-                plan.employeeId(),
-                plan.companyId(),
+                "event=anonymization_execution_complete employeeRef={} companyRef={} executionMode={} consolidatedStatus={} resultCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
+                privacyLogReferenceService.companyRef(plan.companyId()),
                 executionMode,
                 consolidatedResult.consolidatedStatus(),
                 results.size()
@@ -112,8 +114,8 @@ public class AnonymizationPlanExecutor {
 
         if (processor == null) {
             log.warn(
-                    "event=anonymization_no_processor employeeId={} resourceType={}",
-                    plan.employeeId(),
+                    "event=anonymization_no_processor employeeRef={} resourceType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     resourceType
             );
             var errorResult = AnonymizationExecutionResult.error(
@@ -137,8 +139,8 @@ public class AnonymizationPlanExecutor {
             executionLogProvider.save(executionLog);
 
             log.info(
-                    "event=anonymization_processor_complete employeeId={} resourceType={} status={} scanned={} affected={} skipped={} errors={}",
-                    plan.employeeId(),
+                    "event=anonymization_processor_complete employeeRef={} resourceType={} status={} scanned={} affected={} skipped={} errors={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     resourceType,
                     result.status(),
                     result.scannedCount(),
@@ -149,10 +151,10 @@ public class AnonymizationPlanExecutor {
             return result;
         } catch (Exception e) {
             log.error(
-                    "event=anonymization_processor_error employeeId={} resourceType={} error={}",
-                    plan.employeeId(),
+                    "event=anonymization_processor_error employeeRef={} resourceType={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
                     resourceType,
-                    e.getMessage(),
+                    e.getClass().getSimpleName(),
                     e
             );
             var errorResult = AnonymizationExecutionResult.error(

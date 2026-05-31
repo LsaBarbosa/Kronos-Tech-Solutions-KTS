@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.notification;
 
 import com.kts.kronos.application.port.out.provider.NotificationProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class EmailNotificationProviderImpl implements NotificationProvider {
     private final JavaMailSender mailSender;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Value("${app.mail.from:noreply@kronos-tech.com}")
     private String mailFrom;
@@ -30,7 +32,8 @@ public class EmailNotificationProviderImpl implements NotificationProvider {
             String plainTextContent
     ) throws NotificationException {
         if (!notificationsEnabled) {
-            log.info("event=email_notification_skipped reason=notifications_disabled recipient={} subject={}", recipientEmail, subject);
+            log.info("event=mail_notification_skipped reason=notifications_disabled recipientRef={} subject={}",
+                    privacyLogReferenceService.emailRef(recipientEmail), subject);
             return;
         }
 
@@ -44,10 +47,12 @@ public class EmailNotificationProviderImpl implements NotificationProvider {
             helper.setText(plainTextContent, htmlContent);
 
             mailSender.send(mimeMessage);
-            log.info("event=email_notification_sent recipient={} subject={}", recipientEmail, subject);
+            log.info("event=mail_notification_sent recipientRef={} subject={}",
+                    privacyLogReferenceService.emailRef(recipientEmail), subject);
         } catch (MessagingException e) {
-            log.error("event=email_notification_error recipient={} subject={} error={}", recipientEmail, subject, e.getMessage());
-            throw new NotificationException("Falha ao enviar notificação por email para " + recipientEmail, e);
+            log.error("event=mail_notification_error recipientRef={} subject={} exceptionType={}",
+                    privacyLogReferenceService.emailRef(recipientEmail), subject, e.getClass().getSimpleName());
+            throw new NotificationException("Falha ao enviar notificação por email.", e);
         }
     }
 

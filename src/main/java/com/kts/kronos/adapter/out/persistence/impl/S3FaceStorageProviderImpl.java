@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +22,8 @@ import java.util.UUID;
 public class S3FaceStorageProviderImpl implements FaceStorageProvider {
 
     private final S3Client s3Client;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
+
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
@@ -40,7 +43,7 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
 
             s3Client.putObject(putObjectRequest, RequestBody.fromBytes(fileBytes));
 
-            log.info("Upload de imagem facial concluído para S3. Key: {}", objectKey);
+            log.info("event=face_storage_upload_success objectRef={}", privacyLogReferenceService.objectRef(objectKey));
             return objectKey;
 
         } catch (IOException e) {
@@ -61,9 +64,10 @@ public class S3FaceStorageProviderImpl implements FaceStorageProvider {
                     .build();
 
             s3Client.deleteObject(deleteObjectRequest);
-            log.info("Exclusão de imagem facial do S3 concluída: {}", objectKey);
+            log.info("event=face_storage_delete_success objectRef={}", privacyLogReferenceService.objectRef(objectKey));
         } catch (SdkException e) {
-            log.error("Erro na exclusão do arquivo {}: {}", objectKey, e.getMessage(), e);
+            log.error("event=face_storage_delete_error objectRef={} exceptionType={}",
+                    privacyLogReferenceService.objectRef(objectKey), e.getClass().getSimpleName(), e);
         }
     }
 }

@@ -7,6 +7,7 @@ import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,7 @@ class BiometricTermPdfServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BiometricTermPdfService();
+        service = new BiometricTermPdfService(new PrivacyLogReferenceService("test-log-secret"));
         ReflectionTestUtils.setField(service, "secretSalt", "test-salt");
     }
 

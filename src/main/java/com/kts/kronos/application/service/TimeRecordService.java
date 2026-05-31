@@ -16,6 +16,7 @@ import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProje
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -68,6 +69,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final DomainAuthorizationService domainAuthorizationService;
     private final BiometricProtectionService biometricProtectionService;
     private final LegalConsentProvider legalConsentProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -639,7 +641,8 @@ public class TimeRecordService implements TimeRecordUseCase {
 
             recordRepository.save(vacationRequestRecord);
             createdRecordIds.add(vacationRequestRecord.timeRecordId());
-            log.info("Solicitação de férias (REQUEST_VACATION) criada para o dia {} para o funcionário {}", currentDay.format(DATE_FORMATTER), employeeId);
+            log.info("event=vacation_request_record_created date={} employeeRef={}",
+                    currentDay.format(DATE_FORMATTER), privacyLogReferenceService.employeeRef(employeeId));
         }
 
         kronosMetrics.vacationRequested();

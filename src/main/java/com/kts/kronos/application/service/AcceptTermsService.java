@@ -4,6 +4,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.BiometricConsentAcceptanceResult;
 import com.kts.kronos.domain.model.BiometricConsentRevocationResult;
@@ -44,6 +45,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final LegalConsentProvider legalConsentProvider;
     private final LegalTextProvider legalTextProvider;
     private final KronosMetrics kronosMetrics;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     private static final HexFormat HEX = HexFormat.of();
     private static final String BIOMETRIC_CONSENT_PURPOSE =
@@ -79,12 +81,14 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         ).isPresent();
 
         if (existsValidConsent) {
-            log.info("Usuário {} já possui consentimento ativo para a versão vigente. Retornando sucesso idempotente.", employeeId);
+            log.info("event=biometric_consent_acceptance_idempotent employeeRef={}",
+                    privacyLogReferenceService.employeeRef(employeeId));
             var consentStatus = getBiometricConsentStatus(employeeId);
             return new BiometricConsentAcceptanceResult(employeeId, userId, user.sessionVersion(), consentStatus);
         }
 
-        log.info("Iniciando processo de aceite de termos para Employee ID: {}", employeeId);
+        log.info("event=biometric_consent_acceptance_started employeeRef={}",
+                privacyLogReferenceService.employeeRef(employeeId));
 
         var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
@@ -206,9 +210,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
 
         log.info(
-                "Revogação biométrica concluída para employeeId={} userId={} newSessionVersion={}",
-                employeeId,
-                user.userId(),
+                "event=biometric_consent_revocation_completed employeeRef={} userRef={} newSessionVersion={}",
+                privacyLogReferenceService.employeeRef(employeeId),
+                privacyLogReferenceService.userRef(user.userId()),
                 updatedUser.sessionVersion()
         );
 
@@ -234,7 +238,8 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
     @Override
     public java.util.List<LegalConsent> getConsentHistory(UUID employeeId) {
-        log.info("Recuperando histórico de consentimentos para o colaborador {}", employeeId);
+        log.info("event=biometric_consent_history_requested employeeRef={}",
+                privacyLogReferenceService.employeeRef(employeeId));
         employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         return legalConsentProvider.findAllByEmployeeId(employeeId);

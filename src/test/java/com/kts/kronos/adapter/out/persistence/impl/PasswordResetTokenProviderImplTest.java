@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.PasswordResetTokenRepository;
 import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PasswordResetTokenProviderImplTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private PasswordResetTokenRepository repository;

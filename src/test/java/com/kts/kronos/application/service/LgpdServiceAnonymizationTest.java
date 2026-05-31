@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.AnonymizationConsolidatedResultRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AnonymizationConsolidatedResultEntity;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
@@ -45,6 +46,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class LgpdServiceAnonymizationTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @InjectMocks
     private LgpdService service;

@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.MessageRepository;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MessageAnonymizer implements AnonymizationDomainProcessor {
     private final MessageRepository messageRepository;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -33,9 +35,9 @@ public class MessageAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=message_anonymization_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage(),
+                    "event=message_anonymization_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName(),
                     e
             );
             return AnonymizationExecutionResult.error(
@@ -58,8 +60,8 @@ public class MessageAnonymizer implements AnonymizationDomainProcessor {
         );
 
         log.info(
-                "event=message_anonymization_dry_run employeeId={} messageCount={}",
-                plan.employeeId(),
+                "event=message_anonymization_dry_run employeeRef={} messageCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 messages.size()
         );
 
@@ -89,8 +91,8 @@ public class MessageAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=message_anonymization_apply employeeId={} messageCount={}",
-                plan.employeeId(),
+                "event=message_anonymization_apply employeeRef={} messageCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 messages.size()
         );
 

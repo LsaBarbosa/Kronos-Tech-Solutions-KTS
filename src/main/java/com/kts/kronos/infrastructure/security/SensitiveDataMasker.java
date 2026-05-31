@@ -14,13 +14,14 @@ public class SensitiveDataMasker {
     // PIS com ou sem pontuação: 123.45678.90-1 ou 12345678901
     private static final Pattern PIS_PATTERN = Pattern.compile("(?<!\\d)(\\d{3}\\.?\\d{5}\\.?\\d{2}-?\\d{1})(?!\\d)");
     private static final Pattern JWT_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("(?i)(password|passwd|pwd)[\\s:=]+[^\\s,}]+");
+    private static final Pattern PASSWORD_PATTERN = Pattern.compile("(?i)(password|passwd|pwd|senha)\\s*[=:]\\s*[^\\s,}]+");
     private static final Pattern EMAIL_PATTERN = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
     private static final Pattern PHONE_PATTERN = Pattern.compile("\\(\\d{2}\\)\\s?9?\\d{4}-\\d{4}");
-    private static final Pattern BASE64_FACE_PATTERN = Pattern.compile("faceImageBase64[\\s:=]+([A-Za-z0-9+/=]{100,})");
+    private static final Pattern BASE64_FACE_PATTERN = Pattern.compile("(?i)faceImageBase64[\\s:=\\\"]+([A-Za-z0-9+/=]{100,})");
     private static final Pattern COORDINATES_PATTERN = Pattern.compile("[\\-]?\\d{1,2}\\.\\d{6,}");
-    private static final Pattern RESET_TOKEN_PATTERN = Pattern.compile("resetToken[\\s:=]+[a-zA-Z0-9-]+");
+    private static final Pattern RESET_TOKEN_PATTERN = Pattern.compile("(?i)(\\b(?:token|resetToken|reset_token)\\b\\s*[=:]\\s*)[^\\s&,}]+");
     private static final Pattern API_KEY_PATTERN = Pattern.compile("(?i)(api[_-]?key|apikey|secret)[\\s:=]+[^\\s,}]+");
+    private static final Pattern STORAGE_PATH_PATTERN = Pattern.compile("(?i)(s3://[^\\s,}\"']+|bucket/[^\\s,}\"']+|/uploads/[^\\s,}\"']+|storage/[^\\s,}\"']+|/home/[^\\s,}\"']+|[A-Za-z]:\\\\[^\\s,}\"']+)");
 
     /**
      * Mascara todos os dados sensíveis em uma mensagem.
@@ -57,10 +58,13 @@ public class SensitiveDataMasker {
         masked = COORDINATES_PATTERN.matcher(masked).replaceAll("[MASKED_COORDINATES]");
 
         // Mascarar reset token
-        masked = RESET_TOKEN_PATTERN.matcher(masked).replaceAll("resetToken=[MASKED]");
+        masked = RESET_TOKEN_PATTERN.matcher(masked).replaceAll("$1[MASKED]");
 
         // Mascarar API keys
         masked = API_KEY_PATTERN.matcher(masked).replaceAll("$1=[MASKED]");
+
+        // Mascarar storage paths e caminhos locais
+        masked = STORAGE_PATH_PATTERN.matcher(masked).replaceAll("[MASKED_PATH]");
 
         return masked;
     }
@@ -119,6 +123,7 @@ public class SensitiveDataMasker {
                PASSWORD_PATTERN.matcher(message).find() ||
                BASE64_FACE_PATTERN.matcher(message).find() ||
                RESET_TOKEN_PATTERN.matcher(message).find() ||
-               API_KEY_PATTERN.matcher(message).find();
+               API_KEY_PATTERN.matcher(message).find() ||
+               STORAGE_PATH_PATTERN.matcher(message).find();
     }
 }

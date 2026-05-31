@@ -9,6 +9,7 @@ import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.adapter.out.persistence.entity.MessageEntity;
 import com.kts.kronos.adapter.out.persistence.entity.PasswordResetTokenEntity;
 import com.kts.kronos.application.service.retention.RetentionPolicyExecutor;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
@@ -425,6 +426,11 @@ class LgpdRetentionAuditValidationTest {
         @Bean
         public org.springframework.mail.javamail.JavaMailSender javaMailSender() {
             return Mockito.mock(org.springframework.mail.javamail.JavaMailSender.class);
+        }
+
+        @Bean
+        public PrivacyLogReferenceService privacyLogReferenceService() {
+            return new PrivacyLogReferenceService("test-lgpd-log-secret");
         }
     }
 

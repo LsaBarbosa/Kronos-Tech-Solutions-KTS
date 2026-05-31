@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
     private final AuditLogRepository auditLogRepository;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -33,9 +35,9 @@ public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=audit_log_anonymization_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage(),
+                    "event=audit_log_anonymization_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName(),
                     e
             );
             return AnonymizationExecutionResult.error(
@@ -55,8 +57,8 @@ public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
         var auditLogs = auditLogRepository.findRelatedToDataSubject(null, plan.employeeId());
 
         log.info(
-                "event=audit_log_anonymization_dry_run employeeId={} auditLogCount={}",
-                plan.employeeId(),
+                "event=audit_log_anonymization_dry_run employeeRef={} auditLogCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 auditLogs.size()
         );
 
@@ -84,8 +86,8 @@ public class AuditLogAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=audit_log_anonymization_apply employeeId={} auditLogCount={}",
-                plan.employeeId(),
+                "event=audit_log_anonymization_apply employeeRef={} auditLogCount={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 auditLogs.size()
         );
 

@@ -11,6 +11,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.ActiveProfiles;
+import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import com.kts.kronos.domain.model.LivenessVerificationResult;
 import static org.mockito.Mockito.mock;
 
 @SpringBootApplication
@@ -33,9 +36,19 @@ public class LgpdComplianceTestApplication {
     }
 
     @Bean
+    public LivenessVerificationProvider livenessVerificationProvider() {
+        return (faceImageBase64, operation, employeeId) ->
+                LivenessVerificationResult.passed("TEST_LIVENESS_PROVIDER", 0.99);
+    }
+
+    @Bean
     @org.springframework.context.annotation.Primary
     public com.kts.kronos.adapter.out.notification.EmailNotificationProviderImpl emailNotificationProvider(
-            JavaMailSender mailSender) {
-        return new com.kts.kronos.adapter.out.notification.EmailNotificationProviderImpl(mailSender);
+            JavaMailSender mailSender,
+            PrivacyLogReferenceService privacyLogReferenceService) {
+        return new com.kts.kronos.adapter.out.notification.EmailNotificationProviderImpl(
+                mailSender,
+                privacyLogReferenceService
+        );
     }
 }

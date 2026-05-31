@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.persistence.impl.EmailSenderProviderImpl;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.config.SecurityConfig;
 import com.kts.kronos.observability.adapter.in.web.CorrelationIdFilter;
 import com.kts.kronos.observability.adapter.in.web.ObservabilityController;
@@ -51,5 +52,10 @@ public class ContextSmokeTestApplication {
 	@Bean
 	public TokenBlacklistProvider tokenBlacklistProvider() {
 		return mock(TokenBlacklistProvider.class);
+	}
+
+	@Bean
+	public PrivacyLogReferenceService privacyLogReferenceService() {
+		return new PrivacyLogReferenceService("test-lgpd-log-secret");
 	}
 }

@@ -23,6 +23,7 @@ import com.kts.kronos.application.port.out.provider.MessageProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.service.anonymization.AnonymizationPlanExecutor;
 import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -79,6 +80,7 @@ public class LgpdService implements LgpdUseCase {
     private final AuditRequestContextService auditRequestContextService;
     private final DryRunTokenService dryRunTokenService;
     private final AcceptTermsUseCase acceptTermsUseCase;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
@@ -638,10 +640,10 @@ public class LgpdService implements LgpdUseCase {
         anonymizationConsolidatedResultRepository.save(entity);
 
         log.info(
-                "event=lgpd_anonymization_executed_and_persisted requestId={} consolidatedStatus={} employeeId={}",
+                "event=lgpd_anonymization_executed_and_persisted requestId={} consolidatedStatus={} employeeRef={}",
                 requestId,
                 consolidatedResult.consolidatedStatus(),
-                employee.employeeId()
+                privacyLogReferenceService.employeeRef(employee.employeeId())
         );
 
         return consolidatedResult;
@@ -1542,10 +1544,10 @@ public class LgpdService implements LgpdUseCase {
         );
 
         log.info(
-                "event=lgpd_anonymization_applied_via_request requestId={} consolidatedStatus={} employeeId={}",
+                "event=lgpd_anonymization_applied_via_request requestId={} consolidatedStatus={} employeeRef={}",
                 requestId,
                 consolidatedResult.consolidatedStatus(),
-                employee.employeeId()
+                privacyLogReferenceService.employeeRef(employee.employeeId())
         );
 
         return consolidatedResult;

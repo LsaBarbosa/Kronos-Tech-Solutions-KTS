@@ -16,6 +16,8 @@ import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LegalText;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -32,7 +34,9 @@ import static com.kts.kronos.constants.Messages.*;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class BiometricTermPdfService {
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
      @Value("${kronos.security.biometric-term-salt}")
     private String secretSalt;
@@ -139,8 +143,10 @@ public class BiometricTermPdfService {
             return baos.toByteArray();
 
         } catch (IOException e) {
-            log.error("Erro de IO ao gerar Termo de Consentimento. employeeId={}, companyId={}",
-                    employee.employeeId(), company.companyId(), e);
+            log.error("event=biometric_consent_term_pdf_io_error employeeRef={} companyRef={}",
+                    privacyLogReferenceService.employeeRef(employee.employeeId()),
+                    privacyLogReferenceService.companyRef(company.companyId()),
+                    e);
             throw new RuntimeException(ERROR_TO_GENERATE_PDF, e);
         } catch (RuntimeException e) {
             log.error("Erro ao gerar Termo de Consentimento", e);

@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.security.UpdateSecurityIncidentRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.IncidentClosureValidationException;
 import com.kts.kronos.application.port.out.provider.SecurityIncidentProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.SecurityIncident;
 import com.kts.kronos.domain.model.enuns.SecurityImpactLevel;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentSeverity;
@@ -52,7 +53,8 @@ class SecurityIncidentClosureValidationTest {
                 auditService,
                 jwtAuthenticatedUser,
                 null, // reportRepository
-                null  // objectMapper
+                null, // objectMapper
+                new PrivacyLogReferenceService("test-log-secret")
         );
 
         incidentId = UUID.randomUUID();

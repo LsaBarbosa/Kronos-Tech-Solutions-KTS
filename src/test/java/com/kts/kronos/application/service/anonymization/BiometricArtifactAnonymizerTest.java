@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service.anonymization;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.EmployeeRepository;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
@@ -25,6 +26,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class BiometricArtifactAnonymizerTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private EmployeeRepository employeeRepository;

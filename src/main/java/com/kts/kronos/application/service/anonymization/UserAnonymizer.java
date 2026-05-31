@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.UserRepository;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.service.anonymization.util.AnonymizationUtil;
 import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class UserAnonymizer implements AnonymizationDomainProcessor {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -37,9 +39,9 @@ public class UserAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=user_anonymization_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage(),
+                    "event=user_anonymization_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName(),
                     e
             );
             return AnonymizationExecutionResult.error(
