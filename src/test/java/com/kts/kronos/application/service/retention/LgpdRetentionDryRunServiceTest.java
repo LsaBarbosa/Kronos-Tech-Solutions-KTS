@@ -320,7 +320,8 @@ class LgpdRetentionDryRunServiceTest {
                 false,
                 true,
                 false,
-                false
+                false,
+                true
         );
     }
 }

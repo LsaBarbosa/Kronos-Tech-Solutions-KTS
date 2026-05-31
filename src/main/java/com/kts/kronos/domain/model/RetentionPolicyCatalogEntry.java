@@ -15,7 +15,8 @@ public record RetentionPolicyCatalogEntry(
     boolean sensitive,
     boolean active,
     boolean preserveLaborData,
-    boolean preserveFiscalData
+    boolean preserveFiscalData,
+    boolean schedulerExecutable
 ) {
     public RetentionPolicyCatalogEntry(
             RetentionPolicyCode code,
@@ -27,7 +28,8 @@ public record RetentionPolicyCatalogEntry(
             boolean sensitive,
             boolean active,
             boolean preserveLaborData,
-            boolean preserveFiscalData
+            boolean preserveFiscalData,
+            boolean schedulerExecutable
     ) {
         this(
                 code,
@@ -39,7 +41,8 @@ public record RetentionPolicyCatalogEntry(
                 sensitive,
                 active,
                 preserveLaborData,
-                preserveFiscalData
+                preserveFiscalData,
+                schedulerExecutable
         );
     }
 }
