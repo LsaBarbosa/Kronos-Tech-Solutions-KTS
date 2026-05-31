@@ -69,6 +69,23 @@ Os fluxos técnicos já apontam elegibilidade de exclusão para:
 
 Exclusão efetiva em produção deve respeitar análise jurídica, backup, rastreabilidade e confirmação operacional.
 
+## Status dos processadores de retenção
+
+| Recurso | DRY_RUN | APPLY | Observação |
+|---|:---:|:---:|---|
+| TIME_RECORD | ✓ | ✗ | Preservado por obrigação legal (evidência trabalhista) |
+| EMPLOYEE_CONTRACT | ✓ | ✗ | Preservado por obrigação legal (evidência fiscal/trabalhista) |
+| AUDIT_LOG | ✓ | ✓ | Descarte com preservação de trilha configurável |
+| BIOMETRIC_ARTIFACT | ✓ | ✓ | Remove de S3 e Rekognition quando elegível |
+| MESSAGE | ✓ | ✓ | Soft-delete com preservação de contexto |
+| PASSWORD_RESET_TOKEN | ✓ | ✓ | Hard-delete de tokens expirados |
+| LEGAL_CONSENT | ✓ | ✓ | Descarte de consentimentos revogados/expirados |
+| LGPD_REQUEST | ✓ | ✓ | Preservação de histórico com minimização de dados pessoais |
+| DOCUMENT | ✓ | ✓ | Descarte com análise de obrigação legal |
+| BLACKLISTED_TOKEN | ✓ | ✓ | Limpeza de tokens revogados |
+
+**Nota:** Processadores para TIME_RECORD e EMPLOYEE_CONTRACT têm implementação bloqueada em APPLY até validação jurídica completa da política de preservação. Os dados podem ser simulados em DRY_RUN e preservados indefinidamente conforme obrigação legal.
+
 ## Execução em modo DRY_RUN
 
 `DRY_RUN` é o modo seguro para simular a política sem apagar ou minimizar dados de forma efetiva.

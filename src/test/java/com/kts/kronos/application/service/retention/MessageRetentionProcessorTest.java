@@ -9,7 +9,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -98,7 +97,6 @@ class MessageRetentionProcessorTest {
 
     @Test
     void testExecuteApplySoftDeletesExpiredMessages() {
-        ReflectionTestUtils.setField(processor, "allowApply", true);
         when(messageRepository.softDeleteExpiredMessages(any(), any(), anyString())).thenReturn(15);
         when(messageRepository.countPreservedMessages(any())).thenReturn(5L);
 
@@ -116,7 +114,6 @@ class MessageRetentionProcessorTest {
 
     @Test
     void testExecuteApplyNoMessagesSoftDeleted() {
-        ReflectionTestUtils.setField(processor, "allowApply", true);
         when(messageRepository.softDeleteExpiredMessages(any(), any(), anyString())).thenReturn(0);
         when(messageRepository.countPreservedMessages(any())).thenReturn(0L);
 
@@ -132,7 +129,6 @@ class MessageRetentionProcessorTest {
 
     @Test
     void testExecuteApplyPreservesHighPriorityMessages() {
-        ReflectionTestUtils.setField(processor, "allowApply", true);
         when(messageRepository.softDeleteExpiredMessages(any(), any(), anyString())).thenReturn(10);
         when(messageRepository.countPreservedMessages(any())).thenReturn(8L);
 
@@ -163,7 +159,6 @@ class MessageRetentionProcessorTest {
 
     @Test
     void testExecuteApplyHandlesException() {
-        ReflectionTestUtils.setField(processor, "allowApply", true);
         when(messageRepository.softDeleteExpiredMessages(any(), any(), anyString()))
                 .thenThrow(new RuntimeException("Update failed"));
 
@@ -177,36 +172,8 @@ class MessageRetentionProcessorTest {
     }
 
     @Test
-    void testExecuteApplyReturnBlockedWhenAllowApplyIsFalse() {
-        ReflectionTestUtils.setField(processor, "allowApply", false);
-
-        var policy = createPolicy();
-        var result = processor.execute(policy, "APPLY");
-
-        assertEquals("APPLY", result.executionMode());
-        assertEquals("BLOCKED", result.status());
-        assertNotNull(result.notes());
-        assertEquals("Soft-delete blocked: kronos.lgpd.retention.allow-apply=false", result.notes());
-
-        verify(messageRepository, times(0)).softDeleteExpiredMessages(any(), any(), anyString());
-    }
-
-    @Test
-    void testExecuteApplySoftDeletesWhenAllowApplyIsTrue() {
-        ReflectionTestUtils.setField(processor, "allowApply", true);
-        when(messageRepository.softDeleteExpiredMessages(any(), any(), anyString())).thenReturn(10);
-        when(messageRepository.countPreservedMessages(any())).thenReturn(3L);
-
-        var policy = createPolicy();
-        var result = processor.execute(policy, "APPLY");
-
-        assertEquals("APPLY", result.executionMode());
-        assertEquals("SUCCESS", result.status());
-        assertEquals(13, result.scannedCount());
-        assertEquals(10, result.affectedCount());
-        assertEquals(3, result.skippedCount());
-
-        verify(messageRepository, times(1)).softDeleteExpiredMessages(any(LocalDateTime.class), any(LocalDateTime.class), anyString());
+    void testSupportsApply() {
+        assertTrue(processor.supportsApply());
     }
 
     private RetentionPolicy createPolicy() {
