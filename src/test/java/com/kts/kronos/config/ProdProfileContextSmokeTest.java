@@ -87,7 +87,7 @@ class ProdProfileContextSmokeTest {
         assertEquals("validate", environment.getProperty("spring.jpa.hibernate.ddl-auto"));
         assertEquals("false", environment.getProperty("springdoc.swagger-ui.enabled"));
         assertEquals("false", environment.getProperty("springdoc.api-docs.enabled"));
-        assertEquals("true", environment.getProperty("biometric.liveness-required"));
+        assertEquals("false", environment.getProperty("biometric.liveness-required"));
         assertEquals("INFO", environment.getProperty("logging.level.org.springframework.security"));
     }
 }

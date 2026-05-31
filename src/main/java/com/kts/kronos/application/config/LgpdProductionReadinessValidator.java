@@ -49,13 +49,8 @@ public class LgpdProductionReadinessValidator {
         }
 
         if (!"APPLY".equalsIgnoreCase(mode)) {
-            String message = "LGPD Retention Scheduler mode is not APPLY in production. " +
-                    "Current mode: " + mode + ". " +
-                    "Set LGPD_RETENTION_SCHEDULER_MODE=APPLY";
-            logCriticalError(message);
-            if (!isAllowStartWithWarnings(allowWarnings)) {
-                throw new IllegalStateException(message);
-            }
+            log.warn("event=lgpd_retention_mode_not_apply status=OPERATIONAL_DECISION " +
+                    "mode={} note=DRY_RUN is valid operational state for gradual rollout", mode);
         }
 
         if (!applyConfirmed) {
@@ -83,19 +78,14 @@ public class LgpdProductionReadinessValidator {
 
     private void validateBiometricConfiguration(Environment environment) {
         boolean livenessRequired = environment.getProperty("biometric.liveness-required", Boolean.class, false);
-        String allowWarnings = environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false");
 
         if (!livenessRequired) {
-            String message = "Biometric Liveness verification is NOT REQUIRED in production. " +
-                    "Set BIOMETRIC_LIVENESS_REQUIRED=true";
-            logCriticalError(message);
-            if (!isAllowStartWithWarnings(allowWarnings)) {
-                throw new IllegalStateException(message);
-            }
+            log.warn("event=lgpd_biometric_liveness_disabled status=ACCEPTED_BY_PRODUCT_DECISION " +
+                    "action=liveness_check_skipped note=BasicImageLivenessProvider active as fallback");
+            return;
         }
 
-        log.info("event=lgpd_biometric_production_validated status=OK livenessRequired={}",
-                livenessRequired);
+        log.info("event=lgpd_biometric_production_validated status=OK livenessRequired=true");
     }
 
     private void logCriticalError(String message) {

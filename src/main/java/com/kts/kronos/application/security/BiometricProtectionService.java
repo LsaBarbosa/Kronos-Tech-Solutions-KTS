@@ -4,6 +4,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -110,13 +111,13 @@ public class BiometricProtectionService {
         var result = livenessVerificationProvider.verify(faceImageBase64, operation, employeeId);
 
         if (!result.passed()) {
-            log.warn("event=biometric_liveness_failed operation={} employeeId={} reason={}",
-                    operation, employeeId, result.reasonCode());
+            log.warn("event=biometric_liveness_failed operation={} employeeRef={} reason={}",
+                    operation, SensitiveDataMasker.maskEmployeeId(employeeId), result.reasonCode());
             throw new ForbiddenException(LIVENESS_REQUIRED);
         }
 
-        log.debug("event=biometric_liveness_passed operation={} employeeId={} provider={}",
-                operation, employeeId, result.provider());
+        log.debug("event=biometric_liveness_passed operation={} employeeRef={} provider={}",
+                operation, SensitiveDataMasker.maskEmployeeId(employeeId), result.provider());
     }
 
     private void consume(String key, int limit, Duration window, String message) {
