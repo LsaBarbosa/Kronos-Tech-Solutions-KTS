@@ -178,7 +178,8 @@ public class RetentionPolicyExecutor {
         return processors.stream()
                 .collect(Collectors.toMap(
                         p -> p.supports().name(),
-                        p -> p
+                        p -> p,
+                        (first, ignored) -> first
                 ));
     }
 

@@ -23,6 +23,10 @@ class ApplicationProdProfileConfigTest {
         assertEquals("false", properties.getProperty("springdoc.api-docs.enabled"));
         assertEquals("${MANAGEMENT_HEALTH_SHOW_DETAILS:never}", properties.getProperty("management.endpoint.health.show-details"));
         assertEquals("${BIOMETRIC_LIVENESS_REQUIRED:false}", properties.getProperty("biometric.liveness-required"));
+        assertEquals("${LGPD_LOG_HASH_SECRET}", properties.getProperty("kronos.lgpd.log.hash-secret"));
+        assertEquals("${LGPD_RETENTION_SCHEDULER_MODE:DRY_RUN}", properties.getProperty("kronos.lgpd.retention.scheduler.mode"));
+        assertEquals("${LGPD_RETENTION_SCHEDULER_APPLY_CONFIRMED:false}", properties.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed"));
+        assertEquals("${LGPD_RETENTION_ALLOW_APPLY:false}", properties.getProperty("kronos.lgpd.retention.allow-apply"));
         assertEquals("${DIGITAL_CERTIFICATE_PATH}", properties.getProperty("kronos.security.certificate.path"));
         assertEquals("${DIGITAL_CERTIFICATE_PASSWORD}", properties.getProperty("kronos.security.certificate.password"));
     }

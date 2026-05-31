@@ -8,6 +8,7 @@ import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.LegalText;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -29,7 +30,7 @@ class PdfGenerationServicesTest {
     @Test
     @DisplayName("BiometricTermPdfService: deve gerar termo com dados das partes e auditoria")
     void shouldGenerateBiometricConsentTermWithAuditData() throws Exception {
-        BiometricTermPdfService service = new BiometricTermPdfService();
+        BiometricTermPdfService service = new BiometricTermPdfService(new PrivacyLogReferenceService("test-log-secret"));
         ReflectionTestUtils.setField(service, "secretSalt", "test-salt");
         Company company = company("Kronos Cliente", "12345678000199");
         Employee employee = employee("Ana Paula", "12345678901");
@@ -49,7 +50,7 @@ class PdfGenerationServicesTest {
     @Test
     @DisplayName("BiometricTermPdfService: deve usar fallback para IP e user agent ausentes")
     void shouldGenerateBiometricConsentTermWithFallbackAuditData() throws Exception {
-        BiometricTermPdfService service = new BiometricTermPdfService();
+        BiometricTermPdfService service = new BiometricTermPdfService(new PrivacyLogReferenceService("test-log-secret"));
         ReflectionTestUtils.setField(service, "secretSalt", "test-salt");
 
         byte[] pdf = service.generateConsentTerm(

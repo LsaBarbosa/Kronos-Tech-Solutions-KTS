@@ -4,7 +4,6 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
-import com.kts.kronos.application.util.SensitiveDataMasker;
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +33,7 @@ public class BiometricProtectionService {
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
     private final LivenessVerificationProvider livenessVerificationProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
 
     @Value("${app.biometric.max-base64-chars:${biometric.max-base64-chars:1500000}}")
@@ -112,12 +112,12 @@ public class BiometricProtectionService {
 
         if (!result.passed()) {
             log.warn("event=biometric_liveness_failed operation={} employeeRef={} reason={}",
-                    operation, SensitiveDataMasker.maskEmployeeId(employeeId), result.reasonCode());
+                    operation, privacyLogReferenceService.employeeRef(employeeId), result.reasonCode());
             throw new ForbiddenException(LIVENESS_REQUIRED);
         }
 
         log.debug("event=biometric_liveness_passed operation={} employeeRef={} provider={}",
-                operation, SensitiveDataMasker.maskEmployeeId(employeeId), result.provider());
+                operation, privacyLogReferenceService.employeeRef(employeeId), result.provider());
     }
 
     private void consume(String key, int limit, Duration window, String message) {
@@ -132,7 +132,8 @@ public class BiometricProtectionService {
             }
 
             if (bucket.size() >= limit) {
-                log.warn("Rate limit biométrico atingido para key={}", key);
+                log.warn("event=biometric_rate_limit_exceeded rateLimitRef={}",
+                        privacyLogReferenceService.genericRef("biometric_rate_limit", key));
                 throw new TooManyRequestsException(message);
             }
 

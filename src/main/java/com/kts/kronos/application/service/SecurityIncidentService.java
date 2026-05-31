@@ -10,6 +10,7 @@ import com.kts.kronos.application.exceptions.IncidentClosureValidationException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.SecurityIncidentUseCase;
 import com.kts.kronos.application.port.out.provider.SecurityIncidentProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.SecurityIncident;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentStatus;
@@ -36,6 +37,7 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final SecurityIncidentReportRepository reportRepository;
     private final ObjectMapper objectMapper;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public SecurityIncidentResponse createIncident(CreateSecurityIncidentRequest request, String ipAddress, String userAgent) {
@@ -303,8 +305,8 @@ public class SecurityIncidentService implements SecurityIncidentUseCase {
 
             reportRepository.save(report);
 
-            log.info("Relatório de incidente gerado: reportId={}, incidentId={}, userId={}",
-                    reportId, incidentId, userId);
+            log.info("event=security_incident_report_generated reportId={} incidentId={} userRef={}",
+                    reportId, incidentId, privacyLogReferenceService.userRef(userId));
         } catch (Exception e) {
             log.error("Erro ao gerar relatório de incidente: incidentId={}", incidentId, e);
             throw new RuntimeException("Erro ao gerar relatório do incidente", e);

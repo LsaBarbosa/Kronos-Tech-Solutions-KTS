@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service.anonymization;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.AuditLogRepository;
 import com.kts.kronos.adapter.out.persistence.entity.AuditLogEntity;
 import com.kts.kronos.domain.model.AnonymizationPlan;
@@ -21,6 +22,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuditLogAnonymizerTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private AuditLogRepository auditLogRepository;

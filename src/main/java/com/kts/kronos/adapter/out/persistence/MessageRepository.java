@@ -50,7 +50,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
         AND m.deletedAt IS NULL
         AND NOT EXISTS (
             SELECT 1 FROM MessageEntity si WHERE si.messageId = m.messageId
-            AND (si.priority = 'CRITICAL' OR si.priority = 'HIGH')
+            AND (si.priority = 'CRITICAL' OR si.priority = 'ALERT')
         )
     """)
     long countExpiredAndRemovable(@Param("cutoff") LocalDateTime cutoff);
@@ -64,7 +64,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
         AND m.deletedAt IS NULL
         AND NOT EXISTS (
             SELECT 1 FROM MessageEntity si WHERE si.messageId = m.messageId
-            AND (si.priority = 'CRITICAL' OR si.priority = 'HIGH')
+            AND (si.priority = 'CRITICAL' OR si.priority = 'ALERT')
         )
     """)
     int softDeleteExpiredMessages(
@@ -77,7 +77,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
         SELECT COUNT(m) FROM MessageEntity m
         WHERE m.createdAt < :cutoff
         AND m.deletedAt IS NULL
-        AND (m.priority = 'CRITICAL' OR m.priority = 'HIGH')
+        AND (m.priority = 'CRITICAL' OR m.priority = 'ALERT')
     """)
     long countPreservedMessages(@Param("cutoff") LocalDateTime cutoff);
 }

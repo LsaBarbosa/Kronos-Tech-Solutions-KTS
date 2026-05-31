@@ -14,9 +14,13 @@ public final class SensitiveDataMasker {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b");
     private static final Pattern PHONE_PATTERN = Pattern.compile("\\(?\\d{2}\\)?\\s?9?\\d{4}-?\\d{4}");
     private static final Pattern TOKEN_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
-    private static final Pattern RESET_TOKEN_PATTERN = Pattern.compile("(?:token|resetToken|reset_token)=[^\\s&]+");
+    private static final Pattern RESET_TOKEN_PATTERN = Pattern.compile("(?i)(\\b(?:token|resetToken|reset_token)\\b\\s*[=:]\\s*)[^\\s&,}]+");
+    private static final Pattern PASSWORD_PATTERN = Pattern.compile("(?i)(password|passwd|pwd|senha)\\s*[=:]\\s*[^\\s&,}]+");
     private static final Pattern COORDINATES_PATTERN = Pattern.compile("-?\\d{1,2}\\.\\d{6,8}");
     private static final Pattern BASE64_IMAGE_PATTERN = Pattern.compile("[A-Za-z0-9+/]{200,}={0,2}");
+    private static final Pattern STORAGE_PATH_PATTERN = Pattern.compile(
+            "(?i)(s3://[^\\s,}\"']+|bucket/[^\\s,}\"']+|/uploads/[^\\s,}\"']+|storage/[^\\s,}\"']+|/home/[^\\s,}\"']+|[A-Za-z]:\\\\[^\\s,}\"']+)"
+    );
 
     private SensitiveDataMasker() {}
 
@@ -136,7 +140,8 @@ public final class SensitiveDataMasker {
 
         // Mask JWT and reset tokens
         result = TOKEN_PATTERN.matcher(result).replaceAll(m -> maskToken(m.group()));
-        result = RESET_TOKEN_PATTERN.matcher(result).replaceAll("[TOKEN_REDACTED]");
+        result = RESET_TOKEN_PATTERN.matcher(result).replaceAll("$1[TOKEN_REDACTED]");
+        result = PASSWORD_PATTERN.matcher(result).replaceAll("$1=[MASKED]");
 
         // Mask Base64 images
         result = BASE64_IMAGE_PATTERN.matcher(result).replaceAll("[BASE64_REDACTED]");
@@ -144,16 +149,8 @@ public final class SensitiveDataMasker {
         // Mask coordinates (latitude/longitude patterns)
         result = COORDINATES_PATTERN.matcher(result).replaceAll(m -> maskCoordinates(m.group()));
 
-        // Mask storage paths
-        if (result.contains("s3://")
-                || result.contains("bucket/")
-                || result.contains("/uploads/")
-                || result.contains("storage/")) {
-            result = result.replaceAll("s3://[^\\s]+", "[MASKED_PATH]");
-            result = result.replaceAll("bucket/[^\\s]+", "[MASKED_PATH]");
-            result = result.replaceAll("/uploads/[^\\s]+", "[MASKED_PATH]");
-            result = result.replaceAll("storage/[^\\s]+", "[MASKED_PATH]");
-        }
+        // Mask storage and local filesystem paths
+        result = STORAGE_PATH_PATTERN.matcher(result).replaceAll("[MASKED_PATH]");
         return result;
     }
 

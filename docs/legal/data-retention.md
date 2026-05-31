@@ -81,7 +81,7 @@ Exclusão efetiva em produção deve respeitar análise jurídica, backup, rastr
 | PASSWORD_RESET_TOKEN | ✓ | ✓ | Hard-delete de tokens expirados |
 | LEGAL_CONSENT | ✓ | ✓ | Descarte de consentimentos revogados/expirados |
 | LGPD_REQUEST | ✓ | ✓ | Preservação de histórico com minimização de dados pessoais |
-| DOCUMENT | ✓ | ✓ | Descarte com análise de obrigação legal |
+| DOCUMENT | ✓ | ✗ | Preservado até validação jurídica por classe documental |
 | BLACKLISTED_TOKEN | ✓ | ✓ | Limpeza de tokens revogados |
 
 **Nota:** Processadores para TIME_RECORD e EMPLOYEE_CONTRACT têm implementação bloqueada em APPLY até validação jurídica completa da política de preservação. Os dados podem ser simulados em DRY_RUN e preservados indefinidamente conforme obrigação legal.
@@ -105,7 +105,10 @@ No comportamento atual do projeto:
 
 - o endpoint administrativo recebe `justification` e `confirmed`;
 - a execução pode ser bloqueada se `LGPD_RETENTION_ALLOW_APPLY` estiver desabilitado;
+- o modo padrão de produção do scheduler é `DRY_RUN`;
 - o scheduler possui flags próprias de modo, confirmação e justificativa;
+- o validator de produção não exige `APPLY` global;
+- quando `APPLY` estiver ativo, cada política ativa precisa ter processor com `supportsApply() = true`;
 - o resultado é auditado e persistido em log de execução.
 
 `APPLY` deve ser usado somente com justificativa registrada, confirmação explícita e autorização organizacional apropriada.
@@ -130,6 +133,7 @@ Esses registros apoiam prestação de contas e investigação posterior.
 | `LGPD_RETENTION_SCHEDULER_APPLY_CONFIRMED` | Exige confirmação explícita para execuções automáticas em `APPLY`. |
 | `LGPD_RETENTION_SCHEDULER_JUSTIFICATION` | Registra justificativa padrão do batch agendado. |
 | `LGPD_RETENTION_ALLOW_APPLY` | Libera ou bloqueia execuções efetivas de `APPLY`. |
+| `LGPD_LOG_HASH_SECRET` | Segredo HMAC usado para gerar referências pseudonimizadas em logs. |
 
 ## Checklist de produção
 

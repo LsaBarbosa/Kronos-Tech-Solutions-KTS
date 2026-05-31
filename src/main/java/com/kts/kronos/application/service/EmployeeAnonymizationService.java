@@ -5,6 +5,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -31,6 +32,7 @@ public class EmployeeAnonymizationService {
     private final UserProvider userProvider;
     private final AuditService auditService;
     private final AnonymizationPlanExecutor anonymizationPlanExecutor;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     public void anonymize(UUID employeeId, String ipAddress, String userAgent, UUID actorUserId) {
         requireAdministrativeRole();
@@ -65,9 +67,12 @@ public class EmployeeAnonymizationService {
                     userAgent
             );
 
-            log.info("event=employee_anonymization_complete employeeId={} companyId={}", employeeId, employee.companyId());
+            log.info("event=employee_anonymization_complete employeeRef={} companyRef={}",
+                    privacyLogReferenceService.employeeRef(employeeId),
+                    privacyLogReferenceService.companyRef(employee.companyId()));
         } catch (Exception e) {
-            log.error("event=employee_anonymization_failed employeeId={} error={}", employeeId, e.getMessage(), e);
+            log.error("event=employee_anonymization_failed employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(employeeId), e.getClass().getSimpleName(), e);
             throw new RuntimeException("Falha ao anonimizar colaborador: " + e.getMessage(), e);
         }
     }

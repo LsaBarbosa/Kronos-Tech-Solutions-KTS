@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service.anonymization;
 
 import com.kts.kronos.adapter.out.persistence.TimeRecordRepository;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.AnonymizationExecutionResult;
 import com.kts.kronos.domain.model.AnonymizationPlan;
 import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
@@ -15,6 +16,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
     private final TimeRecordRepository timeRecordRepository;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public AnonymizationResourceType supports() {
@@ -33,9 +35,9 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
             }
         } catch (Exception e) {
             log.error(
-                    "event=time_record_anonymization_error employeeId={} error={}",
-                    plan.employeeId(),
-                    e.getMessage(),
+                    "event=time_record_anonymization_error employeeRef={} exceptionType={}",
+                    privacyLogReferenceService.employeeRef(plan.employeeId()),
+                    e.getClass().getSimpleName(),
                     e
             );
             return AnonymizationExecutionResult.error(
@@ -72,8 +74,8 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=time_record_anonymization_dry_run employeeId={} preserveLaborData={} scanned={} affected={} skipped={}",
-                plan.employeeId(),
+                "event=time_record_anonymization_dry_run employeeRef={} preserveLaborData={} scanned={} affected={} skipped={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 plan.preserveLaborData(),
                 timeRecords.size(),
                 affectedCount,
@@ -125,8 +127,8 @@ public class TimeRecordAnonymizer implements AnonymizationDomainProcessor {
         }
 
         log.info(
-                "event=time_record_anonymization_apply employeeId={} preserveLaborData={} scanned={} affected={} skipped={}",
-                plan.employeeId(),
+                "event=time_record_anonymization_apply employeeRef={} preserveLaborData={} scanned={} affected={} skipped={}",
+                privacyLogReferenceService.employeeRef(plan.employeeId()),
                 plan.preserveLaborData(),
                 timeRecords.size(),
                 affectedCount,

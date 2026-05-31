@@ -28,6 +28,11 @@ public class AuditLogRetentionProcessor implements RetentionDomainProcessor {
     }
 
     @Override
+    public boolean supportsApply() {
+        return true;
+    }
+
+    @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
         var cutoff = LocalDateTime.now(ZoneId.of("UTC")).minusDays(policy.retentionDays());

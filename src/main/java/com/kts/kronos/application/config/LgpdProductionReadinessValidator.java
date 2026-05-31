@@ -1,24 +1,49 @@
 package com.kts.kronos.application.config;
 
+import com.kts.kronos.application.legal.RetentionPolicyCatalog;
+import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.security.BasicImageLivenessVerificationProvider;
+import com.kts.kronos.application.security.DisabledLivenessVerificationProvider;
+import com.kts.kronos.application.service.retention.RetentionDomainProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
+import java.util.List;
+
 @Slf4j
 @Configuration
 public class LgpdProductionReadinessValidator {
 
     @Bean
+    ApplicationRunner validateLgpdProduction(
+            Environment environment,
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            List<RetentionDomainProcessor> retentionProcessors,
+            LivenessVerificationProvider livenessVerificationProvider
+    ) {
+        return buildRunner(environment, retentionPolicyCatalog, retentionProcessors, livenessVerificationProvider);
+    }
+
     ApplicationRunner validateLgpdProduction(Environment environment) {
+        return buildRunner(environment, null, List.of(), null);
+    }
+
+    ApplicationRunner buildRunner(
+            Environment environment,
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            List<RetentionDomainProcessor> retentionProcessors,
+            LivenessVerificationProvider livenessVerificationProvider
+    ) {
         return args -> {
             if (!isProductionProfile(environment)) {
                 return;
             }
 
-            validateRetentionConfiguration(environment);
-            validateBiometricConfiguration(environment);
+            validateRetentionConfiguration(environment, retentionPolicyCatalog, retentionProcessors);
+            validateBiometricConfiguration(environment, livenessVerificationProvider);
         };
     }
 
@@ -32,7 +57,11 @@ public class LgpdProductionReadinessValidator {
         return false;
     }
 
-    private void validateRetentionConfiguration(Environment environment) {
+    private void validateRetentionConfiguration(
+            Environment environment,
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            List<RetentionDomainProcessor> retentionProcessors
+    ) {
         boolean enabled = environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false);
         String mode = environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN");
         boolean applyConfirmed = environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false);
@@ -51,6 +80,8 @@ public class LgpdProductionReadinessValidator {
         if (!"APPLY".equalsIgnoreCase(mode)) {
             log.warn("event=lgpd_retention_mode_not_apply status=OPERATIONAL_DECISION " +
                     "mode={} note=DRY_RUN is valid operational state for gradual rollout", mode);
+            log.info("event=lgpd_retention_production_validated status=DRY_RUN enabled={} mode={}", enabled, mode);
+            return;
         }
 
         if (!applyConfirmed) {
@@ -71,18 +102,59 @@ public class LgpdProductionReadinessValidator {
             }
         }
 
+        validateApplyCapableProcessors(retentionPolicyCatalog, retentionProcessors);
+
         log.info("event=lgpd_retention_production_validated status=OK " +
                 "enabled={} mode={} applyConfirmed={} allowApply={}",
                 enabled, mode, applyConfirmed, allowApply);
     }
 
-    private void validateBiometricConfiguration(Environment environment) {
+    private void validateApplyCapableProcessors(
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            List<RetentionDomainProcessor> retentionProcessors
+    ) {
+        if (retentionPolicyCatalog == null || retentionProcessors == null || retentionProcessors.isEmpty()) {
+            log.warn("event=lgpd_retention_processor_validation_skipped reason=processor_context_unavailable");
+            return;
+        }
+
+        for (var policy : retentionPolicyCatalog.getActivePolicies()) {
+            var processor = retentionProcessors.stream()
+                    .filter(candidate -> candidate.supports() == policy.resourceType())
+                    .findFirst();
+
+            if (processor.isEmpty()) {
+                throw new IllegalStateException(
+                        "LGPD retention APPLY is enabled but no processor exists for " + policy.resourceType()
+                );
+            }
+
+            if (!processor.get().supportsApply()) {
+                throw new IllegalStateException(
+                        "LGPD retention APPLY is enabled but processor does not support APPLY for " + policy.resourceType()
+                );
+            }
+        }
+    }
+
+    private void validateBiometricConfiguration(
+            Environment environment,
+            LivenessVerificationProvider livenessVerificationProvider
+    ) {
         boolean livenessRequired = environment.getProperty("biometric.liveness-required", Boolean.class, false);
 
         if (!livenessRequired) {
             log.warn("event=lgpd_biometric_liveness_disabled status=ACCEPTED_BY_PRODUCT_DECISION " +
-                    "action=liveness_check_skipped note=BasicImageLivenessProvider active as fallback");
+                    "action=liveness_check_skipped");
             return;
+        }
+
+        if (livenessVerificationProvider == null
+                || livenessVerificationProvider instanceof BasicImageLivenessVerificationProvider
+                || livenessVerificationProvider instanceof DisabledLivenessVerificationProvider) {
+            String message = "BIOMETRIC_LIVENESS_REQUIRED=true requires a real production liveness provider.";
+            logCriticalError(message);
+            throw new IllegalStateException(message);
         }
 
         log.info("event=lgpd_biometric_production_validated status=OK livenessRequired=true");

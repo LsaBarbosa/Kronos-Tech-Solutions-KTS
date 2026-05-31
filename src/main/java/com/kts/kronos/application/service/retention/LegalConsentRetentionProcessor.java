@@ -24,6 +24,11 @@ public class LegalConsentRetentionProcessor implements RetentionDomainProcessor 
     }
 
     @Override
+    public boolean supportsApply() {
+        return true;
+    }
+
+    @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
         var cutoff = Instant.now().minus(java.time.Duration.ofDays(policy.retentionDays()));

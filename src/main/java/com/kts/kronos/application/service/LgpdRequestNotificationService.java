@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.persistence.entity.LgpdRequestNotificationEnti
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.NotificationProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.enuns.LgpdNotificationType;
 import com.kts.kronos.domain.model.enuns.NotificationChannel;
@@ -31,6 +32,7 @@ public class LgpdRequestNotificationService {
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
     private final NotificationProvider notificationProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Async
     public void notifyRequestCreated(LgpdRequest request) {
@@ -79,7 +81,8 @@ public class LgpdRequestNotificationService {
         try {
             var assignedUser = userProvider.findById(assignedToUserId).orElse(null);
             if (assignedUser == null) {
-                log.warn("event=lgpd_notification_skipped reason=assigned_user_not_found userId={}", assignedToUserId);
+                log.warn("event=lgpd_notification_skipped reason=assigned_user_not_found userRef={}",
+                        privacyLogReferenceService.userRef(assignedToUserId));
                 return;
             }
 

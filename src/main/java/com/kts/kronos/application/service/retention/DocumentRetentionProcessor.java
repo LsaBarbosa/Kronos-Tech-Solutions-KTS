@@ -2,6 +2,7 @@ package com.kts.kronos.application.service.retention;
 
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.RetentionResourceType;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class DocumentRetentionProcessor implements RetentionDomainProcessor {
     private final DocumentRepository documentRepository;
     private final BucketStorageProvider bucketStorageProvider;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
 
     @Override
     public RetentionResourceType supports() {
@@ -90,10 +92,10 @@ public class DocumentRetentionProcessor implements RetentionDomainProcessor {
                 s3Deleted++;
             } catch (Exception e) {
                 log.error(
-                        "event=document_s3_deletion_error documentId={} storagePath={} error={}",
+                        "event=document_s3_deletion_error documentId={} storageRef={} exceptionType={}",
                         doc.getDocumentId(),
-                        doc.getStoragePath(),
-                        e.getMessage()
+                        privacyLogReferenceService.storageRef(doc.getStoragePath()),
+                        e.getClass().getSimpleName()
                 );
                 s3Errors++;
             }

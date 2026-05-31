@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service.anonymization;
 
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.adapter.out.persistence.DocumentRepository;
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
@@ -27,6 +28,10 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class DocumentAnonymizerTest {
+
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Mock
     private DocumentRepository documentRepository;
