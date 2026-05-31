@@ -44,6 +44,8 @@ class LgpdProductionReadinessValidatorTest {
     void shouldNotFailWhenLivenessRequiredFalseInProd() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
@@ -152,6 +154,8 @@ class LgpdProductionReadinessValidatorTest {
     void shouldNotThrowWhenConfigurationInvalidButWarningFlagEnabled() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(false);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
@@ -176,6 +180,8 @@ class LgpdProductionReadinessValidatorTest {
     void shouldAcceptBiometricLivenessDisabledInProd() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
@@ -224,6 +230,8 @@ class LgpdProductionReadinessValidatorTest {
     void shouldAcceptBiometricLivenessEnabledWithRealProviderInProd() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
@@ -293,6 +301,8 @@ class LgpdProductionReadinessValidatorTest {
     void shouldAcceptDryRunModeInProduction() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
