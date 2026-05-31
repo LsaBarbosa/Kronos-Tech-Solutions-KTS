@@ -51,6 +51,9 @@ class RetentionPolicyExecutorTest {
         List<RetentionDomainProcessor> processors = new ArrayList<>();
         processors.add(mockProcessor);
         executor = new RetentionPolicyExecutor(processors, executionLogProvider, auditService, objectMapper);
+        // Mock default processor behavior with lenient to avoid unnecessary stubbings errors
+        lenient().when(mockProcessor.supportsApply()).thenReturn(true);
+        lenient().when(mockProcessor.supportsDryRun()).thenReturn(true);
     }
 
     @Test

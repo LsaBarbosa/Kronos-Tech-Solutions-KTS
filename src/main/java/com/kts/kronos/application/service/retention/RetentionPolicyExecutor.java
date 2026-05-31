@@ -79,6 +79,25 @@ public class RetentionPolicyExecutor {
             return errorResult;
         }
 
+        if ("APPLY".equals(executionMode) && !processor.get().supportsApply()) {
+            log.warn(
+                    "event=retention_apply_blocked policyCode={} resourceType={} reason=processor_does_not_support_apply",
+                    policy.policyCode(),
+                    policy.resourceType()
+            );
+            var blockedResult = com.kts.kronos.domain.model.RetentionExecutionResult.blocked(
+                    executionId,
+                    policy.policyCode(),
+                    com.kts.kronos.domain.model.enuns.RetentionResourceType.valueOf(policy.resourceType()),
+                    executionMode,
+                    "Processor does not support APPLY execution for " + policy.resourceType()
+            );
+            var executionLog = RetentionExecutionLog.fromResult(blockedResult);
+            executionLogProvider.save(executionLog);
+            auditRetentionBlocked(executionId, policy.policyCode(), policy.resourceType());
+            return blockedResult;
+        }
+
         log.info(
                 "event=retention_execution_start policyCode={} resourceType={} executionMode={}",
                 policy.policyCode(),
