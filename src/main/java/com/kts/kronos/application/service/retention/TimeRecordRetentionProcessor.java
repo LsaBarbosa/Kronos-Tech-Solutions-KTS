@@ -24,6 +24,21 @@ public class TimeRecordRetentionProcessor implements RetentionDomainProcessor {
     }
 
     @Override
+    public boolean supportsApply() {
+        return false;
+    }
+
+    @Override
+    public boolean isDestructive() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsDryRun() {
+        return true;
+    }
+
+    @Override
     public RetentionExecutionResult execute(RetentionPolicy policy, String executionMode) {
         var executionId = UUID.randomUUID();
         var cutoff = LocalDateTime.now(ZoneId.of("UTC")).minusDays(policy.retentionDays());
@@ -71,7 +86,7 @@ public class TimeRecordRetentionProcessor implements RetentionDomainProcessor {
 
     private RetentionExecutionResult executeApply(UUID executionId, RetentionPolicy policy, LocalDateTime cutoff) {
         log.warn(
-                "event=time_record_retention_not_implemented policyCode={} reason=full-processor-pending",
+                "event=time_record_retention_legal_preservation policyCode={} reason=legal-preservation-only",
                 policy.policyCode()
         );
         return RetentionExecutionResult.blocked(
@@ -79,8 +94,8 @@ public class TimeRecordRetentionProcessor implements RetentionDomainProcessor {
                 policy.policyCode(),
                 RetentionResourceType.TIME_RECORD,
                 "APPLY",
-                "TIME_RECORD retention processor not fully implemented - apply blocked pending implementation. " +
-                "Dry-run is available to preview retention scope."
+                "TIME_RECORD retention is legal-preservation only. Destructive APPLY is not supported. " +
+                "Records are preserved per labor law requirements."
         );
     }
 }

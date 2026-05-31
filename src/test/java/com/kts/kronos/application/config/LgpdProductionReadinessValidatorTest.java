@@ -276,6 +276,7 @@ class LgpdProductionReadinessValidatorTest {
                         true,
                         true,
                         true,
+                        false,
                         false
                 ));
             }
@@ -308,6 +309,97 @@ class LgpdProductionReadinessValidatorTest {
         ApplicationRunner runner = validator.validateLgpdProduction(environment);
 
         // Act & Assert - DRY_RUN should not fail
+        assertDoesNotThrow(() -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldThrowWhenLgpdLogHashSecretMissingInProd")
+    void shouldThrowWhenLgpdLogHashSecretMissingInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", "")).thenReturn("");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(false);
+
+        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldThrowWhenLgpdLogHashSecretIsDefaultValueInProd")
+    void shouldThrowWhenLgpdLogHashSecretIsDefaultValueInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("local-dev-lgpd-log-secret");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(false);
+
+        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldAcceptValidLgpdLogHashSecretInProd")
+    void shouldAcceptValidLgpdLogHashSecretInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-production-hash-secret-key-12345");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(false);
+
+        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+
+        // Act & Assert - should not throw
+        assertDoesNotThrow(() -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldAcceptFallbackLgpdLogHashSecretInDev")
+    void shouldAcceptFallbackLgpdLogHashSecretInDev() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"dev"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("local-dev-lgpd-log-secret");
+
+        ApplicationRunner runner = validator.validateLgpdProduction(environment);
+
+        // Act & Assert - dev should skip validation
         assertDoesNotThrow(() -> runner.run(applicationArguments));
     }
 }
