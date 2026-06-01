@@ -553,14 +553,22 @@ class LgpdControllerWebMvcTest {
         when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/lgpd/admin/requests")
-                        .queryParam("type", "ACCESS"))
+                        .queryParam("type", "ACCESS")
+                        .queryParam("status", "IN_ANALYSIS"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].type").value("ACCESS"));
+
+        verify(lgpdUseCase).listAdminRequests(
+                eq(LgpdRequestType.ACCESS),
+                eq(LgpdRequestStatus.IN_ANALYSIS),
+                any(),
+                any()
+        );
     }
 
     @Test
-    @WithMockUser(roles = "EMPLOYEE")
-    void shouldForbidEmployeeFromListingAdminRequests() throws Exception {
+    @WithMockUser(roles = "PARTNER")
+    void shouldForbidPartnerFromListingAdminRequests() throws Exception {
         mockMvc.perform(get("/lgpd/admin/requests"))
                 .andExpect(status().isForbidden());
     }

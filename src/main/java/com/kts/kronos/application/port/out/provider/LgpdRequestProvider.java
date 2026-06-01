@@ -1,6 +1,8 @@
 package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.LgpdRequest;
+import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
+import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -22,4 +24,11 @@ public interface LgpdRequestProvider {
     Page<LgpdRequest> findByCompanyId(UUID companyId, Pageable pageable);
 
     Page<LgpdRequest> findAll(Pageable pageable);
+
+    Page<LgpdRequest> findAdminRequests(
+            UUID companyId,
+            LgpdRequestType type,
+            LgpdRequestStatus status,
+            Pageable pageable
+    );
 }

@@ -24,20 +24,34 @@ public record LgpdRequestAdminListResponse(
 ) {
     public static LgpdRequestAdminListResponse fromDomain(
             LgpdRequest request,
-            Employee employee,
-            Company company,
+            Optional<Employee> employee,
+            Optional<Company> company,
             Optional<User> assignedTo
     ) {
         return new LgpdRequestAdminListResponse(
                 request.requestId(),
-                employee.fullName(),
-                company.name(),
+                employee.map(Employee::fullName).orElse("Colaborador não encontrado"),
+                company.map(Company::name).orElse("Empresa não encontrada"),
                 request.requestType(),
                 request.status(),
                 request.createdAt(),
                 assignedTo.map(User::username).orElse(null),
                 request.updatedAt(),
                 false // será calculado em Sprint 5 com SLA
+        );
+    }
+
+    public static LgpdRequestAdminListResponse fromDomain(
+            LgpdRequest request,
+            Employee employee,
+            Company company,
+            Optional<User> assignedTo
+    ) {
+        return fromDomain(
+                request,
+                Optional.ofNullable(employee),
+                Optional.ofNullable(company),
+                assignedTo
         );
     }
 }
