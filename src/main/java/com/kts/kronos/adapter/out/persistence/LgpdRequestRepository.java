@@ -1,6 +1,8 @@
 package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.LgpdRequestEntity;
+import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
+import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,6 +24,20 @@ public interface LgpdRequestRepository extends JpaRepository<LgpdRequestEntity, 
     Page<LgpdRequestEntity> findByCompanyIdOrderByCreatedAtDesc(UUID companyId, Pageable pageable);
 
     Page<LgpdRequestEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    @Query("""
+            SELECT r FROM LgpdRequestEntity r
+             WHERE (:companyId IS NULL OR r.companyId = :companyId)
+               AND (:type IS NULL OR r.requestType = :type)
+               AND (:status IS NULL OR r.status = :status)
+             ORDER BY r.createdAt DESC
+            """)
+    Page<LgpdRequestEntity> findAdminRequests(
+            @Param("companyId") UUID companyId,
+            @Param("type") LgpdRequestType type,
+            @Param("status") LgpdRequestStatus status,
+            Pageable pageable
+    );
 
     @Query("SELECT COUNT(r) FROM LgpdRequestEntity r WHERE r.createdAt < :cutoff")
     long countCreatedBefore(@Param("cutoff") Instant cutoff);
