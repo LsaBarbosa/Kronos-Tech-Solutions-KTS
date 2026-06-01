@@ -22,13 +22,13 @@ public interface EmployeeUseCase {
     void markMessagesAsSeen();
     void toggleActivate(UUID employeeId);
 
+    void enrollBiometricByManager(UUID employeeId, RegisterFaceRequest req);
+
     // PARTNER
     boolean cpfExists(String cpf);
 
     EmployeeProfile getOwnProfile();
 
     void updateOwnProfile(UpdateEmployeePartnerRequest req);
-
-    void enrollBiometricSelf(RegisterFaceRequest req);
 
 }

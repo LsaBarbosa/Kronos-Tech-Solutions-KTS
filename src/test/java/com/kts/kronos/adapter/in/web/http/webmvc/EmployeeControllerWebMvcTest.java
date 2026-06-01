@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -357,6 +359,46 @@ class EmployeeControllerWebMvcTest {
         mockMvc.perform(get("/employee/check-cpf").param("cpf", "52998224725"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("enrollBiometricByManager: endpoint removido /me/biometric-enrollment retorna 404")
+    void shouldReturn404ForRemovedSelfEnrollmentEndpoint() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        String validBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+        mockMvc.perform(post("/employee/me/biometric-enrollment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "faceImageBase64": "%s",
+                                  "employeeId": "%s",
+                                  "livenessPassed": true
+                                }
+                                """.formatted(validBase64, employeeId)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("enrollBiometricByManager: manager pode cadastrar biometria de colaborador")
+    @WithMockUser(roles = "MANAGER")
+    void shouldEnrollBiometricByManager() throws Exception {
+        UUID targetEmployeeId = UUID.randomUUID();
+        String validBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+        mockMvc.perform(post("/employee/manager/{employeeId}/biometric-enrollment", targetEmployeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "faceImageBase64": "%s",
+                                  "employeeId": "%s",
+                                  "livenessPassed": true
+                                }
+                                """.formatted(validBase64, targetEmployeeId)))
+                .andExpect(status().isNoContent());
+
+        verify(useCase).enrollBiometricByManager(eq(targetEmployeeId), any());
+    }
+
 
     @Test
     @DisplayName("allEmployees: não deve expor salary, email, phone, address em listagem (SPEC-002)")
