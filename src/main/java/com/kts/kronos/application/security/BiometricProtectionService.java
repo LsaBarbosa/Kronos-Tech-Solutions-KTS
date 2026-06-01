@@ -6,8 +6,8 @@ import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BiometricProtectionService {
 
     private static final String PAYLOAD_TOO_LARGE = "Imagem biométrica excede o tamanho máximo permitido.";
@@ -32,9 +31,21 @@ public class BiometricProtectionService {
 
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
-    private final LivenessVerificationProvider livenessVerificationProvider;
+    private final ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
+
+    public BiometricProtectionService(
+            HttpServletRequest request,
+            ClientIpResolver clientIpResolver,
+            ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider,
+            PrivacyLogReferenceService privacyLogReferenceService
+    ) {
+        this.request = request;
+        this.clientIpResolver = clientIpResolver;
+        this.livenessVerificationProvider = livenessVerificationProvider;
+        this.privacyLogReferenceService = privacyLogReferenceService;
+    }
 
     @Value("${app.biometric.max-base64-chars:${biometric.max-base64-chars:1500000}}")
     private int maxBase64Chars;
@@ -105,10 +116,21 @@ public class BiometricProtectionService {
 
     private void ensureServerSideLiveness(String faceImageBase64, LivenessOperation operation, UUID employeeId) {
         if (!livenessRequired) {
+            log.debug("event=biometric_liveness_skipped reason=disabled_by_product_decision operation={}", operation);
             return;
         }
 
-        var result = livenessVerificationProvider.verify(faceImageBase64, operation, employeeId);
+        LivenessVerificationProvider provider = livenessVerificationProvider.getIfAvailable();
+
+        if (provider == null) {
+            log.error("event=biometric_liveness_provider_missing operation={} employeeRef={}",
+                    operation, privacyLogReferenceService.employeeRef(employeeId));
+            throw new IllegalStateException(
+                    "BIOMETRIC_LIVENESS_REQUIRED=true requires a configured LivenessVerificationProvider"
+            );
+        }
+
+        var result = provider.verify(faceImageBase64, operation, employeeId);
 
         if (!result.passed()) {
             log.warn("event=biometric_liveness_failed operation={} employeeRef={} reason={}",

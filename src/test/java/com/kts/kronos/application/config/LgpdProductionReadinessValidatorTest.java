@@ -2,6 +2,9 @@ package com.kts.kronos.application.config;
 
 import com.kts.kronos.application.legal.RetentionPolicyCatalog;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.security.BasicImageLivenessVerificationProvider;
+import com.kts.kronos.application.security.DisabledLivenessVerificationProvider;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.application.service.retention.RetentionDomainProcessor;
 import com.kts.kronos.domain.model.LivenessVerificationResult;
 import com.kts.kronos.domain.model.RetentionPolicyCatalogEntry;
@@ -19,6 +22,7 @@ import org.springframework.core.env.Environment;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -99,6 +103,69 @@ class LgpdProductionReadinessValidatorTest {
 
         // Act & Assert
         assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldRejectBiometricLivenessEnabledWithBasicProviderInProd")
+    void shouldRejectBiometricLivenessEnabledWithBasicProviderInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(true);
+
+        var fakeProvider = new BasicImageLivenessVerificationProvider(
+                new PrivacyLogReferenceService("test-log-secret")
+        );
+        ApplicationRunner runner = validator.buildRunner(environment, null, List.of(), fakeProvider);
+
+        // Act & Assert
+        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+    }
+
+    @Test
+    @DisplayName("shouldRejectBiometricLivenessEnabledWithDisabledProviderInProd")
+    void shouldRejectBiometricLivenessEnabledWithDisabledProviderInProd() throws Exception {
+        // Arrange
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
+                .thenReturn("DRY_RUN");
+        when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
+                .thenReturn(true);
+        when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
+                .thenReturn("false");
+        when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
+                .thenReturn(true);
+
+        var disabledProvider = new DisabledLivenessVerificationProvider(
+                new PrivacyLogReferenceService("test-log-secret")
+        );
+        ApplicationRunner runner = validator.buildRunner(environment, null, List.of(), disabledProvider);
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> runner.run(applicationArguments));
+        assertEquals(
+                "BIOMETRIC_LIVENESS_REQUIRED=true requires a real production liveness provider.",
+                exception.getMessage()
+        );
     }
 
     @Test
@@ -206,14 +273,16 @@ class LgpdProductionReadinessValidatorTest {
     void shouldRejectBiometricLivenessEnabledWithoutRealProviderInProd() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
                 .thenReturn("DRY_RUN");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
-                .thenReturn(false);
+                .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
-                .thenReturn(false);
+                .thenReturn(true);
         when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
                 .thenReturn("false");
         when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
@@ -222,7 +291,12 @@ class LgpdProductionReadinessValidatorTest {
         ApplicationRunner runner = validator.validateLgpdProduction(environment);
 
         // Act & Assert
-        assertThrows(IllegalStateException.class, () -> runner.run(applicationArguments));
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> runner.run(applicationArguments));
+        assertEquals(
+                "BIOMETRIC_LIVENESS_REQUIRED=true requires a real production liveness provider.",
+                exception.getMessage()
+        );
     }
 
     @Test

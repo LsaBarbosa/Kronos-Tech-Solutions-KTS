@@ -26,11 +26,17 @@
 
 ## 2. Biometria — BIOMETRIC_LIVENESS_REQUIRED
 
-- [ ] `BIOMETRIC_LIVENESS_REQUIRED=false` está preservado (decisão oficial de produto)
-- [ ] `BasicImageLivenessVerificationProvider` não é permitido em produção
-- [ ] Startup valida provider de liveness se `BIOMETRIC_LIVENESS_REQUIRED=true`
-- [ ] Front-end respeita `VITE_BIOMETRIC_LIVENESS_REQUIRED=false`
-- [ ] Enrollment e login funcionam sem liveness obrigatória
+- [x] `BIOMETRIC_LIVENESS_REQUIRED=false` está preservado (decisão oficial de produto)
+- [x] Liveness desabilitado não é tratado como falha de readiness ou bloqueador LGPD
+- [x] `BasicImageLivenessVerificationProvider` continua proibido em produção
+- [x] Se `BIOMETRIC_LIVENESS_REQUIRED=true` no futuro, provider real será obrigatório
+- [x] Back-end ignora `livenessPassed` recebido do front-end quando desabilitado
+- [x] Front-end respeita `VITE_BIOMETRIC_LIVENESS_REQUIRED=false` e não bloqueia fluxos biométricos
+- [x] Enrollment, login facial e check-in funcionam sem liveness obrigatória
+- [x] Consentimento biométrico continua obrigatório
+- [x] Revogação biométrica continua bloqueando uso posterior
+- [x] Rate limit continua protegendo operações biométricas
+- [x] Validação de payload (tamanho, formato base64) continua ativa
 
 ---
 
