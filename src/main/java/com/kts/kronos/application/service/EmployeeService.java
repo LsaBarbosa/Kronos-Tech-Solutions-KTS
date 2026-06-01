@@ -15,7 +15,9 @@ import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.service.AuditService;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
@@ -49,6 +51,7 @@ public class EmployeeService implements EmployeeUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
     private final LegalConsentProvider legalConsentProvider;
+    private final AuditService auditService;
 
     // MANAGER
     @Override
@@ -276,19 +279,41 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     @Override
-    public void enrollBiometricSelf(RegisterFaceRequest req) {
-        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+    public void enrollBiometricByManager(UUID employeeId, RegisterFaceRequest req) {
         var employee = getEmployee(employeeId);
 
-        if (!legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)) {
-            throw new ConflictException("Consentimento biométrico não foi aceito. Acesse o Centro de Privacidade para aceitar o termo.");
+        var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(employeeId);
+        if (!consentStatus.accepted()) {
+            throw new ConflictException("O colaborador ainda não aceitou o termo biométrico vigente.");
         }
 
-        biometricProtectionService.protectEnrollment(employeeId, req.faceImageBase64(), req.livenessPassed());
+        boolean isReplacement = employee.faceS3ObjectKey() != null
+                && !employee.faceS3ObjectKey().isBlank();
 
-        var s3Key = handleFaceRegistration(employeeId, employee.faceS3ObjectKey(), req.faceImageBase64());
+        biometricProtectionService.protectEnrollment(
+                employeeId, req.faceImageBase64(), req.livenessPassed());
+
+        var s3Key = handleFaceRegistration(
+                employeeId, employee.faceS3ObjectKey(), req.faceImageBase64());
+
         var updatedEmployee = employee.withFaceS3ObjectKey(s3Key);
         employeeProvider.save(updatedEmployee);
+
+        var action = isReplacement
+                ? AuditAction.BIOMETRIC_ENROLLMENT_REPLACED_BY_MANAGER
+                : AuditAction.BIOMETRIC_ENROLLMENT_BY_MANAGER;
+
+        auditService.register(
+                action,
+                jwtAuthenticatedUser.getuserId(),
+                employeeId,
+                employee.companyId(),
+                "BIOMETRIC",
+                employeeId.toString(),
+                "HIGH",
+                null, null,
+                "Biometria cadastrada/substituída por gestor. Target: " + employeeId
+        );
 
         kronosMetrics.employeeCreated();
     }

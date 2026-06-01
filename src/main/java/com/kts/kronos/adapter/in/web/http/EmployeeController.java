@@ -88,10 +88,12 @@ public class EmployeeController {
         return ResponseEntity.noContent().build();
     }
 
-    @PreAuthorize(ANY_EMPLOYEE)
-    @PostMapping("/me/biometric-enrollment")
-    public ResponseEntity<Void> enrollBiometricSelf(@Valid @RequestBody RegisterFaceRequest dto) {
-        useCase.enrollBiometricSelf(dto);
+    @PreAuthorize(MANAGER)
+    @PostMapping("/manager/{employeeId}/biometric-enrollment")
+    public ResponseEntity<Void> enrollBiometricByManager(
+            @PathVariable UUID employeeId,
+            @Valid @RequestBody RegisterFaceRequest dto) {
+        useCase.enrollBiometricByManager(employeeId, dto);
         return ResponseEntity.noContent().build();
     }
 
