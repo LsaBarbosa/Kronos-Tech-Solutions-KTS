@@ -194,7 +194,9 @@ grep -R "localStorage.getItem.*token" src || true
 - [x] `TIME_RECORD` não é automaticamente deletado
 - [x] `EMPLOYEE_CONTRACT` não é automaticamente deletado
 - [x] `BasicImageLivenessVerificationProvider` restringido fora de prod
-- [x] `BIOMETRIC_LIVENESS_REQUIRED=false` preservado
+- [x] `BIOMETRIC_LIVENESS_REQUIRED=false` preservado como decisão oficial
+- [x] Liveness desabilitado não é tratado como falha de readiness ou bloqueador LGPD
+- [x] Biometria continua protegida por consentimento, revogação e rate limit
 - [x] Endpoints `/lgpd/**` protegidos
 - [x] Documentação de política de auditoria criada
 

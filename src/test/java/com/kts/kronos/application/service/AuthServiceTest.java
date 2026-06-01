@@ -123,6 +123,30 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("login: não retorna erro interno quando status biométrico exige novo aceite")
+    void shouldLoginWhenLegacyBiometricConsentStatusRequiresNewAcceptance() {
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
+        BiometricConsentStatus legacyConsentStatus = new BiometricConsentStatus(
+                false,
+                "2026.05.21",
+                null,
+                "2026.05.21",
+                "current-hash",
+                true
+        );
+        when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
+        when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(legacyConsentStatus);
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L))
+                .thenReturn("jwt");
+
+        assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
+
+        verify(jwtUtils).generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L);
+    }
+
+    @Test
     @DisplayName("login: deve falhar quando usuario autenticado nao existir")
     void shouldFailLoginWhenUserIsMissing() {
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.empty());

@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
@@ -262,8 +263,15 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         }
 
         var consent = activeConsent.get();
-        boolean accepted = consent.version().equals(currentTerm.version())
-                && consent.contentHashSha256().equals(currentTerm.contentHashSha256());
+        boolean hasConsentHash = consent.contentHashSha256() != null
+                && !consent.contentHashSha256().isBlank();
+        boolean hasCurrentHash = currentTerm.contentHashSha256() != null
+                && !currentTerm.contentHashSha256().isBlank();
+
+        boolean accepted = hasConsentHash
+                && hasCurrentHash
+                && Objects.equals(consent.version(), currentTerm.version())
+                && Objects.equals(consent.contentHashSha256(), currentTerm.contentHashSha256());
 
         return new BiometricConsentStatus(
                 accepted,
@@ -285,8 +293,13 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     }
 
     private void validateCurrentBiometricTerm(LegalText currentBiometricTerm, String version, String contentHashSha256) {
-        if (!currentBiometricTerm.version().equals(version)
-                || !currentBiometricTerm.contentHashSha256().equals(contentHashSha256)) {
+        if (currentBiometricTerm.contentHashSha256() == null
+                || currentBiometricTerm.contentHashSha256().isBlank()) {
+            throw new IllegalStateException("Current biometric term content hash is not configured");
+        }
+
+        if (!Objects.equals(currentBiometricTerm.version(), version)
+                || !Objects.equals(currentBiometricTerm.contentHashSha256(), contentHashSha256)) {
             throw new com.kts.kronos.application.exceptions.BadRequestException(INVALID_BIOMETRIC_TERM_VERSION_OR_HASH);
         }
     }
