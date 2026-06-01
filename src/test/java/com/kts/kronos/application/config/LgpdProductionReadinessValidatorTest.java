@@ -206,14 +206,16 @@ class LgpdProductionReadinessValidatorTest {
     void shouldRejectBiometricLivenessEnabledWithoutRealProviderInProd() throws Exception {
         // Arrange
         when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("kronos.lgpd.log.hash-secret", ""))
+                .thenReturn("real-prod-secret");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.enabled", Boolean.class, false))
                 .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.scheduler.mode", "DRY_RUN"))
                 .thenReturn("DRY_RUN");
         when(environment.getProperty("kronos.lgpd.retention.scheduler.apply-confirmed", Boolean.class, false))
-                .thenReturn(false);
+                .thenReturn(true);
         when(environment.getProperty("kronos.lgpd.retention.allow-apply", Boolean.class, false))
-                .thenReturn(false);
+                .thenReturn(true);
         when(environment.getProperty("LGPD_PRODUCTION_READINESS_ALLOW_START_WITH_WARNINGS", "false"))
                 .thenReturn("false");
         when(environment.getProperty("biometric.liveness-required", Boolean.class, false))
