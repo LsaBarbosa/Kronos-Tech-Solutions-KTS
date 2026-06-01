@@ -7,8 +7,8 @@ import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -31,15 +31,14 @@ public class BiometricProtectionService {
 
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
-    @Nullable
-    private final LivenessVerificationProvider livenessVerificationProvider;
+    private final ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
 
     public BiometricProtectionService(
             HttpServletRequest request,
             ClientIpResolver clientIpResolver,
-            @Nullable LivenessVerificationProvider livenessVerificationProvider,
+            ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider,
             PrivacyLogReferenceService privacyLogReferenceService
     ) {
         this.request = request;
@@ -121,13 +120,17 @@ public class BiometricProtectionService {
             return;
         }
 
-        if (livenessVerificationProvider == null) {
+        LivenessVerificationProvider provider = livenessVerificationProvider.getIfAvailable();
+
+        if (provider == null) {
             log.error("event=biometric_liveness_provider_missing operation={} employeeRef={}",
                     operation, privacyLogReferenceService.employeeRef(employeeId));
-            throw new ForbiddenException(LIVENESS_REQUIRED);
+            throw new IllegalStateException(
+                    "BIOMETRIC_LIVENESS_REQUIRED=true requires a configured LivenessVerificationProvider"
+            );
         }
 
-        var result = livenessVerificationProvider.verify(faceImageBase64, operation, employeeId);
+        var result = provider.verify(faceImageBase64, operation, employeeId);
 
         if (!result.passed()) {
             log.warn("event=biometric_liveness_failed operation={} employeeRef={} reason={}",
