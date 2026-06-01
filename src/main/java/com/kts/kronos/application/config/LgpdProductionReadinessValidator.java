@@ -10,6 +10,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.lang.Nullable;
 
 import java.util.List;
 
@@ -24,6 +25,7 @@ public class LgpdProductionReadinessValidator {
             Environment environment,
             RetentionPolicyCatalog retentionPolicyCatalog,
             List<RetentionDomainProcessor> retentionProcessors,
+            @Nullable
             LivenessVerificationProvider livenessVerificationProvider
     ) {
         return buildRunner(environment, retentionPolicyCatalog, retentionProcessors, livenessVerificationProvider);
@@ -37,6 +39,7 @@ public class LgpdProductionReadinessValidator {
             Environment environment,
             RetentionPolicyCatalog retentionPolicyCatalog,
             List<RetentionDomainProcessor> retentionProcessors,
+            @Nullable
             LivenessVerificationProvider livenessVerificationProvider
     ) {
         return args -> {
@@ -157,6 +160,7 @@ public class LgpdProductionReadinessValidator {
 
     private void validateBiometricConfiguration(
             Environment environment,
+            @Nullable
             LivenessVerificationProvider livenessVerificationProvider
     ) {
         boolean livenessRequired = environment.getProperty("biometric.liveness-required", Boolean.class, false);
