@@ -27,6 +27,8 @@ import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import com.kts.kronos.domain.model.enuns.ConsentType;
+import com.kts.kronos.domain.model.BiometricConsentStatus;
+import com.kts.kronos.domain.model.enuns.AuditAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -80,6 +82,8 @@ class EmployeeServiceTest {
     private com.kts.kronos.observability.application.KronosMetrics kronosMetrics;
     @Mock
     private com.kts.kronos.application.port.out.provider.LegalConsentProvider legalConsentProvider;
+    @Mock
+    private AuditService auditService;
 
     private UUID loggedEmployeeId;
     private UUID companyId;
@@ -918,14 +922,16 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("LGPD-S01-03: enrollBiometricSelf rejeita quando livenessPassed é false")
-    void shouldRejectBiometricEnrollmentWithoutLiveness() {
-        UUID employeeId = UUID.randomUUID();
+    @DisplayName("LGPD-S01-03: enrollBiometricByManager rejeita quando livenessPassed é false")
+    void shouldRejectManagerBiometricEnrollmentWithoutLiveness() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
 
-        var employee = new Employee(
-                employeeId, "John Doe", "12345678901", "1234567890",
+        var manager = buildEmployee(managerId, companyId);
+        var targetEmployee = new Employee(
+                targetEmployeeId, "John Doe", "12345678901", "1234567890",
                 "Dev", "john@kts.com", 1000.0, "21999999999", true,
                 null, companyId, null, false,
                 null, LocalTime.of(8, 0), LocalTime.of(17, 0),
@@ -933,29 +939,32 @@ class EmployeeServiceTest {
                 null, null, null, null, null
         );
 
-        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, employeeId, false);
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, targetEmployeeId, false);
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(true);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(acceptTermsUseCase.getBiometricConsentStatus(targetEmployeeId))
+                .thenReturn(new BiometricConsentStatus(true, "v1", "hash1", "v1", "hash1", false));
         doThrow(new ForbiddenException("Validação de liveness obrigatória para esta operação."))
                 .when(biometricProtectionService)
-                .protectEnrollment(employeeId, validBase64, false);
+                .protectEnrollment(targetEmployeeId, validBase64, false);
 
-        assertThrows(ForbiddenException.class, () -> service.enrollBiometricSelf(request));
+        assertThrows(ForbiddenException.class, () -> service.enrollBiometricByManager(targetEmployeeId, request));
         verify(employeeProvider, never()).save(any());
     }
 
     @Test
-    @DisplayName("LGPD-S01-03: enrollBiometricSelf aceita quando livenessPassed é true")
-    void shouldAcceptBiometricEnrollmentWithLiveness() {
-        UUID employeeId = UUID.randomUUID();
+    @DisplayName("LGPD-S01-03: enrollBiometricByManager aceita quando livenessPassed é true")
+    void shouldAllowManagerToEnrollBiometricWithLiveness() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
 
-        var employee = new Employee(
-                employeeId, "John Doe", "12345678901", "1234567890",
+        var manager = buildEmployee(managerId, companyId);
+        var targetEmployee = new Employee(
+                targetEmployeeId, "John Doe", "12345678901", "1234567890",
                 "Dev", "john@kts.com", 1000.0, "21999999999", true,
                 null, companyId, null, false,
                 null, LocalTime.of(8, 0), LocalTime.of(17, 0),
@@ -963,23 +972,140 @@ class EmployeeServiceTest {
                 null, null, null, null, null
         );
 
-        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, employeeId, true);
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, targetEmployeeId, true);
 
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
-        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
-        when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
-                .thenReturn(true);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(acceptTermsUseCase.getBiometricConsentStatus(targetEmployeeId))
+                .thenReturn(new BiometricConsentStatus(true, "v1", "hash1", "v1", "hash1", false));
         when(faceStorageProvider.uploadFaceImage(any(), any(), anyString()))
                 .thenReturn("s3-key-123");
-        when(faceRecognitionProvider.indexFace("s3-key-123", employeeId))
+        when(faceRecognitionProvider.indexFace("s3-key-123", targetEmployeeId))
                 .thenReturn("face-id-123");
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
 
-        service.enrollBiometricSelf(request);
+        service.enrollBiometricByManager(targetEmployeeId, request);
 
-        verify(biometricProtectionService).protectEnrollment(employeeId, validBase64, true);
-        verify(faceStorageProvider).uploadFaceImage(eq(employeeId), any(), eq("image/jpeg"));
-        verify(faceRecognitionProvider).indexFace("s3-key-123", employeeId);
+        verify(biometricProtectionService).protectEnrollment(targetEmployeeId, validBase64, true);
+        verify(faceStorageProvider).uploadFaceImage(eq(targetEmployeeId), any(), eq("image/jpeg"));
+        verify(faceRecognitionProvider).indexFace("s3-key-123", targetEmployeeId);
         verify(employeeProvider).save(any(Employee.class));
+        verify(auditService).register(
+                eq(AuditAction.BIOMETRIC_ENROLLMENT_BY_MANAGER),
+                any(UUID.class),
+                eq(targetEmployeeId),
+                eq(companyId),
+                anyString(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                anyString()
+        );
         verify(kronosMetrics).employeeCreated();
+    }
+
+    @Test
+    @DisplayName("enrollBiometricByManager: rejeita quando colaborador não aceitou o termo")
+    void shouldRejectManagerEnrollmentWhenNoConsent() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
+
+        var manager = buildEmployee(managerId, companyId);
+        var targetEmployee = new Employee(
+                targetEmployeeId, "John Doe", "12345678901", "1234567890",
+                "Dev", "john@kts.com", 1000.0, "21999999999", true,
+                null, companyId, null, false,
+                null, LocalTime.of(8, 0), LocalTime.of(17, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0),
+                null, null, null, null, null
+        );
+
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, targetEmployeeId, true);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(acceptTermsUseCase.getBiometricConsentStatus(targetEmployeeId))
+                .thenReturn(new BiometricConsentStatus(false, null, null, "v1", "hash1", true));
+
+        assertThrows(ConflictException.class, () -> service.enrollBiometricByManager(targetEmployeeId, request));
+        verify(employeeProvider, never()).save(any());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("enrollBiometricByManager: rejeita manager de empresa diferente")
+    void shouldRejectManagerEnrollingFromDifferentCompany() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID companyId1 = UUID.randomUUID();
+        UUID companyId2 = UUID.randomUUID();
+        String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
+
+        var manager = buildEmployee(managerId, companyId1);
+        var targetEmployee = buildEmployee(targetEmployeeId, companyId2);
+
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, targetEmployeeId, true);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+
+        assertThrows(ResourceNotFoundException.class, () -> service.enrollBiometricByManager(targetEmployeeId, request));
+        verify(acceptTermsUseCase, never()).getBiometricConsentStatus(any());
+        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("enrollBiometricByManager: registra auditoria com REPLACED quando há biometria anterior")
+    void shouldRegisterAuditOnBiometricReplacement() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        String validBase64 = Base64.getEncoder().encodeToString("facedata".getBytes());
+
+        var manager = buildEmployee(managerId, companyId);
+        var targetEmployee = new Employee(
+                targetEmployeeId, "John Doe", "12345678901", "1234567890",
+                "Dev", "john@kts.com", 1000.0, "21999999999", true,
+                null, companyId, null, false,
+                "faces/old.jpg", LocalTime.of(8, 0), LocalTime.of(17, 0),
+                LocalTime.of(12, 0), LocalTime.of(13, 0),
+                null, null, null, null, null
+        );
+
+        RegisterFaceRequest request = new RegisterFaceRequest(validBase64, targetEmployeeId, true);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerId);
+        when(employeeProvider.findById(managerId)).thenReturn(Optional.of(manager));
+        when(employeeProvider.findById(targetEmployeeId)).thenReturn(Optional.of(targetEmployee));
+        when(acceptTermsUseCase.getBiometricConsentStatus(targetEmployeeId))
+                .thenReturn(new BiometricConsentStatus(true, "v1", "hash1", "v1", "hash1", false));
+        when(faceStorageProvider.uploadFaceImage(any(), any(), anyString()))
+                .thenReturn("s3-key-new");
+        when(faceRecognitionProvider.indexFace("s3-key-new", targetEmployeeId))
+                .thenReturn("face-id-new");
+        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+
+        service.enrollBiometricByManager(targetEmployeeId, request);
+
+        verify(auditService).register(
+                eq(AuditAction.BIOMETRIC_ENROLLMENT_REPLACED_BY_MANAGER),
+                any(UUID.class),
+                eq(targetEmployeeId),
+                eq(companyId),
+                anyString(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                anyString()
+        );
     }
 }
