@@ -162,8 +162,8 @@ public class LgpdProductionReadinessValidator {
         boolean livenessRequired = environment.getProperty("biometric.liveness-required", Boolean.class, false);
 
         if (!livenessRequired) {
-            log.warn("event=lgpd_biometric_liveness_disabled status=ACCEPTED_BY_PRODUCT_DECISION " +
-                    "action=liveness_check_skipped");
+            log.info("event=lgpd_biometric_liveness_context_disabled status=ACCEPTED_PRODUCT_DECISION " +
+                    "action=liveness_not_required");
             return;
         }
 
