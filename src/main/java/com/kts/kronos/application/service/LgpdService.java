@@ -732,14 +732,18 @@ public class LgpdService implements LgpdUseCase {
             Pageable pageable
     ) {
         UUID authorizedCompanyId = domainAuthorizationService.authorizeCompanyAccess(companyId);
+        Pageable effectivePageable = pageable == null ? Pageable.unpaged() : pageable;
 
-        Page<LgpdRequest> requests = authorizedCompanyId == null
-                ? lgpdRequestProvider.findAll(pageable)
-                : lgpdRequestProvider.findByCompanyId(authorizedCompanyId, pageable);
+        Page<LgpdRequest> requests = lgpdRequestProvider.findAdminRequests(
+                authorizedCompanyId,
+                type,
+                status,
+                effectivePageable
+        );
 
         Page<LgpdRequestAdminListResponse> result = requests.map(request -> {
-            Employee employee = employeeProvider.findById(request.employeeId()).orElse(null);
-            var company = companyProvider.findById(request.companyId()).orElse(null);
+            var employee = employeeProvider.findById(request.employeeId());
+            var company = companyProvider.findById(request.companyId());
             java.util.Optional<User> assignedTo = request.assignedToUserId() != null
                     ? userProvider.findById(request.assignedToUserId())
                     : java.util.Optional.empty();

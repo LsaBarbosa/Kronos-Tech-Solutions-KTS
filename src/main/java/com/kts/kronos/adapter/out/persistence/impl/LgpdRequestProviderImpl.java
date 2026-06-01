@@ -4,6 +4,8 @@ import com.kts.kronos.adapter.out.persistence.LgpdRequestRepository;
 import com.kts.kronos.adapter.out.persistence.mapper.LgpdRequestMapper;
 import com.kts.kronos.application.port.out.provider.LgpdRequestProvider;
 import com.kts.kronos.domain.model.LgpdRequest;
+import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
+import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +64,17 @@ public class LgpdRequestProviderImpl implements LgpdRequestProvider {
     @Override
     public Page<LgpdRequest> findAll(Pageable pageable) {
         return repository.findAllByOrderByCreatedAtDesc(pageable)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public Page<LgpdRequest> findAdminRequests(
+            UUID companyId,
+            LgpdRequestType type,
+            LgpdRequestStatus status,
+            Pageable pageable
+    ) {
+        return repository.findAdminRequests(companyId, type, status, pageable)
                 .map(mapper::toDomain);
     }
 }

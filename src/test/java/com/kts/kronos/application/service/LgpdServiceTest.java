@@ -601,7 +601,8 @@ class LgpdServiceTest {
 
         LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
 
-        when(lgpdRequestProvider.findAll(any())).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
+        when(lgpdRequestProvider.findAdminRequests(null, null, null, org.springframework.data.domain.Pageable.unpaged()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
 
@@ -610,6 +611,78 @@ class LgpdServiceTest {
         assertEquals(1, result.getContent().size());
         assertEquals("Lucas", result.getContent().get(0).employeeFullName());
         assertEquals("KTS", result.getContent().get(0).companyName());
+    }
+
+    @Test
+    void shouldApplyAdminRequestTypeStatusAndPaginationFilters() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+        Company company = new Company(companyId, "KTS", "12345678000199", "contato@kts.com", true,
+                new Address("Rua A", "100", "01001000", "São Paulo", "SP"),
+                new Location(-23.0, -46.0), 5, 1);
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        var pageable = org.springframework.data.domain.PageRequest.of(1, 20);
+
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(lgpdRequestProvider.findAdminRequests(
+                companyId,
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                pageable
+        )).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+
+        var result = service.listAdminRequests(
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                companyId,
+                pageable
+        );
+
+        assertEquals(1, result.getContent().size());
+        verify(lgpdRequestProvider).findAdminRequests(
+                companyId,
+                LgpdRequestType.ACCESS,
+                LgpdRequestStatus.OPEN,
+                pageable
+        );
+    }
+
+    @Test
+    void shouldScopeManagerAdminRequestsToAuthorizedCompany() {
+        UUID managerCompanyId = UUID.randomUUID();
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+
+        when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(managerCompanyId);
+        when(lgpdRequestProvider.findAdminRequests(managerCompanyId, null, null, pageable))
+                .thenReturn(org.springframework.data.domain.Page.empty(pageable));
+
+        var result = service.listAdminRequests(null, null, null, pageable);
+
+        assertTrue(result.isEmpty());
+        verify(lgpdRequestProvider).findAdminRequests(managerCompanyId, null, null, pageable);
+    }
+
+    @Test
+    void shouldNotBreakAdminRequestListWhenEmployeeOrCompanyIsMissing() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        var pageable = org.springframework.data.domain.Pageable.unpaged();
+
+        when(lgpdRequestProvider.findAdminRequests(null, null, null, pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        var result = service.listAdminRequests(null, null, null, pageable);
+
+        assertEquals(1, result.getContent().size());
+        assertEquals("Colaborador não encontrado", result.getContent().get(0).employeeFullName());
+        assertEquals("Empresa não encontrada", result.getContent().get(0).companyName());
+        assertNull(result.getContent().get(0).assignedToName());
     }
 
     @Test
