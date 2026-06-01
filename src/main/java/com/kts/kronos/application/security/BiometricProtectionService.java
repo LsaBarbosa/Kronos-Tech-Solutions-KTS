@@ -105,6 +105,7 @@ public class BiometricProtectionService {
 
     private void ensureServerSideLiveness(String faceImageBase64, LivenessOperation operation, UUID employeeId) {
         if (!livenessRequired) {
+            log.debug("event=biometric_liveness_skipped reason=disabled_by_product_decision operation={}", operation);
             return;
         }
 
