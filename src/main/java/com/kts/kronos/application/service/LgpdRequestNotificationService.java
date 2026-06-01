@@ -10,8 +10,8 @@ import com.kts.kronos.domain.model.LgpdRequest;
 import com.kts.kronos.domain.model.enuns.LgpdNotificationType;
 import com.kts.kronos.domain.model.enuns.NotificationChannel;
 import com.kts.kronos.domain.model.enuns.NotificationStatus;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +22,6 @@ import java.util.UUID;
 
 @Service
 @Transactional
-@RequiredArgsConstructor
 @Slf4j
 public class LgpdRequestNotificationService {
     private static final int MAX_RETRY_ATTEMPTS = 3;
@@ -33,6 +32,20 @@ public class LgpdRequestNotificationService {
     private final EmployeeProvider employeeProvider;
     private final NotificationProvider notificationProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
+
+    public LgpdRequestNotificationService(
+            LgpdRequestNotificationRepository notificationRepository,
+            UserProvider userProvider,
+            EmployeeProvider employeeProvider,
+            @Qualifier("emailNotificationProviderImpl") NotificationProvider notificationProvider,
+            PrivacyLogReferenceService privacyLogReferenceService
+    ) {
+        this.notificationRepository = notificationRepository;
+        this.userProvider = userProvider;
+        this.employeeProvider = employeeProvider;
+        this.notificationProvider = notificationProvider;
+        this.privacyLogReferenceService = privacyLogReferenceService;
+    }
 
     @Async
     public void notifyRequestCreated(LgpdRequest request) {
@@ -51,7 +64,7 @@ public class LgpdRequestNotificationService {
                     buildRequestCreatedContent(request, employee.email())
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=request_created requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=request_created requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -72,7 +85,7 @@ public class LgpdRequestNotificationService {
                     buildStatusChangedContent(request, oldStatus, employee.email())
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=status_changed requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=status_changed requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -100,7 +113,7 @@ public class LgpdRequestNotificationService {
                     buildResponsibilityAssignedContent(request, assignedEmployeeEmail)
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=responsibility_assigned requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=responsibility_assigned requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -121,7 +134,7 @@ public class LgpdRequestNotificationService {
                     buildCompletionContent(request, employee.email())
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=request_completed requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=request_completed requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -142,7 +155,7 @@ public class LgpdRequestNotificationService {
                     buildRejectionContent(request, employee.email())
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=request_rejected requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=request_rejected requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -163,7 +176,7 @@ public class LgpdRequestNotificationService {
                     buildComplementRequestContent(request, complementMessage, employee.email())
             );
         } catch (Exception e) {
-            log.error("event=lgpd_notification_error type=complement_requested requestId={} error={}", request.requestId(), e.getMessage());
+            log.error("event=lgpd_notification_error type=complement_requested requestId={} exception_type={}", request.requestId(), e.getClass().getSimpleName());
         }
     }
 
@@ -229,9 +242,9 @@ public class LgpdRequestNotificationService {
             log.info("event=lgpd_notification_sent notification_id={} type={} channel={}", notification.getNotificationId(), notificationType, channel);
         } catch (NotificationProvider.NotificationException e) {
             notification.setStatus(NotificationStatus.FAILED.name());
-            notification.setFailureReason(e.getMessage());
+            notification.setFailureReason("Notification provider failure: " + e.getClass().getSimpleName());
             notification.setNextRetryAt(Instant.now().plusSeconds(RETRY_DELAY_SECONDS));
-            log.warn("event=lgpd_notification_failed type={} channel={} error={}", notificationType, channel, e.getMessage());
+            log.warn("event=lgpd_notification_failed type={} channel={} exception_type={}", notificationType, channel, e.getClass().getSimpleName());
         }
 
         notificationRepository.save(notification);
