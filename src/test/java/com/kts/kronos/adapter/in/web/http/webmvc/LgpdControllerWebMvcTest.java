@@ -574,6 +574,23 @@ class LgpdControllerWebMvcTest {
     }
 
     @Test
+    @WithMockUser(roles = "PARTNER")
+    void shouldForbidPartnerFromApprovingAdminRequest() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        mockMvc.perform(post("/lgpd/admin/requests/{requestId}/transition-status", requestId)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "newStatus": "APPROVED_FOR_EXPORT",
+                                  "publicNotes": "Solicitação aprovada.",
+                                  "internalNotes": "Tentativa de aprovação por parceiro."
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @WithMockUser(roles = "CTO")
     void shouldGetRequestDetails() throws Exception {
         UUID requestId = UUID.randomUUID();

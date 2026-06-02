@@ -1033,26 +1033,33 @@ class LgpdServiceTest {
         UUID userId = UUID.randomUUID();
         UUID companyId = UUID.randomUUID();
         Employee employee = buildEmployee(employeeId, companyId);
-        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
 
         when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
-        when(lgpdRequestProvider.findById(request.requestId())).thenReturn(Optional.of(request));
         when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
 
-        com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
-                com.kts.kronos.application.exceptions.ForbiddenException.class,
-                () -> service.exportEmployeeDataForApprovedRequest(
-                        request.requestId(),
-                        false,
-                        "Art. 7, II, LGPD",
-                        "Compliance request",
-                        "Reviewed",
-                        "127.0.0.1",
-                        "JUnit"
-                )
-        );
+        for (LgpdRequestStatus status : List.of(
+                LgpdRequestStatus.OPEN,
+                LgpdRequestStatus.IN_ANALYSIS,
+                LgpdRequestStatus.WAITING_LEGAL_REVIEW
+        )) {
+            LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, status);
+            when(lgpdRequestProvider.findById(request.requestId())).thenReturn(Optional.of(request));
 
-        assertTrue(exception.getMessage().contains("APPROVED_FOR_EXPORT"));
+            com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
+                    com.kts.kronos.application.exceptions.ForbiddenException.class,
+                    () -> service.exportEmployeeDataForApprovedRequest(
+                            request.requestId(),
+                            false,
+                            "Art. 7, II, LGPD",
+                            "Compliance request",
+                            "Reviewed",
+                            "127.0.0.1",
+                            "JUnit"
+                    )
+            );
+
+            assertTrue(exception.getMessage().contains("APPROVED_FOR_EXPORT"));
+        }
     }
 
     @Test
@@ -1288,6 +1295,11 @@ class LgpdServiceTest {
         when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
     }
 
+    private void mockAuditRequestContext() {
+        when(auditRequestContextService.extractContext())
+                .thenReturn(new AuditRequestContextService.AuditRequestContext("127.0.0.1", "JUnit", "TEST", true));
+    }
+
     @Test
     void shouldAllowOpenToInAnalysisTransition() {
         UUID requestId = UUID.randomUUID();
@@ -1359,6 +1371,146 @@ class LgpdServiceTest {
         );
 
         assertEquals(LgpdRequestStatus.WAITING_CONTROLLER, result.status());
+    }
+
+    @Test
+    void managerShouldApproveExportForOwnCompanyAndRegisterAudit() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mockAuditRequestContext();
+
+        LgpdRequest result = service.transitionStatus(
+                requestId,
+                LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                "Solicitação aprovada para exportação.",
+                "Identidade e vínculo validados.",
+                null
+        );
+
+        assertEquals(LgpdRequestStatus.APPROVED_FOR_EXPORT, result.status());
+        verify(auditService).registerLgpd(
+                eq(AuditAction.LGPD_EXPORT_APPROVED),
+                eq(actorUserId),
+                eq(employeeId),
+                eq(companyId),
+                eq("LGPD_REQUEST"),
+                eq(result.requestId().toString()),
+                eq("HIGH"),
+                org.mockito.ArgumentMatchers.contains("controllerApproval=true"),
+                eq("127.0.0.1"),
+                eq("JUnit")
+        );
+    }
+
+    @Test
+    void partnerShouldNotApproveExport() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+
+        com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
+                com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                        "Solicitação aprovada para exportação.",
+                        "Tentativa de parceiro.",
+                        null
+                )
+        );
+
+        assertTrue(exception.getMessage().contains("Apenas CTO ou MANAGER"));
+    }
+
+    @Test
+    void managerFromOtherCompanyShouldNotApproveExport() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID otherCompanyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, otherCompanyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, otherCompanyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(otherCompanyId))
+                .thenThrow(new com.kts.kronos.application.exceptions.ForbiddenException("Manager não pode acessar empresa diferente"));
+
+        com.kts.kronos.application.exceptions.ForbiddenException exception = assertThrows(
+                com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.transitionStatus(
+                        requestId,
+                        LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                        "Solicitação aprovada para exportação.",
+                        "Tentativa fora do tenant.",
+                        null
+                )
+        );
+
+        assertEquals("Manager não pode acessar empresa diferente", exception.getMessage());
+    }
+
+    @Test
+    void managerShouldAdvanceOpenToInAnalysisForOwnCompany() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId,
+                LgpdRequestStatus.IN_ANALYSIS,
+                "Análise iniciada.",
+                "Administrador validará identidade e vínculo.",
+                null
+        );
+
+        assertEquals(LgpdRequestStatus.IN_ANALYSIS, result.status());
+    }
+
+    @Test
+    void completionAfterApprovedExportShouldRegisterHistory() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any(LgpdRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any(LgpdRequestHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        mockAuditRequestContext();
+
+        LgpdRequest result = service.transitionStatus(
+                requestId,
+                LgpdRequestStatus.COMPLETED,
+                "Dados exportados e disponibilizados conforme solicitação LGPD.",
+                "Exportação administrativa executada após aprovação da empresa controladora.",
+                null
+        );
+
+        assertEquals(LgpdRequestStatus.COMPLETED, result.status());
+        ArgumentCaptor<LgpdRequestHistory> historyCaptor = ArgumentCaptor.forClass(LgpdRequestHistory.class);
+        verify(lgpdRequestHistoryProvider).save(historyCaptor.capture());
+        assertEquals(LgpdRequestStatus.COMPLETED, historyCaptor.getValue().status());
+        assertEquals("Dados exportados e disponibilizados conforme solicitação LGPD.", historyCaptor.getValue().notes());
     }
 
     @Test
