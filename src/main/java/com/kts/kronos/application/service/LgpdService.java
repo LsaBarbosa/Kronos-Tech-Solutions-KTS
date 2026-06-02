@@ -991,6 +991,8 @@ public class LgpdService implements LgpdUseCase {
     public LgpdRequest transitionStatus(UUID requestId, LgpdRequestStatus newStatus, String publicNotes, String internalNotes, String closedReason) {
         LgpdRequest request = findAuthorizedAdminRequest(requestId);
         validateStatusTransition(requestId, request.status(), newStatus);
+        Role actorRole = jwtAuthenticatedUser.getCurrentRole();
+        validateAdministrativeTransitionActor(newStatus, actorRole);
         Instant now = Instant.now();
 
         if (newStatus == LgpdRequestStatus.REJECTED && (closedReason == null || closedReason.isBlank())) {
@@ -1046,6 +1048,39 @@ public class LgpdService implements LgpdUseCase {
                     auditContext.ipAddress(),
                     auditContext.userAgent()
             );
+        } else if (newStatus == LgpdRequestStatus.APPROVED_FOR_EXPORT) {
+            var auditContext = auditRequestContextService.extractContext();
+            if (auditContext == null) {
+                auditContext = AuditRequestContextService.AuditRequestContext.unknown();
+            }
+            boolean hasPublicNote = publicNotes != null && !publicNotes.isBlank();
+            boolean hasInternalNote = internalNotes != null && !internalNotes.isBlank();
+            String details = String.format(
+                    "requestId=%s, requestType=%s, oldStatus=%s, newStatus=%s, actorUserId=%s, actorRole=%s, controllerApproval=%s, ctoTenantSupportApproval=%s, hasPublicNote=%s, hasInternalNote=%s",
+                    saved.requestId(),
+                    saved.requestType(),
+                    oldStatus,
+                    saved.status().name(),
+                    jwtAuthenticatedUser.getuserId(),
+                    actorRole != null ? actorRole.name() : "UNKNOWN",
+                    actorRole == Role.MANAGER,
+                    actorRole == Role.CTO,
+                    hasPublicNote,
+                    hasInternalNote
+            );
+
+            auditService.registerLgpd(
+                    AuditAction.LGPD_EXPORT_APPROVED,
+                    jwtAuthenticatedUser.getuserId(),
+                    saved.employeeId(),
+                    saved.companyId(),
+                    "LGPD_REQUEST",
+                    saved.requestId().toString(),
+                    "HIGH",
+                    details,
+                    auditContext.ipAddress(),
+                    auditContext.userAgent()
+            );
         } else if (newStatus == LgpdRequestStatus.REJECTED || newStatus == LgpdRequestStatus.CANCELLED) {
             var auditContext = auditRequestContextService.extractContext();
             boolean hasPublicNote = publicNotes != null && !publicNotes.isBlank();
@@ -1088,6 +1123,22 @@ public class LgpdService implements LgpdUseCase {
         }
 
         return saved;
+    }
+
+    private void validateAdministrativeTransitionActor(LgpdRequestStatus newStatus, Role actorRole) {
+        if (newStatus == LgpdRequestStatus.APPROVED_FOR_EXPORT
+                && actorRole != Role.CTO
+                && actorRole != Role.MANAGER) {
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Apenas CTO ou MANAGER podem aprovar exportação LGPD."
+            );
+        }
+
+        if (newStatus == LgpdRequestStatus.CANCELLED && actorRole != Role.CTO) {
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Apenas CTO pode cancelar solicitações LGPD."
+            );
+        }
     }
 
     public LgpdRequest requestDataSubjectComplement(UUID requestId, String complementMessage) {
