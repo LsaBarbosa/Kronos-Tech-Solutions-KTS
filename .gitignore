@@ -72,6 +72,23 @@ storage/**
 /storage/
 **/storage/documents/
 
+# Claude Code - Local Configuration
+CLAUDE.local.md
+CLAUDE.local.example.md.bak
+.claude/settings.local.json
+.claude/memory/
+.claude/worktrees/
+
+# Reports & Diagnostics
+*-report.txt
+kronos-vps-report.txt
+diagnostico_*.sh
+fix_*.py
+
+# Secrets Directory
+secrets/
+secrets/**
+
 # OS
 .DS_Store
 Thumbs.db
