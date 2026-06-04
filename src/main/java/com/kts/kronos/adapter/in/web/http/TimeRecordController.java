@@ -163,4 +163,26 @@ public class TimeRecordController {
          var requests = useCase.listTimeOffRequests(statusFilter, employeeName, page, size);
         return ResponseEntity.ok(requests);
     }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(ME_TODAY)
+    public ResponseEntity<TodayTimeRecordStatusResponse> getTodayStatus() {
+        return ResponseEntity.ok(useCase.getTodayStatus());
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(ME_RECENT)
+    public ResponseEntity<RecentTimeRecordsResponse> listMyRecentRecords(
+            @RequestParam(value = "limit", defaultValue = "5") int limit
+    ) {
+        return ResponseEntity.ok(useCase.listMyRecentRecords(limit));
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(ME_REQUESTS)
+    public ResponseEntity<MyRequestsResponse> listMyRequests(
+            @RequestParam(value = "limit", defaultValue = "5") int limit
+    ) {
+        return ResponseEntity.ok(useCase.listMyRequests(limit));
+    }
 }

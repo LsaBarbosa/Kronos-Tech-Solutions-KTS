@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,6 +39,8 @@ public interface LgpdRequestRepository extends JpaRepository<LgpdRequestEntity, 
             @Param("status") LgpdRequestStatus status,
             Pageable pageable
     );
+
+    long countByStatusIn(Collection<LgpdRequestStatus> statuses);
 
     @Query("SELECT COUNT(r) FROM LgpdRequestEntity r WHERE r.createdAt < :cutoff")
     long countCreatedBefore(@Param("cutoff") Instant cutoff);

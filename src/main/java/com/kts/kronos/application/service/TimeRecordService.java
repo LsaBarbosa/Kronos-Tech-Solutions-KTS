@@ -961,6 +961,122 @@ public class TimeRecordService implements TimeRecordUseCase {
         );
     }
 
+    @Override
+    public TodayTimeRecordStatusResponse getTodayStatus() {
+        LocalDate today = LocalDate.now(SAO_PAULO);
+        var employeeOpt = getAuthenticatedEmployeeIfPresent();
+
+        if (employeeOpt.isEmpty()) {
+            return neutralTodayStatus(today);
+        }
+
+        var employee = employeeOpt.get();
+
+        if (!legalConsentProvider.existsActive(employee.employeeId(), ConsentType.BIOMETRIC_AUTHENTICATION)) {
+            return new TodayTimeRecordStatusResponse(
+                    today,
+                    "TERMS_REQUIRED",
+                    "ACCEPT_TERMS",
+                    null,
+                    null,
+                    List.of(),
+                    "PERSISTED",
+                    SAO_PAULO.getId()
+            );
+        }
+
+        var records = recordRepository.findByRange(
+                employee.employeeId(),
+                today.atStartOfDay(),
+                today.atTime(23, 59, 59)
+        ).stream()
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
+
+        var recordEvents = buildTodayRecordEvents(records);
+
+        if (recordEvents.isEmpty()) {
+            return new TodayTimeRecordStatusResponse(
+                    today,
+                    "READY_TO_CHECKIN",
+                    "CHECK_IN",
+                    null,
+                    null,
+                    List.of(),
+                    "PERSISTED",
+                    SAO_PAULO.getId()
+            );
+        }
+
+        var lastEvent = recordEvents.getLast();
+        var latestRecord = records.getLast();
+        boolean hasCheckout = latestRecord.endWork() != null;
+
+        return new TodayTimeRecordStatusResponse(
+                today,
+                hasCheckout ? "COMPLETED" : "READY_TO_CHECKOUT",
+                hasCheckout ? "VIEW_REPORT" : "CHECK_OUT",
+                lastEvent.recordedAt(),
+                lastEvent.actionType(),
+                recordEvents,
+                "PERSISTED",
+                SAO_PAULO.getId()
+        );
+    }
+
+    @Override
+    public RecentTimeRecordsResponse listMyRecentRecords(int limit) {
+        var employeeOpt = getAuthenticatedEmployeeIfPresent();
+        if (employeeOpt.isEmpty()) {
+            return new RecentTimeRecordsResponse(List.of(), "PERSISTED");
+        }
+
+        int normalizedLimit = normalizeLimit(limit);
+        var employee = employeeOpt.get();
+        var companyName = companyProvider.findById(employee.companyId())
+                .map(Company::name)
+                .orElse("Empresa principal");
+        var recentRecords = recordRepository.findRecentByEmployeeId(employee.employeeId(), normalizedLimit);
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                recentRecords.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet())
+        );
+
+        var items = recentRecords.stream()
+                .flatMap(record -> buildRecentRecordEvents(record, companyName, latestDocumentIdByTimeRecordId).stream())
+                .sorted(Comparator.comparing(RecentTimeRecordItemResponse::dateTime).reversed())
+                .limit(normalizedLimit)
+                .toList();
+
+        return new RecentTimeRecordsResponse(items, "PERSISTED");
+    }
+
+    @Override
+    public MyRequestsResponse listMyRequests(int limit) {
+        var employeeOpt = getAuthenticatedEmployeeIfPresent();
+        if (employeeOpt.isEmpty()) {
+            return new MyRequestsResponse(List.of(), "PERSISTED");
+        }
+
+        int normalizedLimit = normalizeLimit(limit);
+        var employeeId = employeeOpt.get().employeeId();
+        var allRecords = recordRepository.findByEmployeeId(employeeId);
+
+        var requests = new ArrayList<MyRequestItemResponse>();
+        requests.addAll(buildVacationRequestItems(allRecords));
+        requests.addAll(buildTimeOffRequestItems(allRecords));
+        requests.addAll(buildManualAdjustmentItems(approvalProvider.findByRequestingEmployeeId(employeeId, normalizedLimit)));
+
+        var items = requests.stream()
+                .sorted(Comparator.comparing(MyRequestItemResponse::createdAt).reversed())
+                .limit(normalizedLimit)
+                .toList();
+
+        return new MyRequestsResponse(items, "PERSISTED");
+    }
+
     private List<Long> parseTimeRecordIdsCsv(String csv) {
         if (csv == null || csv.isBlank()) {
             return List.of();
@@ -998,6 +1114,229 @@ public class TimeRecordService implements TimeRecordUseCase {
                         Map.Entry::getKey,
                         entry -> entry.getValue().documentId().toString()
                 ));
+    }
+
+    private TodayTimeRecordStatusResponse neutralTodayStatus(LocalDate today) {
+        return new TodayTimeRecordStatusResponse(
+                today,
+                "UNKNOWN",
+                "NONE",
+                null,
+                null,
+                List.of(),
+                "PERSISTED",
+                SAO_PAULO.getId()
+        );
+    }
+
+    private Optional<Employee> getAuthenticatedEmployeeIfPresent() {
+        try {
+            return employeeProvider.findById(jwtAuthenticatedUser.getEmployeeId());
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private int normalizeLimit(int limit) {
+        if (limit <= 0) {
+            return 5;
+        }
+        return Math.min(limit, 20);
+    }
+
+    private List<TodayTimeRecordItemResponse> buildTodayRecordEvents(List<TimeRecord> records) {
+        var items = new ArrayList<TodayTimeRecordItemResponse>();
+
+        for (var record : records) {
+            if (record.timeRecordId() == null || record.startWork() == null) {
+                continue;
+            }
+
+            items.add(new TodayTimeRecordItemResponse(
+                    record.timeRecordId(),
+                    "CHECK_IN",
+                    toOffsetDateTime(record.startWork()),
+                    record.statusRecord().name(),
+                    "BIOMETRIC"
+            ));
+
+            if (record.endWork() != null) {
+                items.add(new TodayTimeRecordItemResponse(
+                        record.timeRecordId(),
+                        "CHECK_OUT",
+                        toOffsetDateTime(record.endWork()),
+                        record.statusRecord().name(),
+                        "BIOMETRIC"
+                ));
+            }
+        }
+
+        return items.stream()
+                .sorted(Comparator.comparing(TodayTimeRecordItemResponse::recordedAt))
+                .toList();
+    }
+
+    private List<RecentTimeRecordItemResponse> buildRecentRecordEvents(
+            TimeRecord record,
+            String companyName,
+            Map<Long, String> latestDocumentIdByTimeRecordId
+    ) {
+        if (record.timeRecordId() == null || record.startWork() == null) {
+            return List.of();
+        }
+
+        String documentId = latestDocumentIdByTimeRecordId.get(record.timeRecordId());
+        String receiptUrl = documentId == null ? null : "/documents/" + documentId;
+        boolean hasReceipt = receiptUrl != null;
+        var items = new ArrayList<RecentTimeRecordItemResponse>();
+
+        items.add(new RecentTimeRecordItemResponse(
+                record.timeRecordId(),
+                "CHECK_IN",
+                toOffsetDateTime(record.startWork()),
+                "REGISTERED",
+                "BIOMETRIC",
+                companyName,
+                hasReceipt,
+                receiptUrl
+        ));
+
+        if (record.endWork() != null) {
+            items.add(new RecentTimeRecordItemResponse(
+                    record.timeRecordId(),
+                    "CHECK_OUT",
+                    toOffsetDateTime(record.endWork()),
+                    "REGISTERED",
+                    "BIOMETRIC",
+                    companyName,
+                    hasReceipt,
+                    receiptUrl
+            ));
+        }
+
+        return items;
+    }
+
+    private List<MyRequestItemResponse> buildVacationRequestItems(List<TimeRecord> allRecords) {
+        var vacationStatuses = Set.of(StatusRecord.REQUEST_VACATION, StatusRecord.VACATION, StatusRecord.VACATION_REJECTED);
+        var records = allRecords.stream()
+                .filter(record -> vacationStatuses.contains(record.statusRecord()))
+                .filter(record -> record.startWork() != null)
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
+
+        if (records.isEmpty()) {
+            return List.of();
+        }
+
+        var groups = new ArrayList<List<TimeRecord>>();
+        var currentGroup = new ArrayList<TimeRecord>();
+
+        for (var record : records) {
+            if (currentGroup.isEmpty()) {
+                currentGroup.add(record);
+                continue;
+            }
+
+            var previous = currentGroup.getLast();
+            boolean sameStatus = previous.statusRecord() == record.statusRecord();
+            boolean contiguous = !previous.startWork().toLocalDate().plusDays(1).isBefore(record.startWork().toLocalDate())
+                    && !record.startWork().toLocalDate().isBefore(previous.startWork().toLocalDate());
+
+            if (sameStatus && contiguous) {
+                currentGroup.add(record);
+            } else {
+                groups.add(List.copyOf(currentGroup));
+                currentGroup = new ArrayList<>();
+                currentGroup.add(record);
+            }
+        }
+
+        if (!currentGroup.isEmpty()) {
+            groups.add(List.copyOf(currentGroup));
+        }
+
+        return groups.stream()
+                .map(group -> {
+                    var first = group.getFirst();
+                    var last = group.getLast();
+                    String status = switch (first.statusRecord()) {
+                        case REQUEST_VACATION -> "PENDING";
+                        case VACATION -> "APPROVED";
+                        case VACATION_REJECTED -> "REJECTED";
+                        default -> "UNKNOWN";
+                    };
+                    String description = first.startWork().toLocalDate() + " a " + last.startWork().toLocalDate();
+                    return new MyRequestItemResponse(
+                            "vacation-" + first.timeRecordId(),
+                            "VACATION",
+                            "Solicitação de férias",
+                            toOffsetDateTime(first.startWork()),
+                            status,
+                            description
+                    );
+                })
+                .toList();
+    }
+
+    private List<MyRequestItemResponse> buildTimeOffRequestItems(List<TimeRecord> allRecords) {
+        var timeOffStatuses = Set.of(
+                StatusRecord.TIME_OFF_REQUEST,
+                StatusRecord.TIME_OFF,
+                StatusRecord.TIME_OFF_REJECTED,
+                StatusRecord.WORK_TIME_REQUEST,
+                StatusRecord.WORK_TIME_REJECTED,
+                StatusRecord.UPDATED
+        );
+
+        return allRecords.stream()
+                .filter(record -> timeOffStatuses.contains(record.statusRecord()))
+                .filter(record -> record.startWork() != null)
+                .map(record -> {
+                    boolean manualAdjustment = record.statusRecord() == StatusRecord.WORK_TIME_REQUEST
+                            || record.statusRecord() == StatusRecord.WORK_TIME_REJECTED
+                            || record.statusRecord() == StatusRecord.UPDATED;
+                    String status = switch (record.statusRecord()) {
+                        case TIME_OFF_REQUEST, WORK_TIME_REQUEST -> "PENDING";
+                        case TIME_OFF, UPDATED -> "APPROVED";
+                        case TIME_OFF_REJECTED, WORK_TIME_REJECTED -> "REJECTED";
+                        default -> "UNKNOWN";
+                    };
+                    String title = manualAdjustment ? "Solicitação de ajuste manual" : "Solicitação de abono";
+                    String description = record.startWork().toLocalDate()
+                            + (record.endWork() != null && !record.endWork().toLocalDate().equals(record.startWork().toLocalDate())
+                            ? " a " + record.endWork().toLocalDate()
+                            : "");
+                    return new MyRequestItemResponse(
+                            (manualAdjustment ? "manual-adjustment-" : "time-off-") + record.timeRecordId(),
+                            manualAdjustment ? "MANUAL_ADJUSTMENT" : "TIME_OFF",
+                            title,
+                            toOffsetDateTime(record.startWork()),
+                            status,
+                            description
+                    );
+                })
+                .toList();
+    }
+
+    private List<MyRequestItemResponse> buildManualAdjustmentItems(List<TimeRecordApprovalRequest> approvals) {
+        return approvals.stream()
+                .map(approval -> new MyRequestItemResponse(
+                        "manual-adjustment-approval-" + approval.timeRecordId(),
+                        "MANUAL_ADJUSTMENT",
+                        "Solicitação de ajuste manual",
+                        toOffsetDateTime(approval.createdAt()),
+                        "IN_REVIEW",
+                        approval.newStartWork().toLocalDate() + " · "
+                                + approval.newStartWork().toLocalTime().format(TIME_FORMATTER)
+                                + " até "
+                                + approval.newEndWork().toLocalTime().format(TIME_FORMATTER)
+                ))
+                .toList();
+    }
+
+    private OffsetDateTime toOffsetDateTime(LocalDateTime value) {
+        return value.atZone(SAO_PAULO).toOffsetDateTime();
     }
 
     private TimeRecord findRecordAndCheckStatus(Long timeRecordId) {
