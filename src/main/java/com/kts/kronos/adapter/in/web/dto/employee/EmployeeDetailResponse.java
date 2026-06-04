@@ -8,6 +8,7 @@ import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
@@ -28,6 +29,9 @@ public record EmployeeDetailResponse(
         String companyName,
         boolean homeOffice,
         String role,
+
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        LocalDateTime lastSeenMessageTimestamp,
 
         @JsonFormat(pattern = "HH:mm") LocalTime workStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
@@ -55,6 +59,7 @@ public record EmployeeDetailResponse(
                 companyName,
                 employee.homeOffice(),
                 role,
+                employee.lastSeenMessageTimestamp(),
                 employee.workStartTime(),
                 employee.workEndTime(),
                 employee.breakStartTime(),
