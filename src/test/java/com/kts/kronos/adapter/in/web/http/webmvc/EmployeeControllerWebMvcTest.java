@@ -257,6 +257,7 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(jsonPath("$.maskedCpf").value("529.***.725"))
                 .andExpect(jsonPath("$.role").value("MANAGER"))
                 .andExpect(jsonPath("$.companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$.lastSeenMessageTimestamp").value("2026-01-10T08:00:00"))
                 .andExpect(jsonPath("$.cpf").doesNotExist())
                 .andExpect(jsonPath("$.faceS3ObjectKey").doesNotExist());
     }
