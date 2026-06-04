@@ -284,6 +284,41 @@ class TimeRecordControllerWebMvcTest {
     }
 
     @Test
+    @DisplayName("report: deve expor campos de original/tratado e NSR")
+    void shouldExposeOriginalTreatedAndNsrFieldsInReport() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+
+        when(useCase.listReport(eq(employeeId), any()))
+                .thenReturn(List.of(treatedTimeRecordResponse(employeeId, 1L)));
+
+        mockMvc.perform(post("/records/report")
+                        .param("employeeId", employeeId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reference": "08:00",
+                                  "active": true,
+                                  "statuses": ["UPDATED"],
+                                  "dates": ["20-04-2026"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].timeRecordId").value(1L))
+                .andExpect(jsonPath("$[0].startHour").value("08:30"))
+                .andExpect(jsonPath("$[0].endHour").value("17:30"))
+                .andExpect(jsonPath("$[0].originalStartWork").exists())
+                .andExpect(jsonPath("$[0].originalStartHour").value("08:00"))
+                .andExpect(jsonPath("$[0].originalEndWork").exists())
+                .andExpect(jsonPath("$[0].originalEndHour").value("17:00"))
+                .andExpect(jsonPath("$[0].hasTreatment").value(true))
+                .andExpect(jsonPath("$[0].treatmentLabel").value("Registro tratado"))
+                .andExpect(jsonPath("$[0].nsrCheckin").value(100))
+                .andExpect(jsonPath("$[0].nsrCheckout").value(101));
+
+        verify(useCase).listReport(eq(employeeId), any());
+    }
+
+    @Test
     @DisplayName("approveChange/rejectChange: devem delegar decisões de ajuste")
     void shouldApproveAndRejectTimeRecordChange() throws Exception {
         mockMvc.perform(patch("/records/approve/{timeRecordId}", 14L))
@@ -616,6 +651,32 @@ class TimeRecordControllerWebMvcTest {
                 null,
                 false,
                 null,
+                100L,
+                101L
+        );
+    }
+
+    private static TimeRecordResponse treatedTimeRecordResponse(UUID employeeId, long timeRecordId) {
+        return new TimeRecordResponse(
+                timeRecordId,
+                LocalDateTime.of(2026, 4, 20, 8, 30),
+                "08:30",
+                LocalDateTime.of(2026, 4, 20, 17, 30),
+                "17:30",
+                "09:00",
+                "+01:00",
+                StatusRecord.UPDATED,
+                true,
+                true,
+                employeeId,
+                new EmployeeData("Ana Paula", "Kronos Tech"),
+                null,
+                LocalDateTime.of(2026, 4, 20, 8, 0),
+                "08:00",
+                LocalDateTime.of(2026, 4, 20, 17, 0),
+                "17:00",
+                true,
+                "Registro tratado",
                 100L,
                 101L
         );
