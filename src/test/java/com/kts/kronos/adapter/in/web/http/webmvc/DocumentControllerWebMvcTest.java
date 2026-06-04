@@ -126,7 +126,8 @@ class DocumentControllerWebMvcTest {
                         .param("employeeId", employeeId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.documents[0].id").value(documentId.toString()))
-                .andExpect(jsonPath("$.documents[0].fileName").value("holerite.pdf"));
+                .andExpect(jsonPath("$.documents[0].fileName").value("holerite.pdf"))
+                .andExpect(jsonPath("$.documents[0].type").value("PAYSLIP"));
     }
 
     @Test

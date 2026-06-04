@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.dto.document;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.kts.kronos.domain.model.Document;
+import com.kts.kronos.domain.model.enuns.DocumentType;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -12,6 +13,7 @@ public record DocumentResponse(
         UUID id,
         String fileName,
         String contentType,
+        DocumentType type,
         @JsonFormat(pattern = DATE_TIME_PATTERN)
         LocalDateTime uploadedAt
 ) {
@@ -23,6 +25,7 @@ public record DocumentResponse(
                         doc.documentId(),
                         doc.fileName(),
                         doc.contentType(),
+                        doc.type(),
                         doc.uploadeAt()
                 );
         }

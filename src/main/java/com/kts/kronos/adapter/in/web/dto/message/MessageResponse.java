@@ -13,9 +13,14 @@ public record MessageResponse(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt,
         UUID senderEmployeeId,
-        UUID recipientEmployeeId
+        UUID recipientEmployeeId,
+        String senderName
 ) {
     public static MessageResponse fromDomain(Message message) {
+        return fromDomain(message, null);
+    }
+
+    public static MessageResponse fromDomain(Message message, String senderName) {
         return new MessageResponse(
                 message.messageId(),
                 message.messageText(),
@@ -23,7 +28,8 @@ public record MessageResponse(
                 message.priority(),
                 message.createdAt(),
                 message.employeeId(),
-                message.recipientEmployeeId()
+                message.recipientEmployeeId(),
+                senderName
         );
     }
 }
