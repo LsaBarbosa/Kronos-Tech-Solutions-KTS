@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordApprovalEntity, Long> {
@@ -40,5 +41,7 @@ public interface TimeRecordApprovalRepository extends JpaRepository<TimeRecordAp
             @Param("companyId") UUID companyId,
             @Param("employeeNamePrefix") String employeeNamePrefix
     );
+
+    Page<TimeRecordApprovalEntity> findByRequestingEmployeeIdOrderByCreatedAtDesc(UUID requestingEmployeeId, Pageable pageable);
 
 }
