@@ -42,6 +42,9 @@ public class ApiPaths {
     public static final String TIME_OFF_REQUESTS = "/time-off/requests";
     public static final String TIME_OFF_APPROVE = "/time-off/approve/{timeRecordId}";
     public static final String TIME_OFF_REJECT = "/time-off/reject/{timeRecordId}";
+    public static final String ME_TODAY = "/me/today";
+    public static final String ME_RECENT = "/me/recent";
+    public static final String ME_REQUESTS = "/me/requests";
 
     //User
     public static final String USER = "/users";
@@ -102,5 +105,9 @@ public class ApiPaths {
     // Security Incidents
     public static final String SECURITY_INCIDENTS = "/security-incidents";
     public static final String SECURITY_INCIDENT_ID = "/{incidentId}";
+
+    // Platform health
+    public static final String ADMIN_PLATFORM = "/admin/platform";
+    public static final String HEALTH = "/health";
 
 }

@@ -2,10 +2,15 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.dto.timerecord.ActionResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.EmployeeData;
+import com.kts.kronos.adapter.in.web.dto.timerecord.MyRequestItemResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.MyRequestsResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.RecentTimeRecordItemResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.RecentTimeRecordsResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalPageResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordPageResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.TodayTimeRecordStatusResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.adapter.in.web.http.TimeRecordController;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -511,6 +516,71 @@ class TimeRecordControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.records[0].timeRecordId").value(33L))
                 .andExpect(jsonPath("$.totalPages").value(2));
+    }
+
+    @Test
+    @DisplayName("getTodayStatus: deve retornar status persistido do dia")
+    void shouldReturnTodayStatus() throws Exception {
+        when(useCase.getTodayStatus()).thenReturn(new TodayTimeRecordStatusResponse(
+                LocalDate.of(2026, 6, 3),
+                "READY_TO_CHECKIN",
+                "CHECK_IN",
+                null,
+                null,
+                List.of(),
+                "PERSISTED",
+                "America/Sao_Paulo"
+        ));
+
+        mockMvc.perform(get("/records/me/today"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("READY_TO_CHECKIN"))
+                .andExpect(jsonPath("$.nextAction").value("CHECK_IN"))
+                .andExpect(jsonPath("$.source").value("PERSISTED"));
+    }
+
+    @Test
+    @DisplayName("listMyRecentRecords: deve retornar lista dos últimos registros")
+    void shouldReturnMyRecentRecords() throws Exception {
+        when(useCase.listMyRecentRecords(5)).thenReturn(new RecentTimeRecordsResponse(
+                List.of(new RecentTimeRecordItemResponse(
+                        1L,
+                        "CHECK_IN",
+                        LocalDateTime.of(2026, 6, 3, 8, 0).atOffset(java.time.ZoneOffset.of("-03:00")),
+                        "REGISTERED",
+                        "BIOMETRIC",
+                        "Empresa principal",
+                        true,
+                        "/documents/1"
+                )),
+                "PERSISTED"
+        ));
+
+        mockMvc.perform(get("/records/me/recent"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].actionType").value("CHECK_IN"))
+                .andExpect(jsonPath("$.items[0].receiptGenerated").value(true));
+    }
+
+    @Test
+    @DisplayName("listMyRequests: deve retornar solicitações do colaborador autenticado")
+    void shouldReturnMyRequests() throws Exception {
+        when(useCase.listMyRequests(5)).thenReturn(new MyRequestsResponse(
+                List.of(new MyRequestItemResponse(
+                        "vacation-1",
+                        "VACATION",
+                        "Solicitação de férias",
+                        LocalDateTime.of(2026, 6, 1, 10, 0).atOffset(java.time.ZoneOffset.of("-03:00")),
+                        "PENDING",
+                        "2026-07-01 a 2026-07-15"
+                )),
+                "PERSISTED"
+        ));
+
+        mockMvc.perform(get("/records/me/requests"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].type").value("VACATION"))
+                .andExpect(jsonPath("$.items[0].status").value("PENDING"));
     }
 
     private static String validUpdateTimeRecordJson() {

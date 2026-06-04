@@ -40,6 +40,7 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
     Optional<TimeRecordEntity>  findFirstByEmployeeIdAndEndWorkIsNullOrderByStartWorkDesc(UUID employeeId);
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
+    Page<TimeRecordEntity> findByEmployeeIdOrderByStartWorkDesc(UUID employeeId, Pageable pageable);
     void deleteByEmployeeId(UUID employeeId);
 
     @Query("SELECT MAX(GREATEST(COALESCE(tr.nsrCheckin, 0), COALESCE(tr.nsrCheckout, 0))) " +
