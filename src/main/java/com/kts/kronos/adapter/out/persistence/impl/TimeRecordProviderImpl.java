@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import org.springframework.data.domain.PageRequest;
 
 @RequiredArgsConstructor
 @Component
@@ -70,6 +71,15 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     @Override
     public List<TimeRecord> findByEmployeeId(UUID employeeId) {
         return jpa.findByEmployeeId(employeeId)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TimeRecord> findRecentByEmployeeId(UUID employeeId, int limit) {
+        return jpa.findByEmployeeIdOrderByStartWorkDesc(employeeId, PageRequest.of(0, limit))
+                .getContent()
                 .stream()
                 .map(TimeRecordEntity::toDomain)
                 .toList();
