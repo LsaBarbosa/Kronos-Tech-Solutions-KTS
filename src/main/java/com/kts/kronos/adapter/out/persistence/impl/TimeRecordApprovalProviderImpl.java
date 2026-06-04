@@ -11,8 +11,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 
 @Component
 @RequiredArgsConstructor
@@ -45,5 +47,14 @@ public class TimeRecordApprovalProviderImpl implements TimeRecordApprovalProvide
     @Override
     public void deleteByTimeRecordId(Long timeRecordId) {
         repository.deleteById(timeRecordId);
+    }
+
+    @Override
+    public List<TimeRecordApprovalRequest> findByRequestingEmployeeId(UUID employeeId, int limit) {
+        return repository.findByRequestingEmployeeIdOrderByCreatedAtDesc(employeeId, PageRequest.of(0, limit))
+                .getContent()
+                .stream()
+                .map(TimeRecordApprovalEntity::toDomain)
+                .toList();
     }
 }

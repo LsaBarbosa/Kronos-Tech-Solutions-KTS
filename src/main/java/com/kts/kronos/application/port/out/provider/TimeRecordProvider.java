@@ -68,6 +68,8 @@ public interface TimeRecordProvider {
             String employeeName
     );
 
+    List<TimeRecord> findRecentByEmployeeId(UUID employeeId, int limit);
+
     long countWeekendDaysOffThisMonth(UUID empId, LocalDate referenceDate);
 
 }
