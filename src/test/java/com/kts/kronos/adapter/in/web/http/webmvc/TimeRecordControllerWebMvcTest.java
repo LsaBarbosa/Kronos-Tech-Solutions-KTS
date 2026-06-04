@@ -609,7 +609,15 @@ class TimeRecordControllerWebMvcTest {
                 true,
                 employeeId,
                 new EmployeeData("Ana Paula", "Kronos Tech"),
-                null
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                100L,
+                101L
         );
     }
 
