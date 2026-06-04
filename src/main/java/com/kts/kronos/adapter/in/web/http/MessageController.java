@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.message.CreateMessageRequest;
 import com.kts.kronos.adapter.in.web.dto.message.MessageResponse;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,7 @@ import static com.kts.kronos.constants.Messages.MANAGER;
 public class MessageController {
 
     private final MessageUseCase useCase;
+    private final EmployeeProvider employeeProvider;
 
     @PreAuthorize(MANAGER)
     @PostMapping
@@ -41,7 +43,12 @@ public class MessageController {
     ) {
         var messages = useCase.listMessagesForMyCompany(page, size);
         var responseList = messages.stream()
-                .map(MessageResponse::fromDomain)
+                .map(message -> MessageResponse.fromDomain(
+                        message,
+                        employeeProvider.findById(message.employeeId())
+                                .map(employee -> employee.fullName())
+                                .orElse(null)
+                ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseList);
     }

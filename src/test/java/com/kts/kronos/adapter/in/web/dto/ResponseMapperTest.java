@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ResponseMapperTest {
 
@@ -118,6 +119,7 @@ class ResponseMapperTest {
         assertEquals(message.priority(), response.priority());
         assertEquals(message.employeeId(), response.senderEmployeeId());
         assertEquals(message.recipientEmployeeId(), response.recipientEmployeeId());
+        assertNull(response.senderName());
     }
 
     @Test
@@ -141,6 +143,7 @@ class ResponseMapperTest {
         assertEquals(document.documentId(), response.id());
         assertEquals(document.fileName(), response.fileName());
         assertEquals(document.contentType(), response.contentType());
+        assertEquals(document.type(), response.type());
         assertEquals(document.uploadeAt(), response.uploadedAt());
     }
 

@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.dto;
 import com.kts.kronos.adapter.in.web.http.MessageController;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.MessageUseCase;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.domain.model.Message;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +35,9 @@ class MessageControllerWebMvcTest {
 
     @MockitoBean
     private MessageUseCase useCase;
+
+    @MockitoBean
+    private EmployeeProvider employeeProvider;
 
     @Test
     void shouldPostMessageDelegatingToUseCase() throws Exception {
