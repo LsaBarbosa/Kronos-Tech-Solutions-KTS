@@ -401,4 +401,166 @@ class TimeRecordServiceTest {
         assertEquals(55L, saved.timeRecordId());
         assertEquals(StatusRecord.PENDING, saved.statusRecord());
     }
+
+    @Test
+    @DisplayName("getTodayStatus: retorna READY_TO_CHECKIN quando não há registros no dia")
+    void shouldReturnReadyToCheckinWhenThereAreNoRecordsToday() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of());
+
+        var response = service.getTodayStatus();
+
+        assertEquals("READY_TO_CHECKIN", response.status());
+        assertEquals("CHECK_IN", response.nextAction());
+        assertTrue(response.records().isEmpty());
+        assertEquals("PERSISTED", response.source());
+    }
+
+    @Test
+    @DisplayName("getTodayStatus: retorna READY_TO_CHECKOUT quando há entrada aberta no dia")
+    void shouldReturnReadyToCheckoutWhenThereIsAnOpenRecordToday() {
+        LocalDateTime checkinTime = LocalDate.now(SAO_PAULO).atTime(8, 0);
+        TimeRecord openRecord = new TimeRecord(
+                1L,
+                checkinTime,
+                null,
+                StatusRecord.PENDING,
+                false,
+                true,
+                employeeId,
+                null,
+                null,
+                null,
+                null,
+                10L,
+                null,
+                checkinTime,
+                null
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of(openRecord));
+
+        var response = service.getTodayStatus();
+
+        assertEquals("READY_TO_CHECKOUT", response.status());
+        assertEquals("CHECK_OUT", response.nextAction());
+        assertEquals("CHECK_IN", response.lastRecordType());
+        assertEquals(1, response.records().size());
+    }
+
+    @Test
+    @DisplayName("getTodayStatus: retorna COMPLETED quando já há entrada e saída no dia")
+    void shouldReturnCompletedWhenThereIsCheckinAndCheckoutToday() {
+        LocalDateTime checkinTime = LocalDate.now(SAO_PAULO).atTime(8, 0);
+        LocalDateTime checkoutTime = LocalDate.now(SAO_PAULO).atTime(17, 0);
+        TimeRecord closedRecord = new TimeRecord(
+                2L,
+                checkinTime,
+                checkoutTime,
+                StatusRecord.CREATED,
+                false,
+                true,
+                employeeId,
+                null,
+                null,
+                null,
+                null,
+                11L,
+                12L,
+                checkinTime,
+                checkoutTime
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of(closedRecord));
+
+        var response = service.getTodayStatus();
+
+        assertEquals("COMPLETED", response.status());
+        assertEquals("VIEW_REPORT", response.nextAction());
+        assertEquals("CHECK_OUT", response.lastRecordType());
+        assertEquals(2, response.records().size());
+    }
+
+    @Test
+    @DisplayName("getTodayStatus: retorna TERMS_REQUIRED quando o consentimento biométrico está pendente")
+    void shouldReturnTermsRequiredWhenBiometricConsentIsMissing() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(legalConsentProvider.existsActive(employeeId, com.kts.kronos.domain.model.enuns.ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(false);
+
+        var response = service.getTodayStatus();
+
+        assertEquals("TERMS_REQUIRED", response.status());
+        assertEquals("ACCEPT_TERMS", response.nextAction());
+        assertTrue(response.records().isEmpty());
+    }
+
+    @Test
+    @DisplayName("getTodayStatus: retorna resposta neutra quando o usuário não possui employee vinculado")
+    void shouldReturnNeutralTodayStatusWhenAuthenticatedUserHasNoEmployee() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenThrow(new IllegalArgumentException("JWT employee id not found"));
+
+        var response = service.getTodayStatus();
+
+        assertEquals("UNKNOWN", response.status());
+        assertEquals("NONE", response.nextAction());
+        assertTrue(response.records().isEmpty());
+    }
+
+    @Test
+    @DisplayName("listMyRecentRecords: retorna registros reais ordenados e limita o máximo a 20")
+    void shouldReturnRecentRecordsOrderedAndLimited() {
+        TimeRecord first = new TimeRecord(10L, LocalDateTime.of(2026, 6, 1, 8, 0), LocalDateTime.of(2026, 6, 1, 17, 0), StatusRecord.CREATED, false, true, employeeId, null, null, null, null, 1L, 2L, null, null);
+        TimeRecord second = new TimeRecord(11L, LocalDateTime.of(2026, 6, 2, 8, 5), null, StatusRecord.PENDING, false, true, employeeId, null, null, null, null, 3L, null, null, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findRecentByEmployeeId(employeeId, 20)).thenReturn(List.of(second, first));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(documentProvider.findByTimeRecordIds(any())).thenReturn(List.of());
+
+        var response = service.listMyRecentRecords(30);
+
+        assertEquals("PERSISTED", response.source());
+        assertEquals(3, response.items().size());
+        assertEquals("CHECK_IN", response.items().getFirst().actionType());
+        assertEquals(LocalDateTime.of(2026, 6, 2, 8, 5).atZone(SAO_PAULO).toOffsetDateTime(), response.items().getFirst().dateTime());
+        verify(recordRepository).findRecentByEmployeeId(employeeId, 20);
+    }
+
+    @Test
+    @DisplayName("listMyRequests: consolida férias, abonos e ajustes manuais do colaborador")
+    void shouldAggregateMyRequestsFromRealSources() {
+        TimeRecord vacationStart = new TimeRecord(21L, LocalDateTime.of(2026, 7, 1, 0, 0), LocalDateTime.of(2026, 7, 1, 0, 0), StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        TimeRecord vacationEnd = new TimeRecord(22L, LocalDateTime.of(2026, 7, 2, 0, 0), LocalDateTime.of(2026, 7, 2, 0, 0), StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        TimeRecord timeOff = new TimeRecord(23L, LocalDateTime.of(2026, 6, 10, 9, 0), LocalDateTime.of(2026, 6, 10, 18, 0), StatusRecord.TIME_OFF_REQUEST, true, true, employeeId, null, null, null, null, null, null, null, null);
+        TimeRecordApprovalRequest adjustment = new TimeRecordApprovalRequest(
+                24L,
+                employeeId,
+                managerId,
+                LocalDateTime.of(2026, 6, 3, 8, 0),
+                LocalDateTime.of(2026, 6, 3, 18, 0),
+                LocalDateTime.of(2026, 6, 4, 10, 30)
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(vacationStart, vacationEnd, timeOff));
+        when(approvalProvider.findByRequestingEmployeeId(employeeId, 5)).thenReturn(List.of(adjustment));
+
+        var response = service.listMyRequests(5);
+
+        assertEquals("PERSISTED", response.source());
+        assertEquals(3, response.items().size());
+        assertEquals("VACATION", response.items().getFirst().type());
+        assertTrue(response.items().stream().anyMatch(item -> "VACATION".equals(item.type())));
+        assertTrue(response.items().stream().anyMatch(item -> "TIME_OFF".equals(item.type())));
+        assertTrue(response.items().stream().anyMatch(item -> "MANUAL_ADJUSTMENT".equals(item.type())));
+    }
 }

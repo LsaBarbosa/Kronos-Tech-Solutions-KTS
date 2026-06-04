@@ -27,4 +27,7 @@ public interface TimeRecordUseCase {
     void approveTimeOff(Long timeRecordId);
     void rejectTimeOff(Long timeRecordId);
     TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size);
+    TodayTimeRecordStatusResponse getTodayStatus();
+    RecentTimeRecordsResponse listMyRecentRecords(int limit);
+    MyRequestsResponse listMyRequests(int limit);
 }
