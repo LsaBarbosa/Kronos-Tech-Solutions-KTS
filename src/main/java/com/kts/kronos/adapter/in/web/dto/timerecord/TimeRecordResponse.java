@@ -26,7 +26,17 @@ public record TimeRecordResponse(
         boolean active,
         UUID employeeId,
         EmployeeData employeeData,
-        String documentDownloadPath
+        String documentDownloadPath,
+        @JsonFormat(pattern = DATE_PATTERN)
+        LocalDateTime originalStartWork,
+        String originalStartHour,
+        @JsonFormat(pattern = DATE_PATTERN)
+        LocalDateTime originalEndWork,
+        String originalEndHour,
+        Boolean hasTreatment,
+        String treatmentLabel,
+        Long nsrCheckin,
+        Long nsrCheckout
 ) {
     // Adicionado parâmetro 'dailyBalance'
     public static TimeRecordResponse fromDomain(TimeRecord timeRecord,
@@ -82,6 +92,30 @@ public record TimeRecordResponse(
             }
         }
 
+        LocalDateTime originalStartDateTime = null;
+        String originalStartHour = null;
+        if (timeRecord.originalStartWork() != null) {
+            originalStartDateTime = timeRecord.originalStartWork()
+                    .atZone(SAO_PAULO)
+                    .toLocalDateTime();
+            originalStartHour = originalStartDateTime.toLocalTime()
+                    .format(TIME_FORMATTER);
+        }
+
+        LocalDateTime originalEndDateTime = null;
+        String originalEndHour = null;
+        if (timeRecord.originalEndWork() != null) {
+            originalEndDateTime = timeRecord.originalEndWork()
+                    .atZone(SAO_PAULO)
+                    .toLocalDateTime();
+            originalEndHour = originalEndDateTime.toLocalTime()
+                    .format(TIME_FORMATTER);
+        }
+
+        boolean hasTreatment = timeRecord.edited()
+                || (originalStartDateTime != null && !originalStartDateTime.equals(startDateTime))
+                || (originalEndDateTime != null && !originalEndDateTime.equals(endDateTime));
+
         return new TimeRecordResponse(
                 timeRecord.timeRecordId(),
                 startDateTime,
@@ -95,8 +129,32 @@ public record TimeRecordResponse(
                 timeRecord.active(),
                 timeRecord.employeeId(),
                 employeeData,
-                documentDownloadPath
+                documentDownloadPath,
+                originalStartDateTime,
+                originalStartHour,
+                originalEndDateTime,
+                originalEndHour,
+                hasTreatment,
+                treatmentLabel(timeRecord.statusRecord(), hasTreatment),
+                timeRecord.nsrCheckin(),
+                timeRecord.nsrCheckout()
         );
+    }
+
+    private static String treatmentLabel(StatusRecord status, boolean hasTreatment) {
+        if (status == StatusRecord.UPDATED) {
+            return "Registro tratado";
+        }
+        if (status == StatusRecord.PENDING_APPROVAL) {
+            return "Aguardando aprovação";
+        }
+        if (status == StatusRecord.UPDATE_REJECTED) {
+            return "Alteração rejeitada";
+        }
+        if (hasTreatment) {
+            return "Possui ajuste";
+        }
+        return null;
     }
 
     private static boolean isBalanceZeroStatus(StatusRecord status) {
