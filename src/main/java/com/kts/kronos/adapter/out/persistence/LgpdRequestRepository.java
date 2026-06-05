@@ -31,12 +31,21 @@ public interface LgpdRequestRepository extends JpaRepository<LgpdRequestEntity, 
              WHERE (:companyId IS NULL OR r.companyId = :companyId)
                AND (:type IS NULL OR r.requestType = :type)
                AND (:status IS NULL OR r.status = :status)
+               AND (
+                    :employeeNameFilter IS NULL
+                    OR EXISTS (
+                        SELECT 1 FROM EmployeeEntity e
+                         WHERE e.employeeId = r.employeeId
+                           AND LOWER(e.fullName) LIKE :employeeNameFilter
+                    )
+               )
              ORDER BY r.createdAt DESC
             """)
     Page<LgpdRequestEntity> findAdminRequests(
             @Param("companyId") UUID companyId,
             @Param("type") LgpdRequestType type,
             @Param("status") LgpdRequestStatus status,
+            @Param("employeeNameFilter") String employeeNameFilter,
             Pageable pageable
     );
 

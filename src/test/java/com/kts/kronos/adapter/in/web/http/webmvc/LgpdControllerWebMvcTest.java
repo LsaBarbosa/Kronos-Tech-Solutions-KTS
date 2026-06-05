@@ -524,7 +524,7 @@ class LgpdControllerWebMvcTest {
         );
 
         Page<LgpdRequestAdminListResponse> page = new PageImpl<>(List.of(response));
-        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/lgpd/admin/requests"))
                 .andExpect(status().isOk())
@@ -550,7 +550,7 @@ class LgpdControllerWebMvcTest {
         );
 
         Page<LgpdRequestAdminListResponse> page = new PageImpl<>(List.of(response));
-        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any())).thenReturn(page);
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/lgpd/admin/requests")
                         .queryParam("type", "ACCESS")
@@ -561,6 +561,7 @@ class LgpdControllerWebMvcTest {
         verify(lgpdUseCase).listAdminRequests(
                 eq(LgpdRequestType.ACCESS),
                 eq(LgpdRequestStatus.IN_ANALYSIS),
+                any(),
                 any(),
                 any()
         );
