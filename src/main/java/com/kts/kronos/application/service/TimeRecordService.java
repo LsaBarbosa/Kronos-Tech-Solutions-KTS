@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestPageResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -697,7 +698,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
-    public List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size) {
+    public VacationRequestPageResponse listVacationRequests(String statusFilter, String employeeName, int page, int size) {
         var employeeId = jwtAuthenticatedUser.getEmployeeId();
         var companyId = getEmployee(employeeId).companyId();
         var normalizedStatusFilter = statusFilter == null ? "" : statusFilter.trim().toUpperCase();
@@ -711,11 +712,13 @@ public class TimeRecordService implements TimeRecordUseCase {
                     .collect(Collectors.toSet());
         };
 
-        var pageable = PageRequest.of(page, size);
+        var safePage = Math.max(page, 0);
+        var safeSize = Math.max(1, Math.min(size, 100));
+        var pageable = PageRequest.of(safePage, safeSize);
         Page<VacationRequestPeriodProjection> periodsPage =
                 recordRepository.findVacationRequestPeriodsByCompanyId(pageable, companyId, targetStatuses, employeeName);
 
-        return periodsPage.getContent().stream()
+        var requests = periodsPage.getContent().stream()
                 .map(period -> new VacationRequestResponse(
                         period.getEmployeeId(),
                         period.getEmployeeName(),
@@ -725,6 +728,15 @@ public class TimeRecordService implements TimeRecordUseCase {
                         parseTimeRecordIdsCsv(period.getTimeRecordIdsCsv())
                 ))
                 .toList();
+
+        return new VacationRequestPageResponse(
+                requests,
+                periodsPage.getTotalPages(),
+                periodsPage.getTotalElements(),
+                periodsPage.getNumber(),
+                periodsPage.isFirst(),
+                periodsPage.isLast()
+        );
     }
     @Override
     public Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document) {

@@ -6,7 +6,7 @@ import java.util.UUID;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestPageResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface TimeRecordUseCase {
@@ -22,7 +22,7 @@ public interface TimeRecordUseCase {
     List<Long> requestVacation(RequestVacationRequest request);
     void approveVacation(VacationApprovalRequest request);
     void rejectVacation(VacationApprovalRequest request);
-    List<VacationRequestResponse> listVacationRequests(String statusFilter, String employeeName, int page, int size);
+    VacationRequestPageResponse listVacationRequests(String statusFilter, String employeeName, int page, int size);
     Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document);
     void approveTimeOff(Long timeRecordId);
     void rejectTimeOff(Long timeRecordId);
