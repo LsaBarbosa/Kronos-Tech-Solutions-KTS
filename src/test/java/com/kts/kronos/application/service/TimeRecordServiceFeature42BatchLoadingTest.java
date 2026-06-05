@@ -466,9 +466,14 @@ class TimeRecordServiceFeature42BatchLoadingTest {
 
         var result = service.listVacationRequests("PENDING", "ana", 1, 2);
 
-        assertEquals(1, result.size());
-        assertEquals(employeeId, result.getFirst().employeeId());
-        assertEquals(List.of(11L, 12L, 13L), result.getFirst().timeRecordIdsForApproval());
+        assertEquals(1, result.requests().size());
+        assertEquals(2, result.totalPages());
+        assertEquals(4, result.totalElements());
+        assertEquals(1, result.currentPage());
+        assertEquals(false, result.isFirst());
+        assertEquals(true, result.isLast());
+        assertEquals(employeeId, result.requests().getFirst().employeeId());
+        assertEquals(List.of(11L, 12L, 13L), result.requests().getFirst().timeRecordIdsForApproval());
         verify(recordRepository).findVacationRequestPeriodsByCompanyId(
                 pageRequest,
                 companyId,
@@ -508,7 +513,8 @@ class TimeRecordServiceFeature42BatchLoadingTest {
 
         var result = service.listVacationRequests("APPROVED", null, 0, 10);
 
-        assertEquals(1, result.size());
+        assertEquals(1, result.requests().size());
+        assertEquals(1, result.totalElements());
         verify(recordRepository).findVacationRequestPeriodsByCompanyId(
                 pageRequest,
                 companyId,
@@ -546,8 +552,8 @@ class TimeRecordServiceFeature42BatchLoadingTest {
 
         var result = service.listVacationRequests("REJECTED", "ana", 0, 10);
 
-        assertEquals(1, result.size());
-        assertEquals(List.of(), result.getFirst().timeRecordIdsForApproval());
+        assertEquals(1, result.requests().size());
+        assertEquals(List.of(), result.requests().getFirst().timeRecordIdsForApproval());
     }
 
     @Test
@@ -574,7 +580,8 @@ class TimeRecordServiceFeature42BatchLoadingTest {
 
         var result = service.listVacationRequests("all", null, 0, 10);
 
-        assertEquals(0, result.size());
+        assertEquals(0, result.requests().size());
+        assertEquals(0, result.totalElements());
     }
 
     @Test
@@ -623,9 +630,13 @@ class TimeRecordServiceFeature42BatchLoadingTest {
 
         var result = service.listVacationRequests(null, null, 0, 10);
 
-        assertEquals(2, result.size());
-        assertEquals(List.of(), result.get(0).timeRecordIdsForApproval());
-        assertEquals(List.of(11L, 13L), result.get(1).timeRecordIdsForApproval());
+        assertEquals(2, result.requests().size());
+        assertEquals(2, result.totalElements());
+        assertEquals(0, result.currentPage());
+        assertEquals(true, result.isFirst());
+        assertEquals(true, result.isLast());
+        assertEquals(List.of(), result.requests().get(0).timeRecordIdsForApproval());
+        assertEquals(List.of(11L, 13L), result.requests().get(1).timeRecordIdsForApproval());
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordApprovalResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordPageResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TimeRecordResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.TodayTimeRecordStatusResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestPageResponse;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
 import com.kts.kronos.adapter.in.web.http.TimeRecordController;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -435,18 +436,25 @@ class TimeRecordControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("listVacationRequests: deve listar solicitações de férias")
+    @DisplayName("listVacationRequests: deve listar solicitações de férias com paginação")
     void shouldListVacationRequests() throws Exception {
         UUID employeeId = UUID.randomUUID();
         when(useCase.listVacationRequests("PENDING", "ana", 1, 20))
-                .thenReturn(List.of(new VacationRequestResponse(
-                        employeeId,
-                        "Ana Paula",
-                        LocalDate.of(2026, 12, 1),
-                        LocalDate.of(2026, 12, 5),
-                        "REQUEST_VACATION",
-                        List.of(20L, 21L)
-                )));
+                .thenReturn(new VacationRequestPageResponse(
+                        List.of(new VacationRequestResponse(
+                                employeeId,
+                                "Ana Paula",
+                                LocalDate.of(2026, 12, 1),
+                                LocalDate.of(2026, 12, 5),
+                                "REQUEST_VACATION",
+                                List.of(20L, 21L)
+                        )),
+                        3,
+                        25,
+                        1,
+                        false,
+                        false
+                ));
 
         mockMvc.perform(get("/records/vacation-request")
                         .param("status", "PENDING")
@@ -454,8 +462,30 @@ class TimeRecordControllerWebMvcTest {
                         .param("page", "1")
                         .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].employeeId").value(employeeId.toString()))
-                .andExpect(jsonPath("$[0].timeRecordIdsForApproval[0]").value(20L));
+                .andExpect(jsonPath("$.requests[0].employeeId").value(employeeId.toString()))
+                .andExpect(jsonPath("$.requests[0].timeRecordIdsForApproval[0]").value(20L))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.totalElements").value(25))
+                .andExpect(jsonPath("$.currentPage").value(1))
+                .andExpect(jsonPath("$.isFirst").value(false))
+                .andExpect(jsonPath("$.isLast").value(false));
+    }
+
+    @Test
+    @DisplayName("listVacationRequests: deve normalizar page e size antes de delegar")
+    void shouldNormalizeVacationPaginationParams() throws Exception {
+        when(useCase.listVacationRequests("APPROVED", null, 0, 100))
+                .thenReturn(new VacationRequestPageResponse(List.of(), 0, 0, 0, true, true));
+
+        mockMvc.perform(get("/records/vacation-request")
+                        .param("status", "APPROVED")
+                        .param("page", "-2")
+                        .param("size", "500"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requests").isArray())
+                .andExpect(jsonPath("$.totalPages").value(0));
+
+        verify(useCase).listVacationRequests("APPROVED", null, 0, 100);
     }
 
     @Test
