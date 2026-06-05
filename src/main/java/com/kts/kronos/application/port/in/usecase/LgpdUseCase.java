@@ -68,6 +68,7 @@ public interface LgpdUseCase {
             LgpdRequestType type,
             LgpdRequestStatus status,
             UUID companyId,
+            String employeeName,
             Pageable pageable
     );
 

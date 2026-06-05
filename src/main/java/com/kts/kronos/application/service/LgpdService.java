@@ -729,6 +729,7 @@ public class LgpdService implements LgpdUseCase {
             LgpdRequestType type,
             LgpdRequestStatus status,
             UUID companyId,
+            String employeeName,
             Pageable pageable
     ) {
         UUID authorizedCompanyId = domainAuthorizationService.authorizeCompanyAccess(companyId);
@@ -738,6 +739,7 @@ public class LgpdService implements LgpdUseCase {
                 authorizedCompanyId,
                 type,
                 status,
+                employeeName,
                 effectivePageable
         );
 

@@ -281,9 +281,10 @@ public class LgpdController {
             @RequestParam(required = false) LgpdRequestType type,
             @RequestParam(required = false) LgpdRequestStatus status,
             @RequestParam(required = false) UUID companyId,
+            @RequestParam(required = false) String employeeName,
             Pageable pageable
     ) {
-        var page = lgpdUseCase.listAdminRequests(type, status, companyId, pageable);
+        var page = lgpdUseCase.listAdminRequests(type, status, companyId, employeeName, pageable);
         return ResponseEntity.ok(page);
     }
 
