@@ -72,9 +72,17 @@ public class LgpdRequestProviderImpl implements LgpdRequestProvider {
             UUID companyId,
             LgpdRequestType type,
             LgpdRequestStatus status,
+            String employeeName,
             Pageable pageable
     ) {
-        return repository.findAdminRequests(companyId, type, status, pageable)
+        String employeeNameFilter = null;
+        if (employeeName != null) {
+            String trimmed = employeeName.trim();
+            if (!trimmed.isEmpty()) {
+                employeeNameFilter = "%" + trimmed.toLowerCase() + "%";
+            }
+        }
+        return repository.findAdminRequests(companyId, type, status, employeeNameFilter, pageable)
                 .map(mapper::toDomain);
     }
 }

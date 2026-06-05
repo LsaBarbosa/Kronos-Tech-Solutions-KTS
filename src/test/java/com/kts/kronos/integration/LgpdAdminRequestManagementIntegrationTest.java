@@ -75,7 +75,7 @@ class LgpdAdminRequestManagementIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any(Pageable.class)))
+        when(lgpdUseCase.listAdminRequests(any(), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(Page.empty());
         when(lgpdUseCase.assignRequest(any(UUID.class), any(UUID.class)))
                 .thenReturn(sampleRequest());

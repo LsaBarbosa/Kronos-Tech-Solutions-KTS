@@ -29,6 +29,7 @@ public interface LgpdRequestProvider {
             UUID companyId,
             LgpdRequestType type,
             LgpdRequestStatus status,
+            String employeeName,
             Pageable pageable
     );
 }

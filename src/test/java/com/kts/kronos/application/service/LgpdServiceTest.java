@@ -601,12 +601,12 @@ class LgpdServiceTest {
 
         LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
 
-        when(lgpdRequestProvider.findAdminRequests(null, null, null, org.springframework.data.domain.Pageable.unpaged()))
+        when(lgpdRequestProvider.findAdminRequests(null, null, null, null, org.springframework.data.domain.Pageable.unpaged()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
 
-        var result = service.listAdminRequests(null, null, null, org.springframework.data.domain.Pageable.unpaged());
+        var result = service.listAdminRequests(null, null, null, null, org.springframework.data.domain.Pageable.unpaged());
 
         assertEquals(1, result.getContent().size());
         assertEquals("Lucas", result.getContent().get(0).employeeFullName());
@@ -629,6 +629,7 @@ class LgpdServiceTest {
                 companyId,
                 LgpdRequestType.ACCESS,
                 LgpdRequestStatus.OPEN,
+                null,
                 pageable
         )).thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request), pageable, 1));
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
@@ -638,6 +639,7 @@ class LgpdServiceTest {
                 LgpdRequestType.ACCESS,
                 LgpdRequestStatus.OPEN,
                 companyId,
+                null,
                 pageable
         );
 
@@ -646,6 +648,7 @@ class LgpdServiceTest {
                 companyId,
                 LgpdRequestType.ACCESS,
                 LgpdRequestStatus.OPEN,
+                null,
                 pageable
         );
     }
@@ -656,13 +659,13 @@ class LgpdServiceTest {
         var pageable = org.springframework.data.domain.PageRequest.of(0, 10);
 
         when(domainAuthorizationService.authorizeCompanyAccess(null)).thenReturn(managerCompanyId);
-        when(lgpdRequestProvider.findAdminRequests(managerCompanyId, null, null, pageable))
+        when(lgpdRequestProvider.findAdminRequests(managerCompanyId, null, null, null, pageable))
                 .thenReturn(org.springframework.data.domain.Page.empty(pageable));
 
-        var result = service.listAdminRequests(null, null, null, pageable);
+        var result = service.listAdminRequests(null, null, null, null, pageable);
 
         assertTrue(result.isEmpty());
-        verify(lgpdRequestProvider).findAdminRequests(managerCompanyId, null, null, pageable);
+        verify(lgpdRequestProvider).findAdminRequests(managerCompanyId, null, null, null, pageable);
     }
 
     @Test
@@ -672,12 +675,12 @@ class LgpdServiceTest {
         LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
         var pageable = org.springframework.data.domain.Pageable.unpaged();
 
-        when(lgpdRequestProvider.findAdminRequests(null, null, null, pageable))
+        when(lgpdRequestProvider.findAdminRequests(null, null, null, null, pageable))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(request)));
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
         when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
 
-        var result = service.listAdminRequests(null, null, null, pageable);
+        var result = service.listAdminRequests(null, null, null, null, pageable);
 
         assertEquals(1, result.getContent().size());
         assertEquals("Colaborador não encontrado", result.getContent().get(0).employeeFullName());
@@ -743,7 +746,7 @@ class LgpdServiceTest {
                 .thenThrow(exception);
 
         try {
-            service.listAdminRequests(null, null, otherCompanyId, null);
+            service.listAdminRequests(null, null, otherCompanyId, null, null);
         } catch (com.kts.kronos.application.exceptions.ForbiddenException e) {
             assertEquals("Manager não pode acessar empresa diferente", e.getMessage());
         }
