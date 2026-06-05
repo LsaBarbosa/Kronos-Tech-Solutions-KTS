@@ -4,7 +4,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.timerecord.*;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
-import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestResponse;
+import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestPageResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -117,14 +117,16 @@ public class TimeRecordController {
 
     @PreAuthorize(MANAGER)
     @GetMapping(VACATION_REQUEST)
-    public ResponseEntity<List<VacationRequestResponse>> listVacationRequests(
+    public ResponseEntity<VacationRequestPageResponse> listVacationRequests(
             @RequestParam(value = "status", defaultValue = "PENDING") String statusFilter,
             @RequestParam(value = "employeeName", required = false) String employeeName,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "10") int size
     ) {
         // A role MANAGER é exigida para listar as solicitações
-        var requests = useCase.listVacationRequests(statusFilter, employeeName, page, size);
+        var safePage = Math.max(page, 0);
+        var safeSize = Math.max(1, Math.min(size, 100));
+        var requests = useCase.listVacationRequests(statusFilter, employeeName, safePage, safeSize);
         return ResponseEntity.ok(requests);
     }
 
