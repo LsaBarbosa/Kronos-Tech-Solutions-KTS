@@ -1,4 +1,4 @@
-# CLAUDE.md — Kronos Back-end — EPIC 6
+# CLAUDE.md — Kronos Back-end — EPIC 7
 
 ## Contexto
 
@@ -6,7 +6,7 @@ Repositório back-end Kronos na branch `new-ui`.
 
 ## Escopo atual
 
-O EPIC 6 pertence às telas administrativas do front-end.
+O EPIC 7 pertence às telas de comunicação e documentos do front-end.
 
 Neste back-end, atue como guardião de contrato.
 
@@ -14,21 +14,13 @@ Neste back-end, atue como guardião de contrato.
 
 ```text
 AGENTS.md
-docs/new-ui/epic-6/backend-contract-guard-epic-6.md
-.cursor/rules/600-kronos-epic-6-backend-contract.mdc
+docs/new-ui/epic-7/backend-contract-guard-epic-7.md
+.cursor/rules/700-kronos-epic-7-backend-contract.mdc
 ```
 
-## Não alterar sem decisão explícita
+## Regra central
 
-- controllers;
-- DTOs;
-- endpoints;
-- entities;
-- migrations;
-- autenticação;
-- autorização;
-- roles;
-- regras de negócio.
+Não altere contrato de API sem decisão explícita.
 
 ## Permitido
 
@@ -47,6 +39,6 @@ docs/new-ui/epic-6/backend-contract-guard-epic-6.md
 ## Declaração esperada
 
 ```text
-Back-end validado como contrato para o EPIC 6 — Gestão administrativa.
+Back-end validado como contrato para o EPIC 7.
 Nenhuma alteração contratual foi necessária.
 ```
