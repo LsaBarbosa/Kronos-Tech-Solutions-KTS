@@ -1,0 +1,35 @@
+---
+description: Regras globais do back-end para o ÉPICO 1
+alwaysApply: true
+---
+
+# Back-end — ÉPICO 1
+
+## Regra principal
+
+O ÉPICO 1 é de Design System front-end. O back-end deve ser tratado como contrato de compatibilidade.
+
+## Permitido
+
+- Rodar testes.
+- Rodar build.
+- Conferir compatibilidade.
+- Documentar ausência de alteração.
+
+## Proibido sem justificativa formal
+
+- Alterar controllers.
+- Alterar DTOs.
+- Alterar endpoints.
+- Alterar entities.
+- Alterar migrations.
+- Alterar autenticação.
+- Alterar autorização.
+- Alterar regras de negócio.
+
+## Validação
+
+```bash
+./gradlew test
+./gradlew build
+```
