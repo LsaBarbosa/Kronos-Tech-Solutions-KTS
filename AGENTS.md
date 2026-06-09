@@ -1,4 +1,4 @@
-# AGENTS.md — Kronos Back-end — EPIC 5
+# AGENTS.md — Kronos Back-end — EPIC 6
 
 ## Branch
 
@@ -6,31 +6,54 @@
 
 ## Escopo
 
-O EPIC 5 implementa dashboard e registro de ponto no front-end.
+O EPIC 6 implementa telas administrativas no front-end.
 
-No back-end, atue como guardiao de contrato.
+No back-end, atue como guardião de contrato.
+
+## Áreas relacionadas
+
+- Empresas.
+- Colaboradores.
+- Usuários de acesso.
+- Administradores.
+- Roles e permissões.
+
+## Leia antes de qualquer ação
+
+```text
+docs/new-ui/epic-6/backend-contract-guard-epic-6.md
+.cursor/rules/600-kronos-epic-6-backend-contract.mdc
+```
 
 ## Permitido
 
-- Validar endpoints existentes usados pelo dashboard.
-- Validar endpoints existentes usados pelo fluxo de ponto.
+- Validar endpoints existentes usados pelo front-end administrativo.
+- Validar payloads atuais.
 - Rodar testes e build.
 - Documentar incompatibilidade real se encontrada.
 
-## Proibido sem necessidade comprovada
+## Não fazer neste EPIC sem decisão explícita
 
-- Alterar controllers.
-- Alterar DTOs.
-- Alterar payloads.
-- Alterar regras de ponto.
-- Alterar entidades.
-- Criar migrations.
-- Alterar autenticacao ou autorizacao.
+- Criar endpoint novo.
+- Alterar DTO.
+- Alterar payload.
+- Alterar entity.
+- Criar migration.
+- Alterar autenticação.
+- Alterar autorização.
+- Alterar roles.
+- Alterar regra de negócio.
 
-## Excecao
+## Validação
 
-Alteracao minima so e aceitavel se o front-end estiver bloqueado por falha real de contrato e a correcao for documentada.
+```bash
+./gradlew test
+./gradlew build
+```
 
-## Validacao
+## Declaração esperada
 
-Rodar `./gradlew test` e `./gradlew build` quando aplicavel.
+```text
+Back-end validado como contrato para o EPIC 6 — Gestão administrativa.
+Nenhuma alteração contratual foi necessária.
+```
