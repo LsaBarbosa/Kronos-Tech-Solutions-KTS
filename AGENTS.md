@@ -1,4 +1,4 @@
-# AGENTS.md — Kronos Back-end — ÉPICO 1
+# AGENTS.md — Kronos Back-end — ÉPICO 2
 
 ## Escopo
 
@@ -12,9 +12,9 @@ new-ui
 
 ## Regra principal
 
-O ÉPICO 1 é um épico de Design System no front-end.
+O ÉPICO 2 é um épico de App Shell responsivo no front-end.
 
-No back-end, o papel deste repositório é apenas servir como contrato de compatibilidade.
+No back-end, este repositório deve ser tratado apenas como contrato de compatibilidade.
 
 ## Permitido
 
@@ -44,7 +44,7 @@ Não alterar sem justificativa formal:
 Uma alteração mínima só é aceitável se:
 
 1. a branch `new-ui` estiver quebrada;
-2. a falha bloquear validação do ÉPICO 1;
+2. a falha bloquear validação do ÉPICO 2;
 3. a correção não mudar contrato funcional;
 4. o motivo ficar documentado.
 
@@ -58,5 +58,5 @@ Uma alteração mínima só é aceitável se:
 ## Declaração esperada
 
 ```text
-Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 1.
+Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 2.
 ```
