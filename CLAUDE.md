@@ -35,6 +35,6 @@ O ÉPICO 3 pertence aos componentes base reutilizáveis do front-end. Neste back
 
 ## Declaração esperada
 
-```text
+```
 Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 3.
 ```
