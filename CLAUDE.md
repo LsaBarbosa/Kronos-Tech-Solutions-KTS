@@ -1,40 +1,42 @@
-# CLAUDE.md — Kronos Back-end — ÉPICO 3
+# CLAUDE.md — Kronos Back-end — EPIC 5
 
 ## Contexto
 
-Repositório back-end Kronos na branch `new-ui`.
+Repositorio back-end Kronos na branch `new-ui`.
 
 ## Escopo atual
 
-O ÉPICO 3 pertence aos componentes base reutilizáveis do front-end. Neste back-end, atue apenas como guardião de contrato.
+O EPIC 5 pertence ao dashboard e registro de ponto do front-end.
 
-## Não alterar neste épico
+Neste back-end, atue apenas como guardiao de contrato, salvo bloqueio real comprovado.
+
+## Nao alterar sem justificativa
 
 - controllers;
 - DTOs;
 - endpoints;
 - entities;
 - migrations;
-- segurança;
-- autenticação;
-- autorização;
-- regras de negócio.
+- autenticacao;
+- autorizacao;
+- regras de ponto.
 
 ## Permitido
 
-- Rodar testes e build.
-- Confirmar compatibilidade.
-- Registrar ausência de alteração.
+- Rodar testes.
+- Rodar build.
+- Conferir compatibilidade de endpoints existentes.
+- Registrar ausencia de alteracao.
 
-## Validação
+## Validacao
 
 ```bash
 ./gradlew test
 ./gradlew build
 ```
 
-## Declaração esperada
+## Declaracao esperada
 
-```
-Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 3.
+```text
+Back-end validado como contrato para o EPIC 5. Nenhuma alteracao funcional necessaria.
 ```
