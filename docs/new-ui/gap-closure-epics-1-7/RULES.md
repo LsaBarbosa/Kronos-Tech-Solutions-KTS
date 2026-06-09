@@ -2,7 +2,7 @@
 
 ## Escopo
 
-O back-end deve ser tratado como contrato de suporte para a branch `new-ui`.
+O back-end deve ser tratado como contrato de suporte para a branch new-ui.
 
 ## Permitido
 
@@ -17,3 +17,7 @@ O back-end deve ser tratado como contrato de suporte para a branch `new-ui`.
 - Novo endpoint sem aprovação.
 - Mudança de DTO sem alinhamento com o front.
 - Alteração de security, CORS ou cookies sem evidência.
+
+## Saída
+
+Relatório de compatibilidade com riscos e validações.
