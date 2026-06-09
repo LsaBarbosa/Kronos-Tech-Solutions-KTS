@@ -14,7 +14,7 @@ Neste back-end, atue como guardião de contrato.
 
 ```text
 AGENTS.md
-docs/new-ui/epic-7/backend-contract-guard-epic-7.md
+docs/new-ui/epic-7/contract-guard.md
 .cursor/rules/700-kronos-epic-7-backend-contract.mdc
 ```
 
