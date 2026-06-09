@@ -1,0 +1,34 @@
+---
+description: Backend contract guard for EPIC 7
+alwaysApply: true
+---
+
+# EPIC 7 — Backend contract
+
+## Regra principal
+
+O back-end deve ser tratado como contrato para o EPIC 7.
+
+## Permitido
+
+- Validar endpoints existentes.
+- Validar payloads atuais.
+- Rodar testes.
+- Rodar build.
+- Documentar incompatibilidade real.
+
+## Não fazer sem decisão explícita
+
+- Criar endpoint novo.
+- Alterar DTO.
+- Alterar payload.
+- Alterar entity.
+- Criar migration.
+- Alterar regra de negócio.
+
+## Validação
+
+```bash
+./gradlew test
+./gradlew build
+```
