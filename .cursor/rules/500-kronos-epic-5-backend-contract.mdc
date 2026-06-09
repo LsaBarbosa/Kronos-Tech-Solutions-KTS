@@ -1,0 +1,28 @@
+---
+description: EPIC 5 backend contract guard
+alwaysApply: true
+---
+
+# EPIC 5 Backend Contract
+
+## Regra principal
+
+O back-end atua como contrato para dashboard e registro de ponto.
+
+## Permitido
+
+- Validar endpoints existentes.
+- Rodar testes.
+- Rodar build.
+
+## Proibido sem justificativa
+
+- Alterar controllers.
+- Alterar DTOs.
+- Alterar payloads.
+- Alterar regras de ponto.
+- Criar migration.
+
+## Validacao
+
+Rodar gradle test e gradle build quando aplicavel.
