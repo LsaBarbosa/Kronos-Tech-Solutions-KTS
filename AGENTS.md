@@ -1,4 +1,4 @@
-# AGENTS.md — Kronos Back-end — EPIC 6
+# AGENTS.md — Kronos Back-end — EPIC 7
 
 ## Branch
 
@@ -6,31 +6,33 @@
 
 ## Escopo
 
-O EPIC 6 implementa telas administrativas no front-end.
+O EPIC 7 implementa comunicação e documentos no front-end.
 
 No back-end, atue como guardião de contrato.
 
 ## Áreas relacionadas
 
-- Empresas.
-- Colaboradores.
-- Usuários de acesso.
-- Administradores.
-- Roles e permissões.
+- Avisos.
+- Criação de aviso.
+- Documentos.
+- Upload de documentos.
+- Download de documentos.
+- Exclusão de documentos.
+- Permissões por perfil.
 
 ## Leia antes de qualquer ação
 
 ```text
-docs/new-ui/epic-6/backend-contract-guard-epic-6.md
-.cursor/rules/600-kronos-epic-6-backend-contract.mdc
+docs/new-ui/epic-7/backend-contract-guard-epic-7.md
+.cursor/rules/700-kronos-epic-7-backend-contract.mdc
 ```
 
 ## Permitido
 
-- Validar endpoints existentes usados pelo front-end administrativo.
+- Validar endpoints existentes.
 - Validar payloads atuais.
 - Rodar testes e build.
-- Documentar incompatibilidade real se encontrada.
+- Documentar incompatibilidade real.
 
 ## Não fazer neste EPIC sem decisão explícita
 
@@ -54,6 +56,6 @@ docs/new-ui/epic-6/backend-contract-guard-epic-6.md
 ## Declaração esperada
 
 ```text
-Back-end validado como contrato para o EPIC 6 — Gestão administrativa.
+Back-end validado como contrato para o EPIC 7 — Comunicação e documentos.
 Nenhuma alteração contratual foi necessária.
 ```
