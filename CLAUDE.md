@@ -1,4 +1,4 @@
-# CLAUDE.md — Kronos Back-end — ÉPICO 1
+# CLAUDE.md — Kronos Back-end — ÉPICO 2
 
 ## Contexto
 
@@ -6,7 +6,7 @@ Repositório back-end Kronos na branch `new-ui`.
 
 ## Escopo atual
 
-O ÉPICO 1 pertence ao Design System do front-end. Neste back-end, atue apenas como guardião de contrato.
+O ÉPICO 2 pertence ao App Shell responsivo do front-end. Neste back-end, atue apenas como guardião de contrato.
 
 ## Não alterar neste épico
 
@@ -36,5 +36,5 @@ O ÉPICO 1 pertence ao Design System do front-end. Neste back-end, atue apenas c
 ## Declaração esperada
 
 ```text
-Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 1.
+Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 2.
 ```
