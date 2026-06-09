@@ -1,0 +1,43 @@
+---
+description: Backend contract guard para o EPIC 6
+alwaysApply: true
+---
+
+# EPIC 6 — Back-end Contract Guard
+
+## Regra principal
+
+O EPIC 6 é front-end administrativo. No back-end, atue como guardião de contrato.
+
+## Áreas relacionadas
+
+- Empresas.
+- Colaboradores.
+- Usuários de acesso.
+- Administradores.
+- Roles e permissões.
+
+## Permitido
+
+- Validar endpoints existentes.
+- Validar payloads atuais.
+- Rodar testes e build.
+- Documentar incompatibilidade real.
+
+## Proibido sem aprovação explícita
+
+- Criar endpoint novo.
+- Alterar DTO.
+- Alterar entity.
+- Criar migration.
+- Alterar autenticação.
+- Alterar autorização.
+- Alterar regra de negócio.
+- Alterar roles.
+
+## Validação
+
+```bash
+./gradlew test
+./gradlew build
+```
