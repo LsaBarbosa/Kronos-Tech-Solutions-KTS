@@ -1,4 +1,4 @@
-# AGENTS.md — Kronos Back-end — ÉPICO 3
+# AGENTS.md — Kronos Back-end — EPIC 5
 
 ## Branch
 
@@ -6,37 +6,31 @@
 
 ## Escopo
 
-O ÉPICO 3 cria componentes base reutilizáveis no front-end.
+O EPIC 5 implementa dashboard e registro de ponto no front-end.
 
-No back-end, atue apenas como contrato de compatibilidade.
+No back-end, atue como guardiao de contrato.
 
 ## Permitido
 
-- Validar build.
-- Validar testes.
-- Registrar incompatibilidade real, se existir.
+- Validar endpoints existentes usados pelo dashboard.
+- Validar endpoints existentes usados pelo fluxo de ponto.
+- Rodar testes e build.
+- Documentar incompatibilidade real se encontrada.
 
-## Proibido
+## Proibido sem necessidade comprovada
 
 - Alterar controllers.
 - Alterar DTOs.
-- Alterar endpoints.
 - Alterar payloads.
-- Alterar entities.
+- Alterar regras de ponto.
+- Alterar entidades.
 - Criar migrations.
-- Alterar autenticação.
-- Alterar autorização.
-- Alterar regra de negócio.
+- Alterar autenticacao ou autorizacao.
 
-## Validação
+## Excecao
 
-```bash
-./gradlew test
-./gradlew build
-```
+Alteracao minima so e aceitavel se o front-end estiver bloqueado por falha real de contrato e a correcao for documentada.
 
-## Declaração esperada
+## Validacao
 
-```text
-Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 3.
-```
+Rodar `./gradlew test` e `./gradlew build` quando aplicavel.
