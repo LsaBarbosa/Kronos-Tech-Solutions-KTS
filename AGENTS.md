@@ -1,52 +1,32 @@
-# AGENTS.md — Kronos Back-end — ÉPICO 2
+# AGENTS.md — Kronos Back-end — ÉPICO 3
+
+## Branch
+
+`new-ui`
 
 ## Escopo
 
-Este arquivo orienta agentes no repositório back-end `Kronos-Tech-Solutions-KTS`.
+O ÉPICO 3 cria componentes base reutilizáveis no front-end.
 
-Branch obrigatória:
-
-```text
-new-ui
-```
-
-## Regra principal
-
-O ÉPICO 2 é um épico de App Shell responsivo no front-end.
-
-No back-end, este repositório deve ser tratado apenas como contrato de compatibilidade.
+No back-end, atue apenas como contrato de compatibilidade.
 
 ## Permitido
 
 - Validar build.
 - Validar testes.
-- Conferir que endpoints continuam compatíveis.
-- Documentar eventual incompatibilidade real.
+- Registrar incompatibilidade real, se existir.
 
-## Proibido neste épico
+## Proibido
 
-Não alterar sem justificativa formal:
-
-- controllers;
-- DTOs;
-- payloads;
-- endpoints;
-- entities;
-- migrations;
-- autenticação;
-- autorização;
-- regras de negócio;
-- schedulers;
-- integrações externas.
-
-## Exceção
-
-Uma alteração mínima só é aceitável se:
-
-1. a branch `new-ui` estiver quebrada;
-2. a falha bloquear validação do ÉPICO 2;
-3. a correção não mudar contrato funcional;
-4. o motivo ficar documentado.
+- Alterar controllers.
+- Alterar DTOs.
+- Alterar endpoints.
+- Alterar payloads.
+- Alterar entities.
+- Criar migrations.
+- Alterar autenticação.
+- Alterar autorização.
+- Alterar regra de negócio.
 
 ## Validação
 
@@ -58,5 +38,5 @@ Uma alteração mínima só é aceitável se:
 ## Declaração esperada
 
 ```text
-Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 2.
+Back-end validado apenas como contrato. Nenhuma alteração necessária para o ÉPICO 3.
 ```
