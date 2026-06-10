@@ -1,44 +1,52 @@
-# CLAUDE.md — Kronos Back-end — EPIC 7
+# Claude Code — Kronos Back-end
 
-## Contexto
+## Escopo obrigatório
 
-Repositório back-end Kronos na branch `new-ui`.
-
-## Escopo atual
-
-O EPIC 7 pertence às telas de comunicação e documentos do front-end.
-
-Neste back-end, atue como guardião de contrato.
-
-## Leia primeiro
+Repositório:
 
 ```text
-AGENTS.md
-docs/new-ui/epic-7/contract-guard.md
-.cursor/rules/700-kronos-epic-7-backend-contract.mdc
+LsaBarbosa/Kronos-Tech-Solutions-KTS
 ```
 
-## Regra central
+Branch obrigatória:
 
-Não altere contrato de API sem decisão explícita.
+```text
+new-ui
+```
 
-## Permitido
+## Objetivo nesta frente
 
-- Validar endpoints existentes.
-- Validar build.
-- Validar testes.
-- Documentar incompatibilidade real.
+O ÉPICO 1 é essencialmente de front-end/design system. No back-end, o papel do Claude Code é **compatibilidade e validação**, não implementação visual.
 
-## Validação
+## Ordem obrigatória de leitura
+
+1. `docs/new-ui/epic-01-backend/SPEC.md`
+2. `docs/new-ui/epic-01-backend/RULES.md`
+3. `docs/new-ui/epic-01-backend/VALIDATION.md`
+4. `docs/new-ui/epic-01-backend/PROMPTS.md`
+5. `.claude/skills/new-ui-backend-compat/SKILL.md`
+6. `.claude/agents/new-ui-backend-compat-agent.md`
+
+## Regras fortes
+
+- Trabalhar somente na branch `new-ui`.
+- Não alterar endpoints para resolver problema visual do front-end.
+- Não modificar regra de negócio sem necessidade comprovada.
+- Não criar migrations para o ÉPICO 1, salvo se uma incompatibilidade real for descoberta e aprovada.
+- Não alterar segurança, CORS, cookies ou autenticação sem evidência concreta.
+- Não commitar secrets, `.env`, logs ou artefatos de build.
+
+## Validação mínima
+
+Executar quando possível:
 
 ```bash
 ./gradlew test
-./gradlew build
+./gradlew bootJar
 ```
 
-## Declaração esperada
+Se o projeto exigir Docker/Testcontainers e o ambiente não tiver suporte, registrar em:
 
 ```text
-Back-end validado como contrato para o EPIC 7.
-Nenhuma alteração contratual foi necessária.
+docs/new-ui/epic-01-backend/VALIDATION_RESULT.md
 ```
