@@ -1,44 +1,30 @@
-# CLAUDE.md — Kronos Back-end — EPIC 7
+# Claude Code — Kronos Back-end — New UI
 
-## Contexto
+## Repositório
 
-Repositório back-end Kronos na branch `new-ui`.
+`LsaBarbosa/Kronos-Tech-Solutions-KTS`
 
-## Escopo atual
+## Branch
 
-O EPIC 7 pertence às telas de comunicação e documentos do front-end.
+`new-ui`
 
-Neste back-end, atue como guardião de contrato.
+## Papel neste trabalho
+
+Para os Épicos 0 e 1 do front-end `new-ui`, este repositório deve ser usado apenas para validação de contrato.
 
 ## Leia primeiro
 
-```text
-AGENTS.md
-docs/new-ui/epic-7/contract-guard.md
-.cursor/rules/700-kronos-epic-7-backend-contract.mdc
-```
+- `docs/new-ui/epic-00-01/backend-contract-guard.md`
+- `.claude/agents/backend-contract-guard.md`
+- `.claude/rules/new-ui-backend-contract.md`
 
 ## Regra central
 
-Não altere contrato de API sem decisão explícita.
-
-## Permitido
-
-- Validar endpoints existentes.
-- Validar build.
-- Validar testes.
-- Documentar incompatibilidade real.
+Não modificar API, migrations ou regra de negócio para resolver item visual/documental do front-end.
 
 ## Validação
 
 ```bash
 ./gradlew test
 ./gradlew build
-```
-
-## Declaração esperada
-
-```text
-Back-end validado como contrato para o EPIC 7.
-Nenhuma alteração contratual foi necessária.
 ```
