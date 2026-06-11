@@ -6,9 +6,11 @@ import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +26,7 @@ import static com.kts.kronos.constants.Messages.*;
 @RequiredArgsConstructor
 public class UserController {
     private final UserUseCase useCase;
+    private final AuthCookieService authCookieService;
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
@@ -89,7 +92,12 @@ public class UserController {
     @PutMapping(PASSWORD)
     public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
         useCase.changeOwnPassword(req);
-        return ResponseEntity.noContent().build();
+        // UserService.changeOwnPassword incrementa sessionVersion, invalidando o
+        // JWT atual. Sem este Set-Cookie, o cliente fica com cookie HttpOnly morto
+        // e qualquer request seguinte recebe 401 (não há como apagar via JS).
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, authCookieService.expireAccessTokenCookie().toString())
+                .build();
     }
 
     @GetMapping(CHECK_USERNAME)

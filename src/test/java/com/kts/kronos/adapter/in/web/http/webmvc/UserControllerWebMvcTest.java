@@ -1,19 +1,25 @@
 package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.http.UserController;
+import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Duration;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +47,21 @@ class UserControllerWebMvcTest {
 
     @MockitoBean
     private UserUseCase useCase;
+
+    @MockitoBean
+    private AuthCookieService authCookieService;
+
+    @BeforeEach
+    void setUpAuthCookieService() {
+        when(authCookieService.expireAccessTokenCookie())
+                .thenReturn(ResponseCookie.from("KRONOS_ACCESS_TOKEN", "")
+                        .maxAge(Duration.ZERO)
+                        .path("/")
+                        .httpOnly(true)
+                        .secure(true)
+                        .sameSite("Lax")
+                        .build());
+    }
 
     @Test
     @DisplayName("registerUser: deve delegar criação")
@@ -255,7 +277,7 @@ class UserControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("changePassword: deve retornar 204")
+    @DisplayName("changePassword: deve retornar 204 e expirar cookie de sessão")
     void shouldChangeOwnPassword() throws Exception {
         mockMvc.perform(put("/users/password")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -266,9 +288,15 @@ class UserControllerWebMvcTest {
                                   "confirmPassword": "newPassword123"
                                 }
                                 """))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isNoContent())
+                .andExpect(header().exists(HttpHeaders.SET_COOKIE))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.containsString("KRONOS_ACCESS_TOKEN=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.containsString("Max-Age=0")));
 
         verify(useCase).changeOwnPassword(any());
+        verify(authCookieService).expireAccessTokenCookie();
     }
 
     @Test
