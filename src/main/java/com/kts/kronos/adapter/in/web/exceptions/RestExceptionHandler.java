@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.exceptions;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.CodedForbiddenException;
 import com.kts.kronos.application.exceptions.ConflictException;
+import com.kts.kronos.application.exceptions.DigitalSignatureException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
@@ -144,6 +145,25 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<Object> handleTooManyRequestsException(TooManyRequestsException ex, WebRequest request) {
         return buildResponseEntity(ex, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", ex.getMessage(), request, null, null);
+    }
+
+    @ExceptionHandler(DigitalSignatureException.class)
+    public ResponseEntity<Object> handleDigitalSignatureException(DigitalSignatureException ex, WebRequest request) {
+        // Log já feito no DigitalSignatureService/AejService. Aqui apenas registramos o path
+        // afetado para correlação operacional, sem expor causa/path/senha ao usuário.
+        log.error("event=http_error result=failure reason=digital_signature_unavailable path={} exception_type={}",
+                path(request),
+                ex.getClass().getSimpleName());
+        // 503 sinaliza problema infraestrutural transitório (certificado/keystore) — não é
+        // sessão expirada e não deve disparar redirecionamento para login no front-end.
+        return buildResponseEntity(
+                ex,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "DIGITAL_SIGNATURE_UNAVAILABLE",
+                "Serviço de assinatura digital indisponível no momento. Tente novamente em alguns minutos ou contate o administrador.",
+                request,
+                null,
+                null);
     }
 
     @ExceptionHandler(Exception.class)

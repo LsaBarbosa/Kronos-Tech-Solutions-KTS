@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.exceptions.DigitalSignatureException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AejUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
@@ -123,13 +124,20 @@ public class AejService implements AejUseCase {
                     byte[] signedContent;
                     try {
                         signedContent = signatureService.signData(originalContent);
-                    } catch (RuntimeException ex) {
+                    } catch (DigitalSignatureException ex) {
                         signatureFailure[0] = true;
                         kronosMetrics.legalFailure("aej", "digital_signature");
                         kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
                         log.error("event=legal_aej_generation result=failure reason=digital_signature exception_type={}",
                                 ex.getClass().getSimpleName());
                         throw ex;
+                    } catch (RuntimeException ex) {
+                        signatureFailure[0] = true;
+                        kronosMetrics.legalFailure("aej", "digital_signature");
+                        kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                        log.error("event=legal_aej_generation result=failure reason=digital_signature_unexpected exception_type={}",
+                                ex.getClass().getSimpleName());
+                        throw new DigitalSignatureException("Falha ao assinar documento digitalmente.", ex);
                     }
 
                     outputStream.write(signedContent);
@@ -141,6 +149,10 @@ public class AejService implements AejUseCase {
             kronosMetrics.legalSuccess("aej");
             kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "success");
             log.info("event=legal_aej_generation result=success");
+        } catch (DigitalSignatureException e) {
+            // Já foi medido/logado no catch interno; propaga preservando o tipo
+            // para o RestExceptionHandler retornar 503/DIGITAL_SIGNATURE_UNAVAILABLE.
+            throw e;
         } catch (RuntimeException e) {
             if (!signatureFailure[0]) {
                 kronosMetrics.legalFailure("aej", "generation");
@@ -228,7 +240,7 @@ public class AejService implements AejUseCase {
         var type = "05"; // Default: Outras Ausências
         if (r.statusRecord() == StatusRecord.VACATION) type = "04"; // Férias
 
-        long minutes = 0;
+        long minutes;
         // Se tem início e fim definidos (ex: meio período de folga), calcula.
         // Se é o dia todo, geralmente assume-se jornada diária padrão (ex: 480 min).
         if (r.startWork() != null && r.endWork() != null) {
@@ -237,8 +249,21 @@ public class AejService implements AejUseCase {
             minutes = 480; // Fallback para dia cheio (ajustar conforme regra de negócio)
         }
 
+        // Resolve a data do evento sem NPE: prefere startWork, depois endWork,
+        // depois recorre à data atual (mantém o arquivo válido, evita silenciar registro).
+        LocalDate eventDate;
+        if (r.startWork() != null) {
+            eventDate = r.startWork().toLocalDate();
+        } else if (r.endWork() != null) {
+            eventDate = r.endWork().toLocalDate();
+        } else {
+            log.warn("event=legal_aej_generation reason=absence_without_timestamps status={} fallback=today",
+                    r.statusRecord());
+            eventDate = LocalDate.now();
+        }
+
         return String.join("|", "07", bondId, type,
-                r.startWork().toLocalDate().format(DATE_FMT), String.valueOf(minutes), "") + "|";
+                eventDate.format(DATE_FMT), String.valueOf(minutes), "") + "|";
     }
 
     private String generateType08() {
