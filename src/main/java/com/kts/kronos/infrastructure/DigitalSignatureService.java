@@ -13,6 +13,16 @@ import org.bouncycastle.util.Store;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.StampingProperties;
+import com.itextpdf.signatures.BouncyCastleDigest;
+import com.itextpdf.signatures.IExternalSignature;
+import com.itextpdf.signatures.PdfSignatureAppearance;
+import com.itextpdf.signatures.PdfSigner;
+import com.itextpdf.signatures.PrivateKeySignature;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
@@ -136,6 +146,80 @@ public class DigitalSignatureService {
             log.error("event=legal_digital_signature result=failure reason=unexpected exception_type={}",
                     ex.getClass().getSimpleName());
             throw new DigitalSignatureException("Falha ao assinar documento digitalmente.", ex);
+        }
+    }
+
+    /**
+     * Aplica assinatura PAdES (PKCS#7 embarcada) ao PDF recebido usando o certificado
+     * da empresa configurado. O resultado é um PDF assinado verificável por leitores
+     * compatíveis (Adobe Reader, ITI gov.br, etc.).
+     *
+     * @param pdfBytes bytes do PDF original (já com o conteúdo e o carimbo visual)
+     * @param reason   motivo da assinatura (ex.: "Ciência do colaborador …")
+     * @param location local declarado (ex.: "Kronos Tech Solutions")
+     * @return bytes do PDF assinado
+     * @throws DigitalSignatureException quando o certificado/keystore está indisponível
+     *         ou falha criptográfica ocorre. Mensagens não expõem path nem senha.
+     */
+    public byte[] signPdf(byte[] pdfBytes, String reason, String location) {
+        validateCertificateConfig();
+        try {
+            byte[] signedBytes = kronosTracing.observe("kronos.legal.digital_signature.pdf", () -> {
+                try (InputStream is = new FileInputStream(certificatePath);
+                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                     ByteArrayInputStream pdfIn = new ByteArrayInputStream(pdfBytes)) {
+                    var keyStore = KeyStore.getInstance("PKCS12");
+                    keyStore.load(is, certificatePassword.toCharArray());
+
+                    if (!keyStore.aliases().hasMoreElements()) {
+                        throw new DigitalSignatureException("Certificado digital sem alias válido.");
+                    }
+                    var alias = keyStore.aliases().nextElement();
+                    var privateKey = (PrivateKey) keyStore.getKey(alias, certificatePassword.toCharArray());
+                    if (privateKey == null) {
+                        throw new DigitalSignatureException("Certificado digital não contém chave privada utilizável.");
+                    }
+                    Certificate[] chain = keyStore.getCertificateChain(alias);
+                    if (chain == null || chain.length == 0) {
+                        throw new DigitalSignatureException("Certificado digital não contém cadeia X.509 utilizável.");
+                    }
+
+                    PdfReader reader = new PdfReader(pdfIn);
+                    PdfSigner signer = new PdfSigner(reader, baos, new StampingProperties());
+                    PdfSignatureAppearance appearance = signer.getSignatureAppearance();
+                    appearance.setReason(reason != null ? reason : "Assinatura eletrônica");
+                    appearance.setLocation(location != null ? location : "");
+                    appearance.setCertificate(chain[0]);
+                    signer.setFieldName("kronos-empresa");
+
+                    IExternalSignature pks = new PrivateKeySignature(privateKey, "SHA-256", "BC");
+                    signer.signDetached(new BouncyCastleDigest(), pks, chain, null, null, null, 0, PdfSigner.CryptoStandard.CMS);
+
+                    return baos.toByteArray();
+                } catch (FileNotFoundException ex) {
+                    throw new DigitalSignatureException("Certificado digital não localizado no caminho configurado.", ex);
+                } catch (UnrecoverableKeyException ex) {
+                    throw new DigitalSignatureException("Não foi possível recuperar a chave privada do certificado digital.", ex);
+                } catch (IOException ex) {
+                    String reasonMsg = ex.getMessage() != null && ex.getMessage().toLowerCase().contains("password")
+                            ? "Senha do certificado digital inválida."
+                            : "Falha ao ler o certificado digital ou o PDF.";
+                    throw new DigitalSignatureException(reasonMsg, ex);
+                } catch (GeneralSecurityException ex) {
+                    throw new DigitalSignatureException("Falha criptográfica na assinatura do PDF.", ex);
+                }
+            });
+            log.info("event=legal_digital_signature_pdf result=success");
+            return signedBytes;
+        } catch (DigitalSignatureException ex) {
+            log.error("event=legal_digital_signature_pdf result=failure reason=digital_signature exception_type={} cause={}",
+                    ex.getClass().getSimpleName(),
+                    ex.getCause() == null ? "none" : ex.getCause().getClass().getSimpleName());
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("event=legal_digital_signature_pdf result=failure reason=unexpected exception_type={}",
+                    ex.getClass().getSimpleName());
+            throw new DigitalSignatureException("Falha ao assinar PDF digitalmente.", ex);
         }
     }
 
