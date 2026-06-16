@@ -17,9 +17,11 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.ArgumentCaptor;
 
 import jakarta.annotation.Resource;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -151,6 +153,27 @@ class AuthControllerWebMvcTest {
                 .andExpect(content().string(""));
 
         verify(authUseCase).recoverPassword(any(RecoverPasswordRequest.class));
+    }
+
+    @Test
+    void shouldAcceptMaskedCpfAndLongEmailForRecoverPassword() throws Exception {
+        String longEmail = "usuario.recuperacao.senha.extenso.exemplo@empresa.com";
+
+        mockMvc.perform(post("/auth/recover-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("""
+                                {
+                                  "cpf": "123.456.789-01",
+                                  "email": "%s"
+                                }
+                                """, longEmail)))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        ArgumentCaptor<RecoverPasswordRequest> captor = ArgumentCaptor.forClass(RecoverPasswordRequest.class);
+        verify(authUseCase).recoverPassword(captor.capture());
+        assertThat(captor.getValue().cpf()).isEqualTo("123.456.789-01");
+        assertThat(captor.getValue().email()).isEqualTo(longEmail);
     }
 
     @Test
