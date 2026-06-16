@@ -7,6 +7,7 @@ import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import static com.kts.kronos.constants.Messages.*;
 public class UserController {
     private final UserUseCase useCase;
     private final AuthCookieService authCookieService;
+    private final AcceptTermsUseCase acceptTermsUseCase;
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
@@ -55,8 +57,14 @@ public class UserController {
             @RequestParam(value = "active", required = false) Boolean active
     ) {
         var users = useCase.listUsers(active);
-        return ResponseEntity.ok(new UserListResponse(
-                users.stream().map(UserSearchItemResponse::fromDomain).toList()));
+        var items = users.stream()
+                .map(user -> {
+                    boolean biometricAccepted = user.employeeId() != null
+                            && acceptTermsUseCase.hasAcceptedBiometricTerm(user.employeeId());
+                    return UserSearchItemResponse.fromDomain(user, biometricAccepted);
+                })
+                .toList();
+        return ResponseEntity.ok(new UserListResponse(items));
     }
 
     @PatchMapping(UPDATE_USER)
