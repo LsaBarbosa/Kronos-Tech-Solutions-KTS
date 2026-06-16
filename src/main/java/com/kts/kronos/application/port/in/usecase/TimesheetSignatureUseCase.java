@@ -10,11 +10,23 @@ import java.util.UUID;
 
 public interface TimesheetSignatureUseCase {
 
-    PreviousMonthSignatureStatusResponse getPreviousMonthStatus();
+    /**
+     * Status da assinatura para um mês específico (anterior ao vigente).
+     * Se {@code year} e {@code month} forem nulos, usa o mês imediatamente anterior.
+     */
+    PreviousMonthSignatureStatusResponse getMonthStatus(Integer year, Integer month);
 
-    byte[] previewPreviousMonthMirror();
+    /**
+     * Pré-visualização do espelho de um mês específico (anterior ao vigente).
+     * Se {@code year} e {@code month} forem nulos, usa o mês imediatamente anterior.
+     */
+    byte[] previewMonthMirror(Integer year, Integer month);
 
-    SignPreviousMonthTimesheetResponse signPreviousMonth(
+    /**
+     * Assina o espelho de ponto do mês indicado em {@code request.referenceYear/Month}.
+     * O mês deve ser estritamente anterior ao vigente (America/Sao_Paulo).
+     */
+    SignPreviousMonthTimesheetResponse signMonth(
             SignPreviousMonthTimesheetRequest request,
             String ipAddress,
             String userAgent

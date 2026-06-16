@@ -92,25 +92,25 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public PreviousMonthSignatureStatusResponse getPreviousMonthStatus() {
+    public PreviousMonthSignatureStatusResponse getMonthStatus(Integer year, Integer month) {
         Employee employee = getAuthenticatedEmployee();
-        YearMonth previous = previousMonth();
-        return buildStatus(employee, previous);
+        YearMonth target = resolveTargetMonth(year, month);
+        return buildStatus(employee, target);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] previewPreviousMonthMirror() {
+    public byte[] previewMonthMirror(Integer year, Integer month) {
         Employee employee = getAuthenticatedEmployee();
-        YearMonth previous = previousMonth();
-        LocalDate start = previous.atDay(1);
-        LocalDate end = previous.atEndOfMonth();
+        YearMonth target = resolveTargetMonth(year, month);
+        LocalDate start = target.atDay(1);
+        LocalDate end = target.atEndOfMonth();
         return pointMirrorPdfUseCase.generateMirror(employee.employeeId(), start, end);
     }
 
     @Override
     @Transactional
-    public SignPreviousMonthTimesheetResponse signPreviousMonth(
+    public SignPreviousMonthTimesheetResponse signMonth(
             SignPreviousMonthTimesheetRequest request,
             String ipAddress,
             String userAgent
@@ -124,7 +124,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
         User user = userProvider.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
 
-        YearMonth previous = previousMonth();
+        YearMonth previous = resolveTargetMonth(request.referenceYear(), request.referenceMonth());
         LocalDate periodStart = previous.atDay(1);
         LocalDate periodEnd = previous.atEndOfMonth();
 
@@ -446,6 +446,32 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
     private YearMonth previousMonth() {
         return YearMonth.from(ZonedDateTime.now(TIMESHEET_ZONE)).minusMonths(1);
+    }
+
+    /**
+     * Resolve o mês alvo a partir dos parâmetros do cliente.
+     * - Se ambos null → mês imediatamente anterior ao vigente.
+     * - Se ambos preenchidos → valida que é estritamente anterior ao mês corrente.
+     * - Misturar (só um) é tratado como BadRequest.
+     */
+    private YearMonth resolveTargetMonth(Integer year, Integer month) {
+        if (year == null && month == null) {
+            return previousMonth();
+        }
+        if (year == null || month == null) {
+            throw new BadRequestException("Informe ano E mês de referência, ou nenhum dos dois.");
+        }
+        YearMonth target;
+        try {
+            target = YearMonth.of(year, month);
+        } catch (java.time.DateTimeException ex) {
+            throw new BadRequestException("Mês de referência inválido.");
+        }
+        YearMonth current = YearMonth.from(ZonedDateTime.now(TIMESHEET_ZONE));
+        if (!target.isBefore(current)) {
+            throw new BadRequestException("Só é possível assinar meses anteriores ao vigente.");
+        }
+        return target;
     }
 
     private PreviousMonthSignatureStatusResponse buildStatus(Employee employee, YearMonth previous) {

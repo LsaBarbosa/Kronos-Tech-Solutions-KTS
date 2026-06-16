@@ -48,9 +48,9 @@ public class ApiPaths {
 
     // Timesheet signatures (assinatura eletrônica do espelho de ponto)
     public static final String TIMESHEET_SIGNATURES = "/timesheet-signatures";
-    public static final String TIMESHEET_SIGNATURE_PREVIOUS_MONTH_STATUS = "/previous-month/status";
-    public static final String TIMESHEET_SIGNATURE_PREVIOUS_MONTH_PREVIEW = "/previous-month/preview";
-    public static final String TIMESHEET_SIGNATURE_PREVIOUS_MONTH_SIGN = "/previous-month/sign";
+    public static final String TIMESHEET_SIGNATURE_STATUS = "/status";
+    public static final String TIMESHEET_SIGNATURE_PREVIEW = "/preview";
+    public static final String TIMESHEET_SIGNATURE_SIGN = "/sign";
     public static final String TIMESHEET_SIGNATURE_DOCUMENT = "/{signatureId}/document";
     public static final String TIMESHEET_SIGNATURE_ADMIN = "/admin";
 

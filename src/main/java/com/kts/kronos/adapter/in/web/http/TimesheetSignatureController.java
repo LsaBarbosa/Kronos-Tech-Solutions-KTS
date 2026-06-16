@@ -28,9 +28,9 @@ import static com.kts.kronos.constants.ApiPaths.RECORDS;
 import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURES;
 import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_ADMIN;
 import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_DOCUMENT;
-import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_PREVIOUS_MONTH_PREVIEW;
-import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_PREVIOUS_MONTH_SIGN;
-import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_PREVIOUS_MONTH_STATUS;
+import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_PREVIEW;
+import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_SIGN;
+import static com.kts.kronos.constants.ApiPaths.TIMESHEET_SIGNATURE_STATUS;
 
 @RestController
 @RequestMapping(RECORDS + TIMESHEET_SIGNATURES)
@@ -41,30 +41,39 @@ public class TimesheetSignatureController {
     private final ClientIpResolver clientIpResolver;
 
     @PreAuthorize("isAuthenticated()")
-    @GetMapping(TIMESHEET_SIGNATURE_PREVIOUS_MONTH_STATUS)
-    public ResponseEntity<PreviousMonthSignatureStatusResponse> previousMonthStatus() {
-        return ResponseEntity.ok(useCase.getPreviousMonthStatus());
+    @GetMapping(TIMESHEET_SIGNATURE_STATUS)
+    public ResponseEntity<PreviousMonthSignatureStatusResponse> status(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month
+    ) {
+        return ResponseEntity.ok(useCase.getMonthStatus(year, month));
     }
 
     @PreAuthorize("isAuthenticated()")
-    @GetMapping(TIMESHEET_SIGNATURE_PREVIOUS_MONTH_PREVIEW)
-    public ResponseEntity<byte[]> previousMonthPreview() {
-        byte[] pdf = useCase.previewPreviousMonthMirror();
+    @GetMapping(TIMESHEET_SIGNATURE_PREVIEW)
+    public ResponseEntity<byte[]> preview(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month
+    ) {
+        byte[] pdf = useCase.previewMonthMirror(year, month);
+        String fileName = (year != null && month != null)
+                ? String.format("espelho_preview_%04d-%02d.pdf", year, month)
+                : "espelho_preview.pdf";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"espelho_preview.pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
                 .body(pdf);
     }
 
     @PreAuthorize("isAuthenticated()")
-    @PostMapping(TIMESHEET_SIGNATURE_PREVIOUS_MONTH_SIGN)
+    @PostMapping(TIMESHEET_SIGNATURE_SIGN)
     public ResponseEntity<SignPreviousMonthTimesheetResponse> sign(
             @Valid @RequestBody SignPreviousMonthTimesheetRequest request,
             HttpServletRequest httpServletRequest
     ) {
         String ip = clientIpResolver.resolve(httpServletRequest);
         String userAgent = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
-        return ResponseEntity.ok(useCase.signPreviousMonth(request, ip, userAgent));
+        return ResponseEntity.ok(useCase.signMonth(request, ip, userAgent));
     }
 
     @PreAuthorize("isAuthenticated()")
