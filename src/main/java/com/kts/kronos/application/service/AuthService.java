@@ -314,7 +314,8 @@ public class AuthService implements AuthUseCase {
             }
 
             var employee = employeeProvider.findByCpf(normalizedCpf)
-                    .filter(emp -> emp.email() != null && emp.email().equalsIgnoreCase(normalizedEmail))
+                    .filter(emp -> emp.email() != null
+                            && emp.email().trim().equalsIgnoreCase(normalizedEmail))
                     .orElse(null);
 
             if (employee == null) {
@@ -332,6 +333,12 @@ public class AuthService implements AuthUseCase {
             }
 
             var resetToken = tokenProvider.generateAndSaveToken(user.userId());
+
+            log.info(
+                    "event=password_recovery_token_created userId={} employeeId={}",
+                    user.userId(),
+                    employee.employeeId()
+            );
 
             try {
                 emailSenderProvider.sendResetEmail(
