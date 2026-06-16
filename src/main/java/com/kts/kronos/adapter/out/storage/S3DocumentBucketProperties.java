@@ -32,6 +32,7 @@ public class S3DocumentBucketProperties {
             case POINT_RECORD_RECEIPT -> bucketPointRecordReceipt;
             case BIOMETRIC_CONSENT_TERM -> bucketBiometricConsentTerm;
             case SERVICE_CONTRACT_TERMS -> bucketServiceContractTerms;
+            case POINT_MIRROR_SIGNATURE -> bucketPointRecordReceipt;
         };
     }
 }
