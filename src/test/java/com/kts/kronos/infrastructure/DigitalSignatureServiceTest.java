@@ -26,6 +26,8 @@ import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.Date;
 
+import com.kts.kronos.application.exceptions.DigitalSignatureException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -58,23 +60,41 @@ class DigitalSignatureServiceTest {
     }
 
     @Test
-    @DisplayName("signData: deve traduzir falha de certificado para RuntimeException")
+    @DisplayName("signData: deve lançar DigitalSignatureException quando certificado não existe")
     void shouldWrapCertificateLoadingFailure() {
         DigitalSignatureService service = service(tempDir.resolve("missing.p12"), "secret");
 
         assertThatThrownBy(() -> service.signData("conteudo".getBytes(StandardCharsets.UTF_8)))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Falha ao assinar documento digitalmente");
+                .isInstanceOf(DigitalSignatureException.class)
+                .hasMessageContaining("Certificado digital não localizado")
+                // mensagem não pode vazar caminho do arquivo nem a senha
+                .hasMessageNotContaining(tempDir.toString())
+                .hasMessageNotContaining("secret");
     }
 
     @Test
-    @DisplayName("signData: deve tratar payload nulo na falha de certificado")
+    @DisplayName("signData: payload nulo continua lançando DigitalSignatureException de configuração")
     void shouldWrapCertificateLoadingFailureWithNullPayload() {
         DigitalSignatureService service = service(tempDir.resolve("missing.p12"), "secret");
 
         assertThatThrownBy(() -> service.signData(null))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Falha ao assinar documento digitalmente");
+                .isInstanceOf(DigitalSignatureException.class)
+                .hasMessageContaining("Certificado digital não localizado")
+                .hasMessageNotContaining(tempDir.toString())
+                .hasMessageNotContaining("secret");
+    }
+
+    @Test
+    @DisplayName("signData: path em branco lança DigitalSignatureException de configuração")
+    void shouldFailWhenCertificatePathIsBlank() {
+        DigitalSignatureService service = new DigitalSignatureService();
+        ReflectionTestUtils.setField(service, "certificatePath", "");
+        ReflectionTestUtils.setField(service, "certificatePassword", "secret");
+
+        assertThatThrownBy(() -> service.signData("data".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(DigitalSignatureException.class)
+                .hasMessageContaining("não configurado")
+                .hasMessageNotContaining("secret");
     }
 
     private DigitalSignatureService service(Path certificatePath, String password) {

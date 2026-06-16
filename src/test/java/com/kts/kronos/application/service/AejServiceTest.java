@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.exceptions.DigitalSignatureException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
@@ -125,7 +126,7 @@ class AejServiceTest {
     }
 
     @Test
-    @DisplayName("generateAej: deve encapsular falha de assinatura")
+    @DisplayName("generateAej: propaga DigitalSignatureException sem envolver em RuntimeException genérico")
     void shouldWrapSignatureFailure() {
         UUID companyId = UUID.randomUUID();
         LocalDate startDate = LocalDate.of(2026, 4, 1);
@@ -137,14 +138,16 @@ class AejServiceTest {
                 eq(startDate.atStartOfDay()),
                 eq(endDate.atTime(23, 59, 59))
         )).thenReturn(List.of());
-        when(signatureService.signData(any())).thenThrow(new IllegalStateException("certificate unavailable"));
+        when(signatureService.signData(any()))
+                .thenThrow(new DigitalSignatureException("Falha ao assinar documento digitalmente."));
 
-        RuntimeException exception = assertThrows(
-                RuntimeException.class,
+        DigitalSignatureException exception = assertThrows(
+                DigitalSignatureException.class,
                 () -> service.generateAej(companyId, startDate, endDate, new ByteArrayOutputStream())
         );
 
-        assertEquals("Falha ao gerar arquivo fiscal AEJ: ", exception.getMessage());
+        // RestExceptionHandler depende deste tipo exato para mapear HTTP 503 / DIGITAL_SIGNATURE_UNAVAILABLE
+        assertEquals("Falha ao assinar documento digitalmente.", exception.getMessage());
     }
 
     @Test
@@ -177,6 +180,36 @@ class AejServiceTest {
         service.generateAej(companyId, startDate, endDate, output);
 
         assertTrue(output.toString(StandardCharsets.ISO_8859_1).startsWith("01|1|||KTS|"));
+    }
+
+    @Test
+    @DisplayName("generateAej: gera linha 07 para ausência sem startWork (usa endWork ou data atual)")
+    void shouldGenerateType07ForAbsenceWithoutStartWork() {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        LocalDate startDate = LocalDate.of(2026, 4, 1);
+        LocalDate endDate = LocalDate.of(2026, 4, 30);
+
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company(companyId, "KTS")));
+        Employee employee = employee(employeeId, companyId, "Ana", "12345678901", null, null);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+
+        // Ausência sem startWork — antes do fix isso lançava NPE em r.startWork().toLocalDate()
+        TimeRecord absenceWithoutStart = record(employeeId, StatusRecord.ABSENCE, false, null, null, null, null);
+        when(recordRepository.findByEmployeeIdsAndRange(
+                eq(List.of(employeeId)),
+                eq(startDate.atStartOfDay()),
+                eq(endDate.atTime(23, 59, 59))
+        )).thenReturn(List.of(absenceWithoutStart));
+        when(signatureService.signData(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        service.generateAej(companyId, startDate, endDate, output);
+
+        String content = output.toString(StandardCharsets.ISO_8859_1);
+        // Linha tipo 07 (ausência) presente, com minutos fallback 480 e data não-nula
+        assertTrue(content.contains("\r\n07|"), "Esperava linha tipo 07 no AEJ");
+        assertTrue(content.contains("|480|"), "Esperava fallback de 480 minutos para ausência sem janela");
     }
 
     private static Company company(UUID companyId, String name) {
