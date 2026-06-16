@@ -32,9 +32,11 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -60,6 +62,21 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateMirror(UUID employeeId, LocalDate startDate, LocalDate endDate) {
+        return generateMirrorInternal(employeeId, startDate, endDate, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateMirrorWithSignatureStamp(
+            UUID employeeId,
+            LocalDate startDate,
+            LocalDate endDate,
+            SignatureStamp stamp
+    ) {
+        return generateMirrorInternal(employeeId, startDate, endDate, stamp);
+    }
+
+    private byte[] generateMirrorInternal(UUID employeeId, LocalDate startDate, LocalDate endDate, SignatureStamp stamp) {
         long startedAt = System.nanoTime();
         long totalDays = LegalExportRangeGuard.validate(startDate, endDate);
         var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
@@ -128,6 +145,10 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                     document.add(new Paragraph("Saldo do Período: " + formatBalance(totalBalance)));
                     addSignatures(document, employee.fullName());
 
+                    if (stamp != null) {
+                        addElectronicSignatureStamp(document, stamp);
+                    }
+
                     document.close();
                     return baos.toByteArray();
                 } catch (IOException ex) {
@@ -159,6 +180,35 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         header.addCell(new Cell().add(new Paragraph("FUNCIONÁRIO: " + e.fullName() + "\nCPF: " + e.cpf())).setBorder(null).setTextAlignment(TextAlignment.RIGHT));
 
         doc.add(header);
+    }
+
+    private void addElectronicSignatureStamp(Document doc, SignatureStamp stamp) {
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss z", new Locale("pt", "BR"));
+        String when = stamp.signedAt().atZone(ZoneId.of("America/Sao_Paulo")).format(fmt);
+        String recordsHashShort = stamp.recordsSnapshotHashSha256() != null && stamp.recordsSnapshotHashSha256().length() >= 16
+                ? stamp.recordsSnapshotHashSha256().substring(0, 16) + "…"
+                : "—";
+
+        var stampTable = new Table(UnitValue.createPercentArray(new float[]{1}));
+        stampTable.setWidth(UnitValue.createPercentValue(100));
+        stampTable.setMarginTop(20);
+
+        var content = new Paragraph()
+                .add(new com.itextpdf.layout.element.Text("ASSINATURA ELETRÔNICA REGISTRADA\n").setBold().setFontSize(11))
+                .add(new com.itextpdf.layout.element.Text("Tipo: Eletrônica avançada interna (Lei 14.063/2020) — Não-ICP-Brasil.\n").setFontSize(8))
+                .add(new com.itextpdf.layout.element.Text("Signatário (ciência): " + stamp.signerFullName() + "\n").setFontSize(9))
+                .add(new com.itextpdf.layout.element.Text("Data/Hora da ciência: " + when + "\n").setFontSize(9))
+                .add(new com.itextpdf.layout.element.Text("Declaração: versão " + stamp.declarationVersion() + "\n").setFontSize(9))
+                .add(new com.itextpdf.layout.element.Text("Hash canônico dos registros (SHA-256, prefixo): " + recordsHashShort + "\n").setFontSize(8))
+                .add(new com.itextpdf.layout.element.Text("Este documento também é assinado digitalmente pelo certificado da empresa (PAdES/PKCS#7) — verifique no Adobe Reader.").setFontSize(8).setItalic());
+
+        var cell = new Cell()
+                .add(content)
+                .setBackgroundColor(new DeviceRgb(245, 240, 255))
+                .setBorder(new com.itextpdf.layout.borders.SolidBorder(new DeviceRgb(124, 58, 237), 1.0f))
+                .setPadding(8);
+        stampTable.addCell(cell);
+        doc.add(stampTable);
     }
 
     private void addSignatures(Document doc, String empName) {

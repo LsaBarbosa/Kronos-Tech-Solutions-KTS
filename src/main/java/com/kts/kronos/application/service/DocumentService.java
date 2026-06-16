@@ -293,7 +293,7 @@ public class DocumentService implements DocumentUseCase {
     }
 
     @Override
-    public void uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
+    public UUID uploadGeneratedDocument(DocumentType type, UUID employeeId, Long timeRecordId, byte[] content, String fileName) {
         try {
             // Validação interna básica (opcional, já que geramos o PDF confiável)
             var contentType = "application/pdf";
@@ -335,6 +335,7 @@ public class DocumentService implements DocumentUseCase {
                     additionalDetails
             );
 
+            return doc.documentId();
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
             log.warn("event=document_upload result=failure document_type={} reason=validation",
                     normalizeDocumentType(type));
