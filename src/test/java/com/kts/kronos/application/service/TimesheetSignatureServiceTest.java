@@ -126,7 +126,7 @@ class TimesheetSignatureServiceTest {
                 eq(periodEnd.atTime(23, 59, 59))
         )).thenReturn(List.of(closedRecord(employeeId, periodStart)));
 
-        PreviousMonthSignatureStatusResponse response = service.getPreviousMonthStatus();
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
 
         assertThat(response.status()).isEqualTo("ELIGIBLE");
         assertThat(response.eligible()).isTrue();
@@ -146,7 +146,7 @@ class TimesheetSignatureServiceTest {
                 vacationRequestRecord(employeeId, periodStart.plusDays(5))
         ));
 
-        PreviousMonthSignatureStatusResponse response = service.getPreviousMonthStatus();
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
 
         assertThat(response.status()).isEqualTo("BLOCKED");
         assertThat(response.eligible()).isFalse();
@@ -160,7 +160,7 @@ class TimesheetSignatureServiceTest {
         when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
                 .thenReturn(Optional.of(existing));
 
-        PreviousMonthSignatureStatusResponse response = service.getPreviousMonthStatus();
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
 
         assertThat(response.status()).isEqualTo("ALREADY_SIGNED");
         assertThat(response.alreadySigned()).isTrue();
@@ -182,7 +182,7 @@ class TimesheetSignatureServiceTest {
         ArgumentCaptor<TimesheetSignature> captor = ArgumentCaptor.forClass(TimesheetSignature.class);
         when(signatureProvider.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
 
-        SignPreviousMonthTimesheetResponse response = service.signPreviousMonth(
+        SignPreviousMonthTimesheetResponse response = service.signMonth(
                 signRequest("senha-correta"), "10.0.0.1", "JUnit"
         );
 
@@ -207,7 +207,7 @@ class TimesheetSignatureServiceTest {
         when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
                 .thenReturn(Optional.of(activeSignature()));
 
-        assertThatThrownBy(() -> service.signPreviousMonth(signRequest("senha"), "ip", "ua"))
+        assertThatThrownBy(() -> service.signMonth(signRequest("senha"), "ip", "ua"))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("assinatura ativa");
         verify(signatureProvider, never()).save(any());
@@ -217,9 +217,10 @@ class TimesheetSignatureServiceTest {
     @DisplayName("sign: 400 quando confirmação ausente")
     void signRequiresConfirmation() {
         SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                previous.getYear(), previous.getMonthValue(),
                 false, TimesheetSignatureService.DECLARATION_VERSION_V1, declarationHash, mirrorHash, "senha"
         );
-        assertThatThrownBy(() -> service.signPreviousMonth(req, "ip", "ua"))
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Confirmação");
     }
@@ -232,7 +233,7 @@ class TimesheetSignatureServiceTest {
         when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
                 .thenReturn(List.of(pendingApprovalRecord(employeeId, periodStart)));
 
-        assertThatThrownBy(() -> service.signPreviousMonth(signRequest("senha"), "ip", "ua"))
+        assertThatThrownBy(() -> service.signMonth(signRequest("senha"), "ip", "ua"))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("pendências");
         verify(signatureProvider, never()).save(any());
@@ -246,7 +247,7 @@ class TimesheetSignatureServiceTest {
         when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(List.of(closedRecord(employeeId, periodStart)));
         when(passwordEncoder.matches("errada", user.password())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.signPreviousMonth(signRequest("errada"), "ip", "ua"))
+        assertThatThrownBy(() -> service.signMonth(signRequest("errada"), "ip", "ua"))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("inválida");
         verify(signatureProvider, never()).save(any());
@@ -261,6 +262,7 @@ class TimesheetSignatureServiceTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
 
         SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                previous.getYear(), previous.getMonthValue(),
                 true,
                 TimesheetSignatureService.DECLARATION_VERSION_V1,
                 declarationHash,
@@ -268,7 +270,7 @@ class TimesheetSignatureServiceTest {
                 "senha"
         );
 
-        assertThatThrownBy(() -> service.signPreviousMonth(req, "ip", "ua"))
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("registros");
     }
@@ -314,6 +316,82 @@ class TimesheetSignatureServiceTest {
         assertThat(h1).isNotEqualTo(h2);
     }
 
+    @Test
+    @DisplayName("sign: 400 quando referenceYear/Month aponta para o mês vigente")
+    void signRejectsCurrentMonth() {
+        YearMonth current = YearMonth.from(ZonedDateTime.now(TimesheetSignatureService.TIMESHEET_ZONE));
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                current.getYear(), current.getMonthValue(),
+                true,
+                TimesheetSignatureService.DECLARATION_VERSION_V1,
+                declarationHash,
+                "qualquer-hash",
+                "senha"
+        );
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("anteriores");
+        verify(signatureProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("sign: 400 quando referenceYear/Month aponta para um mês futuro")
+    void signRejectsFutureMonth() {
+        YearMonth future = YearMonth.from(ZonedDateTime.now(TimesheetSignatureService.TIMESHEET_ZONE)).plusMonths(2);
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                future.getYear(), future.getMonthValue(),
+                true,
+                TimesheetSignatureService.DECLARATION_VERSION_V1,
+                declarationHash,
+                "qualquer-hash",
+                "senha"
+        );
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("anteriores");
+        verify(signatureProvider, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("sign: aceita mês -3 quando elegível (não só o mês imediatamente anterior)")
+    void signAcceptsOlderMonth() {
+        YearMonth older = YearMonth.from(ZonedDateTime.now(TimesheetSignatureService.TIMESHEET_ZONE)).minusMonths(3);
+        LocalDate olderStart = older.atDay(1);
+        LocalDate olderEnd = older.atEndOfMonth();
+        TimeRecord olderRecord = closedRecord(employeeId, olderStart);
+        String olderRecordsHash = TimesheetSignatureService.canonicalRecordsHash(List.of(olderRecord));
+        String olderDeclarationText = String.format(TimesheetSignatureService.DECLARATION_TEMPLATE_V1,
+                String.format(Locale.ROOT, "%02d/%04d", older.getMonthValue(), older.getYear()));
+        String olderDeclarationHash = TimesheetSignatureService.sha256Hex(olderDeclarationText.getBytes(StandardCharsets.UTF_8));
+
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, older.getYear(), older.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(eq(List.of(employeeId)),
+                eq(olderStart.atStartOfDay()), eq(olderEnd.atTime(23, 59, 59))))
+                .thenReturn(List.of(olderRecord));
+        when(passwordEncoder.matches("senha", user.password())).thenReturn(true);
+        when(pointMirrorPdfUseCase.generateMirrorWithSignatureStamp(eq(employeeId), eq(olderStart), eq(olderEnd), any()))
+                .thenReturn("older-pdf".getBytes(StandardCharsets.UTF_8));
+        when(digitalSignatureService.signPdf(any(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
+        when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_RECORD_RECEIPT), eq(employeeId), eq(null), any(), any()))
+                .thenReturn(UUID.randomUUID());
+        when(signatureProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                older.getYear(), older.getMonthValue(),
+                true,
+                TimesheetSignatureService.DECLARATION_VERSION_V1,
+                olderDeclarationHash,
+                olderRecordsHash,
+                "senha"
+        );
+
+        SignPreviousMonthTimesheetResponse response = service.signMonth(req, "ip", "ua");
+
+        assertThat(response.referenceYear()).isEqualTo(older.getYear());
+        assertThat(response.referenceMonth()).isEqualTo(older.getMonthValue());
+    }
+
     // ---------- helpers ----------
 
     private SignPreviousMonthTimesheetRequest signRequest(String password) {
@@ -322,6 +400,8 @@ class TimesheetSignatureServiceTest {
         List<TimeRecord> records = List.of(closedRecord(employeeId, periodStart));
         String recordsHash = TimesheetSignatureService.canonicalRecordsHash(records);
         return new SignPreviousMonthTimesheetRequest(
+                previous.getYear(),
+                previous.getMonthValue(),
                 true,
                 TimesheetSignatureService.DECLARATION_VERSION_V1,
                 declarationHash,
