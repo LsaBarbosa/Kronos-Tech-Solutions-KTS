@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.http.UserController;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -50,6 +51,9 @@ class UserControllerWebMvcTest {
 
     @MockitoBean
     private AuthCookieService authCookieService;
+
+    @MockitoBean
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     @BeforeEach
     void setUpAuthCookieService() {
@@ -159,23 +163,27 @@ class UserControllerWebMvcTest {
     @DisplayName("allUsers: deve listar usuários sem filtro")
     void shouldListUsersWithoutFilter() throws Exception {
         when(useCase.listUsers(null)).thenReturn(List.of(user("john", true), user("mary", false)));
+        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(false);
 
         mockMvc.perform(get("/users/search"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users.length()").value(2))
-                .andExpect(jsonPath("$.users[0].username").value("john"));
+                .andExpect(jsonPath("$.users[0].username").value("john"))
+                .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(false));
 
         verify(useCase).listUsers(null);
     }
 
     @Test
-    @DisplayName("allUsers: deve listar usuários com filtro active")
+    @DisplayName("allUsers: deve listar usuários com filtro active e propagar biometricConsentAccepted")
     void shouldListUsersWithActiveFilter() throws Exception {
         when(useCase.listUsers(true)).thenReturn(List.of(user("john", true)));
+        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(true);
 
         mockMvc.perform(get("/users/search").param("active", "true"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.users[0].active").value(true));
+                .andExpect(jsonPath("$.users[0].active").value(true))
+                .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(true));
 
         verify(useCase).listUsers(true);
     }

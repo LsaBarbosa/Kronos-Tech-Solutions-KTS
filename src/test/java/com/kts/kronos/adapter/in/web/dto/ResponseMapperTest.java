@@ -86,7 +86,7 @@ class ResponseMapperTest {
         );
 
         UserResponse full = UserResponse.fromDomain(user);
-        UserSearchItemResponse search = UserSearchItemResponse.fromDomain(user);
+        UserSearchItemResponse search = UserSearchItemResponse.fromDomain(user, false);
 
         assertEquals(user.userId(), full.userId());
         assertEquals("MANAGER", full.role());

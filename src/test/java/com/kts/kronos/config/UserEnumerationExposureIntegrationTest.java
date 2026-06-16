@@ -2,6 +2,7 @@ package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -65,6 +67,9 @@ class UserEnumerationExposureIntegrationTest {
 
     @MockitoBean
     private ObservabilityStatusUseCase observabilityStatusUseCase;
+
+    @MockitoBean
+    private AcceptTermsUseCase acceptTermsUseCase;
 
     @Test
     void shouldBlockPublicCnpjEnumerationEndpoint() throws Exception {
@@ -118,6 +123,7 @@ class UserEnumerationExposureIntegrationTest {
         UUID employeeId = UUID.randomUUID();
         User manager = new User(userId, "manager1", "encoded", Role.MANAGER, true, employeeId);
         when(userUseCase.listUsers(true)).thenReturn(List.of(manager));
+        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(false);
 
         mockMvc.perform(get("/users/search")
                         .param("active", "true")
@@ -126,23 +132,35 @@ class UserEnumerationExposureIntegrationTest {
                 .andExpect(jsonPath("$.users[0].userId").value(userId.toString()))
                 .andExpect(jsonPath("$.users[0].username").value("manager1"))
                 .andExpect(jsonPath("$.users[0].role").value("MANAGER"))
-                .andExpect(jsonPath("$.users[0].active").value(true));
+                .andExpect(jsonPath("$.users[0].active").value(true))
+                .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(false));
     }
 
     @Test
-    void shouldReduceUsersSearchPayloadMetadata() throws Exception {
+    void shouldExposeOnlyTheReducedPayloadOnUsersSearch() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         User user = new User(userId, "manager1", "encoded", Role.MANAGER, true, employeeId);
         when(userUseCase.listUsers(null)).thenReturn(List.of(user));
+        when(acceptTermsUseCase.hasAcceptedBiometricTerm(employeeId)).thenReturn(true);
 
+        // employeeId e biometricConsentAccepted são necessários no DTO resumido para o front
+        // filtrar/linkar conta ao colaborador no /lista-colaboradores. Não são PII e o solicitante
+        // já enxerga a mesma chave via /employee/. O teste segue garantindo que campos sensíveis
+        // (password, sessionVersion, deletedAt, deletedBy, deactivationReason) NÃO sejam expostos.
         mockMvc.perform(get("/users/search")
                         .with(user("manager").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[0].userId").value(userId.toString()))
+                .andExpect(jsonPath("$.users[0].employeeId").value(employeeId.toString()))
                 .andExpect(jsonPath("$.users[0].username").value("manager1"))
                 .andExpect(jsonPath("$.users[0].role").value("MANAGER"))
                 .andExpect(jsonPath("$.users[0].active").value(true))
-                .andExpect(jsonPath("$.users[0].employeeId").doesNotExist());
+                .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(true))
+                .andExpect(jsonPath("$.users[0].password").doesNotExist())
+                .andExpect(jsonPath("$.users[0].sessionVersion").doesNotExist())
+                .andExpect(jsonPath("$.users[0].deletedAt").doesNotExist())
+                .andExpect(jsonPath("$.users[0].deletedBy").doesNotExist())
+                .andExpect(jsonPath("$.users[0].deactivationReason").doesNotExist());
     }
 }

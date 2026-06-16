@@ -6,16 +6,20 @@ import java.util.UUID;
 
 public record UserSearchItemResponse(
         UUID userId,
+        UUID employeeId,
         String username,
         String role,
-        boolean active
+        boolean active,
+        boolean biometricConsentAccepted
 ) {
-    public static UserSearchItemResponse fromDomain(User user) {
+    public static UserSearchItemResponse fromDomain(User user, boolean biometricConsentAccepted) {
         return new UserSearchItemResponse(
                 user.userId(),
+                user.employeeId(),
                 user.username(),
                 user.role().name(),
-                user.active()
+                user.active(),
+                biometricConsentAccepted
         );
     }
 }
