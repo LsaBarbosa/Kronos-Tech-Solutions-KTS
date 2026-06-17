@@ -108,4 +108,20 @@ public class ServiceContractSignatureEntity {
 
     @Column(name = "void_reason", columnDefinition = "TEXT")
     private String voidReason;
+
+    @Column(name = "document_type", nullable = false, length = 40)
+    private String documentType;
+
+    @Column(name = "document_version", nullable = false, length = 40)
+    private String documentVersion;
+
+    @Column(name = "canonical_evidence_hash_sha256", nullable = false, length = 64)
+    private String canonicalEvidenceHashSha256;
+
+    @Column(name = "audit_log_id")
+    @JdbcTypeCode(SqlTypes.UUID)
+    private UUID auditLogId;
+
+    @Column(name = "pades_signature_status", nullable = false, length = 40)
+    private String padesSignatureStatus;
 }

@@ -32,5 +32,10 @@ public record ServiceContractSignature(
         Instant updatedAt,
         Instant voidedAt,
         UUID voidedByUserId,
-        String voidReason
+        String voidReason,
+        String documentType,
+        String documentVersion,
+        String canonicalEvidenceHashSha256,
+        UUID auditLogId,
+        String padesSignatureStatus
 ) {}

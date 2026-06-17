@@ -1,19 +1,17 @@
 package com.kts.kronos.application.service;
 
 import com.itextpdf.kernel.colors.DeviceRgb;
+import com.itextpdf.kernel.geom.Rectangle;
 import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfPage;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
-import com.itextpdf.layout.borders.SolidBorder;
-import com.itextpdf.layout.element.AreaBreak;
-import com.itextpdf.layout.element.Cell;
+import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
+import com.itextpdf.kernel.pdf.extgstate.PdfExtGState;
+import com.itextpdf.layout.Canvas;
 import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Text;
-import com.itextpdf.layout.properties.AreaBreakType;
 import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.UnitValue;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,100 +25,150 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * Anexa ao PDF original do contrato uma página final de evidência de assinatura
- * eletrônica avançada interna (Lei 14.063/2020). O PDF retornado AINDA NÃO está
- * assinado digitalmente — isso é responsabilidade do {@code DigitalSignatureService.signPdf}.
+ * Aplica ao PDF original um carimbo de evidência de assinatura eletrônica
+ * avançada interna (Lei 14.063/2020). O carimbo é desenhado como OVERLAY em
+ * cada página do PDF original — sem fundo opaco — funcionando como marca
+ * d'água que NÃO impede a leitura do conteúdo abaixo.
+ *
+ * <p>O PDF retornado AINDA NÃO está assinado digitalmente — isso é
+ * responsabilidade do {@link com.kts.kronos.infrastructure.DigitalSignatureService#signPdf}.</p>
  */
 @Slf4j
 @Service
 public class ServiceContractPdfStampService {
 
+    /** Bloco de evidência exibido no rodapé de cada página. */
     public record EvidenceStamp(
             String signerFullName,
             Instant signedAt,
             String declarationVersion,
-            String contractDocumentHashSha256,
-            String contractTitle
+            String canonicalEvidenceHashSha256
     ) {}
 
-    public byte[] appendEvidencePage(byte[] originalPdf, EvidenceStamp stamp) {
+    public byte[] applyEvidenceWatermark(byte[] originalPdf, EvidenceStamp stamp) {
         if (originalPdf == null || originalPdf.length == 0) {
             throw new BadRequestException("PDF original do contrato está vazio.");
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document doc = null;
+        PdfDocument pdf = null;
         try {
-            // NÃO usar try-with-resources em PdfDocument E Document — em iText 7,
-            // fechar o Document já fecha o PdfDocument; double-close pode produzir
-            // warnings e em alguns casos invalidar a saída.
             PdfReader reader = new PdfReader(new ByteArrayInputStream(originalPdf));
             PdfWriter writer = new PdfWriter(out);
-            PdfDocument pdf = new PdfDocument(reader, writer);
-            doc = new Document(pdf);
+            pdf = new PdfDocument(reader, writer);
 
-            // Apenas NEXT_PAGE: força tudo a começar em uma página nova ao final do doc.
-            doc.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
-
-            doc.add(new Paragraph("ASSINATURA ELETRÔNICA REGISTRADA")
-                    .setBold().setFontSize(14).setTextAlignment(TextAlignment.CENTER)
-                    .setMarginBottom(8));
-
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss z", new Locale("pt", "BR"));
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern(
+                    "dd/MM/yyyy HH:mm:ss 'BRT (UTC-03:00)'",
+                    new Locale("pt", "BR"));
             String when = stamp.signedAt().atZone(ZoneId.of("America/Sao_Paulo")).format(fmt);
-            String hashShort = stamp.contractDocumentHashSha256() != null && stamp.contractDocumentHashSha256().length() >= 16
-                    ? stamp.contractDocumentHashSha256().substring(0, 16) + "…"
+            String hashShort = stamp.canonicalEvidenceHashSha256() != null
+                    && stamp.canonicalEvidenceHashSha256().length() >= 16
+                    ? stamp.canonicalEvidenceHashSha256().substring(0, 16) + "…"
                     : "—";
 
-            Table evidence = new Table(UnitValue.createPercentArray(new float[]{1}));
-            evidence.setWidth(UnitValue.createPercentValue(100));
+            int totalPages = pdf.getNumberOfPages();
+            for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
+                drawWatermarkOnPage(pdf.getPage(pageNum), pdf, stamp, when, hashShort, pageNum, totalPages);
+            }
 
-            Paragraph content = new Paragraph()
-                    .add(new Text("Contrato: ").setBold()).add(stamp.contractTitle()).add("\n")
-                    .add(new Text("Signatário (ciência): ").setBold()).add(stamp.signerFullName()).add("\n")
-                    .add(new Text("Data/Hora da ciência: ").setBold()).add(when).add("\n")
-                    .add(new Text("Declaração: ").setBold()).add("versão " + stamp.declarationVersion()).add("\n")
-                    .add(new Text("Resumo SHA-256 do PDF original (prefixo): ").setBold()).add(hashShort).add("\n")
-                    .add(new Text("Tipo de assinatura: ").setBold()).add("Eletrônica avançada interna (INTERNAL_ADVANCED)").add("\n")
-                    .add(new Text("Método: ").setBold()).add("Reautenticação por senha (PASSWORD_REAUTH)").add("\n")
-                    .add(new Text("Base legal: ").setBold()).add("Lei 14.063/2020 art. 4º, II — não-ICP-Brasil.").add("\n\n")
-                    .add(new Text("Este PDF também é assinado digitalmente pelo certificado da empresa " +
-                            "(PAdES/PKCS#7). A integridade pode ser verificada em qualquer leitor compatível " +
-                            "(Adobe Reader, ITI gov.br).").setItalic().setFontSize(9));
-
-            Cell cell = new Cell().add(content)
-                    .setBackgroundColor(new DeviceRgb(245, 240, 255))
-                    .setBorder(new SolidBorder(new DeviceRgb(124, 58, 237), 1.0f))
-                    .setPadding(10);
-            evidence.addCell(cell);
-            doc.add(evidence);
-
-            // Fecha o Document AQUI (antes do return), garantindo que writer faz flush
-            // e os bytes ficam consistentes em `out` antes de toByteArray().
-            doc.close();
-            doc = null;
+            pdf.close();
+            pdf = null;
 
             byte[] result = out.toByteArray();
-            log.info("event=contract_evidence_page_appended result=success bytes={}", result.length);
+            log.info("event=contract_evidence_watermark_applied result=success pages={} bytes={}", totalPages, result.length);
             return result;
         } catch (IOException ex) {
-            log.error("event=contract_evidence_page_appended result=failure reason=io exception_type={}",
+            log.error("event=contract_evidence_watermark_applied result=failure reason=io exception_type={}",
                     ex.getClass().getSimpleName());
             throw new BadRequestException("Falha ao processar o PDF do contrato.");
         } catch (RuntimeException ex) {
-            // iText pode lançar PdfException, IllegalArgumentException, etc. Surface o tipo
-            // exato para diagnóstico via 400, sem vazar mensagem interna do PDF.
-            log.error("event=contract_evidence_page_appended result=failure reason=unexpected exception_type={} msg={}",
+            log.error("event=contract_evidence_watermark_applied result=failure reason=unexpected exception_type={} msg={}",
                     ex.getClass().getSimpleName(),
                     ex.getMessage() == null ? "(no message)" : ex.getMessage());
             throw new BadRequestException("Falha ao processar o PDF do contrato (" + ex.getClass().getSimpleName() + ").");
         } finally {
-            if (doc != null) {
-                try {
-                    doc.close();
-                } catch (RuntimeException ignored) {
-                    // best-effort close em caminho de erro
-                }
+            if (pdf != null) {
+                try { pdf.close(); } catch (RuntimeException ignored) { /* best-effort */ }
             }
         }
+    }
+
+    private void drawWatermarkOnPage(
+            PdfPage page,
+            PdfDocument pdf,
+            EvidenceStamp stamp,
+            String when,
+            String hashShort,
+            int pageNum,
+            int totalPages
+    ) {
+        Rectangle pageSize = page.getPageSize();
+        // Bloco no rodapé ocupando ~140pt de altura, com margens de 36pt nas laterais.
+        float blockHeight = 140f;
+        float margin = 36f;
+        Rectangle stampArea = new Rectangle(
+                margin,
+                margin,                       // 36pt do bottom
+                pageSize.getWidth() - 2 * margin,
+                blockHeight
+        );
+
+        PdfCanvas pdfCanvas = new PdfCanvas(page.newContentStreamAfter(), page.getResources(), pdf);
+
+        // Aplica transparência (alpha 0.55) — fundo do carimbo NÃO é pintado;
+        // apenas o texto fica semi-transparente, permitindo ler o conteúdo da
+        // página por baixo. Essa é a noção de "marca d'água" que o usuário pediu.
+        PdfExtGState gs = new PdfExtGState();
+        gs.setFillOpacity(0.55f);
+        gs.setStrokeOpacity(0.55f);
+        pdfCanvas.saveState();
+        pdfCanvas.setExtGState(gs);
+
+        try (Canvas layout = new Canvas(pdfCanvas, stampArea)) {
+            DeviceRgb purple = new DeviceRgb(124, 58, 237);
+            DeviceRgb dark = new DeviceRgb(31, 41, 55);
+
+            Paragraph title = new Paragraph("ASSINATURA ELETRÔNICA REGISTRADA")
+                    .setBold().setFontSize(10).setFontColor(purple)
+                    .setTextAlignment(TextAlignment.LEFT)
+                    .setMarginBottom(2);
+            layout.add(title);
+
+            Paragraph subtitle = new Paragraph(
+                    new Text("Tipo: Assinatura eletrônica avançada interna — não ICP-Brasil. ").setFontSize(7)
+            ).add(new Text("Base normativa: Lei nº 14.063/2020.").setFontSize(7))
+             .setFontColor(dark).setMarginBottom(4);
+            layout.add(subtitle);
+
+            Paragraph block = new Paragraph()
+                    .setFontSize(7).setFontColor(dark).setMarginBottom(2)
+                    .add(new Text("Signatário: ").setBold()).add(stamp.signerFullName()).add("\n")
+                    .add(new Text("Data/hora do aceite: ").setBold()).add(when).add("\n")
+                    .add(new Text("Documento/declaração: ").setBold()).add("versão " + stamp.declarationVersion()).add("\n")
+                    .add(new Text("Hash canônico dos registros de evidência (SHA-256): ").setBold()).add(hashShort);
+            layout.add(block);
+
+            Paragraph evidences = new Paragraph(
+                    "Evidências registradas: usuário autenticado, identificador interno do usuário, " +
+                    "data/hora do evento, versão do documento, hash do conteúdo aceito, IP, User-Agent " +
+                    "e trilha de auditoria."
+            ).setFontSize(6).setFontColor(dark).setItalic().setMarginBottom(2);
+            layout.add(evidences);
+
+            Paragraph integrity = new Paragraph(
+                    "Integridade do PDF: este documento também possui assinatura digital da empresa em " +
+                    "formato PAdES/CMS/PKCS#7. A assinatura digital pode ser validada em leitores " +
+                    "compatíveis, como Adobe Acrobat Reader."
+            ).setFontSize(6).setFontColor(dark).setItalic();
+            layout.add(integrity);
+
+            // Rodapé: identificação de página
+            Paragraph footer = new Paragraph(
+                    String.format(Locale.ROOT, "Página %d de %d — assinatura registrada eletronicamente",
+                            pageNum, totalPages)
+            ).setFontSize(5).setFontColor(dark).setTextAlignment(TextAlignment.RIGHT).setMarginTop(2);
+            layout.add(footer);
+        }
+
+        pdfCanvas.restoreState();
     }
 }

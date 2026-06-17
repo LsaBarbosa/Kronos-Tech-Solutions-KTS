@@ -428,30 +428,62 @@ public class ServiceContractService implements ServiceContractUseCase {
         }
 
         Instant now = Instant.now();
+        UUID signatureId = UUID.randomUUID();
 
-        // 1) Baixa o PDF original
+        // 1) Hash canônico de evidências — JSON ordenado alfabeticamente. Calculado
+        //    ANTES de gerar/assinar o PDF para que possa ser exibido no carimbo.
+        String canonicalEvidenceJson = buildCanonicalEvidenceJson(
+                signatureId, contract, assignment, employee, currentUserId,
+                now, ipAddress, userAgent, declarationHash
+        );
+        String canonicalEvidenceHash = sha256Hex(canonicalEvidenceJson.getBytes(StandardCharsets.UTF_8));
+
+        // 2) Registra a evidência de auditoria PRIMEIRO para obter o auditLogId
+        //    e amarrá-lo à assinatura (rastreabilidade bidirecional).
+        UUID auditLogId = auditService.registerSecurityReturningId(
+                AuditAction.SERVICE_CONTRACT_SIGNED,
+                currentUserId,
+                employee.employeeId(),
+                "HIGH",
+                "SERVICE_CONTRACT",
+                signatureId.toString(),
+                String.format("contract_id=%s,assignment_id=%s,canonical_evidence_hash=%s",
+                        contract.contractId(), assignment.assignmentId(), canonicalEvidenceHash),
+                ipAddress,
+                userAgent
+        );
+
+        // 3) Baixa o PDF original
         byte[] originalPdf = fetchOriginalPdfBytes(contract);
 
-        // 2) Acrescenta página de evidência
-        byte[] stampedPdf = pdfStampService.appendEvidencePage(
+        // 4) Aplica marca d'água de evidência (overlay transparente em cada página).
+        byte[] stampedPdf = pdfStampService.applyEvidenceWatermark(
                 originalPdf,
                 new ServiceContractPdfStampService.EvidenceStamp(
                         employee.fullName(),
                         now,
                         DECLARATION_VERSION_V1,
-                        contract.documentHashSha256(),
-                        contract.title()
+                        canonicalEvidenceHash
                 )
         );
 
-        // 3) Assina com o certificado da empresa (PAdES)
-        byte[] companySignedPdf = digitalSignatureService.signPdf(
-                stampedPdf,
-                "Ciência de contrato — " + employee.fullName() + " — " + contract.title(),
-                "Kronos — assinatura eletrônica interna"
-        );
+        // 5) Assina com o certificado da empresa (PAdES).
+        String padesStatus;
+        byte[] companySignedPdf;
+        try {
+            companySignedPdf = digitalSignatureService.signPdf(
+                    stampedPdf,
+                    "Ciência de contrato — " + employee.fullName() + " — " + contract.title(),
+                    "Kronos — assinatura eletrônica interna"
+            );
+            padesStatus = "SUCCESS";
+        } catch (RuntimeException ex) {
+            log.warn("event=service_contract_pades_failed contract_id={} exception_type={}",
+                    contract.contractId(), ex.getClass().getSimpleName());
+            throw ex;
+        }
 
-        // 4) Persiste como SERVICE_CONTRACT_TERMS, owner = colaborador signatário
+        // 6) Persiste como SERVICE_CONTRACT_TERMS, owner = colaborador signatário
         String fileName = String.format(Locale.ROOT,
                 "contrato_assinado_%s_%s.pdf",
                 contract.contractId(),
@@ -468,7 +500,7 @@ public class ServiceContractService implements ServiceContractUseCase {
         String signedPdfHash = sha256Hex(companySignedPdf);
 
         ServiceContractSignature signature = new ServiceContractSignature(
-                UUID.randomUUID(),
+                signatureId,
                 assignment.assignmentId(),
                 contract.contractId(),
                 employee.employeeId(),
@@ -487,11 +519,14 @@ public class ServiceContractService implements ServiceContractUseCase {
                 declarationText,
                 ipAddress,
                 userAgent,
-                String.format(Locale.ROOT,
-                        "{\"contractId\":\"%s\",\"hashAlgorithm\":\"SHA-256\",\"signatureType\":\"INTERNAL_ADVANCED\",\"method\":\"PASSWORD_REAUTH\"}",
-                        contract.contractId()),
+                canonicalEvidenceJson,
                 now,
-                null, null, null, null
+                null, null, null, null,
+                "SERVICE_CONTRACT",
+                DECLARATION_VERSION_V1,
+                canonicalEvidenceHash,
+                auditLogId,
+                padesStatus
         );
         ServiceContractSignature savedSignature = signatureProvider.save(signature);
 
@@ -499,18 +534,6 @@ public class ServiceContractService implements ServiceContractUseCase {
                 .withStatus(ServiceContractAssignmentStatus.SIGNED)
                 .withSignedAt(now);
         assignmentProvider.save(updated);
-
-        auditService.registerSecurity(
-                AuditAction.SERVICE_CONTRACT_SIGNED,
-                currentUserId,
-                employee.employeeId(),
-                "HIGH",
-                "SERVICE_CONTRACT",
-                savedSignature.signatureId().toString(),
-                String.format("contract_id=%s,assignment_id=%s", contract.contractId(), assignment.assignmentId()),
-                ipAddress,
-                userAgent
-        );
         log.info("event=service_contract_signed result=success contract_id={} signature_id={}",
                 contract.contractId(), savedSignature.signatureId());
 
@@ -638,6 +661,82 @@ public class ServiceContractService implements ServiceContractUseCase {
 
     private String buildDeclarationText(String contractTitle) {
         return String.format(DECLARATION_TEMPLATE_V1, contractTitle);
+    }
+
+    /**
+     * Serializa as evidências de assinatura em um JSON CANÔNICO (chaves ordenadas
+     * alfabeticamente, sem espaços) cujo SHA-256 vira o
+     * {@code canonical_evidence_hash_sha256}. Esse hash permite verificar a
+     * integridade da própria evidência (independente do PDF e do audit log).
+     */
+    private String buildCanonicalEvidenceJson(
+            UUID signatureId,
+            ServiceContract contract,
+            ServiceContractAssignment assignment,
+            Employee employee,
+            UUID currentUserId,
+            Instant signedAt,
+            String ipAddress,
+            String userAgent,
+            String declarationHash
+    ) {
+        // Construção determinística — chaves em ordem alfabética; valores escaped via
+        // jsonEscape; null vira `null`. Não usar ObjectMapper para evitar variações
+        // de plugin/configuração que afetem o hash entre versões.
+        StringBuilder sb = new StringBuilder(512);
+        sb.append('{');
+        appendJson(sb, "assignmentId", assignment.assignmentId().toString()); sb.append(',');
+        appendJson(sb, "authMethod", "PASSWORD_REAUTH"); sb.append(',');
+        appendJson(sb, "companyId", employee.companyId().toString()); sb.append(',');
+        appendJson(sb, "contractId", contract.contractId().toString()); sb.append(',');
+        appendJson(sb, "declarationHashSha256", declarationHash); sb.append(',');
+        appendJson(sb, "declarationVersion", DECLARATION_VERSION_V1); sb.append(',');
+        appendJson(sb, "documentHashSha256", contract.documentHashSha256()); sb.append(',');
+        appendJson(sb, "documentType", "SERVICE_CONTRACT"); sb.append(',');
+        appendJson(sb, "documentVersion", DECLARATION_VERSION_V1); sb.append(',');
+        appendJson(sb, "employeeId", employee.employeeId().toString()); sb.append(',');
+        appendJson(sb, "hashAlgorithm", "SHA-256"); sb.append(',');
+        appendJson(sb, "ipAddress", ipAddress); sb.append(',');
+        appendJson(sb, "signatureId", signatureId.toString()); sb.append(',');
+        appendJson(sb, "signatureType", "INTERNAL_ADVANCED"); sb.append(',');
+        appendJson(sb, "signedAt", signedAt.toString()); sb.append(',');
+        appendJson(sb, "timezone", CONTRACT_ZONE.getId()); sb.append(',');
+        appendJson(sb, "userAgent", userAgent); sb.append(',');
+        appendJson(sb, "userId", currentUserId.toString());
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static void appendJson(StringBuilder sb, String key, String value) {
+        sb.append('"').append(key).append("\":");
+        if (value == null) {
+            sb.append("null");
+        } else {
+            sb.append('"').append(jsonEscape(value)).append('"');
+        }
+    }
+
+    private static String jsonEscape(String s) {
+        StringBuilder out = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': out.append("\\\""); break;
+                case '\\': out.append("\\\\"); break;
+                case '\b': out.append("\\b"); break;
+                case '\f': out.append("\\f"); break;
+                case '\n': out.append("\\n"); break;
+                case '\r': out.append("\\r"); break;
+                case '\t': out.append("\\t"); break;
+                default:
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+            }
+        }
+        return out.toString();
     }
 
     private static String sanitizeFileName(String raw, String fallback) {

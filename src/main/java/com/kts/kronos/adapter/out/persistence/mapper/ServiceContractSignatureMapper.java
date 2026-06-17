@@ -34,7 +34,12 @@ public final class ServiceContractSignatureMapper {
                 e.getUpdatedAt(),
                 e.getVoidedAt(),
                 e.getVoidedByUserId(),
-                e.getVoidReason()
+                e.getVoidReason(),
+                e.getDocumentType(),
+                e.getDocumentVersion(),
+                e.getCanonicalEvidenceHashSha256(),
+                e.getAuditLogId(),
+                e.getPadesSignatureStatus()
         );
     }
 
@@ -66,6 +71,11 @@ public final class ServiceContractSignatureMapper {
                 .voidedAt(s.voidedAt())
                 .voidedByUserId(s.voidedByUserId())
                 .voidReason(s.voidReason())
+                .documentType(s.documentType())
+                .documentVersion(s.documentVersion())
+                .canonicalEvidenceHashSha256(s.canonicalEvidenceHashSha256())
+                .auditLogId(s.auditLogId())
+                .padesSignatureStatus(s.padesSignatureStatus())
                 .build();
     }
 }
