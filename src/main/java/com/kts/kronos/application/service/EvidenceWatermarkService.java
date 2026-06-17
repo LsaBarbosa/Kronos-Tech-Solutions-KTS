@@ -66,16 +66,19 @@ public class EvidenceWatermarkService {
                     ? stamp.canonicalEvidenceHashSha256().substring(0, 16) + "…"
                     : "—";
 
+            // Carimbo aplicado SOMENTE na última página do documento. Anteriormente
+            // era aplicado em todas as páginas, mas isso polui o corpo do PDF e
+            // não tem valor adicional para a evidência jurídica (o que importa é
+            // o registro persistido + a assinatura PAdES, não a repetição visual).
             int totalPages = pdf.getNumberOfPages();
-            for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
-                drawWatermarkOnPage(pdf.getPage(pageNum), pdf, stamp, when, hashShort, pageNum, totalPages);
-            }
+            drawWatermarkOnPage(pdf.getPage(totalPages), pdf, stamp, when, hashShort, totalPages, totalPages);
 
             pdf.close();
             pdf = null;
 
             byte[] result = out.toByteArray();
-            log.info("event=evidence_watermark_applied result=success pages={} bytes={}", totalPages, result.length);
+            log.info("event=evidence_watermark_applied result=success pages={} stamped_on_page={} bytes={}",
+                    totalPages, totalPages, result.length);
             return result;
         } catch (IOException ex) {
             log.error("event=evidence_watermark_applied result=failure reason=io exception_type={}",
