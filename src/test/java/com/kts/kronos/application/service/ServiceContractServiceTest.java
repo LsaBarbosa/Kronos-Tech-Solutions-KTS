@@ -74,7 +74,7 @@ class ServiceContractServiceTest {
     @Mock DocumentProvider documentProvider;
     @Mock BucketStorageProvider bucketStorageProvider;
     @Mock DigitalSignatureService digitalSignatureService;
-    @Mock ServiceContractPdfStampService pdfStampService;
+    @Mock EvidenceWatermarkService evidenceWatermarkService;
 
     @InjectMocks
     ServiceContractService service;
@@ -246,7 +246,7 @@ class ServiceContractServiceTest {
         when(passwordEncoder.matches("senha-ok", employeeUser.password())).thenReturn(true);
         when(documentProvider.findById(contract.sourceDocumentId())).thenReturn(documentFor(contract.sourceDocumentId(), "key/orig.pdf"));
         when(bucketStorageProvider.downloadFile(DocumentType.SERVICE_CONTRACT_TERMS, "key/orig.pdf")).thenReturn(pdfBytes);
-        when(pdfStampService.applyEvidenceWatermark(eq(pdfBytes), any())).thenReturn(stamped);
+        when(evidenceWatermarkService.applyEvidenceWatermark(eq(pdfBytes), any())).thenReturn(stamped);
         when(digitalSignatureService.signPdf(eq(stamped), any(), any())).thenReturn(signed);
         when(documentUseCase.uploadGeneratedDocument(
                 eq(DocumentType.SERVICE_CONTRACT_TERMS), eq(employeeId), eq(null), eq(signed), any()

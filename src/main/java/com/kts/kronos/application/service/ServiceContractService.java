@@ -89,7 +89,7 @@ public class ServiceContractService implements ServiceContractUseCase {
     private final DocumentProvider documentProvider;
     private final BucketStorageProvider bucketStorageProvider;
     private final DigitalSignatureService digitalSignatureService;
-    private final ServiceContractPdfStampService pdfStampService;
+    private final EvidenceWatermarkService evidenceWatermarkService;
 
     // ==================== CREATE ====================
 
@@ -457,9 +457,9 @@ public class ServiceContractService implements ServiceContractUseCase {
         byte[] originalPdf = fetchOriginalPdfBytes(contract);
 
         // 4) Aplica marca d'água de evidência (overlay transparente em cada página).
-        byte[] stampedPdf = pdfStampService.applyEvidenceWatermark(
+        byte[] stampedPdf = evidenceWatermarkService.applyEvidenceWatermark(
                 originalPdf,
-                new ServiceContractPdfStampService.EvidenceStamp(
+                new EvidenceWatermarkService.EvidenceStamp(
                         employee.fullName(),
                         now,
                         DECLARATION_VERSION_V1,
