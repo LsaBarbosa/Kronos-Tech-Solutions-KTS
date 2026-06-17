@@ -118,4 +118,14 @@ public class ApiPaths {
     public static final String ADMIN_PLATFORM = "/admin/platform";
     public static final String HEALTH = "/health";
 
+    // Service contracts (assinatura eletrônica de contrato de serviço)
+    public static final String SERVICE_CONTRACTS = "/service-contracts";
+    public static final String SERVICE_CONTRACT_ADMIN = "/admin";
+    public static final String SERVICE_CONTRACT_ADMIN_DETAIL = "/admin/{contractId}";
+    public static final String SERVICE_CONTRACT_ME_PENDING = "/me/pending";
+    public static final String SERVICE_CONTRACT_PREVIEW = "/{contractId}/preview";
+    public static final String SERVICE_CONTRACT_SIGN = "/{contractId}/sign";
+    public static final String SERVICE_CONTRACT_SIGNATURE_DOCUMENT = "/signatures/{signatureId}/document";
+    public static final String SERVICE_CONTRACT_ADMIN_SIGNATURES = "/admin/signatures";
+
 }
