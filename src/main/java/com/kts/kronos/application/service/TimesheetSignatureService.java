@@ -89,6 +89,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
     private final AuditService auditService;
     private final DocumentUseCase documentUseCase;
     private final DigitalSignatureService digitalSignatureService;
+    private final EvidenceWatermarkService evidenceWatermarkService;
 
     @Override
     @Transactional(readOnly = true)
@@ -180,47 +181,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
         }
 
         Instant now = Instant.now();
-
-        // 1) Gera o PDF com carimbo visual de assinatura eletrônica
-        byte[] stampedPdf = pointMirrorPdfUseCase.generateMirrorWithSignatureStamp(
-                employee.employeeId(),
-                periodStart,
-                periodEnd,
-                new PointMirrorPdfUseCase.SignatureStamp(
-                        employee.fullName(),
-                        now,
-                        DECLARATION_VERSION_V1,
-                        recordsHash
-                )
-        );
-
-        // 2) Aplica assinatura digital PAdES com o certificado da empresa.
-        //    Atesta institucionalmente que o documento foi emitido pelo sistema Kronos
-        //    sob ciência do colaborador. Se o certificado estiver indisponível, propaga
-        //    DigitalSignatureException → mapeada para 503 DIGITAL_SIGNATURE_UNAVAILABLE.
-        byte[] signedPdf = digitalSignatureService.signPdf(
-                stampedPdf,
-                "Ciência de espelho de ponto — " + employee.fullName()
-                        + " — " + String.format(Locale.ROOT, "%02d/%04d", previous.getMonthValue(), previous.getYear()),
-                "Kronos — assinatura eletrônica interna"
-        );
-
-        String mirrorHash = sha256Hex(signedPdf);
-
-        // 3) Persiste o PDF assinado no bucket como COMPROVANTE_DE_PONTO (POINT_RECORD_RECEIPT).
-        String fileName = String.format(Locale.ROOT,
-                "comprovante_ponto_%04d-%02d_%s.pdf",
-                previous.getYear(),
-                previous.getMonthValue(),
-                employee.employeeId()
-        );
-        UUID documentId = documentUseCase.uploadGeneratedDocument(
-                DocumentType.POINT_RECORD_RECEIPT,
-                employee.employeeId(),
-                null,
-                signedPdf,
-                fileName
-        );
+        UUID signatureId = UUID.randomUUID();
 
         // Validação da declaração — texto+versão+hash devem bater
         String declarationText = buildDeclarationText(previous);
@@ -230,8 +191,84 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
             throw new BadRequestException("A declaração informada está desatualizada. Recarregue a tela.");
         }
 
+        // 1) Hash canônico de evidências (JSON ordenado) — calculado ANTES do PDF
+        //    para que possa ser embutido no carimbo visual e no registro de auditoria.
+        String canonicalEvidenceJson = buildCanonicalEvidenceJson(
+                signatureId, employee, currentUserId, previous, periodStart, periodEnd,
+                now, ipAddress, userAgent, declarationHash, recordsHash
+        );
+        String canonicalEvidenceHash = sha256Hex(canonicalEvidenceJson.getBytes(StandardCharsets.UTF_8));
+
+        // 2) Registra a evidência de auditoria PRIMEIRO para obter o auditLogId
+        //    e amarrá-lo à assinatura (rastreabilidade bidirecional).
+        UUID auditLogId = auditService.registerSecurityReturningId(
+                AuditAction.TIMESHEET_SIGNATURE_SIGNED,
+                currentUserId,
+                employee.employeeId(),
+                "HIGH",
+                "TIMESHEET_SIGNATURE",
+                signatureId.toString(),
+                String.format("year=%d,month=%d,records=%d,canonical_evidence_hash=%s",
+                        previous.getYear(), previous.getMonthValue(), records.size(), canonicalEvidenceHash),
+                ipAddress,
+                userAgent
+        );
+
+        // 3) Gera o PDF do espelho LIMPO (sem carimbo).
+        byte[] mirrorPdf = pointMirrorPdfUseCase.generateMirror(
+                employee.employeeId(), periodStart, periodEnd
+        );
+
+        // 4) Aplica marca d'água de evidência (overlay transparente em cada página).
+        //    Mesma técnica usada para o contrato de serviço (EvidenceWatermarkService).
+        byte[] stampedPdf = evidenceWatermarkService.applyEvidenceWatermark(
+                mirrorPdf,
+                new EvidenceWatermarkService.EvidenceStamp(
+                        employee.fullName(),
+                        now,
+                        DECLARATION_VERSION_V1,
+                        canonicalEvidenceHash
+                )
+        );
+
+        // 5) Assina com o certificado da empresa (PAdES).
+        String padesStatus;
+        byte[] signedPdf;
+        try {
+            signedPdf = digitalSignatureService.signPdf(
+                    stampedPdf,
+                    "Ciência de espelho de ponto — " + employee.fullName()
+                            + " — " + String.format(Locale.ROOT, "%02d/%04d", previous.getMonthValue(), previous.getYear()),
+                    "Kronos — assinatura eletrônica interna"
+            );
+            padesStatus = "SUCCESS";
+        } catch (RuntimeException ex) {
+            log.warn("event=timesheet_signature_pades_failed year={} month={} exception_type={}",
+                    previous.getYear(), previous.getMonthValue(), ex.getClass().getSimpleName());
+            throw ex;
+        }
+
+        String mirrorHash = sha256Hex(signedPdf);
+
+        // 6) Persiste o PDF assinado como POINT_MIRROR_SIGNATURE (DocumentType
+        //    dedicado para espelhos de ponto assinados — separado do POINT_RECORD_RECEIPT
+        //    que é usado para comprovantes individuais de check-in/out).
+        String fileName = String.format(Locale.ROOT,
+                "espelho_ponto_assinado_%04d-%02d_%s.pdf",
+                previous.getYear(),
+                previous.getMonthValue(),
+                employee.employeeId()
+        );
+        UUID documentId = documentUseCase.uploadGeneratedDocument(
+                DocumentType.POINT_MIRROR_SIGNATURE,
+                employee.employeeId(),
+                null,
+                signedPdf,
+                fileName
+        );
+
         TimesheetSignature signature = new TimesheetSignature(
-                UUID.randomUUID(),
+                signatureId,
                 employee.employeeId(),
                 employee.companyId(),
                 currentUserId,
@@ -252,27 +289,20 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                 declarationText,
                 ipAddress,
                 userAgent,
-                buildEvidenceJson(records.size()),
+                canonicalEvidenceJson,
                 now,
                 null,
                 null,
                 null,
-                null
+                null,
+                "POINT_MIRROR",
+                DECLARATION_VERSION_V1,
+                canonicalEvidenceHash,
+                auditLogId,
+                padesStatus
         );
 
         TimesheetSignature saved = signatureProvider.save(signature);
-
-        auditService.registerSecurity(
-                AuditAction.TIMESHEET_SIGNATURE_SIGNED,
-                currentUserId,
-                employee.employeeId(),
-                "HIGH",
-                "TIMESHEET_SIGNATURE",
-                saved.signatureId().toString(),
-                String.format("year=%d,month=%d,records=%d", previous.getYear(), previous.getMonthValue(), records.size()),
-                ipAddress,
-                userAgent
-        );
 
         log.info("event=timesheet_signature result=success employee_ref={} year={} month={} records={}",
                 employee.employeeId(), previous.getYear(), previous.getMonthValue(), records.size());
@@ -605,5 +635,81 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                 "{\"recordCount\":%d,\"hashAlgorithm\":\"SHA-256\",\"signatureType\":\"INTERNAL_ADVANCED\",\"method\":\"PASSWORD_REAUTH\"}",
                 recordCount
         );
+    }
+
+    /**
+     * JSON canônico de evidências — mesma técnica do ServiceContractService:
+     * chaves ordenadas alfabeticamente, sem espaços, escape manual. O SHA-256
+     * desse JSON é o {@code canonical_evidence_hash_sha256} da assinatura.
+     */
+    private String buildCanonicalEvidenceJson(
+            UUID signatureId,
+            Employee employee,
+            UUID currentUserId,
+            YearMonth previous,
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            Instant signedAt,
+            String ipAddress,
+            String userAgent,
+            String declarationHash,
+            String recordsHash
+    ) {
+        StringBuilder sb = new StringBuilder(512);
+        sb.append('{');
+        appendJson(sb, "authMethod", "PASSWORD_REAUTH"); sb.append(',');
+        appendJson(sb, "companyId", employee.companyId().toString()); sb.append(',');
+        appendJson(sb, "declarationHashSha256", declarationHash); sb.append(',');
+        appendJson(sb, "declarationVersion", DECLARATION_VERSION_V1); sb.append(',');
+        appendJson(sb, "documentType", "POINT_MIRROR"); sb.append(',');
+        appendJson(sb, "documentVersion", DECLARATION_VERSION_V1); sb.append(',');
+        appendJson(sb, "employeeId", employee.employeeId().toString()); sb.append(',');
+        appendJson(sb, "hashAlgorithm", "SHA-256"); sb.append(',');
+        appendJson(sb, "ipAddress", ipAddress); sb.append(',');
+        appendJson(sb, "periodEnd", periodEnd.toString()); sb.append(',');
+        appendJson(sb, "periodStart", periodStart.toString()); sb.append(',');
+        appendJson(sb, "recordsSnapshotHashSha256", recordsHash); sb.append(',');
+        appendJson(sb, "referenceMonth", String.valueOf(previous.getMonthValue())); sb.append(',');
+        appendJson(sb, "referenceYear", String.valueOf(previous.getYear())); sb.append(',');
+        appendJson(sb, "signatureId", signatureId.toString()); sb.append(',');
+        appendJson(sb, "signatureType", "INTERNAL_ADVANCED"); sb.append(',');
+        appendJson(sb, "signedAt", signedAt.toString()); sb.append(',');
+        appendJson(sb, "timezone", TIMESHEET_ZONE.getId()); sb.append(',');
+        appendJson(sb, "userAgent", userAgent); sb.append(',');
+        appendJson(sb, "userId", currentUserId.toString());
+        sb.append('}');
+        return sb.toString();
+    }
+
+    private static void appendJson(StringBuilder sb, String key, String value) {
+        sb.append('"').append(key).append("\":");
+        if (value == null) {
+            sb.append("null");
+        } else {
+            sb.append('"').append(jsonEscape(value)).append('"');
+        }
+    }
+
+    private static String jsonEscape(String s) {
+        StringBuilder out = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"': out.append("\\\""); break;
+                case '\\': out.append("\\\\"); break;
+                case '\b': out.append("\\b"); break;
+                case '\f': out.append("\\f"); break;
+                case '\n': out.append("\\n"); break;
+                case '\r': out.append("\\r"); break;
+                case '\t': out.append("\\t"); break;
+                default:
+                    if (c < 0x20) {
+                        out.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        out.append(c);
+                    }
+            }
+        }
+        return out.toString();
     }
 }

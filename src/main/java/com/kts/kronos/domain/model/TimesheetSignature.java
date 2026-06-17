@@ -35,7 +35,12 @@ public record TimesheetSignature(
         Instant updatedAt,
         Instant voidedAt,
         UUID voidedByUserId,
-        String voidReason
+        String voidReason,
+        String documentType,
+        String documentVersion,
+        String canonicalEvidenceHashSha256,
+        UUID auditLogId,
+        String padesSignatureStatus
 ) {
     public TimesheetSignature withId(UUID id) {
         return new TimesheetSignature(
@@ -43,7 +48,8 @@ public record TimesheetSignature(
                 periodStart, periodEnd, signedAt, signedAtZone, signatureType, signatureMethod,
                 status, pointMirrorDocumentId, pointMirrorHashSha256, recordsSnapshotHashSha256,
                 declarationVersion, declarationHashSha256, declarationText, ipAddress, userAgent,
-                evidenceJson, createdAt, updatedAt, voidedAt, voidedByUserId, voidReason
+                evidenceJson, createdAt, updatedAt, voidedAt, voidedByUserId, voidReason,
+                documentType, documentVersion, canonicalEvidenceHashSha256, auditLogId, padesSignatureStatus
         );
     }
 }

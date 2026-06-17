@@ -17,6 +17,7 @@ public class S3DocumentBucketProperties {
     private String bucketPointRecordReceipt;
     private String bucketBiometricConsentTerm;
     private String bucketServiceContractTerms;
+    private String bucketPointMirrorSignature;
     private String bucketFaceImages;
 
     public String bucketFor(DocumentType type) {
@@ -32,7 +33,13 @@ public class S3DocumentBucketProperties {
             case POINT_RECORD_RECEIPT -> bucketPointRecordReceipt;
             case BIOMETRIC_CONSENT_TERM -> bucketBiometricConsentTerm;
             case SERVICE_CONTRACT_TERMS -> bucketServiceContractTerms;
-            case POINT_MIRROR_SIGNATURE -> bucketPointRecordReceipt;
+            case POINT_MIRROR_SIGNATURE ->
+                    // Bucket dedicado para espelhos de ponto assinados eletronicamente.
+                    // Fallback para bucketPointRecordReceipt se a env var não estiver setada,
+                    // evitando NPE em ambientes onde a config ainda não foi propagada.
+                    bucketPointMirrorSignature != null && !bucketPointMirrorSignature.isBlank()
+                            ? bucketPointMirrorSignature
+                            : bucketPointRecordReceipt;
         };
     }
 }

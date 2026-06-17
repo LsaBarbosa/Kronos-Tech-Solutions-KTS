@@ -39,7 +39,12 @@ public final class TimesheetSignatureMapper {
                 entity.getUpdatedAt(),
                 entity.getVoidedAt(),
                 entity.getVoidedByUserId(),
-                entity.getVoidReason()
+                entity.getVoidReason(),
+                entity.getDocumentType(),
+                entity.getDocumentVersion(),
+                entity.getCanonicalEvidenceHashSha256(),
+                entity.getAuditLogId(),
+                entity.getPadesSignatureStatus()
         );
     }
 
@@ -75,6 +80,11 @@ public final class TimesheetSignatureMapper {
                 .voidedAt(signature.voidedAt())
                 .voidedByUserId(signature.voidedByUserId())
                 .voidReason(signature.voidReason())
+                .documentType(signature.documentType())
+                .documentVersion(signature.documentVersion())
+                .canonicalEvidenceHashSha256(signature.canonicalEvidenceHashSha256())
+                .auditLogId(signature.auditLogId())
+                .padesSignatureStatus(signature.padesSignatureStatus())
                 .build();
     }
 }

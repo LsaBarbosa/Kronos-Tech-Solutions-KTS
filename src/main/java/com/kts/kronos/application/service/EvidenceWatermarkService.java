@@ -25,19 +25,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * Aplica ao PDF original um carimbo de evidência de assinatura eletrônica
+ * Aplica ao PDF um carimbo padronizado de evidência de assinatura eletrônica
  * avançada interna (Lei 14.063/2020). O carimbo é desenhado como OVERLAY em
- * cada página do PDF original — sem fundo opaco — funcionando como marca
- * d'água que NÃO impede a leitura do conteúdo abaixo.
+ * cada página do PDF — sem fundo opaco — funcionando como marca d'água que
+ * NÃO impede a leitura do conteúdo abaixo.
  *
- * <p>O PDF retornado AINDA NÃO está assinado digitalmente — isso é
+ * <p>Usado tanto para contratos de serviço quanto para espelhos de ponto:
+ * a única coisa que muda entre os fluxos é o conteúdo do {@link EvidenceStamp}.
+ * O PDF retornado AINDA NÃO está assinado digitalmente — isso é
  * responsabilidade do {@link com.kts.kronos.infrastructure.DigitalSignatureService#signPdf}.</p>
  */
 @Slf4j
 @Service
-public class ServiceContractPdfStampService {
+public class EvidenceWatermarkService {
 
-    /** Bloco de evidência exibido no rodapé de cada página. */
     public record EvidenceStamp(
             String signerFullName,
             Instant signedAt,
@@ -47,7 +48,7 @@ public class ServiceContractPdfStampService {
 
     public byte[] applyEvidenceWatermark(byte[] originalPdf, EvidenceStamp stamp) {
         if (originalPdf == null || originalPdf.length == 0) {
-            throw new BadRequestException("PDF original do contrato está vazio.");
+            throw new BadRequestException("PDF original está vazio.");
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         PdfDocument pdf = null;
@@ -74,17 +75,17 @@ public class ServiceContractPdfStampService {
             pdf = null;
 
             byte[] result = out.toByteArray();
-            log.info("event=contract_evidence_watermark_applied result=success pages={} bytes={}", totalPages, result.length);
+            log.info("event=evidence_watermark_applied result=success pages={} bytes={}", totalPages, result.length);
             return result;
         } catch (IOException ex) {
-            log.error("event=contract_evidence_watermark_applied result=failure reason=io exception_type={}",
+            log.error("event=evidence_watermark_applied result=failure reason=io exception_type={}",
                     ex.getClass().getSimpleName());
-            throw new BadRequestException("Falha ao processar o PDF do contrato.");
+            throw new BadRequestException("Falha ao processar o PDF.");
         } catch (RuntimeException ex) {
-            log.error("event=contract_evidence_watermark_applied result=failure reason=unexpected exception_type={} msg={}",
+            log.error("event=evidence_watermark_applied result=failure reason=unexpected exception_type={} msg={}",
                     ex.getClass().getSimpleName(),
                     ex.getMessage() == null ? "(no message)" : ex.getMessage());
-            throw new BadRequestException("Falha ao processar o PDF do contrato (" + ex.getClass().getSimpleName() + ").");
+            throw new BadRequestException("Falha ao processar o PDF (" + ex.getClass().getSimpleName() + ").");
         } finally {
             if (pdf != null) {
                 try { pdf.close(); } catch (RuntimeException ignored) { /* best-effort */ }
@@ -102,21 +103,19 @@ public class ServiceContractPdfStampService {
             int totalPages
     ) {
         Rectangle pageSize = page.getPageSize();
-        // Bloco no rodapé ocupando ~140pt de altura, com margens de 36pt nas laterais.
         float blockHeight = 140f;
         float margin = 36f;
         Rectangle stampArea = new Rectangle(
                 margin,
-                margin,                       // 36pt do bottom
+                margin,
                 pageSize.getWidth() - 2 * margin,
                 blockHeight
         );
 
         PdfCanvas pdfCanvas = new PdfCanvas(page.newContentStreamAfter(), page.getResources(), pdf);
 
-        // Aplica transparência (alpha 0.55) — fundo do carimbo NÃO é pintado;
-        // apenas o texto fica semi-transparente, permitindo ler o conteúdo da
-        // página por baixo. Essa é a noção de "marca d'água" que o usuário pediu.
+        // Alpha 0.55 — texto semi-transparente, sem pintar fundo. Conteúdo da
+        // página por baixo permanece legível como marca d'água tradicional.
         PdfExtGState gs = new PdfExtGState();
         gs.setFillOpacity(0.55f);
         gs.setStrokeOpacity(0.55f);
@@ -161,7 +160,6 @@ public class ServiceContractPdfStampService {
             ).setFontSize(6).setFontColor(dark).setItalic();
             layout.add(integrity);
 
-            // Rodapé: identificação de página
             Paragraph footer = new Paragraph(
                     String.format(Locale.ROOT, "Página %d de %d — assinatura registrada eletronicamente",
                             pageNum, totalPages)
