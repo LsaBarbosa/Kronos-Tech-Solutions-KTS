@@ -246,7 +246,7 @@ class ServiceContractServiceTest {
         when(passwordEncoder.matches("senha-ok", employeeUser.password())).thenReturn(true);
         when(documentProvider.findById(contract.sourceDocumentId())).thenReturn(documentFor(contract.sourceDocumentId(), "key/orig.pdf"));
         when(bucketStorageProvider.downloadFile(DocumentType.SERVICE_CONTRACT_TERMS, "key/orig.pdf")).thenReturn(pdfBytes);
-        when(pdfStampService.appendEvidencePage(eq(pdfBytes), any())).thenReturn(stamped);
+        when(pdfStampService.applyEvidenceWatermark(eq(pdfBytes), any())).thenReturn(stamped);
         when(digitalSignatureService.signPdf(eq(stamped), any(), any())).thenReturn(signed);
         when(documentUseCase.uploadGeneratedDocument(
                 eq(DocumentType.SERVICE_CONTRACT_TERMS), eq(employeeId), eq(null), eq(signed), any()
@@ -378,7 +378,8 @@ class ServiceContractServiceTest {
                 ContractSignatureType.INTERNAL_ADVANCED, ContractSignatureMethod.PASSWORD_REAUTH,
                 ContractSignatureStatus.ACTIVE,
                 UUID.randomUUID(), "hash", "hash", "1.0", "dhash", "decl",
-                "ip", "ua", "{}", Instant.now(), null, null, null, null
+                "ip", "ua", "{}", Instant.now(), null, null, null, null,
+                "SERVICE_CONTRACT", "1.0", "evhash", UUID.randomUUID(), "SUCCESS"
         );
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
@@ -434,7 +435,8 @@ class ServiceContractServiceTest {
                 ContractSignatureType.INTERNAL_ADVANCED, ContractSignatureMethod.PASSWORD_REAUTH,
                 ContractSignatureStatus.ACTIVE,
                 UUID.randomUUID(), pdfHash, pdfHash, "1.0", "decl-hash", "decl",
-                "ip", "ua", "{}", Instant.now(), null, null, null, null
+                "ip", "ua", "{}", Instant.now(), null, null, null, null,
+                "SERVICE_CONTRACT", "1.0", "evhash", UUID.randomUUID(), "SUCCESS"
         );
     }
 
