@@ -21,7 +21,7 @@ public class AuditLogProviderImpl implements AuditLogProvider {
     private final AuditLogRepository repository;
 
     @Override
-    public void registerLog(AuditLog domainLog) {
+    public UUID registerLog(AuditLog domainLog) {
         try {
             AuditLogEntity entity = AuditLogEntity.builder()
                     .actorUserId(domainLog.actorUserId())
@@ -38,8 +38,10 @@ public class AuditLogProviderImpl implements AuditLogProvider {
                     .riskLevel(domainLog.riskLevel())
                     .build();
 
-            repository.save(entity);
-
+            AuditLogEntity saved = repository.save(entity);
+            // Em produção `repository.save` nunca retorna null. Guardar contra null
+            // só para tolerar testes que mockam save sem `thenReturn(entity)`.
+            return saved != null ? saved.getId() : null;
         } catch (DataAccessException e) {
             log.warn(
                     "Falha absorvida ao salvar log de auditoria. actorUserId={}, action={}",
@@ -47,6 +49,7 @@ public class AuditLogProviderImpl implements AuditLogProvider {
                     domainLog.action(),
                     e
             );
+            return null;
         }
     }
 
