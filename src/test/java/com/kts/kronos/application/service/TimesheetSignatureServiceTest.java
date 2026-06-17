@@ -67,6 +67,7 @@ class TimesheetSignatureServiceTest {
     @Mock AuditService auditService;
     @Mock DocumentUseCase documentUseCase;
     @Mock DigitalSignatureService digitalSignatureService;
+    @Mock EvidenceWatermarkService evidenceWatermarkService;
 
     @InjectMocks
     TimesheetSignatureService service;
@@ -106,12 +107,12 @@ class TimesheetSignatureServiceTest {
         lenient().when(userProvider.findById(userId)).thenReturn(Optional.of(user));
         lenient().when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(periodStart), eq(periodEnd)))
                 .thenReturn(mirrorPdf);
-        // Por padrão, o stamp+sign retorna o mesmo array (pass-through nos testes que precisam mock simples).
-        lenient().when(pointMirrorPdfUseCase.generateMirrorWithSignatureStamp(eq(employeeId), eq(periodStart), eq(periodEnd), any()))
-                .thenReturn(mirrorPdf);
+        // Watermark e sign retornam o mesmo array (pass-through nos testes que precisam mock simples).
+        lenient().when(evidenceWatermarkService.applyEvidenceWatermark(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(digitalSignatureService.signPdf(any(), any(), any()))
                 .thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_RECORD_RECEIPT), eq(employeeId), eq(null), any(), any()))
+        lenient().when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_MIRROR_SIGNATURE), eq(employeeId), eq(null), any(), any()))
                 .thenReturn(UUID.randomUUID());
     }
 
@@ -177,7 +178,7 @@ class TimesheetSignatureServiceTest {
         UUID expectedDocumentId = UUID.randomUUID();
         byte[] companySignedPdf = "company-signed-pdf-bytes".getBytes(StandardCharsets.UTF_8);
         when(digitalSignatureService.signPdf(any(), any(), any())).thenReturn(companySignedPdf);
-        when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_RECORD_RECEIPT), eq(employeeId), eq(null), eq(companySignedPdf), any()))
+        when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_MIRROR_SIGNATURE), eq(employeeId), eq(null), eq(companySignedPdf), any()))
                 .thenReturn(expectedDocumentId);
         ArgumentCaptor<TimesheetSignature> captor = ArgumentCaptor.forClass(TimesheetSignature.class);
         when(signatureProvider.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
@@ -198,7 +199,7 @@ class TimesheetSignatureServiceTest {
         assertThat(persisted.pointMirrorDocumentId()).isEqualTo(expectedDocumentId);
         assertThat(persisted.ipAddress()).isEqualTo("10.0.0.1");
         assertThat(persisted.userAgent()).isEqualTo("JUnit");
-        verify(documentUseCase).uploadGeneratedDocument(eq(DocumentType.POINT_RECORD_RECEIPT), eq(employeeId), eq(null), eq(companySignedPdf), any());
+        verify(documentUseCase).uploadGeneratedDocument(eq(DocumentType.POINT_MIRROR_SIGNATURE), eq(employeeId), eq(null), eq(companySignedPdf), any());
     }
 
     @Test
@@ -370,10 +371,12 @@ class TimesheetSignatureServiceTest {
                 eq(olderStart.atStartOfDay()), eq(olderEnd.atTime(23, 59, 59))))
                 .thenReturn(List.of(olderRecord));
         when(passwordEncoder.matches("senha", user.password())).thenReturn(true);
-        when(pointMirrorPdfUseCase.generateMirrorWithSignatureStamp(eq(employeeId), eq(olderStart), eq(olderEnd), any()))
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(olderStart), eq(olderEnd)))
                 .thenReturn("older-pdf".getBytes(StandardCharsets.UTF_8));
+        when(evidenceWatermarkService.applyEvidenceWatermark(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(0));
         when(digitalSignatureService.signPdf(any(), any(), any())).thenAnswer(inv -> inv.getArgument(0));
-        when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_RECORD_RECEIPT), eq(employeeId), eq(null), any(), any()))
+        when(documentUseCase.uploadGeneratedDocument(eq(DocumentType.POINT_MIRROR_SIGNATURE), eq(employeeId), eq(null), any(), any()))
                 .thenReturn(UUID.randomUUID());
         when(signatureProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -435,7 +438,8 @@ class TimesheetSignatureServiceTest {
                 "JUnit",
                 "{}",
                 java.time.Instant.now(),
-                null, null, null, null
+                null, null, null, null,
+                "POINT_MIRROR", "1.0", "evhash", UUID.randomUUID(), "SUCCESS"
         );
     }
 

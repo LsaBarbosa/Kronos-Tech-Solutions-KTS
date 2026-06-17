@@ -133,6 +133,7 @@ aws:
     bucket-point-record-receipt: ${AWS_S3_BUCKET_POINT_RECORD_RECEIPT:kronos-docs-point-record-receipt-prod}
     bucket-biometric-consent-term: ${AWS_S3_BUCKET_BIOMETRIC_CONSENT_TERM:kronos-docs-biometric-consent-prod}
     bucket-service-contract-terms: ${AWS_S3_BUCKET_SERVICE_CONTRACT_TERMS:kronos-docs-service-contract-prod}
+    bucket-point-mirror-signature: ${AWS_S3_BUCKET_POINT_MIRROR_SIGNATURE:kronos-docs-point-mirror-signature-prod}
     bucket-face-images: ${AWS_S3_BUCKET_FACE_IMAGES:kronos-app-rekognition-imagens}
   rekognition:
     collection-id: ${AWS_REKOGNITION_COLLECTION_ID:kronos_prod}
