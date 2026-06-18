@@ -15,9 +15,12 @@ import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.application.port.out.provider.*;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
+import com.kts.kronos.application.port.out.provider.DistributedLockProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -42,6 +45,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import static com.kts.kronos.constants.Messages.*;
 import static com.kts.kronos.domain.model.enuns.StatusRecord.PENDING_APPROVAL;
@@ -71,6 +75,12 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final LegalConsentProvider legalConsentProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
+
+    @Autowired(required = false)
+    private CacheProvider cacheProvider;
+
+    @Autowired(required = false)
+    private DistributedLockProvider distributedLockProvider;
     @Autowired
     private KronosMetrics kronosMetrics = new KronosMetrics();
     @Autowired
@@ -110,10 +120,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                 validateFaceRecognition(employeeId, request.faceImageBase64());
                 isHomeOffice(request, employee, employeeId);
 
-                var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
                 var currentTime = LocalDateTime.now(SAO_PAULO);
                 var currentTimeParsed = currentTime.format(TIME_FORMATTER);
                 var todayDate = currentTime.toLocalDate();
+                var openRecordOpt = recordRepository.findOpenByEmployeeId(employee.employeeId());
 
                 var company = companyProvider.findById(employee.companyId())
                         .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
@@ -149,104 +159,111 @@ public class TimeRecordService implements TimeRecordUseCase {
                         recordRepository.save(updated);
                         adfUseCase.logMarking(company, employee, currentTime, nsrCheckout);
                         generateAndSaveReceipt(employee, updated.timeRecordId(), currentTime, nsrCheckout, EXIT);
+                        invalidateTimeRecordCaches();
 
                         return new ActionResponse("Saída às " + currentTimeParsed + "! (NSR: " + nsrCheckout + ")", CHECKOUT);
                     }
                 }
 
+                var checkinLockOwner = acquireCheckinLock(employee.employeeId(), todayDate);
                 var nsrCheckin = nsrProvider.generateNextNsr(employee.companyId());
-                var actionType = CHECKIN;
+                try {
+                    var actionType = CHECKIN;
 
-                var startOfDay = todayDate.atStartOfDay();
-                var endOfDay = todayDate.atTime(23, 59, 59);
+                    var startOfDay = todayDate.atStartOfDay();
+                    var endOfDay = todayDate.atTime(23, 59, 59);
 
-                List<TimeRecord> recordsToday = recordRepository.findByRange(
-                        employee.employeeId(), startOfDay, endOfDay);
+                    List<TimeRecord> recordsToday = recordRepository.findByRange(
+                            employee.employeeId(), startOfDay, endOfDay);
 
-                Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
-                        .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
-                        .findFirst();
+                    Optional<TimeRecord> dayOffOrAbsenceRecord = recordsToday.stream()
+                            .filter(r -> r.statusRecord() == StatusRecord.DAY_OFF || r.statusRecord() == StatusRecord.ABSENCE)
+                            .findFirst();
 
-                TimeRecord recordToSave;
+                    TimeRecord recordToSave;
 
-                if (dayOffOrAbsenceRecord.isPresent()) {
-                    var existing = dayOffOrAbsenceRecord.get();
-                    convertedFromStatus[0] = existing.statusRecord();
-                    recordToSave = new TimeRecord(
-                            existing.timeRecordId(),
-                            currentTime,
-                            null,
-                            PENDING,
-                            false,
-                            true,
-                            employee.employeeId(),
-                            request.latitude(),
-                            request.longitude(),
-                            null, null,
-                            nsrCheckin,
-                            null,
-                            currentTime,
-                            null
-                    );
-                    actionType = CHECKIN_ON_DAY_OFF;
-                } else {
-                    var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
+                    if (dayOffOrAbsenceRecord.isPresent()) {
+                        var existing = dayOffOrAbsenceRecord.get();
+                        convertedFromStatus[0] = existing.statusRecord();
+                        recordToSave = new TimeRecord(
+                                existing.timeRecordId(),
+                                currentTime,
+                                null,
+                                PENDING,
+                                false,
+                                true,
+                                employee.employeeId(),
+                                request.latitude(),
+                                request.longitude(),
+                                null, null,
+                                nsrCheckin,
+                                null,
+                                currentTime,
+                                null
+                        );
+                        actionType = CHECKIN_ON_DAY_OFF;
+                    } else {
+                        var latestRecordOpt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employee.employeeId());
 
-                    if (latestRecordOpt.isPresent()) {
-                        var latest = latestRecordOpt.get();
-                        var latestEndWork = latest.endWork();
-                        var currentStartDay = currentTime.toLocalDate();
-                        var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
+                        if (latestRecordOpt.isPresent()) {
+                            var latest = latestRecordOpt.get();
+                            var latestEndWork = latest.endWork();
+                            var currentStartDay = currentTime.toLocalDate();
+                            var latestEndDay = latestEndWork != null ? latestEndWork.atZone(SAO_PAULO).toLocalDate() : null;
 
-                        if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
-                            var breakRecord = new TimeRecord(
-                                    null,
-                                    latestEndWork,
-                                    currentTime,
-                                    StatusRecord.IMPLICIT_BREAK,
-                                    false,
-                                    true,
-                                    employee.employeeId(),
-                                    null, null, null, null,
-                                    null, null,
-                                    latestEndWork, currentTime
-                            );
-                            recordRepository.save(breakRecord);
-                            actionType = CHECKIN_AFTER_BREAK;
-                            implicitBreakCreated[0] = true;
+                            if (latestEndWork != null && currentStartDay.equals(latestEndDay)) {
+                                var breakRecord = new TimeRecord(
+                                        null,
+                                        latestEndWork,
+                                        currentTime,
+                                        StatusRecord.IMPLICIT_BREAK,
+                                        false,
+                                        true,
+                                        employee.employeeId(),
+                                        null, null, null, null,
+                                        null, null,
+                                        latestEndWork, currentTime
+                                );
+                                recordRepository.save(breakRecord);
+                                actionType = CHECKIN_AFTER_BREAK;
+                                implicitBreakCreated[0] = true;
+                            }
                         }
+
+                        recordToSave = new TimeRecord(
+                                null,
+                                currentTime,
+                                null,
+                                PENDING,
+                                false,
+                                true,
+                                employee.employeeId(),
+                                request.latitude(),
+                                request.longitude(),
+                                null, null,
+                                nsrCheckin,
+                                null,
+                                currentTime,
+                                null
+                        );
                     }
 
-                    recordToSave = new TimeRecord(
-                            null,
-                            currentTime,
-                            null,
-                            PENDING,
-                            false,
-                            true,
-                            employee.employeeId(),
-                            request.latitude(),
-                            request.longitude(),
-                            null, null,
-                            nsrCheckin,
-                            null,
-                            currentTime,
-                            null
-                    );
+                    var savedRecord = recordRepository.save(recordToSave);
+                    adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
+                    generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
+                    invalidateTimeRecordCaches();
+
+                    var message = switch (actionType) {
+                        case CHECKIN_AFTER_BREAK -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                        case CHECKIN_ON_DAY_OFF ->
+                                "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                        default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
+                    };
+
+                    return new ActionResponse(message, actionType);
+                } finally {
+                    releaseCheckinLock(employee.employeeId(), todayDate, checkinLockOwner);
                 }
-
-                var savedRecord = recordRepository.save(recordToSave);
-                adfUseCase.logMarking(company, employee, currentTime, nsrCheckin);
-                generateAndSaveReceipt(employee, savedRecord.timeRecordId(), currentTime, nsrCheckin, "ENTRADA");
-
-                var message = switch (actionType) {
-                    case CHECKIN_AFTER_BREAK -> "Entrada após pausa às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-                    case CHECKIN_ON_DAY_OFF ->
-                            "Registro de folga convertido para trabalho às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-                    default -> "Entrada às " + currentTimeParsed + "! (NSR: " + nsrCheckin + ")";
-                };
-
-                return new ActionResponse(message, actionType);
             });
 
             if (CHECKOUT.equals(response.actionType())) {
@@ -329,6 +346,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             throw new ForbiddenException(UNAUTHORIZED_ROLE);
         }
+
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -354,6 +373,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
         kronosMetrics.timeAdjustmentApproved();
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -369,12 +389,14 @@ public class TimeRecordService implements TimeRecordUseCase {
 
         log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
         kronosMetrics.timeAdjustmentRejected();
+        invalidateTimeRecordCaches();
     }
 
     @Override
     public void deleteTimeRecord(UUID employeeId, Long recordId) {
         var record = getRecord(employeeId, recordId);
         recordRepository.deleteTimeRecord(record);
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -382,6 +404,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         var record = getRecord(employeeId, timeRecordId);
         var toggle = record.withActive(!record.active());
         recordRepository.save(toggle);
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -396,6 +419,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
         var updateStatus = record.withStatus(req.statusRecord());
         recordRepository.save(updateStatus);
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -647,6 +671,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         kronosMetrics.vacationRequested();
+        invalidateTimeRecordCaches();
         return createdRecordIds; // Retorna os IDs criados para referência
     }
 
@@ -672,6 +697,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             }
         }
         kronosMetrics.vacationApproved();
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -695,6 +721,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             }
         }
         kronosMetrics.vacationRejected();
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -862,6 +889,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(FAILED_TO_CREATE_FIRST_RECORD);
         }
         kronosMetrics.timeOffRequested();
+        invalidateTimeRecordCaches();
         return firstRecordId;
     }
 
@@ -882,6 +910,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
         kronosMetrics.timeOffApproved();
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -902,6 +931,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
         kronosMetrics.timeOffRejected();
+        invalidateTimeRecordCaches();
     }
 
     @Override
@@ -1699,6 +1729,37 @@ public class TimeRecordService implements TimeRecordUseCase {
         } catch (RuntimeException e) {
             log.error("event=time_record_receipt result=failure reason=receipt_generation exception_type={}",
                     e.getClass().getSimpleName());
+        }
+    }
+
+    private String acquireCheckinLock(UUID employeeId, LocalDate date) {
+        if (distributedLockProvider == null) {
+            return null;
+        }
+
+        return distributedLockProvider.acquireCheckinLock(employeeId, date)
+                .orElseThrow(() -> new BadRequestException(RECORD_ALREADY_EXISTS_FOR_DATE + date.format(DATE_FORMATTER)));
+    }
+
+    private void releaseCheckinLock(UUID employeeId, LocalDate date, String ownerToken) {
+        if (distributedLockProvider == null || ownerToken == null || ownerToken.isBlank()) {
+            return;
+        }
+        distributedLockProvider.releaseCheckinLock(employeeId, date, ownerToken);
+    }
+
+    private void invalidateTimeRecordCaches() {
+        if (cacheProvider == null) {
+            return;
+        }
+
+        try {
+            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_TODAY);
+            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_RECENT);
+            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_REQUESTS);
+        } catch (RuntimeException ex) {
+            log.warn("event=redis_cache_invalidation_failed scope=time_record reason={}", ex.getClass().getSimpleName());
         }
     }
 

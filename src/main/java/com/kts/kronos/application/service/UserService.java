@@ -20,9 +20,11 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +56,9 @@ public class UserService implements UserUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
     private final AuditService auditService;
+
+    @Autowired(required = false)
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -98,6 +103,7 @@ public class UserService implements UserUseCase {
             } catch (Exception auditEx) {
                 log.debug("Falha ao registrar auditoria de criação de usuário", auditEx);
             }
+            invalidateUserCaches();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
@@ -202,6 +208,7 @@ public class UserService implements UserUseCase {
             } catch (Exception auditEx) {
                 log.debug("Falha ao registrar auditoria de atualização de usuário", auditEx);
             }
+            invalidateUserCaches();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(USERNAME_ALREADY_EXIST);
         }
@@ -235,6 +242,7 @@ public class UserService implements UserUseCase {
         } catch (Exception auditEx) {
             log.debug("Falha ao registrar auditoria de desativação de usuário", auditEx);
         }
+        invalidateUserCaches();
     }
 
     @Override
@@ -262,6 +270,7 @@ public class UserService implements UserUseCase {
         } catch (Exception auditEx) {
             log.debug("Falha ao registrar auditoria de alteração de ativação de usuário", auditEx);
         }
+        invalidateUserCaches();
     }
 
     @Override
@@ -297,6 +306,7 @@ public class UserService implements UserUseCase {
         } catch (Exception auditEx) {
             log.debug("Falha ao registrar auditoria de troca de senha", auditEx);
         }
+        invalidateUserCaches();
     }
 
     @Override
@@ -354,5 +364,20 @@ public class UserService implements UserUseCase {
             log.debug("Falha ao obter IP/User-Agent para auditoria", e);
         }
         return new String[]{ipAddress, userAgent};
+    }
+
+    private void invalidateUserCaches() {
+        if (cacheProvider == null) {
+            return;
+        }
+
+        try {
+            cacheProvider.evictNamespace(RedisCacheNames.USER_LIST);
+            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+        } catch (RuntimeException ex) {
+            log.warn("event=redis_cache_invalidation_failed scope=user reason={}", ex.getClass().getSimpleName());
+        }
     }
 }

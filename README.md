@@ -1,287 +1,88 @@
-# Kronos - Time & Document Management System
-
-A comprehensive time tracking and document management system for Brazilian companies, built with Spring Boot 3.5.3 and Java 21.
-
-## Quick Start
-
-### Prerequisites
-
-- Java 21 (JDK via eclipse-temurin)
-- PostgreSQL 14+
-- Docker (for containerized deployment)
-
-### Local Development
-
-```bash
-# Build the project
-./gradlew clean build
-
-# Run tests
-./gradlew unitTest
-
-# Start the application
-./gradlew bootRun
-
-# Application runs at http://localhost:8080
-```
-
-### Docker Deployment
-
-```bash
-# Build Docker image
-./gradlew bootBuildImage
-
-# Run container
-docker run -p 8080:8080 \
-  -e SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/kronos \
-  -e SPRING_DATASOURCE_PASSWORD=postgres \
-  kronos:latest
-```
-
-## Documentation
-
-### Security & Compliance
-
-- **[Session Policy](docs/security/session-policy.md)** - JWT tokens, cookie security, session management
-- **[CSRF Protection](docs/security/csrf-policy.md)** - CSRF strategy, SameSite cookies, token validation
-- **[Data Retention](docs/legal/data-retention.md)** - LGPD compliance, soft delete, legal requirements
-
-### Operations
-
-- **[Production Deployment](docs/production/hostinger-deploy.md)** - Hostinger setup, Docker, monitoring, troubleshooting
-- **[Database Migrations](docs/database/migrations.md)** - Flyway strategy, migration patterns, best practices
-- **[Pre-Production Checklist](PRE_PRODUCTION_CHECKLIST.md)** - Complete checklist before deploying to production
-
-### Validate documentation links
-
-```bash
-./scripts/check-doc-links.sh
-```
-
-## Project Structure
-
-```
-src/
-├── main/
-│   ├── java/com/kts/kronos/
-│   │   ├── adapter/          # API controllers, DTOs, REST layer
-│   │   ├── application/      # Business logic, use cases, services
-│   │   ├── domain/           # Domain models, enums, entities
-│   │   ├── constants/        # Messages, error codes, constants
-│   │   └── config/           # Spring configuration
-│   └── resources/
-│       ├── application.yml   # Default configuration
-│       ├── db/migration/     # Flyway database migrations
-│       └── i18n/             # Internationalization messages
-└── test/
-    └── java/com/kts/kronos/  # Unit and integration tests
-```
-
-## Key Features
-
-### Time Management
-
-- Clock in/out with biometric verification
-- Time record adjustments with approval workflow
-- Overtime calculation and tracking
-- Leave & vacation management
-- Automatic break detection
-
-### Document Management
-
-- Secure document upload (PDF, JPEG, PNG)
-- Document versioning
-- Time-limited downloads
-- Audit trail for all access
-
-### Security
-
-- JWT-based authentication
-- Biometric acceptance flow (facial recognition)
-- Role-based access control (RBAC)
-- LGPD-compliant data handling
-- Encrypted sensitive data storage
-
-### Compliance
-
-- LGPD (Lei Geral de Proteção de Dados) compliant
-- Brazilian labor law (CLT) requirements
-- Audit logging for all operations
-- Soft delete with retention policies
-
-## Configuration
-
-### Environment Variables (Production)
-
-```bash
-SPRING_PROFILES_ACTIVE=prod
-SPRING_DATASOURCE_URL=jdbc:postgresql://host:5432/kronos_db
-SPRING_DATASOURCE_USERNAME=<user>
-SPRING_DATASOURCE_PASSWORD=<password>
-JWT_SECRET=<32+ random characters>
-JWT_EXPIRATION=900000  # 15 minutes
-AWS_REGION=sa-east-1
-AWS_S3_BUCKET=kronos-documents
-CORS_ALLOWED_ORIGINS=https://kronos.example.com
-```
-
-### Spring Profiles
-
-- **development**: Local development with minimal security
-- **test**: Test environment with H2 database
-- **prod**: Production hardened configuration
-
-## Testing
-
-```bash
-# Unit tests only
-./gradlew unitTest
-
-# All tests including integration
-./gradlew test
-
-# Run specific test class
-./gradlew test --tests "TimeRecordServiceTest"
-
-# Generate coverage report
-./gradlew jacocoTestReport
-# Report available at: build/reports/jacoco/test/html/index.html
-```
-
-## Database
-
-### Migrations
-
-Flyway handles all database schema changes:
-
-```bash
-# Check migration status
-./gradlew flywayInfo
-
-# Validate migrations
-./gradlew flywayValidate
-
-# Migrate (runs automatically on startup)
-./gradlew flywayCleaned
-```
-
-### Supported Databases
-
-- PostgreSQL 14+ (production)
-- H2 (testing)
-
-## API Documentation
-
-Once running, access Swagger UI at:
-
-```
-http://localhost:8080/swagger-ui.html
-```
-
-**Note**: Swagger is disabled in production profile.
-
-## Monitoring
-
-### Health Endpoints
-
-- **Liveness**: `GET /actuator/health/liveness`
-- **Readiness**: `GET /actuator/health/readiness`
-- **Metrics**: `GET /actuator/prometheus`
-
-### Key Metrics
-
-- JVM memory usage
-- Database connection pool stats
-- HTTP request latency
-- Authentication success/failure rates
-
-## Deployment
-
-### Staging
-
-```bash
-./gradlew clean build
-docker build -t kronos:staging .
-docker push registry.example.com/kronos:staging
-```
-
-### Production
-
-See [Production Deployment Guide](docs/production/hostinger-deploy.md)
-
-**Before deploying, review the [Pre-Production Checklist](PRE_PRODUCTION_CHECKLIST.md)**
-
-## Security Best Practices
-
-1. **Never commit secrets** - Use environment variables
-2. **Always use HTTPS** - Cookies marked Secure in production
-3. **Validate input** - All endpoints validate user input
-4. **Audit sensitive operations** - All data access is logged
-5. **Encrypt sensitive data** - Passwords, tokens, biometric hashes
-6. **Restrict file uploads** - Only PDF, JPEG, PNG allowed
-7. **Monitor logs** - Watch for authentication failures and suspicious activity
-
-## Troubleshooting
-
-### Build Issues
-
-```bash
-# Clean and rebuild
-./gradlew clean build --no-build-cache
-
-# Show dependency tree
-./gradlew dependencies
-
-# Check for conflicts
-./gradlew dependencyInsight --dependency junit
-```
-
-### Runtime Issues
-
-```bash
-# Check logs
-tail -f logs/kronos.log
-
-# View application properties
-curl http://localhost:8080/actuator/configprops
-
-# Check database connection
-curl http://localhost:8080/actuator/health/db
-```
-
-## Contributing
-
-### Code Standards
-
-- Follow existing code style
-- Write unit tests for new functionality
-- Update documentation for API changes
-- Reference issue numbers in commit messages
-
-### Pull Request Process
-
-1. Create feature branch from `main`
-2. Write tests for new features
-3. Pass `./gradlew clean build`
-4. Submit PR with detailed description
-5. Address code review comments
-6. Merge after approval
-
-## License
-
-Internal use only. Kronos Tech Solutions.
-
-## Support
-
-- **Documentation**: See `/docs` directory
-- **Issues**: Report to development team
-- **On-Call**: Follow runbooks in operations documentation
-
-## Version History
-
-- **v0.0.1** - Initial development release (May 2026)
-
----
-
-**Last Updated**: May 13, 2026
-**Maintained By**: Kronos Development Team
+# Kronos Redis — pacote de execução para CODEX
+
+## Objetivo
+
+Implementar Redis nos endpoints específicos do Kronos, com Redis rodando localmente dentro da VPS Hostinger em produção, sem alterar contratos HTTP do front-end e sem substituir PostgreSQL como fonte da verdade.
+
+## Repositórios e branches alvo
+
+| Repositório | Branch | Papel |
+|---|---|---|
+| `LsaBarbosa/Kronos-Tech-Solutions-KTS` | `prod-redis` | Implementação principal Redis no back-end |
+| `LsaBarbosa/Kronos-Tech-Solution-User-Plataform` | `PROD_HOSTINGER_v2` | Validação de contrato/front, sem Redis no browser |
+| `LsaBarbosa/kronos-business` | `main` | Fonte documental de regras, fluxos e arquitetura |
+
+## Leitura obrigatória antes de codar
+
+### Back-end
+
+1. `build.gradle`
+2. `src/main/resources/application.yml`
+3. `src/main/resources/application-prod.yml`
+4. `src/main/resources/application-test.yml`, se existir
+5. `docker-compose.yml`, `Dockerfile`, `.env.example`, `deploy/hostinger-nginx.conf`, se existirem
+6. `src/main/java/com/kts/kronos/application/security/AuthenticationRateLimitService.java`
+7. `src/main/java/com/kts/kronos/application/security/BiometricProtectionService.java`
+8. `src/main/java/com/kts/kronos/application/service/AuthService.java`
+9. `src/main/java/com/kts/kronos/adapter/out/security/JwtAuthenticationFilter.java`
+10. `src/main/java/com/kts/kronos/adapter/out/security/AuthCookieService.java`
+11. `src/main/java/com/kts/kronos/adapter/out/security/JwtUtils.java`
+12. `src/main/java/com/kts/kronos/application/port/out/provider/TokenBlacklistProvider.java`
+13. `src/main/java/com/kts/kronos/application/port/out/provider/PasswordResetTokenProvider.java`
+14. Implementações JPA atuais de blacklist e reset token
+15. `UserService`, `EmployeeService`, `CompanyService`, `DashboardService`, `TimeRecordService`, `PublicPrivacyService`, `GeolocationService`, `AcceptTermsService`
+16. `KronosMetrics`, `KronosTracing`, `PlatformHealthService`
+
+### Front-end
+
+1. `package.json`
+2. Configuração Axios/API client
+3. Configuração TanStack Query
+4. Chamadas para `/auth/*`, `/records/*`, `/dashboard/summary`, `/users/own-profile`, `/employee/own-profile`
+5. `docs/openapi/flag-redis.openapi.json`, se existir
+
+### Documentação
+
+1. Arquitetura de pastas e arquitetura do projeto
+2. Fluxos de aplicação
+3. Regras de negócio
+4. Entradas e saídas por fluxo
+5. Entidades
+6. Documento mais recente de estado atual da branch `PROD_HOSTINGER_V2`, se existir no `kronos-business/main`
+
+## Arquivos deste pacote
+
+| Arquivo | Função |
+|---|---|
+| `00-contexto-observado.md` | Contexto técnico já observado e decisões obrigatórias |
+| `rules/redis-architecture-rules.md` | Regras arquiteturais para Redis no Kronos |
+| `rules/security-lgpd-observability-rules.md` | Regras de segurança, LGPD e observabilidade |
+| `skills/redis-spring-boot-skill.md` | Skill de implementação Redis/Spring Boot |
+| `skills/hostinger-redis-prod-skill.md` | Skill de deploy Redis local na VPS Hostinger |
+| `agents/*.md` | Agentes principais para execução/revisão |
+| `subagents/*.md` | Subagentes especializados por área |
+| `plan/redis-action-plan.md` | Plano de ação cronológico com tarefas e critérios de aceite |
+| `prompts/CODEX_REDIS_IMPLEMENTATION_PROMPT.md` | Prompt principal para colar no CODEX |
+| `checklists/review-checklist.md` | Checklist final de revisão técnica |
+
+## Decisão central
+
+Redis deve ser usado como infraestrutura auxiliar para:
+
+- rate limit distribuído;
+- tokens temporários de recuperação de senha;
+- blacklist de JWT com TTL;
+- cache-aside de consultas caras e seguras;
+- locks/idempotência de curta duração;
+- cache de integrações externas, como geolocalização.
+
+Redis não deve armazenar como fonte primária:
+
+- registros de ponto;
+- NSR;
+- AFD/AEJ;
+- documentos;
+- auditoria legal;
+- consentimentos legais;
+- dados LGPD duráveis;
+- imagens biométricas.

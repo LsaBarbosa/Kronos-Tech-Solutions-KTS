@@ -41,6 +41,14 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
     validate-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: ${REDIS_TIMEOUT:2000ms}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
 
   servlet:
     multipart:
@@ -101,6 +109,8 @@ management:
       enabled: true
     mail:
       enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:true}
+    redis:
+      enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:true}
   metrics:
     export:
       prometheus:
@@ -160,6 +170,16 @@ aws:
     collection-id: ${AWS_REKOGNITION_COLLECTION_ID}
 
 kronos:
+  redis:
+    enabled: ${KRONOS_REDIS_ENABLED:true}
+    namespace: ${REDIS_NAMESPACE:kronos}
+    key-hmac-secret: ${REDIS_KEY_HMAC_SECRET}
+    cache-default-ttl: ${REDIS_CACHE_DEFAULT_TTL:PT5M}
+    cache-short-ttl: ${REDIS_CACHE_SHORT_TTL:PT30S}
+    cache-medium-ttl: ${REDIS_CACHE_MEDIUM_TTL:PT5M}
+    cache-long-ttl: ${REDIS_CACHE_LONG_TTL:PT24H}
+    password-reset-ttl: ${REDIS_PASSWORD_RESET_TTL:PT30M}
+    lock-ttl: ${REDIS_LOCK_TTL:PT10S}
   security:
     auth-cookie:
       name: ${AUTH_COOKIE_NAME:KRONOS_ACCESS_TOKEN}

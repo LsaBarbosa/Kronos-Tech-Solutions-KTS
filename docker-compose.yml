@@ -13,5 +13,32 @@
       volumes:
         - kronos_postgres_local_data:/var/lib/postgresql/data
 
+    kronos-redis-local:
+      image: redis:7.4-alpine
+      container_name: kronos-redis-local
+      restart: unless-stopped
+      command:
+        - redis-server
+        - --appendonly
+        - "yes"
+        - --requirepass
+        - kronos_local_redis_123
+        - --protected-mode
+        - "yes"
+        - --bind
+        - 0.0.0.0
+      environment:
+        TZ: America/Sao_Paulo
+      expose:
+        - "6379"
+      volumes:
+        - kronos_redis_local_data:/data
+      healthcheck:
+        test: ["CMD", "redis-cli", "-a", "kronos_local_redis_123", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
   volumes:
     kronos_postgres_local_data:
+    kronos_redis_local_data:

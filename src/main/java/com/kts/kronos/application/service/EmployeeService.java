@@ -20,8 +20,11 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +39,7 @@ import java.util.UUID;
 import static com.kts.kronos.constants.Messages.*;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class EmployeeService implements EmployeeUseCase {
@@ -52,6 +56,9 @@ public class EmployeeService implements EmployeeUseCase {
     private final KronosMetrics kronosMetrics;
     private final LegalConsentProvider legalConsentProvider;
     private final AuditService auditService;
+
+    @Autowired(required = false)
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     // MANAGER
     @Override
@@ -133,6 +140,7 @@ public class EmployeeService implements EmployeeUseCase {
         }
 
         kronosMetrics.employeeCreated();
+        invalidateEmployeeCaches();
         return savedEmployee;
     }
 
@@ -209,6 +217,7 @@ public class EmployeeService implements EmployeeUseCase {
 
         employeeProvider.save(updatedEmployee);
         kronosMetrics.employeeUpdated();
+        invalidateEmployeeCaches();
     }
 
 
@@ -220,6 +229,7 @@ public class EmployeeService implements EmployeeUseCase {
             throw new BadRequestException(EMPLOYEE_HAS_LINKED_USER);
         }
         employeeProvider.save(employee.deactivate(currentUserIdOrNull(), "EMPLOYEE_DELETE"));
+        invalidateEmployeeCaches();
     }
     // PARTNER
 
@@ -233,6 +243,7 @@ public class EmployeeService implements EmployeeUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para este colaborador."));
 
         // RETORNA O EMPLOYEE E A ROLE
+        // own profile is cacheable by controller; writes in this service invalidate it explicitly.
         return new EmployeeProfile(employee, user.role().name());
     }
 
@@ -250,6 +261,7 @@ public class EmployeeService implements EmployeeUseCase {
                 .withPhone(req.phone() != null ? req.phone() : employee.phone())
                 .withAddress(updateAddress);
         employeeProvider.save(updated);
+        invalidateEmployeeCaches();
     }
 
     @Override
@@ -259,6 +271,7 @@ public class EmployeeService implements EmployeeUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var updatedEmployee = employee.withLastSeenMessageTimestamp(LocalDateTime.now());
         employeeProvider.save(updatedEmployee);
+        invalidateEmployeeCaches();
     }
 
     public boolean cpfExists(String cpf) {
@@ -275,6 +288,7 @@ public class EmployeeService implements EmployeeUseCase {
         // 3. Atualiza o Employee
         var updatedEmployee = employee.withActive(newStatus);
         employeeProvider.save(updatedEmployee);
+        invalidateEmployeeCaches();
 
     }
 
@@ -316,6 +330,21 @@ public class EmployeeService implements EmployeeUseCase {
         );
 
         kronosMetrics.employeeCreated();
+        invalidateEmployeeCaches();
+    }
+
+    private void invalidateEmployeeCaches() {
+        if (cacheProvider == null) {
+            return;
+        }
+
+        try {
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_LIST);
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+        } catch (RuntimeException ex) {
+            log.warn("event=redis_cache_invalidation_failed scope=employee reason={}", ex.getClass().getSimpleName());
+        }
     }
 
     private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {
@@ -437,6 +466,7 @@ public class EmployeeService implements EmployeeUseCase {
             employeeProvider.save(savedEmployee);
         }
 
+        invalidateEmployeeCaches();
         return savedEmployee;
     }
 

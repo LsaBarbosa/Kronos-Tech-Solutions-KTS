@@ -14,9 +14,11 @@ import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.LegalBasis;
+import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,9 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final LegalTextProvider legalTextProvider;
     private final KronosMetrics kronosMetrics;
     private final PrivacyLogReferenceService privacyLogReferenceService;
+
+    @Autowired(required = false)
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     private static final HexFormat HEX = HexFormat.of();
     private static final String BIOMETRIC_CONSENT_PURPOSE =
@@ -160,6 +165,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
 
         log.info("Fluxo de aceite e auditoria concluído com sucesso.");
         kronosMetrics.consentAccepted();
+        invalidateConsentCaches();
 
         var consentStatus = getBiometricConsentStatus(employeeId);
         return new BiometricConsentAcceptanceResult(employeeId, userId, user.sessionVersion(), consentStatus);
@@ -218,6 +224,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         );
 
         kronosMetrics.consentRevoked();
+        invalidateConsentCaches();
 
         var consentStatus = getBiometricConsentStatus(employeeId);
 
@@ -301,6 +308,19 @@ public class AcceptTermsService implements AcceptTermsUseCase {
         if (!Objects.equals(currentBiometricTerm.version(), version)
                 || !Objects.equals(currentBiometricTerm.contentHashSha256(), contentHashSha256)) {
             throw new com.kts.kronos.application.exceptions.BadRequestException(INVALID_BIOMETRIC_TERM_VERSION_OR_HASH);
+        }
+    }
+
+    private void invalidateConsentCaches() {
+        if (cacheProvider == null) {
+            return;
+        }
+
+        try {
+            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
+        } catch (RuntimeException ex) {
+            log.warn("event=redis_cache_invalidation_failed scope=consent reason={}", ex.getClass().getSimpleName());
         }
     }
 }

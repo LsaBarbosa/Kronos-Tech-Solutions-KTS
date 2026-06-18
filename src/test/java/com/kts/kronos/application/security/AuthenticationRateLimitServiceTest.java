@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -51,6 +53,20 @@ class AuthenticationRateLimitServiceTest {
         service.checkLoginAllowed("bob");
 
         assertThrows(TooManyRequestsException.class, () -> service.checkLoginAllowed("carol"));
+    }
+
+    @Test
+    void shouldExpireLoginIpWindowAfterTheConfiguredTTL() throws Exception {
+        ReflectionTestUtils.setField(service, "loginIpLimit", 1);
+        ReflectionTestUtils.setField(service, "loginIpWindowSeconds", 1);
+
+        service.checkLoginAllowed("alice");
+
+        assertThrows(TooManyRequestsException.class, () -> service.checkLoginAllowed("bob"));
+
+        TimeUnit.MILLISECONDS.sleep(1100);
+
+        assertDoesNotThrow(() -> service.checkLoginAllowed("carol"));
     }
 
     @Test

@@ -7,6 +7,12 @@ spring:
 
   flyway:
     enabled: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 2000ms
 
   jpa:
     hibernate:
@@ -25,6 +31,11 @@ spring:
           writetimeout: 2000
           starttls:
             enable: true
+
+management:
+  health:
+    redis:
+      enabled: false
 
 file:
   storage:
@@ -60,6 +71,16 @@ aws:
     collection-id: test-collection
 
 kronos:
+  redis:
+    enabled: false
+    namespace: kronos-test
+    key-hmac-secret: test-redis-secret
+    cache-default-ttl: PT5M
+    cache-short-ttl: PT30S
+    cache-medium-ttl: PT5M
+    cache-long-ttl: PT24H
+    password-reset-ttl: PT30M
+    lock-ttl: PT10S
   security:
     certificate:
       path: /tmp/test-cert.pfx

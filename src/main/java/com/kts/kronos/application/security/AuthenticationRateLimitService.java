@@ -1,9 +1,13 @@
 package com.kts.kronos.application.security;
 
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.port.out.provider.RateLimitStore;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import com.kts.kronos.infrastructure.redis.RedisRateLimitNames;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +30,12 @@ public class AuthenticationRateLimitService {
     private final ClientIpResolver clientIpResolver;
     private final Map<String, Deque<Instant>> requestBuckets = new ConcurrentHashMap<>();
     private final Map<String, UsernameFailureState> usernameFailures = new ConcurrentHashMap<>();
+
+    @Autowired(required = false)
+    private RateLimitStore rateLimitStore;
+
+    @Autowired(required = false)
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Value("${kronos.security.rate-limit.login.ip.limit:10}")
     private int loginIpLimit;
@@ -62,6 +72,24 @@ public class AuthenticationRateLimitService {
 
     public void checkLoginAllowed(String username) {
         var now = Instant.now();
+        if (rateLimitStore != null) {
+            var ipCount = rateLimitStore.increment(
+                    RedisRateLimitNames.AUTH_LOGIN_IP,
+                    clientIp(),
+                    Duration.ofSeconds(loginIpWindowSeconds)
+            );
+            if (ipCount > loginIpLimit) {
+                log.warn("event=rate_limit_blocked operation=auth_login target={} reason=ip_limit", safeClientIpRef());
+                throw new TooManyRequestsException(LOGIN_RATE_LIMIT_MESSAGE);
+            }
+
+            if (rateLimitStore.isCoolingDown(RedisRateLimitNames.AUTH_LOGIN_USERNAME, username)) {
+                log.warn("event=rate_limit_blocked operation=auth_login target={} reason=username_cooldown", safeUsernameRef(username));
+                throw new TooManyRequestsException(LOGIN_RATE_LIMIT_MESSAGE);
+            }
+            return;
+        }
+
         consumeOrThrow("auth:login:ip:" + clientIp(), loginIpLimit, Duration.ofSeconds(loginIpWindowSeconds), LOGIN_RATE_LIMIT_MESSAGE, now);
         var key = usernameKey(username);
         var state = usernameFailures.get(key);
@@ -78,6 +106,29 @@ public class AuthenticationRateLimitService {
 
     public void onLoginFailure(String username) {
         var now = Instant.now();
+        if (rateLimitStore != null) {
+            var attempts = rateLimitStore.increment(
+                    RedisRateLimitNames.AUTH_LOGIN_USERNAME,
+                    username,
+                    Duration.ofSeconds(loginUsernameWindowSeconds)
+            );
+            if (attempts >= loginUsernameLimit) {
+                var penalty = rateLimitStore.incrementPenalty(
+                        RedisRateLimitNames.AUTH_LOGIN_USERNAME,
+                        username,
+                        Duration.ofDays(1)
+                );
+                rateLimitStore.setCooldown(
+                        RedisRateLimitNames.AUTH_LOGIN_USERNAME,
+                        username,
+                        cooldownForPenalty((int) penalty)
+                );
+                log.warn("event=rate_limit_blocked operation=auth_login target={} reason=username_threshold", safeUsernameRef(username));
+                throw new TooManyRequestsException(LOGIN_RATE_LIMIT_MESSAGE);
+            }
+            return;
+        }
+
         var key = usernameKey(username);
         var state = usernameFailures.computeIfAbsent(key, ignored -> new UsernameFailureState());
         synchronized (state) {
@@ -87,19 +138,41 @@ public class AuthenticationRateLimitService {
                 state.penaltyLevel = Math.min(state.penaltyLevel + 1, cooldowns().length);
                 state.blockedUntil = now.plus(cooldownForPenalty(state.penaltyLevel));
                 state.attempts.clear();
-                log.warn("Rate limit de login atingido para usernameHash={} ate={}", Integer.toHexString(key.hashCode()), state.blockedUntil);
+                log.warn("event=rate_limit_blocked operation=auth_login target={} reason=username_threshold until={}",
+                        safeUsernameRef(username), state.blockedUntil);
                 throw new TooManyRequestsException(LOGIN_RATE_LIMIT_MESSAGE);
             }
         }
     }
 
     public void onLoginSuccess(String username) {
+        if (rateLimitStore != null) {
+            rateLimitStore.reset(RedisRateLimitNames.AUTH_LOGIN_USERNAME, username);
+        }
         usernameFailures.remove(usernameKey(username));
     }
 
     public void checkPasswordRecoveryAllowed(String cpf, String email) {
         var now = Instant.now();
         var window = Duration.ofSeconds(recoveryWindowSeconds);
+        if (rateLimitStore != null) {
+            if (rateLimitStore.increment(RedisRateLimitNames.AUTH_RECOVER_IP, clientIp(), window) > recoveryIpLimit) {
+                log.warn("event=rate_limit_blocked operation=password_recovery target={} reason=ip_limit", safeClientIpRef());
+                throw new TooManyRequestsException(RECOVERY_RATE_LIMIT_MESSAGE);
+            }
+            if (cpf != null && !cpf.isBlank()
+                    && rateLimitStore.increment(RedisRateLimitNames.AUTH_RECOVER_CPF, cpf, window) > recoveryCpfLimit) {
+                log.warn("event=rate_limit_blocked operation=password_recovery target={} reason=cpf_limit", safeCpfRef(cpf));
+                throw new TooManyRequestsException(RECOVERY_RATE_LIMIT_MESSAGE);
+            }
+            if (email != null && !email.isBlank()
+                    && rateLimitStore.increment(RedisRateLimitNames.AUTH_RECOVER_EMAIL, email, window) > recoveryEmailLimit) {
+                log.warn("event=rate_limit_blocked operation=password_recovery target={} reason=email_limit", safeEmailRef(email));
+                throw new TooManyRequestsException(RECOVERY_RATE_LIMIT_MESSAGE);
+            }
+            return;
+        }
+
         try {
             consumeOrThrow("auth:recover:ip:" + clientIp(), recoveryIpLimit, window, RECOVERY_RATE_LIMIT_MESSAGE, now);
             if (cpf != null && !cpf.isBlank()) {
@@ -109,13 +182,20 @@ public class AuthenticationRateLimitService {
                 consumeOrThrow("auth:recover:email:" + normalize(email), recoveryEmailLimit, window, RECOVERY_RATE_LIMIT_MESSAGE, now);
             }
         } catch (TooManyRequestsException ex) {
-            log.warn("Rate limit de recuperação de senha atingido para ip={}", clientIp());
+            log.warn("event=rate_limit_blocked operation=password_recovery target={} reason=limit", safeClientIpRef());
             throw ex;
         }
     }
 
     public void checkAdminSearchRateLimit() {
         var now = Instant.now();
+        if (rateLimitStore != null) {
+            if (rateLimitStore.increment(RedisRateLimitNames.ADMIN_CHECK, clientIp(), Duration.ofSeconds(adminCheckWindowSeconds)) > adminCheckLimit) {
+                log.warn("event=rate_limit_blocked operation=admin_check target={} reason=limit", safeClientIpRef());
+                throw new TooManyRequestsException("Muitas consultas de verificação. Tente novamente mais tarde.");
+            }
+            return;
+        }
         consumeOrThrow("admin:check:" + clientIp(), adminCheckLimit, Duration.ofSeconds(adminCheckWindowSeconds),
                 "Muitas consultas de verificação. Tente novamente mais tarde.", now);
     }
@@ -174,6 +254,30 @@ public class AuthenticationRateLimitService {
 
     private String clientIp() {
         return clientIpResolver.resolve(request);
+    }
+
+    private String safeClientIpRef() {
+        return privacyLogReferenceService == null
+                ? "ip_ref_unknown"
+                : privacyLogReferenceService.genericRef("ip", clientIp());
+    }
+
+    private String safeUsernameRef(String username) {
+        return privacyLogReferenceService == null
+                ? "username_ref_unknown"
+                : privacyLogReferenceService.genericRef("username", username);
+    }
+
+    private String safeCpfRef(String cpf) {
+        return privacyLogReferenceService == null
+                ? "cpf_ref_unknown"
+                : privacyLogReferenceService.genericRef("cpf", digits(cpf));
+    }
+
+    private String safeEmailRef(String email) {
+        return privacyLogReferenceService == null
+                ? "email_ref_unknown"
+                : privacyLogReferenceService.emailRef(email);
     }
 
     private static final class UsernameFailureState {
