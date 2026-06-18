@@ -46,11 +46,13 @@ services:
     networks:
       - observability
 
-  tempo:
+    tempo:
     image: ${TEMPO_IMAGE:-grafana/tempo:latest}
     container_name: kronos-tempo
     command:
       - -config.file=/etc/tempo/config.yml
+    ports:
+      - 127.0.0.1:4318:4318
     volumes:
       - ./tempo/tempo.yml:/etc/tempo/config.yml:ro
       - tempo-data:/var/tempo
