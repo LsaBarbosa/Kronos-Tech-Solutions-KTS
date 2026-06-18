@@ -22,7 +22,8 @@ public class KronosMetrics {
             "scheduler",
             "document_type",
             "legal_document_type",
-            "action"
+            "action",
+            "cache_name"
     );
 
     private final MeterRegistry meterRegistry;
@@ -53,7 +54,16 @@ public class KronosMetrics {
             "kronos_vacation_requested_total", "kronos_vacation_approved_total",
             "kronos_vacation_rejected_total",
             "kronos_time_off_requested_total", "kronos_time_off_approved_total",
-            "kronos_time_off_rejected_total"
+            "kronos_time_off_rejected_total",
+            "kronos_redis_cache_hit_total", "kronos_redis_cache_miss_total",
+            "kronos_redis_cache_invalidated_total",
+            "kronos_redis_rate_limit_allowed_total", "kronos_redis_rate_limit_blocked_total",
+            "kronos_redis_blacklist_added_total", "kronos_redis_blacklist_checked_total",
+            "kronos_redis_reset_token_created_total", "kronos_redis_reset_token_validated_total",
+            "kronos_redis_reset_token_deleted_total",
+            "kronos_redis_lock_acquired_total", "kronos_redis_lock_denied_total",
+            "kronos_redis_lock_released_total",
+            "kronos_redis_unavailable_total"
         };
         for (String name : names) {
             Counter.builder(name).register(meterRegistry);
@@ -232,6 +242,30 @@ public class KronosMetrics {
     public void timeOffRequested() { increment("kronos_time_off_requested_total"); }
     public void timeOffApproved()  { increment("kronos_time_off_approved_total"); }
     public void timeOffRejected()  { increment("kronos_time_off_rejected_total"); }
+
+    // --- Redis / Cache ---
+    public void redisCacheHit(String cacheName) { increment("kronos_redis_cache_hit_total", "cache_name", cacheName); }
+    public void redisCacheMiss(String cacheName) { increment("kronos_redis_cache_miss_total", "cache_name", cacheName); }
+    public void redisCacheInvalidated(String cacheName) { increment("kronos_redis_cache_invalidated_total", "cache_name", cacheName); }
+
+    // --- Redis / Rate Limit ---
+    public void redisRateLimitAllowed(String operation) { increment("kronos_redis_rate_limit_allowed_total", "operation", operation); }
+    public void redisRateLimitBlocked(String operation) { increment("kronos_redis_rate_limit_blocked_total", "operation", operation); }
+
+    // --- Redis / Blacklist & Reset Token ---
+    public void redisBlacklistAdded() { increment("kronos_redis_blacklist_added_total"); }
+    public void redisBlacklistChecked() { increment("kronos_redis_blacklist_checked_total"); }
+    public void redisResetTokenCreated() { increment("kronos_redis_reset_token_created_total"); }
+    public void redisResetTokenValidated() { increment("kronos_redis_reset_token_validated_total"); }
+    public void redisResetTokenDeleted() { increment("kronos_redis_reset_token_deleted_total"); }
+
+    // --- Redis / Lock ---
+    public void redisLockAcquired(String operation) { increment("kronos_redis_lock_acquired_total", "operation", operation); }
+    public void redisLockDenied(String operation) { increment("kronos_redis_lock_denied_total", "operation", operation); }
+    public void redisLockReleased(String operation) { increment("kronos_redis_lock_released_total", "operation", operation); }
+
+    // --- Redis / Availability ---
+    public void redisUnavailable(String operation) { increment("kronos_redis_unavailable_total", "operation", operation); }
 
     private void increment(String name, String... tagKeyValues) {
         meterRegistry.counter(name, tags(tagKeyValues)).increment();

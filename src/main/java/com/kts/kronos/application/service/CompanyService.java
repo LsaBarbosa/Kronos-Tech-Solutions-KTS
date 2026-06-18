@@ -15,8 +15,11 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
+import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ import static com.kts.kronos.constants.Messages.COMPANY_ALREADY_EXIST;
 import static com.kts.kronos.constants.Messages.COMPANY_NOT_FOUND;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional
 public class CompanyService implements CompanyUseCase {
@@ -41,6 +45,9 @@ public class CompanyService implements CompanyUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
+
+    @Autowired(required = false)
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -58,6 +65,7 @@ public class CompanyService implements CompanyUseCase {
         try {
             companyProvider.save(company);
             kronosMetrics.companyCreated();
+            invalidateCompanyCaches();
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(COMPANY_ALREADY_EXIST);
         }
@@ -127,6 +135,7 @@ public class CompanyService implements CompanyUseCase {
         );
         companyProvider.save(updatedCompany);
         kronosMetrics.companyUpdated();
+        invalidateCompanyCaches();
     }
 
     @Override
@@ -142,6 +151,7 @@ public class CompanyService implements CompanyUseCase {
                 .collect(Collectors.toSet());
 
         if (employeeIds.isEmpty()) {
+            invalidateCompanyCaches();
             return;
         }
 
@@ -151,6 +161,7 @@ public class CompanyService implements CompanyUseCase {
                 userUseCase.toggleActivate(user.userId());
             }
         }
+        invalidateCompanyCaches();
     }
 
     @Override
@@ -169,12 +180,14 @@ public class CompanyService implements CompanyUseCase {
                 .forEach(employeeProvider::save);
 
         if (employeeIds.isEmpty()) {
+            invalidateCompanyCaches();
             return;
         }
 
         userProvider.findByEmployeeIds(employeeIds).stream()
                 .map(user -> user.deactivate(deletedBy, "COMPANY_DELETE"))
                 .forEach(userProvider::save);
+        invalidateCompanyCaches();
     }
 
     public boolean cnpjExists(String cnpj) {
@@ -211,6 +224,23 @@ public class CompanyService implements CompanyUseCase {
             return jwtAuthenticatedUser.getuserId();
         } catch (RuntimeException ex) {
             return null;
+        }
+    }
+
+    private void invalidateCompanyCaches() {
+        if (cacheProvider == null) {
+            return;
+        }
+
+        try {
+            cacheProvider.evictNamespace(RedisCacheNames.COMPANY_GET);
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_LIST);
+            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.USER_LIST);
+            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+        } catch (RuntimeException ex) {
+            log.warn("event=redis_cache_invalidation_failed scope=company reason={}", ex.getClass().getSimpleName());
         }
     }
 }
