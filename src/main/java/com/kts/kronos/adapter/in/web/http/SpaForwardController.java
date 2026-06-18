@@ -1,14 +1,23 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 
 @Controller
 public class SpaForwardController {
 
+    private final String frontendBaseUrl;
+
+    public SpaForwardController(@Value("${frontend.base-url-record}") String frontendBaseUrl) {
+        this.frontendBaseUrl = frontendBaseUrl.replaceAll("/+$", "");
+    }
+
     @GetMapping(
             value = {
+                    "/",
                     "/dashboard",
                     "/login",
                     "/senha-primeiro-acesso",
@@ -56,7 +65,15 @@ public class SpaForwardController {
             },
             produces = MediaType.TEXT_HTML_VALUE
     )
-    public String forwardSpaRoutes() {
-        return "forward:/";
+    public String redirectSpaRoutes(HttpServletRequest request) {
+        var requestUri = request.getRequestURI();
+        var queryString = request.getQueryString();
+        var target = frontendBaseUrl + requestUri;
+
+        if (queryString != null && !queryString.isBlank()) {
+            target += "?" + queryString;
+        }
+
+        return "redirect:" + target;
     }
 }
