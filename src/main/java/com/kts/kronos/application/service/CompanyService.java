@@ -1,8 +1,11 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -11,15 +14,14 @@ import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,9 +47,7 @@ public class CompanyService implements CompanyUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
-
-    @Autowired(required = false)
-    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
+    private final CacheProvider cacheProvider;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -69,6 +69,16 @@ public class CompanyService implements CompanyUseCase {
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException(COMPANY_ALREADY_EXIST);
         }
+    }
+
+    @Override
+    public CompanyResponse getCompanyResponse(String cnpj) {
+        return cache(
+                ApplicationCacheNames.COMPANY_GET,
+                CacheScopes.authenticatedScope("cnpj=" + cnpj),
+                CompanyResponse.class,
+                () -> CompanyResponse.fromDomain(getCompany(cnpj))
+        );
     }
 
     @Override
@@ -233,14 +243,21 @@ public class CompanyService implements CompanyUseCase {
         }
 
         try {
-            cacheProvider.evictNamespace(RedisCacheNames.COMPANY_GET);
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_LIST);
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.USER_LIST);
-            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+            cacheProvider.evictNamespace(ApplicationCacheNames.COMPANY_GET);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_LIST);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_LIST);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.DASHBOARD_SUMMARY);
         } catch (RuntimeException ex) {
             log.warn("event=redis_cache_invalidation_failed scope=company reason={}", ex.getClass().getSimpleName());
         }
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }

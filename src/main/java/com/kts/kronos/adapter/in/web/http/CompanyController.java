@@ -5,18 +5,12 @@ import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
-import com.kts.kronos.application.port.out.provider.CacheProvider;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
-import com.kts.kronos.infrastructure.redis.RedisScopeKeyResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.function.Supplier;
 
 import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Messages.KRONOS;
@@ -28,9 +22,6 @@ public class CompanyController {
 
     private final CompanyUseCase useCase;
 
-    @Autowired(required = false)
-    private CacheProvider cacheProvider;
-
     @PostMapping
     @PreAuthorize(KRONOS)
     public ResponseEntity<Void> registerCompany(@Valid @RequestBody CreateCompanyRequest dto) {
@@ -41,12 +32,7 @@ public class CompanyController {
     @PreAuthorize(KRONOS)
     @GetMapping(BY_CNPJ)
     public ResponseEntity<CompanyResponse> getCompany(@PathVariable String cnpj) {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.COMPANY_GET,
-                RedisScopeKeyResolver.authenticatedScope("cnpj=" + cnpj),
-                CompanyResponse.class,
-                () -> CompanyResponse.fromDomain(useCase.getCompany(cnpj))
-        ));
+        return ResponseEntity.ok(useCase.getCompanyResponse(cnpj));
     }
 
     @PreAuthorize(KRONOS)
@@ -92,12 +78,5 @@ public class CompanyController {
         } else {
             return ResponseEntity.notFound().build();
         }
-    }
-
-    private <T> T cache(String cacheName, String scope, Class<T> type, Supplier<T> loader) {
-        if (cacheProvider == null) {
-            return loader.get();
-        }
-        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }

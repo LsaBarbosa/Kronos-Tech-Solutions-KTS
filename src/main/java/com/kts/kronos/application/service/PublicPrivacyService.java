@@ -1,6 +1,9 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.public_privacy.*;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,29 +14,46 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PublicPrivacyService {
 
+    private final CacheProvider cacheProvider;
+
     public PublicProcessingCatalogResponse getPublicProcessingCatalog() {
-        return new PublicProcessingCatalogResponse(
-                "2026.05.1",
-                LocalDate.of(2026, 5, 27),
-                buildActivities()
+        return cache(
+                ApplicationCacheNames.PUBLIC_PROCESSING_CATALOG,
+                CacheScopes.publicScope("processing-catalog"),
+                PublicProcessingCatalogResponse.class,
+                () -> new PublicProcessingCatalogResponse(
+                        "2026.05.1",
+                        LocalDate.of(2026, 5, 27),
+                        buildActivities()
+                )
         );
     }
 
     public PublicPrivacyPolicyResponse getPublicPrivacyPolicy() {
-        return new PublicPrivacyPolicyResponse(
-                "2026.05.1",
-                LocalDate.of(2026, 5, 27),
-                "Política de Privacidade e Proteção de Dados - Kronos",
-                buildPolicySections()
+        return cache(
+                ApplicationCacheNames.PUBLIC_PRIVACY_POLICY,
+                CacheScopes.publicScope("policy"),
+                PublicPrivacyPolicyResponse.class,
+                () -> new PublicPrivacyPolicyResponse(
+                        "2026.05.1",
+                        LocalDate.of(2026, 5, 27),
+                        "Política de Privacidade e Proteção de Dados - Kronos",
+                        buildPolicySections()
+                )
         );
     }
 
     public PublicBiometricTermResponse getPublicBiometricTerm() {
-        return new PublicBiometricTermResponse(
-                "2026.05.1",
-                LocalDate.of(2026, 5, 27),
-                "Termo de Consentimento e Uso de Biometria Facial",
-                buildBiometricSections()
+        return cache(
+                ApplicationCacheNames.PUBLIC_BIOMETRIC_TERM,
+                CacheScopes.publicScope("biometric-term"),
+                PublicBiometricTermResponse.class,
+                () -> new PublicBiometricTermResponse(
+                        "2026.05.1",
+                        LocalDate.of(2026, 5, 27),
+                        "Termo de Consentimento e Uso de Biometria Facial",
+                        buildBiometricSections()
+                )
         );
     }
 
@@ -239,5 +259,12 @@ public class PublicPrivacyService {
                                 "Sua solicitação será processada no prazo legal (30 dias)."
                 )
         );
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }

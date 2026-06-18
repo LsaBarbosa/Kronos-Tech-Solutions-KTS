@@ -1,8 +1,11 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.BiometricConsentStatus;
@@ -14,11 +17,9 @@ import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.LegalBasis;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,9 +50,7 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     private final LegalTextProvider legalTextProvider;
     private final KronosMetrics kronosMetrics;
     private final PrivacyLogReferenceService privacyLogReferenceService;
-
-    @Autowired(required = false)
-    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
+    private final CacheProvider cacheProvider;
 
     private static final HexFormat HEX = HexFormat.of();
     private static final String BIOMETRIC_CONSENT_PURPOSE =
@@ -312,13 +311,10 @@ public class AcceptTermsService implements AcceptTermsUseCase {
     }
 
     private void invalidateConsentCaches() {
-        if (cacheProvider == null) {
-            return;
-        }
-
         try {
-            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_LIST);
         } catch (RuntimeException ex) {
             log.warn("event=redis_cache_invalidation_failed scope=consent reason={}", ex.getClass().getSimpleName());
         }
