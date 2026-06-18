@@ -29,7 +29,6 @@ import com.kts.kronos.observability.application.KronosTracing;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -71,10 +70,8 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final LegalConsentProvider legalConsentProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -83,7 +80,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         final boolean[] implicitBreakCreated = {false};
 
         try {
-            ActionResponse response = kronosTracing.observe("kronos.time_record.register", () -> {
+            ActionResponse response = kronosTracing.observe("kronos.time_record.checkin", () -> {
                 ntpTimeService.validateSystemTime(10);
 
                 var employeeId = jwtAuthenticatedUser.getEmployeeId();

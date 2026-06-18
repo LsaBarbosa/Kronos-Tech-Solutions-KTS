@@ -3,6 +3,8 @@ package com.kts.kronos.application.scheduler;
 import com.kts.kronos.application.service.retention.RetentionExecutionService;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
 import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,6 +23,7 @@ public class DataRetentionScheduler {
 
     private final RetentionExecutionService retentionExecutionService;
     private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
     private final String schedulerMode;
     private final boolean schedulerApplyConfirmed;
     private final String schedulerJustification;
@@ -29,15 +32,34 @@ public class DataRetentionScheduler {
     public DataRetentionScheduler(
             RetentionExecutionService retentionExecutionService,
             KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing,
             @Value("${kronos.lgpd.retention.scheduler.mode:DRY_RUN}") String schedulerMode,
             @Value("${kronos.lgpd.retention.scheduler.apply-confirmed:false}") boolean schedulerApplyConfirmed,
             @Value("${kronos.lgpd.retention.scheduler.justification:Scheduled LGPD retention batch}") String schedulerJustification
     ) {
         this.retentionExecutionService = retentionExecutionService;
         this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
         this.schedulerMode = schedulerMode;
         this.schedulerApplyConfirmed = schedulerApplyConfirmed;
         this.schedulerJustification = schedulerJustification;
+    }
+
+    public DataRetentionScheduler(
+            RetentionExecutionService retentionExecutionService,
+            KronosMetrics kronosMetrics,
+            String schedulerMode,
+            boolean schedulerApplyConfirmed,
+            String schedulerJustification
+    ) {
+        this(
+                retentionExecutionService,
+                kronosMetrics,
+                ObservabilityDefaults.tracing(),
+                schedulerMode,
+                schedulerApplyConfirmed,
+                schedulerJustification
+        );
     }
 
     @Scheduled(cron = "${kronos.lgpd.retention.scheduler.cron:0 15 4 * * ?}", zone = "America/Sao_Paulo")
@@ -46,12 +68,12 @@ public class DataRetentionScheduler {
         long startedAt = System.nanoTime();
 
         try {
-            var summary = retentionExecutionService.executeActivePolicies(
+            var summary = kronosTracing.observe("kronos.scheduler.retention", () -> retentionExecutionService.executeActivePolicies(
                     resolveMode(),
                     schedulerJustification,
                     schedulerApplyConfirmed,
                     "scheduler"
-            );
+            ), "scheduler", SCHEDULER_NAME, "result", "success");
             kronosMetrics.schedulerRecordsProcessed(SCHEDULER_NAME, summary.totalPolicies());
             kronosMetrics.schedulerSuccess(SCHEDULER_NAME);
             kronosMetrics.recordSchedulerDuration(

@@ -12,7 +12,6 @@ import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,10 +36,8 @@ public class AfdService implements AdfUseCase {
 
     private final AfdEntryProvider afdProvider;
     private final CompanyProvider companyProvider;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     // Removemos dados hardcoded e usamos configuração
     @Value("${kronos.legal.inpi-number:999999999}")
@@ -83,7 +80,7 @@ public class AfdService implements AdfUseCase {
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         try {
-            kronosTracing.observe("kronos.legal.afd.generate", () -> {
+            kronosTracing.observe("kronos.legal.afd", () -> {
                 try (var writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
                     var header = String.format("0000000011%s%s%s",
                             "1",

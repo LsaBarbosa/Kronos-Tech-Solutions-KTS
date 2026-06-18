@@ -8,8 +8,12 @@ import com.kts.kronos.domain.model.RetentionExecutionResult;
 import com.kts.kronos.domain.model.RetentionPolicy;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.RetentionExecutionMode;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,13 +24,47 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RetentionExecutionService {
     private final RetentionPolicyCatalog retentionPolicyCatalog;
     private final RetentionPolicyExecutor retentionPolicyExecutor;
     private final AuditService auditService;
     private final ObjectMapper objectMapper;
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
+
+    @Autowired
+    public RetentionExecutionService(
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            RetentionPolicyExecutor retentionPolicyExecutor,
+            AuditService auditService,
+            ObjectMapper objectMapper,
+            KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing
+    ) {
+        this.retentionPolicyCatalog = retentionPolicyCatalog;
+        this.retentionPolicyExecutor = retentionPolicyExecutor;
+        this.auditService = auditService;
+        this.objectMapper = objectMapper;
+        this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
+    }
+
+    public RetentionExecutionService(
+            RetentionPolicyCatalog retentionPolicyCatalog,
+            RetentionPolicyExecutor retentionPolicyExecutor,
+            AuditService auditService,
+            ObjectMapper objectMapper
+    ) {
+        this(
+                retentionPolicyCatalog,
+                retentionPolicyExecutor,
+                auditService,
+                objectMapper,
+                ObservabilityDefaults.metrics(),
+                ObservabilityDefaults.tracing()
+        );
+    }
 
     public RetentionBatchExecutionSummary executeActivePolicies(
             RetentionExecutionMode mode,
@@ -34,40 +72,49 @@ public class RetentionExecutionService {
             boolean confirmed,
             String trigger
     ) {
-        validateApplyRequest(mode, justification, confirmed);
+        try {
+            RetentionBatchExecutionSummary summary = kronosTracing.observe("kronos.retention.execution", () -> {
+                validateApplyRequest(mode, justification, confirmed);
 
-        List<RetentionDryRunResult> results = new ArrayList<>();
-        long totalScanned = 0;
-        long totalEligible = 0;
-        long totalErrors = 0;
+                List<RetentionDryRunResult> results = new ArrayList<>();
+                long totalScanned = 0;
+                long totalEligible = 0;
+                long totalErrors = 0;
 
-        for (var catalogPolicy : retentionPolicyCatalog.getActivePolicies()) {
-            var result = executeCatalogPolicy(catalogPolicy, mode);
-            long eligible = deriveEligibleCount(mode, result);
-            results.add(new RetentionDryRunResult(
-                    catalogPolicy.code().name(),
-                    result.resourceType() != null ? result.resourceType().name().toLowerCase() : "unknown",
-                    result.scannedCount(),
-                    eligible,
-                    catalogPolicy.action().name(),
-                    requiresAttention(result)
-            ));
-            totalScanned += result.scannedCount();
-            totalEligible += eligible;
-            totalErrors += result.errorCount();
+                for (var catalogPolicy : retentionPolicyCatalog.getActivePolicies()) {
+                    var result = executeCatalogPolicy(catalogPolicy, mode);
+                    long eligible = deriveEligibleCount(mode, result);
+                    results.add(new RetentionDryRunResult(
+                            catalogPolicy.code().name(),
+                            result.resourceType() != null ? result.resourceType().name().toLowerCase() : "unknown",
+                            result.scannedCount(),
+                            eligible,
+                            catalogPolicy.action().name(),
+                            requiresAttention(result)
+                    ));
+                    totalScanned += result.scannedCount();
+                    totalEligible += eligible;
+                    totalErrors += result.errorCount();
+                }
+
+                var builtSummary = new RetentionBatchExecutionSummary(
+                        mode.name(),
+                        results.size(),
+                        totalScanned,
+                        totalEligible,
+                        totalErrors,
+                        results.stream().anyMatch(RetentionDryRunResult::requiresManualApproval),
+                        results
+                );
+                auditBatchExecution(mode, justification, trigger, builtSummary);
+                return builtSummary;
+            }, "mode", mode.name().toLowerCase(), "trigger", trigger);
+            kronosMetrics.recordRetentionExecution(mode.name().toLowerCase(), "success", "none");
+            return summary;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordRetentionExecution(mode.name().toLowerCase(), "failure", "execution_error");
+            throw e;
         }
-
-        var summary = new RetentionBatchExecutionSummary(
-                mode.name(),
-                results.size(),
-                totalScanned,
-                totalEligible,
-                totalErrors,
-                results.stream().anyMatch(RetentionDryRunResult::requiresManualApproval),
-                results
-        );
-        auditBatchExecution(mode, justification, trigger, summary);
-        return summary;
     }
 
     public RetentionExecutionResult executePolicy(
