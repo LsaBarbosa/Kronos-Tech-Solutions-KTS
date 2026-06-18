@@ -2,8 +2,11 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.Location;
 import com.kts.kronos.adapter.in.web.dto.geolocation.GeolocationResolveRequest;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.port.in.usecase.GeolocationUseCase;
 import com.kts.kronos.application.port.out.provider.AddressLookupProvider;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.GeolocationProvider;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +24,22 @@ public class GeolocationService implements GeolocationUseCase {
     private final AddressLookupProvider addressLookupProvider;
     private final GeolocationProvider geolocationProvider;
     private final KronosMetrics kronosMetrics;
+    private final CacheProvider cacheProvider;
 
     @Override
     public Location resolve(GeolocationResolveRequest request) {
+        return cache(
+                ApplicationCacheNames.GEOLOCATION_RESOLVE,
+                CacheScopes.authenticatedScope(
+                        "postalCode=" + request.postalCode(),
+                        "number=" + request.number()
+                ),
+                Location.class,
+                () -> resolveLocation(request)
+        );
+    }
+
+    private Location resolveLocation(GeolocationResolveRequest request) {
         var address = addressLookupProvider.lookup(request.postalCode())
                 .withNumber(request.number());
 
@@ -38,5 +54,12 @@ public class GeolocationService implements GeolocationUseCase {
             kronosMetrics.recordGeolocationDuration(Duration.between(start, Instant.now()));
             throw e;
         }
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }

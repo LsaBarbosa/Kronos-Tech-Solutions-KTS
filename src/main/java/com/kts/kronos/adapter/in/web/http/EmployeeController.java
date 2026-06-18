@@ -3,19 +3,14 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
-import com.kts.kronos.application.port.out.provider.CacheProvider;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
-import com.kts.kronos.infrastructure.redis.RedisScopeKeyResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Messages.*;
@@ -27,9 +22,6 @@ public class EmployeeController {
 
     private final EmployeeUseCase useCase;
     private final CompanyUseCase companyUseCase;
-
-    @Autowired(required = false)
-    private CacheProvider cacheProvider;
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
@@ -49,12 +41,7 @@ public class EmployeeController {
     public ResponseEntity<EmployeeListResponse> allEmployees(
             @RequestParam(value = "active", required = false) Boolean active
     ) {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.EMPLOYEE_LIST,
-                RedisScopeKeyResolver.authenticatedScope("active=" + active),
-                EmployeeListResponse.class,
-                () -> buildEmployeeList(active)
-        ));
+        return ResponseEntity.ok(useCase.listEmployeesResponse(active));
     }
 
     @PreAuthorize(MANAGER)
@@ -77,18 +64,7 @@ public class EmployeeController {
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(OWN_PROFILE)
     public ResponseEntity<EmployeeDetailResponse> getOwnProfile() {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.EMPLOYEE_OWN_PROFILE,
-                RedisScopeKeyResolver.authenticatedScope(),
-                EmployeeDetailResponse.class,
-                () -> {
-                    var profile = useCase.getOwnProfile();
-                    var employee = profile.employee();
-                    var role = profile.role();
-                    var companyName = companyUseCase.getCompanyNameById(employee.companyId());
-                    return EmployeeDetailResponse.fromDomain(employee, companyName, role);
-                }
-        ));
+        return ResponseEntity.ok(useCase.getOwnProfileResponse());
     }
     @PreAuthorize(ANY_EMPLOYEE)
     @PatchMapping(UPDATE_OWN_PROFILE)
@@ -129,24 +105,4 @@ public class EmployeeController {
             return ResponseEntity.notFound().build();
         }
     }
-
-    private EmployeeListResponse buildEmployeeList(Boolean active) {
-        var employees = useCase.listEmployees(active);
-
-        var employeeResponses = employees.stream().map(employee -> {
-            String companyName = companyUseCase.getCompanyNameById(employee.companyId());
-
-            return EmployeeListItemResponse.fromDomain(employee, companyName);
-        }).toList();
-        return new EmployeeListResponse(employeeResponses);
-    }
-
-    private <T> T cache(String cacheName, String scope, Class<T> type, Supplier<T> loader) {
-        if (cacheProvider == null) {
-            return loader.get();
-        }
-        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
-    }
-
-
 }

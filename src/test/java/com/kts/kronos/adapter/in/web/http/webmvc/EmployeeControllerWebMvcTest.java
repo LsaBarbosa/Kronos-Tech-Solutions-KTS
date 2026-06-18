@@ -1,6 +1,6 @@
 package com.kts.kronos.adapter.in.web.http.webmvc;
 
-import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.adapter.in.web.dto.employee.*;
 import com.kts.kronos.adapter.in.web.http.EmployeeController;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -139,8 +139,8 @@ class EmployeeControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         var employee = employee(employeeId, companyId);
 
-        when(useCase.listEmployees(null)).thenReturn(List.of(employee));
-        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+        when(useCase.listEmployeesResponse(null))
+                .thenReturn(new EmployeeListResponse(List.of(EmployeeListItemResponse.fromDomain(employee, "Kronos Tech"))));
 
         mockMvc.perform(get("/employee"))
                 .andExpect(status().isOk())
@@ -151,7 +151,7 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(jsonPath("$.employees[0].cpf").doesNotExist())
                 .andExpect(jsonPath("$.employees[0].faceS3ObjectKey").doesNotExist());
 
-        verify(useCase).listEmployees(null);
+        verify(useCase).listEmployeesResponse(null);
     }
 
     @Test
@@ -161,14 +161,14 @@ class EmployeeControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         var employee = employee(employeeId, companyId);
 
-        when(useCase.listEmployees(true)).thenReturn(List.of(employee));
-        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+        when(useCase.listEmployeesResponse(true))
+                .thenReturn(new EmployeeListResponse(List.of(EmployeeListItemResponse.fromDomain(employee, "Kronos Tech"))));
 
         mockMvc.perform(get("/employee").param("active", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.employees[0].employeeId").value(employeeId.toString()));
 
-        verify(useCase).listEmployees(true);
+        verify(useCase).listEmployeesResponse(true);
     }
 
     @Test
@@ -248,8 +248,9 @@ class EmployeeControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         var employee = employee(employeeId, companyId);
 
-        when(useCase.getOwnProfile()).thenReturn(new EmployeeProfile(employee, "MANAGER"));
-        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+        when(useCase.getOwnProfileResponse()).thenReturn(
+                EmployeeDetailResponse.fromDomain(employee, "Kronos Tech", "MANAGER")
+        );
 
         mockMvc.perform(get("/employee/own-profile"))
                 .andExpect(status().isOk())
@@ -408,8 +409,8 @@ class EmployeeControllerWebMvcTest {
         UUID employeeId = UUID.randomUUID();
         var employee = employee(employeeId, companyId);
 
-        when(useCase.listEmployees(null)).thenReturn(List.of(employee));
-        when(companyUseCase.getCompanyNameById(companyId)).thenReturn("Kronos Tech");
+        when(useCase.listEmployeesResponse(null))
+                .thenReturn(new EmployeeListResponse(List.of(EmployeeListItemResponse.fromDomain(employee, "Kronos Tech"))));
 
         mockMvc.perform(get("/employee"))
                 .andExpect(status().isOk())

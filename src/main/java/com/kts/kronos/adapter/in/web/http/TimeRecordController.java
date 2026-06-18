@@ -6,12 +6,8 @@ import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.RequestVacationRequ
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationApprovalRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.vacation.VacationRequestPageResponse;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
-import com.kts.kronos.application.port.out.provider.CacheProvider;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
-import com.kts.kronos.infrastructure.redis.RedisScopeKeyResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Messages.ANY_EMPLOYEE;
@@ -30,9 +25,6 @@ import static com.kts.kronos.constants.Messages.MANAGER;
 @RequiredArgsConstructor
 public class TimeRecordController {
     private final TimeRecordUseCase useCase;
-
-    @Autowired(required = false)
-    private CacheProvider cacheProvider;
 
     @PreAuthorize(ANY_EMPLOYEE)
     @PostMapping(CHECKIN)
@@ -177,12 +169,7 @@ public class TimeRecordController {
     @PreAuthorize(ANY_EMPLOYEE)
     @GetMapping(ME_TODAY)
     public ResponseEntity<TodayTimeRecordStatusResponse> getTodayStatus() {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.RECORDS_ME_TODAY,
-                RedisScopeKeyResolver.authenticatedScope("today"),
-                TodayTimeRecordStatusResponse.class,
-                useCase::getTodayStatus
-        ));
+        return ResponseEntity.ok(useCase.getTodayStatus());
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -190,12 +177,7 @@ public class TimeRecordController {
     public ResponseEntity<RecentTimeRecordsResponse> listMyRecentRecords(
             @RequestParam(value = "limit", defaultValue = "5") int limit
     ) {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.RECORDS_ME_RECENT,
-                RedisScopeKeyResolver.authenticatedScope("limit=" + limit),
-                RecentTimeRecordsResponse.class,
-                () -> useCase.listMyRecentRecords(limit)
-        ));
+        return ResponseEntity.ok(useCase.listMyRecentRecords(limit));
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -203,18 +185,6 @@ public class TimeRecordController {
     public ResponseEntity<MyRequestsResponse> listMyRequests(
             @RequestParam(value = "limit", defaultValue = "5") int limit
     ) {
-        return ResponseEntity.ok(cache(
-                RedisCacheNames.RECORDS_ME_REQUESTS,
-                RedisScopeKeyResolver.authenticatedScope("limit=" + limit),
-                MyRequestsResponse.class,
-                () -> useCase.listMyRequests(limit)
-        ));
-    }
-
-    private <T> T cache(String cacheName, String scope, Class<T> type, Supplier<T> loader) {
-        if (cacheProvider == null) {
-            return loader.get();
-        }
-        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
+        return ResponseEntity.ok(useCase.listMyRequests(limit));
     }
 }

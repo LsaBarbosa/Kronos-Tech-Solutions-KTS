@@ -1,6 +1,12 @@
 package com.kts.kronos.application.port.in.usecase;
 
-import com.kts.kronos.adapter.in.web.dto.employee.*;
+import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeDetailResponse;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeListResponse;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
+import com.kts.kronos.adapter.in.web.dto.employee.RegisterFaceRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
+import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.domain.model.Employee;
 
 import java.io.IOException;
@@ -10,6 +16,8 @@ import java.util.UUID;
 public interface EmployeeUseCase {
     // MANAGER
     Employee createEmployee(CreateEmployeeRequest req);
+
+    EmployeeListResponse listEmployeesResponse(Boolean active);
 
     List<Employee> listEmployees(Boolean active);
 
@@ -26,6 +34,8 @@ public interface EmployeeUseCase {
 
     // PARTNER
     boolean cpfExists(String cpf);
+
+    EmployeeDetailResponse getOwnProfileResponse();
 
     EmployeeProfile getOwnProfile();
 

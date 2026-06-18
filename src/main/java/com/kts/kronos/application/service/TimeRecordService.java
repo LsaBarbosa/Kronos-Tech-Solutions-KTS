@@ -10,6 +10,8 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
@@ -20,7 +22,6 @@ import com.kts.kronos.application.port.out.provider.DistributedLockProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.domain.model.*;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.DocumentType;
@@ -75,9 +76,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final BiometricProtectionService biometricProtectionService;
     private final LegalConsentProvider legalConsentProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
-
-    @Autowired(required = false)
-    private CacheProvider cacheProvider;
+    private final CacheProvider cacheProvider;
 
     @Autowired(required = false)
     private DistributedLockProvider distributedLockProvider;
@@ -1007,116 +1006,45 @@ public class TimeRecordService implements TimeRecordUseCase {
     public TodayTimeRecordStatusResponse getTodayStatus() {
         LocalDate today = LocalDate.now(SAO_PAULO);
         var employeeOpt = getAuthenticatedEmployeeIfPresent();
-
-        if (employeeOpt.isEmpty()) {
-            return neutralTodayStatus(today);
-        }
-
-        var employee = employeeOpt.get();
-
-        if (!legalConsentProvider.existsActive(employee.employeeId(), ConsentType.BIOMETRIC_AUTHENTICATION)) {
-            return new TodayTimeRecordStatusResponse(
-                    today,
-                    "TERMS_REQUIRED",
-                    "ACCEPT_TERMS",
-                    null,
-                    null,
-                    List.of(),
-                    "PERSISTED",
-                    SAO_PAULO.getId()
-            );
-        }
-
-        var records = recordRepository.findByRange(
-                employee.employeeId(),
-                today.atStartOfDay(),
-                today.atTime(23, 59, 59)
-        ).stream()
-                .sorted(Comparator.comparing(TimeRecord::startWork))
-                .toList();
-
-        var recordEvents = buildTodayRecordEvents(records);
-
-        if (recordEvents.isEmpty()) {
-            return new TodayTimeRecordStatusResponse(
-                    today,
-                    "READY_TO_CHECKIN",
-                    "CHECK_IN",
-                    null,
-                    null,
-                    List.of(),
-                    "PERSISTED",
-                    SAO_PAULO.getId()
-            );
-        }
-
-        var lastEvent = recordEvents.getLast();
-        var latestRecord = records.getLast();
-        boolean hasCheckout = latestRecord.endWork() != null;
-
-        return new TodayTimeRecordStatusResponse(
-                today,
-                hasCheckout ? "COMPLETED" : "READY_TO_CHECKOUT",
-                hasCheckout ? "VIEW_REPORT" : "CHECK_OUT",
-                lastEvent.recordedAt(),
-                lastEvent.actionType(),
-                recordEvents,
-                "PERSISTED",
-                SAO_PAULO.getId()
+        var employeeScope = employeeOpt.map(Employee::employeeId)
+                .map(UUID::toString)
+                .orElse("anonymous");
+        return cache(
+                ApplicationCacheNames.RECORDS_ME_TODAY,
+                CacheScopes.authenticatedScope("date=" + today, "employeeId=" + employeeScope),
+                TodayTimeRecordStatusResponse.class,
+                () -> loadTodayStatus(today, employeeOpt)
         );
     }
 
     @Override
     public RecentTimeRecordsResponse listMyRecentRecords(int limit) {
         var employeeOpt = getAuthenticatedEmployeeIfPresent();
-        if (employeeOpt.isEmpty()) {
-            return new RecentTimeRecordsResponse(List.of(), "PERSISTED");
-        }
-
         int normalizedLimit = normalizeLimit(limit);
-        var employee = employeeOpt.get();
-        var companyName = companyProvider.findById(employee.companyId())
-                .map(Company::name)
-                .orElse("Empresa principal");
-        var recentRecords = recordRepository.findRecentByEmployeeId(employee.employeeId(), normalizedLimit);
-        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
-                recentRecords.stream()
-                        .map(TimeRecord::timeRecordId)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet())
+        var employeeScope = employeeOpt.map(Employee::employeeId)
+                .map(UUID::toString)
+                .orElse("anonymous");
+        return cache(
+                ApplicationCacheNames.RECORDS_ME_RECENT,
+                CacheScopes.authenticatedScope("employeeId=" + employeeScope, "limit=" + normalizedLimit),
+                RecentTimeRecordsResponse.class,
+                () -> loadMyRecentRecords(normalizedLimit, employeeOpt)
         );
-
-        var items = recentRecords.stream()
-                .flatMap(record -> buildRecentRecordEvents(record, companyName, latestDocumentIdByTimeRecordId).stream())
-                .sorted(Comparator.comparing(RecentTimeRecordItemResponse::dateTime).reversed())
-                .limit(normalizedLimit)
-                .toList();
-
-        return new RecentTimeRecordsResponse(items, "PERSISTED");
     }
 
     @Override
     public MyRequestsResponse listMyRequests(int limit) {
         var employeeOpt = getAuthenticatedEmployeeIfPresent();
-        if (employeeOpt.isEmpty()) {
-            return new MyRequestsResponse(List.of(), "PERSISTED");
-        }
-
         int normalizedLimit = normalizeLimit(limit);
-        var employeeId = employeeOpt.get().employeeId();
-        var allRecords = recordRepository.findByEmployeeId(employeeId);
-
-        var requests = new ArrayList<MyRequestItemResponse>();
-        requests.addAll(buildVacationRequestItems(allRecords));
-        requests.addAll(buildTimeOffRequestItems(allRecords));
-        requests.addAll(buildManualAdjustmentItems(approvalProvider.findByRequestingEmployeeId(employeeId, normalizedLimit)));
-
-        var items = requests.stream()
-                .sorted(Comparator.comparing(MyRequestItemResponse::createdAt).reversed())
-                .limit(normalizedLimit)
-                .toList();
-
-        return new MyRequestsResponse(items, "PERSISTED");
+        var employeeScope = employeeOpt.map(Employee::employeeId)
+                .map(UUID::toString)
+                .orElse("anonymous");
+        return cache(
+                ApplicationCacheNames.RECORDS_ME_REQUESTS,
+                CacheScopes.authenticatedScope("employeeId=" + employeeScope, "limit=" + normalizedLimit),
+                MyRequestsResponse.class,
+                () -> loadMyRequests(normalizedLimit, employeeOpt)
+        );
     }
 
     private List<Long> parseTimeRecordIdsCsv(String csv) {
@@ -1754,13 +1682,126 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         try {
-            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
-            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_TODAY);
-            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_RECENT);
-            cacheProvider.evictNamespace(RedisCacheNames.RECORDS_ME_REQUESTS);
+            cacheProvider.evictNamespace(ApplicationCacheNames.DASHBOARD_SUMMARY);
+            cacheProvider.evictNamespace(ApplicationCacheNames.RECORDS_ME_TODAY);
+            cacheProvider.evictNamespace(ApplicationCacheNames.RECORDS_ME_RECENT);
+            cacheProvider.evictNamespace(ApplicationCacheNames.RECORDS_ME_REQUESTS);
         } catch (RuntimeException ex) {
             log.warn("event=redis_cache_invalidation_failed scope=time_record reason={}", ex.getClass().getSimpleName());
         }
+    }
+
+    private TodayTimeRecordStatusResponse loadTodayStatus(LocalDate today, Optional<Employee> employeeOpt) {
+        if (employeeOpt.isEmpty()) {
+            return neutralTodayStatus(today);
+        }
+
+        var employee = employeeOpt.get();
+
+        if (!legalConsentProvider.existsActive(employee.employeeId(), ConsentType.BIOMETRIC_AUTHENTICATION)) {
+            return new TodayTimeRecordStatusResponse(
+                    today,
+                    "TERMS_REQUIRED",
+                    "ACCEPT_TERMS",
+                    null,
+                    null,
+                    List.of(),
+                    "PERSISTED",
+                    SAO_PAULO.getId()
+            );
+        }
+
+        var records = recordRepository.findByRange(
+                employee.employeeId(),
+                today.atStartOfDay(),
+                today.atTime(23, 59, 59)
+        ).stream()
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
+
+        var recordEvents = buildTodayRecordEvents(records);
+
+        if (recordEvents.isEmpty()) {
+            return new TodayTimeRecordStatusResponse(
+                    today,
+                    "READY_TO_CHECKIN",
+                    "CHECK_IN",
+                    null,
+                    null,
+                    List.of(),
+                    "PERSISTED",
+                    SAO_PAULO.getId()
+            );
+        }
+
+        var lastEvent = recordEvents.getLast();
+        var latestRecord = records.getLast();
+        boolean hasCheckout = latestRecord.endWork() != null;
+
+        return new TodayTimeRecordStatusResponse(
+                today,
+                hasCheckout ? "COMPLETED" : "READY_TO_CHECKOUT",
+                hasCheckout ? "VIEW_REPORT" : "CHECK_OUT",
+                lastEvent.recordedAt(),
+                lastEvent.actionType(),
+                recordEvents,
+                "PERSISTED",
+                SAO_PAULO.getId()
+        );
+    }
+
+    private RecentTimeRecordsResponse loadMyRecentRecords(int normalizedLimit, Optional<Employee> employeeOpt) {
+        if (employeeOpt.isEmpty()) {
+            return new RecentTimeRecordsResponse(List.of(), "PERSISTED");
+        }
+
+        var employee = employeeOpt.get();
+        var companyName = companyProvider.findById(employee.companyId())
+                .map(Company::name)
+                .orElse("Empresa principal");
+        var recentRecords = recordRepository.findRecentByEmployeeId(employee.employeeId(), normalizedLimit);
+        Map<Long, String> latestDocumentIdByTimeRecordId = buildLatestDocumentIdMap(
+                recentRecords.stream()
+                        .map(TimeRecord::timeRecordId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet())
+        );
+
+        var items = recentRecords.stream()
+                .flatMap(record -> buildRecentRecordEvents(record, companyName, latestDocumentIdByTimeRecordId).stream())
+                .sorted(Comparator.comparing(RecentTimeRecordItemResponse::dateTime).reversed())
+                .limit(normalizedLimit)
+                .toList();
+
+        return new RecentTimeRecordsResponse(items, "PERSISTED");
+    }
+
+    private MyRequestsResponse loadMyRequests(int normalizedLimit, Optional<Employee> employeeOpt) {
+        if (employeeOpt.isEmpty()) {
+            return new MyRequestsResponse(List.of(), "PERSISTED");
+        }
+
+        var employeeId = employeeOpt.get().employeeId();
+        var allRecords = recordRepository.findByEmployeeId(employeeId);
+
+        var requests = new ArrayList<MyRequestItemResponse>();
+        requests.addAll(buildVacationRequestItems(allRecords));
+        requests.addAll(buildTimeOffRequestItems(allRecords));
+        requests.addAll(buildManualAdjustmentItems(approvalProvider.findByRequestingEmployeeId(employeeId, normalizedLimit)));
+
+        var items = requests.stream()
+                .sorted(Comparator.comparing(MyRequestItemResponse::createdAt).reversed())
+                .limit(normalizedLimit)
+                .toList();
+
+        return new MyRequestsResponse(items, "PERSISTED");
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 
     private String resolveTimeRecordFailureReason(RuntimeException exception) {

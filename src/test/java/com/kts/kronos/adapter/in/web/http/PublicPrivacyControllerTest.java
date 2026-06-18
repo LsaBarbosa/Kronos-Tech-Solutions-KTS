@@ -1,17 +1,25 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.application.service.PublicPrivacyService;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.function.Supplier;
 
 @WebMvcTest(PublicPrivacyController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -20,6 +28,17 @@ class PublicPrivacyControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private CacheProvider cacheProvider;
+
+    @BeforeEach
+    void stubCacheProviderAsNoOp() {
+        doAnswer(invocation -> {
+            Supplier<?> loader = invocation.getArgument(3);
+            return loader.get();
+        }).when(cacheProvider).getOrLoad(anyString(), anyString(), any(), any());
+    }
 
     @Test
     void shouldGetProcessingCatalogWithoutAuthentication() throws Exception {

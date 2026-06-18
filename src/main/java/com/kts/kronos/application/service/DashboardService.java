@@ -2,6 +2,9 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.dashboard.*;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -24,6 +27,7 @@ import java.util.UUID;
 public class DashboardService {
 
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
+    private final CacheProvider cacheProvider;
     private final CompanyProvider companyProvider;
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider timeRecordProvider;
@@ -33,6 +37,15 @@ public class DashboardService {
     private final TimeRecordApprovalProvider timeRecordApprovalProvider;
 
     public DashboardSummaryResponse getDashboardSummary() {
+        return cache(
+                ApplicationCacheNames.DASHBOARD_SUMMARY,
+                dashboardScope(),
+                DashboardSummaryResponse.class,
+                this::loadDashboardSummary
+        );
+    }
+
+    private DashboardSummaryResponse loadDashboardSummary() {
         var role = jwtAuthenticatedUser.getCurrentRole();
         var generatedAt = OffsetDateTime.now(ZoneId.of("America/Sao_Paulo"));
         var fallbacks = new ArrayList<DashboardFallbackItem>();
@@ -267,5 +280,32 @@ public class DashboardService {
                     return false;
                 })
                 .count();
+    }
+
+    private String dashboardScope() {
+        var role = jwtAuthenticatedUser.getCurrentRole();
+        return switch (role) {
+            case CTO -> CacheScopes.authenticatedScope("dashboard", "role=CTO");
+            case MANAGER, PARTNER -> CacheScopes.authenticatedScope(
+                    "dashboard",
+                    "role=" + role,
+                    "employeeId=" + safeEmployeeId()
+            );
+        };
+    }
+
+    private String safeEmployeeId() {
+        try {
+            return String.valueOf(jwtAuthenticatedUser.getEmployeeId());
+        } catch (RuntimeException ex) {
+            return "unknown";
+        }
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }

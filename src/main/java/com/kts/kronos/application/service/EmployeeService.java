@@ -1,11 +1,16 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeDetailResponse;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeListItemResponse;
+import com.kts.kronos.adapter.in.web.dto.employee.EmployeeListResponse;
 import com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.EmployeeProfile;
 import com.kts.kronos.adapter.in.web.dto.employee.RegisterFaceRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeePartnerRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
@@ -16,15 +21,14 @@ import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.service.AuditService;
+import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,9 +60,8 @@ public class EmployeeService implements EmployeeUseCase {
     private final KronosMetrics kronosMetrics;
     private final LegalConsentProvider legalConsentProvider;
     private final AuditService auditService;
-
-    @Autowired(required = false)
-    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
+    private final CompanyProvider companyProvider;
+    private final CacheProvider cacheProvider;
 
     // MANAGER
     @Override
@@ -144,6 +147,16 @@ public class EmployeeService implements EmployeeUseCase {
         return savedEmployee;
     }
 
+    @Override
+    public EmployeeListResponse listEmployeesResponse(Boolean active) {
+        UUID companyId = getCompanyIdFromLoggedUser();
+        return cache(
+                ApplicationCacheNames.EMPLOYEE_LIST,
+                CacheScopes.authenticatedScope("companyId=" + companyId, "active=" + active),
+                EmployeeListResponse.class,
+                () -> buildEmployeeListResponse(active)
+        );
+    }
 
     @Override
     public List<Employee> listEmployees(Boolean active) {
@@ -248,6 +261,23 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     @Override
+    public EmployeeDetailResponse getOwnProfileResponse() {
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        return cache(
+                ApplicationCacheNames.EMPLOYEE_OWN_PROFILE,
+                CacheScopes.authenticatedScope("employeeId=" + employeeId),
+                EmployeeDetailResponse.class,
+                () -> {
+                    var profile = getOwnProfile();
+                    var companyName = companyProvider.findById(profile.employee().companyId())
+                            .map(Company::name)
+                            .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+                    return EmployeeDetailResponse.fromDomain(profile.employee(), companyName, profile.role());
+                }
+        );
+    }
+
+    @Override
     public void updateOwnProfile(UpdateEmployeePartnerRequest req) {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
@@ -339,12 +369,32 @@ public class EmployeeService implements EmployeeUseCase {
         }
 
         try {
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_LIST);
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_LIST);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.DASHBOARD_SUMMARY);
         } catch (RuntimeException ex) {
             log.warn("event=redis_cache_invalidation_failed scope=employee reason={}", ex.getClass().getSimpleName());
         }
+    }
+
+    private EmployeeListResponse buildEmployeeListResponse(Boolean active) {
+        var employees = listEmployees(active);
+
+        var employeeResponses = employees.stream().map(employee -> {
+            String companyName = companyProvider.findById(employee.companyId())
+                    .map(Company::name)
+                    .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+
+            return EmployeeListItemResponse.fromDomain(employee, companyName);
+        }).toList();
+        return new EmployeeListResponse(employeeResponses);
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        if (cacheProvider == null) {
+            return loader.get();
+        }
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 
     private String handleFaceRegistration(UUID employeeId, String oldS3ObjectKey, String faceImageBase64) {

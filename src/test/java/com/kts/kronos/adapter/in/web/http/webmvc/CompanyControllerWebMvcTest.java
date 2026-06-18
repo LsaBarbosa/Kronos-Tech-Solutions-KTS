@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.http.CompanyController;
+import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -112,7 +113,7 @@ class CompanyControllerWebMvcTest {
     @DisplayName("getCompany: deve retornar empresa por CNPJ")
     void shouldGetCompanyByCnpj() throws Exception {
         Company company = company(true);
-        when(useCase.getCompany("11222333000181")).thenReturn(company);
+        when(useCase.getCompanyResponse("11222333000181")).thenReturn(CompanyResponse.fromDomain(company));
 
         mockMvc.perform(get("/companies/{cnpj}", "11222333000181"))
                 .andExpect(status().isOk())
@@ -124,7 +125,7 @@ class CompanyControllerWebMvcTest {
     @Test
     @DisplayName("getCompany: deve traduzir empresa inexistente")
     void shouldTranslateExceptionWhenGettingCompany() throws Exception {
-        when(useCase.getCompany("11222333000181"))
+        when(useCase.getCompanyResponse("11222333000181"))
                 .thenThrow(new ResourceNotFoundException("Empresa não encontrada"));
 
         mockMvc.perform(get("/companies/{cnpj}", "11222333000181"))

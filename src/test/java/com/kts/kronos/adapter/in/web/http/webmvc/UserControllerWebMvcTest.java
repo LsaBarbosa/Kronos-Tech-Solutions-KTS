@@ -4,6 +4,9 @@ import com.kts.kronos.adapter.in.web.http.UserController;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
+import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.domain.model.User;
@@ -162,8 +165,10 @@ class UserControllerWebMvcTest {
     @Test
     @DisplayName("allUsers: deve listar usuários sem filtro")
     void shouldListUsersWithoutFilter() throws Exception {
-        when(useCase.listUsers(null)).thenReturn(List.of(user("john", true), user("mary", false)));
-        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(false);
+        when(useCase.listUsersResponse(null)).thenReturn(new UserListResponse(List.of(
+                UserSearchItemResponse.fromDomain(user("john", true), false),
+                UserSearchItemResponse.fromDomain(user("mary", false), false)
+        )));
 
         mockMvc.perform(get("/users/search"))
                 .andExpect(status().isOk())
@@ -171,21 +176,22 @@ class UserControllerWebMvcTest {
                 .andExpect(jsonPath("$.users[0].username").value("john"))
                 .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(false));
 
-        verify(useCase).listUsers(null);
+        verify(useCase).listUsersResponse(null);
     }
 
     @Test
     @DisplayName("allUsers: deve listar usuários com filtro active e propagar biometricConsentAccepted")
     void shouldListUsersWithActiveFilter() throws Exception {
-        when(useCase.listUsers(true)).thenReturn(List.of(user("john", true)));
-        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(true);
+        when(useCase.listUsersResponse(true)).thenReturn(new UserListResponse(List.of(
+                UserSearchItemResponse.fromDomain(user("john", true), true)
+        )));
 
         mockMvc.perform(get("/users/search").param("active", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[0].active").value(true))
                 .andExpect(jsonPath("$.users[0].biometricConsentAccepted").value(true));
 
-        verify(useCase).listUsers(true);
+        verify(useCase).listUsersResponse(true);
     }
 
     @Test
@@ -277,7 +283,7 @@ class UserControllerWebMvcTest {
     @DisplayName("getOwnProfile: deve retornar perfil do usuário autenticado")
     void shouldGetOwnProfile() throws Exception {
         User user = user("john", true);
-        when(useCase.getOwnProfile()).thenReturn(user);
+        when(useCase.getOwnProfileResponse()).thenReturn(UserResponse.fromDomain(user));
 
         mockMvc.perform(get("/users/own-profile"))
                 .andExpect(status().isOk())
