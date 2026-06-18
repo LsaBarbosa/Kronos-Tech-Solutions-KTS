@@ -1,0 +1,36 @@
+{
+  "id": null,
+  "uid": "kronos-lgpd-retention",
+  "title": "Kronos LGPD & Retention",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "LGPD Requests",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_lgpd_request_total[5m])) by (event_type, status, result)",
+          "legendFormat": "{{event_type}} {{status}} {{result}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Retention Executions",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_retention_execution_total[5m])) by (mode, result, reason)",
+          "legendFormat": "{{mode}} {{result}} {{reason}}"
+        }
+      ]
+    }
+  ]
+}

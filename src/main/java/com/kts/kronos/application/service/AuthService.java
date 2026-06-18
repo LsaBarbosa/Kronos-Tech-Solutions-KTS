@@ -22,7 +22,6 @@ import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -64,10 +63,8 @@ public class AuthService implements AuthUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final AuditService auditService;
     private final AuditRequestContextService auditRequestContextService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Override
     public String login(String username, String password) {
@@ -434,63 +431,75 @@ public class AuthService implements AuthUseCase {
         String ipAddress = auditContext.ipAddress();
         String userAgent = auditContext.userAgent();
 
-        if (rawToken == null || rawToken.isBlank()) {
-            throw new BadRequestException("Token não fornecido.");
-        }
-
-        var claims = jwtUtils.getClaimsFromExpiredToken(rawToken);
-        if (claims == null) {
-            throw new BadRequestException("Token ainda é válido. Nenhuma renovação necessária.");
-        }
-
-        if (tokenBlacklistProvider.isBlacklisted(rawToken)) {
-            throw new BadRequestException("Token foi revogado.");
-        }
-
-        var userId = java.util.UUID.fromString(claims.get("userId", String.class));
-        var user = userProvider.findById(userId)
-                .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
-
-        if (!user.active()) {
-            throw new ForbiddenException("Conta de usuário inativa.");
-        }
-
-        long tokenSessionVersion = claims.get("session_version", Long.class);
-        if (user.sessionVersion() != tokenSessionVersion) {
-            throw new BadRequestException("Sessão invalidada. Faça login novamente.");
-        }
-
-        var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
-
-        String newToken = jwtUtils.generateToken(
-                user.employeeId(),
-                user.username(),
-                user.role().name(),
-                user.userId(),
-                consentStatus,
-                user.sessionVersion()
-        );
-
-        Date oldExpiration = claims.getExpiration();
-        tokenBlacklistProvider.addToBlacklist(rawToken, oldExpiration);
-
         try {
-            auditService.registerSecurity(
-                    AuditAction.AUTH_TOKEN_REFRESH,
-                    user.userId(),
-                    user.employeeId(),
-                    "LOW",
-                    "USER",
-                    null,
-                    "token_refresh_success",
-                    ipAddress,
-                    userAgent
-            );
-        } catch (Exception auditEx) {
-            log.debug("Falha ao registrar auditoria de refresh de token", auditEx);
-        }
+            if (rawToken == null || rawToken.isBlank()) {
+                throw new BadRequestException("Token não fornecido.");
+            }
 
-        return newToken;
+            var claims = jwtUtils.getClaimsFromExpiredToken(rawToken);
+            if (claims == null) {
+                throw new BadRequestException("Token ainda é válido. Nenhuma renovação necessária.");
+            }
+
+            if (tokenBlacklistProvider.isBlacklisted(rawToken)) {
+                throw new BadRequestException("Token foi revogado.");
+            }
+
+            var userId = java.util.UUID.fromString(claims.get("userId", String.class));
+            var user = userProvider.findById(userId)
+                    .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
+
+            if (!user.active()) {
+                throw new ForbiddenException("Conta de usuário inativa.");
+            }
+
+            long tokenSessionVersion = claims.get("session_version", Long.class);
+            if (user.sessionVersion() != tokenSessionVersion) {
+                throw new BadRequestException("Sessão invalidada. Faça login novamente.");
+            }
+
+            var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
+
+            String newToken = jwtUtils.generateToken(
+                    user.employeeId(),
+                    user.username(),
+                    user.role().name(),
+                    user.userId(),
+                    consentStatus,
+                    user.sessionVersion()
+            );
+
+            Date oldExpiration = claims.getExpiration();
+            tokenBlacklistProvider.addToBlacklist(rawToken, oldExpiration);
+            kronosMetrics.recordTokenRefresh("success", "none");
+
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_TOKEN_REFRESH,
+                        user.userId(),
+                        user.employeeId(),
+                        "LOW",
+                        "USER",
+                        null,
+                        "token_refresh_success",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de refresh de token", auditEx);
+            }
+
+            return newToken;
+        } catch (BadRequestException e) {
+            kronosMetrics.recordTokenRefresh("failure", "validation");
+            throw e;
+        } catch (ForbiddenException e) {
+            kronosMetrics.recordTokenRefresh("failure", "inactive_user");
+            throw e;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordTokenRefresh("failure", "unknown");
+            throw e;
+        }
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha
