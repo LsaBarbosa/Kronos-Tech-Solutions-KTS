@@ -1,44 +1,72 @@
-  services:
-    kronos-postgres-local:
-      image: postgres:16
-      container_name: kronos-postgres-local
-      restart: unless-stopped
-      environment:
-        POSTGRES_DB: db_kronos_tech_local
-        POSTGRES_USER: kronos_local
-        POSTGRES_PASSWORD: kronos_local_123
-        TZ: America/Sao_Paulo
-      ports:
-        - "5433:5432"
-      volumes:
-        - kronos_postgres_local_data:/var/lib/postgresql/data
+services:
+  kronos-postgres-local:
+    image: postgres:${POSTGRES_IMAGE_TAG:-16}
+    container_name: ${POSTGRES_CONTAINER_NAME:-kronos-postgres-local}
+    restart: unless-stopped
 
-    kronos-redis-local:
-      image: redis:7.4-alpine
-      container_name: kronos-redis-local
-      restart: unless-stopped
-      command:
-        - redis-server
-        - --appendonly
-        - "yes"
-        - --requirepass
-        - kronos_local_redis_123
-        - --protected-mode
-        - "yes"
-        - --bind
-        - 0.0.0.0
-      environment:
-        TZ: America/Sao_Paulo
-      expose:
-        - "6379"
-      volumes:
-        - kronos_redis_local_data:/data
-      healthcheck:
-        test: ["CMD", "redis-cli", "-a", "kronos_local_redis_123", "ping"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
 
-  volumes:
-    kronos_postgres_local_data:
-    kronos_redis_local_data:
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+
+    volumes:
+      - kronos_postgres_local_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - kronos-local-network
+
+
+  kronos-redis-local:
+    image: redis:${REDIS_IMAGE_TAG:-7.4-alpine}
+    container_name: ${REDIS_CONTAINER_NAME:-kronos-redis-local}
+    restart: unless-stopped
+
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+
+    command:
+      - sh
+      - -c
+      - >
+        redis-server
+        --appendonly yes
+        --requirepass "$$REDIS_PASSWORD"
+        --protected-mode yes
+        --bind 0.0.0.0
+        --maxmemory-policy noeviction
+
+    expose:
+      - "6379"
+
+    volumes:
+      - kronos_redis_local_data:/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - kronos-local-network
+
+
+volumes:
+  kronos_postgres_local_data:
+  kronos_redis_local_data:
+
+
+networks:
+  kronos-local-network:
+    driver: bridge
