@@ -2,6 +2,8 @@ package com.kts.kronos.config;
 
 import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
+import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
@@ -122,8 +124,9 @@ class UserEnumerationExposureIntegrationTest {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         User manager = new User(userId, "manager1", "encoded", Role.MANAGER, true, employeeId);
-        when(userUseCase.listUsers(true)).thenReturn(List.of(manager));
-        when(acceptTermsUseCase.hasAcceptedBiometricTerm(any(UUID.class))).thenReturn(false);
+        when(userUseCase.listUsersResponse(true)).thenReturn(new UserListResponse(List.of(
+                UserSearchItemResponse.fromDomain(manager, false)
+        )));
 
         mockMvc.perform(get("/users/search")
                         .param("active", "true")
@@ -141,8 +144,9 @@ class UserEnumerationExposureIntegrationTest {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         User user = new User(userId, "manager1", "encoded", Role.MANAGER, true, employeeId);
-        when(userUseCase.listUsers(null)).thenReturn(List.of(user));
-        when(acceptTermsUseCase.hasAcceptedBiometricTerm(employeeId)).thenReturn(true);
+        when(userUseCase.listUsersResponse(null)).thenReturn(new UserListResponse(List.of(
+                UserSearchItemResponse.fromDomain(user, true)
+        )));
 
         // employeeId e biometricConsentAccepted são necessários no DTO resumido para o front
         // filtrar/linkar conta ao colaborador no /lista-colaboradores. Não são PII e o solicitante

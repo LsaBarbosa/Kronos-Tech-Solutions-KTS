@@ -2,14 +2,20 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
+import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
+import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.cache.ApplicationCacheNames;
+import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ConflictException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
@@ -20,11 +26,9 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
-import com.kts.kronos.infrastructure.redis.RedisCacheNames;
 import com.kts.kronos.observability.application.KronosMetrics;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import lombok.RequiredArgsConstructor;
@@ -56,9 +60,7 @@ public class UserService implements UserUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
     private final AuditService auditService;
-
-    @Autowired(required = false)
-    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
+    private final CacheProvider cacheProvider;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -149,6 +151,16 @@ public class UserService implements UserUseCase {
         }
 
         return usersFromTenant;
+    }
+
+    @Override
+    public UserListResponse listUsersResponse(Boolean active) {
+        return cache(
+                ApplicationCacheNames.USER_LIST,
+                listUsersScope(active),
+                UserListResponse.class,
+                () -> buildUserListResponse(active)
+        );
     }
 
     @Override
@@ -316,6 +328,17 @@ public class UserService implements UserUseCase {
     }
 
     @Override
+    public UserResponse getOwnProfileResponse() {
+        var userId = jwtAuthenticatedUser.getuserId();
+        return cache(
+                ApplicationCacheNames.USER_OWN_PROFILE,
+                CacheScopes.authenticatedScope("userId=" + userId),
+                UserResponse.class,
+                () -> UserResponse.fromDomain(getOwnProfile())
+        );
+    }
+
+    @Override
     public boolean usernameExists(String username) {
         authenticationRateLimitService.checkAdminSearchRateLimit();
         return userProvider.existsByUsername(username.toLowerCase());
@@ -367,17 +390,36 @@ public class UserService implements UserUseCase {
     }
 
     private void invalidateUserCaches() {
-        if (cacheProvider == null) {
-            return;
-        }
-
         try {
-            cacheProvider.evictNamespace(RedisCacheNames.USER_LIST);
-            cacheProvider.evictNamespace(RedisCacheNames.USER_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.EMPLOYEE_OWN_PROFILE);
-            cacheProvider.evictNamespace(RedisCacheNames.DASHBOARD_SUMMARY);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_LIST);
+            cacheProvider.evictNamespace(ApplicationCacheNames.USER_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.EMPLOYEE_OWN_PROFILE);
+            cacheProvider.evictNamespace(ApplicationCacheNames.DASHBOARD_SUMMARY);
         } catch (RuntimeException ex) {
             log.warn("event=redis_cache_invalidation_failed scope=user reason={}", ex.getClass().getSimpleName());
         }
+    }
+
+    private UserListResponse buildUserListResponse(Boolean active) {
+        var users = listUsers(active);
+        var items = users.stream()
+                .map(user -> UserSearchItemResponse.fromDomain(
+                        user,
+                        acceptTermsUseCase.hasAcceptedBiometricTerm(user.employeeId())
+                ))
+                .toList();
+        return new UserListResponse(items);
+    }
+
+    private String listUsersScope(Boolean active) {
+        var currentRole = jwtAuthenticatedUser.getCurrentRole();
+        String tenantScope = currentRole == Role.CTO
+                ? "tenant=all"
+                : "companyId=" + domainAuthorizationService.authorizeCompanyAccess(null);
+        return CacheScopes.authenticatedScope("role=" + currentRole, tenantScope, "active=" + active);
+    }
+
+    private <T> T cache(String cacheName, String scope, Class<T> type, java.util.function.Supplier<T> loader) {
+        return cacheProvider.getOrLoad(cacheName, scope, type, loader);
     }
 }
