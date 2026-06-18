@@ -18,8 +18,8 @@ import com.kts.kronos.observability.support.ObservabilityDefaults;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -37,7 +37,6 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/legal")
-@RequiredArgsConstructor
 @Tag(name = "Fiscal - Arquivos Legais", description = "Geração de arquivos para fiscalização e espelhos de ponto (Portaria 671)")
 public class LegalController {
 
@@ -52,6 +51,33 @@ public class LegalController {
     private final DigitalSignatureService signatureService;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+
+    @Autowired
+    public LegalController(
+            AdfUseCase afdUseCase,
+            AejUseCase aejUseCase,
+            PointMirrorPdfUseCase pointMirrorPdfUseCase,
+            JwtAuthenticatedUser jwtAuthenticatedUser,
+            EmployeeProvider employeeProvider,
+            CompanyProvider companyProvider,
+            DomainAuthorizationService domainAuthorizationService,
+            TechnicalCertificatePdfService certificateService,
+            DigitalSignatureService signatureService,
+            KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing
+    ) {
+        this.afdUseCase = afdUseCase;
+        this.aejUseCase = aejUseCase;
+        this.pointMirrorPdfUseCase = pointMirrorPdfUseCase;
+        this.jwtAuthenticatedUser = jwtAuthenticatedUser;
+        this.employeeProvider = employeeProvider;
+        this.companyProvider = companyProvider;
+        this.domainAuthorizationService = domainAuthorizationService;
+        this.certificateService = certificateService;
+        this.signatureService = signatureService;
+        this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
+    }
 
     public LegalController(
             AdfUseCase afdUseCase,

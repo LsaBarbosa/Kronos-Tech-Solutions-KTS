@@ -8,11 +8,14 @@ import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.config.SecurityConfig;
-import com.kts.kronos.observability.adapter.in.web.CorrelationIdFilter;
+import com.kts.kronos.observability.web.CorrelationIdFilter;
 import com.kts.kronos.observability.adapter.in.web.ObservabilityController;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
 import com.kts.kronos.observability.application.impl.ObservabilityStatusUseCaseImpl;
+import com.kts.kronos.observability.support.ObservabilityTagSanitizer;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
@@ -39,8 +42,7 @@ import static org.mockito.Mockito.mock;
         CorrelationIdFilter.class,
         ObservabilityController.class,
         ObservabilityStatusUseCaseImpl.class,
-        KronosMetrics.class,
-        KronosTracing.class
+        ObservabilityTagSanitizer.class
 })
 public class ContextSmokeTestApplication {
 
@@ -58,4 +60,20 @@ public class ContextSmokeTestApplication {
 	public PrivacyLogReferenceService privacyLogReferenceService() {
 		return new PrivacyLogReferenceService("test-lgpd-log-secret");
 	}
+
+    @Bean
+    public KronosMetrics kronosMetrics(
+            MeterRegistry meterRegistry,
+            ObservabilityTagSanitizer observabilityTagSanitizer
+    ) {
+        return new KronosMetrics(meterRegistry, observabilityTagSanitizer);
+    }
+
+    @Bean
+    public KronosTracing kronosTracing(
+            ObservationRegistry observationRegistry,
+            ObservabilityTagSanitizer observabilityTagSanitizer
+    ) {
+        return new KronosTracing(observationRegistry, observabilityTagSanitizer);
+    }
 }

@@ -210,10 +210,10 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldNotExposeOperationalActuatorEndpoint() throws Exception {
+    void shouldExposePrometheusEndpointForInternalObservabilityValidation() throws Exception {
         mockMvc.perform(get("/actuator/prometheus")
                         .with(user("manager").roles("MANAGER")))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     @Test

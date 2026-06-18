@@ -5,7 +5,6 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -22,7 +21,6 @@ public class KronosMetrics {
         this(meterRegistry, new ObservabilityTagSanitizer());
     }
 
-    @Autowired
     public KronosMetrics(MeterRegistry meterRegistry, ObservabilityTagSanitizer tagSanitizer) {
         this.meterRegistry = meterRegistry;
         this.tagSanitizer = tagSanitizer;
