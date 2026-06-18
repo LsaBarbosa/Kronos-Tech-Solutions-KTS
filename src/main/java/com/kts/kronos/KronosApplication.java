@@ -1,6 +1,7 @@
 package com.kts.kronos;
 
 import com.kts.kronos.adapter.out.storage.S3DocumentBucketProperties;
+import com.kts.kronos.application.config.KronosRedisProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.actuate.web.exchanges.HttpExchangeRepository;
 import org.springframework.boot.actuate.web.exchanges.InMemoryHttpExchangeRepository;
@@ -13,7 +14,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @EnableAsync
-@EnableConfigurationProperties(S3DocumentBucketProperties.class)
+@EnableConfigurationProperties({
+        S3DocumentBucketProperties.class,
+        KronosRedisProperties.class
+})
 public class KronosApplication {
 
 	public static void main(String[] args) {

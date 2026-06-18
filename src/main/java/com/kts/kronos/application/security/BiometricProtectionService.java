@@ -4,10 +4,13 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.port.out.provider.RateLimitStore;
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
+import com.kts.kronos.infrastructure.redis.RedisRateLimitNames;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +37,9 @@ public class BiometricProtectionService {
     private final ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
     private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
+
+    @Autowired(required = false)
+    private RateLimitStore rateLimitStore;
 
     public BiometricProtectionService(
             HttpServletRequest request,
@@ -75,7 +81,8 @@ public class BiometricProtectionService {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.FACE_LOGIN, null);
         consume(
-                "bio:login-face:" + clientIp(),
+                RedisRateLimitNames.BIOMETRIC_LOGIN_FACE,
+                clientIp(),
                 loginFaceLimit,
                 Duration.ofSeconds(loginFaceWindowSeconds),
                 LOGIN_FACE_RATE_LIMIT
@@ -86,7 +93,8 @@ public class BiometricProtectionService {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.CHECKIN, employeeId);
         consume(
-                "bio:checkin:" + employeeId + ":" + clientIp(),
+                RedisRateLimitNames.BIOMETRIC_CHECKIN,
+                employeeId + "|" + clientIp(),
                 checkinLimit,
                 Duration.ofSeconds(checkinWindowSeconds),
                 CHECKIN_RATE_LIMIT
@@ -97,7 +105,8 @@ public class BiometricProtectionService {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.ENROLLMENT, employeeId);
         consume(
-                "bio:enrollment:" + employeeId + ":" + clientIp(),
+                RedisRateLimitNames.BIOMETRIC_ENROLLMENT,
+                employeeId + "|" + clientIp(),
                 enrollmentLimit,
                 Duration.ofSeconds(enrollmentWindowSeconds),
                 ENROLLMENT_RATE_LIMIT
@@ -142,10 +151,20 @@ public class BiometricProtectionService {
                 operation, privacyLogReferenceService.employeeRef(employeeId), result.provider());
     }
 
-    private void consume(String key, int limit, Duration window, String message) {
+    private void consume(String bucketName, String rawScope, int limit, Duration window, String message) {
         Instant now = Instant.now();
-        Instant threshold = now.minus(window);
+        if (rateLimitStore != null) {
+            var count = rateLimitStore.increment(bucketName, rawScope, window);
+            if (count > limit) {
+                log.warn("event=biometric_rate_limit_exceeded rateLimitRef={}",
+                        privacyLogReferenceService.genericRef("biometric_rate_limit", bucketName + ":" + rawScope));
+                throw new TooManyRequestsException(message);
+            }
+            return;
+        }
 
+        Instant threshold = now.minus(window);
+        String key = bucketName + ":" + rawScope;
         Deque<Instant> bucket = buckets.computeIfAbsent(key, ignored -> new ConcurrentLinkedDeque<>());
 
         synchronized (bucket) {
