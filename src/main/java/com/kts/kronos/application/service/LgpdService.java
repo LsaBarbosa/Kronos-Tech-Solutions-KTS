@@ -38,6 +38,7 @@ import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -141,10 +142,10 @@ public class LgpdService implements LgpdUseCase {
                     ipAddress,
                     userAgent
             );
-            kronosMetrics.recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
+            metrics().recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
             return saved;
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdRequest(request.type().name().toLowerCase(), "creation_failed", "failure");
+            metrics().recordLgpdRequest(request.type().name().toLowerCase(), "creation_failed", "failure");
             throw e;
         }
     }
@@ -216,10 +217,10 @@ public class LgpdService implements LgpdUseCase {
                     jwtAuthenticatedUser.getuserId(),
                     changedAt
             ));
-            kronosMetrics.recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
+            metrics().recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
             return saved;
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdRequest("status_update", "update_failed", "failure");
+            metrics().recordLgpdRequest("status_update", "update_failed", "failure");
             throw e;
         }
     }
@@ -257,7 +258,7 @@ public class LgpdService implements LgpdUseCase {
             UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
             Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(requestedByEmployeeId);
 
-            LgpdEmployeeExportResponse response = kronosTracing.observe("kronos.lgpd.export", () -> buildExport(
+            LgpdEmployeeExportResponse response = tracing().observe("kronos.lgpd.export", () -> buildExport(
                     targetEmployee,
                     requestedByUserId,
                     false
@@ -280,10 +281,10 @@ public class LgpdService implements LgpdUseCase {
                     userAgent
             );
 
-            kronosMetrics.recordLgpdRequest("export_own", "completed", "success");
+            metrics().recordLgpdRequest("export_own", "completed", "success");
             return response;
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdRequest("export_own", "failed", "failure");
+            metrics().recordLgpdRequest("export_own", "failed", "failure");
             throw e;
         }
     }
@@ -307,7 +308,7 @@ public class LgpdService implements LgpdUseCase {
             Employee targetEmployee = employeeProvider.findById(request.employeeId())
                     .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
 
-            LgpdEmployeeExportResponse response = kronosTracing.observe("kronos.lgpd.export", () -> buildExport(
+            LgpdEmployeeExportResponse response = tracing().observe("kronos.lgpd.export", () -> buildExport(
                     targetEmployee,
                     requestedByUserId,
                     includePreciseGeolocation
@@ -334,10 +335,10 @@ public class LgpdService implements LgpdUseCase {
                     userAgent
             );
 
-            kronosMetrics.recordLgpdRequest("export_admin", "completed", "success");
+            metrics().recordLgpdRequest("export_admin", "completed", "success");
             return response;
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdRequest("export_admin", "failed", "failure");
+            metrics().recordLgpdRequest("export_admin", "failed", "failure");
             throw e;
         }
     }
@@ -609,15 +610,15 @@ public class LgpdService implements LgpdUseCase {
     @Override
     public void anonymizeEmployee(UUID employeeId, String ipAddress, String userAgent) {
         try {
-            kronosTracing.observe("kronos.lgpd.anonymization", () -> employeeAnonymizationService.anonymize(
+            tracing().observe("kronos.lgpd.anonymization", () -> employeeAnonymizationService.anonymize(
                     employeeId,
                     ipAddress,
                     userAgent,
                     jwtAuthenticatedUser.getuserId()
             ), "mode", "apply", "status", "completed");
-            kronosMetrics.recordLgpdAnonymization("apply", "success", "none");
+            metrics().recordLgpdAnonymization("apply", "success", "none");
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdAnonymization("apply", "failure", "unknown");
+            metrics().recordLgpdAnonymization("apply", "failure", "unknown");
             throw e;
         }
     }
@@ -650,12 +651,12 @@ public class LgpdService implements LgpdUseCase {
 
         AnonymizationConsolidatedResult consolidatedResult;
         try {
-            consolidatedResult = kronosTracing.observe("kronos.lgpd.anonymization",
+            consolidatedResult = tracing().observe("kronos.lgpd.anonymization",
                     () -> anonymizationPlanExecutor.executePlanWithConsolidatedResult(plan, "APPLY"),
                     "mode", "apply", "status", "completed");
-            kronosMetrics.recordLgpdAnonymization("apply", "success", "none");
+            metrics().recordLgpdAnonymization("apply", "success", "none");
         } catch (RuntimeException e) {
-            kronosMetrics.recordLgpdAnonymization("apply", "failure", "request_execution");
+            metrics().recordLgpdAnonymization("apply", "failure", "request_execution");
             throw e;
         }
 
@@ -1685,5 +1686,13 @@ public class LgpdService implements LgpdUseCase {
                     "status=" + request.status() + ", requiredStatus=APPROVED_FOR_EXPORT"
             );
         }
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 }

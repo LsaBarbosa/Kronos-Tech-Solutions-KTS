@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
     public static final String HEADER_NAME = "X-Correlation-ID";
+    public static final String LEGACY_HEADER_NAME = "X-Correlation-Id";
     public static final String MDC_KEY = "correlation_id";
     public static final String REQUEST_ATTRIBUTE = CorrelationIdFilter.class.getName() + ".correlationId";
 
@@ -30,11 +31,12 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String correlationId = normalizeCorrelationId(request.getHeader(HEADER_NAME));
+        String correlationId = normalizeCorrelationId(resolveIncomingHeader(request));
 
         MDC.put(MDC_KEY, correlationId);
         request.setAttribute(REQUEST_ATTRIBUTE, correlationId);
         response.setHeader(HEADER_NAME, correlationId);
+        response.setHeader(LEGACY_HEADER_NAME, correlationId);
 
         try {
             filterChain.doFilter(request, response);
@@ -49,5 +51,13 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         }
 
         return UUID.randomUUID().toString();
+    }
+
+    private String resolveIncomingHeader(HttpServletRequest request) {
+        String canonical = request.getHeader(HEADER_NAME);
+        if (canonical != null && !canonical.isBlank()) {
+            return canonical;
+        }
+        return request.getHeader(LEGACY_HEADER_NAME);
     }
 }

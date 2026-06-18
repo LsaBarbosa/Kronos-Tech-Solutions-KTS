@@ -6,7 +6,7 @@ import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.AuthController;
 import com.kts.kronos.adapter.in.web.http.CompanyController;
 import com.kts.kronos.observability.adapter.in.web.ObservabilityController;
-import com.kts.kronos.observability.adapter.in.web.CorrelationIdFilter;
+import com.kts.kronos.observability.web.CorrelationIdFilter;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;

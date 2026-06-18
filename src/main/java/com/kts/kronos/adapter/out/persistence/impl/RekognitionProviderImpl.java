@@ -5,7 +5,7 @@ import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
-import lombok.RequiredArgsConstructor;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -22,7 +22,6 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RekognitionProviderImpl  implements FaceRecognitionProvider {
 
     private final RekognitionClient rekognitionClient;
@@ -30,6 +29,20 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
     private final PrivacyLogReferenceService privacyLogReferenceService;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+
+    public RekognitionProviderImpl(
+            RekognitionClient rekognitionClient,
+            FaceStorageProvider faceStorageProvider,
+            PrivacyLogReferenceService privacyLogReferenceService,
+            KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing
+    ) {
+        this.rekognitionClient = rekognitionClient;
+        this.faceStorageProvider = faceStorageProvider;
+        this.privacyLogReferenceService = privacyLogReferenceService;
+        this.kronosMetrics = kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+        this.kronosTracing = kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
+    }
 
     @Value("${aws.rekognition.collection-id}")
     private String collectionId;
