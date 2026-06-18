@@ -1,88 +1,151 @@
-# Kronos Redis — pacote de execução para CODEX
+# Kronos Back-end
 
-## Objetivo
+API corporativa da plataforma Kronos, responsável por autenticação, regras de negócio, persistência, integrações externas, observabilidade e serviços críticos de jornada e conformidade.
 
-Implementar Redis nos endpoints específicos do Kronos, com Redis rodando localmente dentro da VPS Hostinger em produção, sem alterar contratos HTTP do front-end e sem substituir PostgreSQL como fonte da verdade.
+## Visão Geral
 
-## Repositórios e branches alvo
+Este repositório implementa o núcleo transacional da plataforma Kronos. A aplicação expõe contratos HTTP consumidos pelo front-end, executa regras de domínio sensíveis e centraliza integrações com banco de dados, Redis, serviços de e-mail, geolocalização, armazenamento documental e biometria.
 
-| Repositório | Branch | Papel |
-|---|---|---|
-| `LsaBarbosa/Kronos-Tech-Solutions-KTS` | `prod-redis` | Implementação principal Redis no back-end |
-| `LsaBarbosa/Kronos-Tech-Solution-User-Plataform` | `PROD_HOSTINGER_v2` | Validação de contrato/front, sem Redis no browser |
-| `LsaBarbosa/kronos-business` | `main` | Fonte documental de regras, fluxos e arquitetura |
+O objetivo desta base é manter consistência operacional, segurança e rastreabilidade em fluxos que afetam jornada, documentos, perfis, autenticação e requisitos regulatórios.
 
-## Leitura obrigatória antes de codar
+## Responsabilidades do Repositório
 
-### Back-end
+- autenticação e autorização;
+- emissão, validação e revogação de sessão/token;
+- registro de ponto e fluxos associados;
+- dashboard e consultas operacionais;
+- gestão de usuários, colaboradores e empresas;
+- documentos, assinatura e trilhas de auditoria;
+- políticas de privacidade e fluxos LGPD;
+- rate limiting, cache e infraestrutura Redis;
+- observabilidade, métricas e saúde da plataforma.
 
-1. `build.gradle`
-2. `src/main/resources/application.yml`
-3. `src/main/resources/application-prod.yml`
-4. `src/main/resources/application-test.yml`, se existir
-5. `docker-compose.yml`, `Dockerfile`, `.env.example`, `deploy/hostinger-nginx.conf`, se existirem
-6. `src/main/java/com/kts/kronos/application/security/AuthenticationRateLimitService.java`
-7. `src/main/java/com/kts/kronos/application/security/BiometricProtectionService.java`
-8. `src/main/java/com/kts/kronos/application/service/AuthService.java`
-9. `src/main/java/com/kts/kronos/adapter/out/security/JwtAuthenticationFilter.java`
-10. `src/main/java/com/kts/kronos/adapter/out/security/AuthCookieService.java`
-11. `src/main/java/com/kts/kronos/adapter/out/security/JwtUtils.java`
-12. `src/main/java/com/kts/kronos/application/port/out/provider/TokenBlacklistProvider.java`
-13. `src/main/java/com/kts/kronos/application/port/out/provider/PasswordResetTokenProvider.java`
-14. Implementações JPA atuais de blacklist e reset token
-15. `UserService`, `EmployeeService`, `CompanyService`, `DashboardService`, `TimeRecordService`, `PublicPrivacyService`, `GeolocationService`, `AcceptTermsService`
-16. `KronosMetrics`, `KronosTracing`, `PlatformHealthService`
+## Stack Principal
 
-### Front-end
-
-1. `package.json`
-2. Configuração Axios/API client
-3. Configuração TanStack Query
-4. Chamadas para `/auth/*`, `/records/*`, `/dashboard/summary`, `/users/own-profile`, `/employee/own-profile`
-5. `docs/openapi/flag-redis.openapi.json`, se existir
-
-### Documentação
-
-1. Arquitetura de pastas e arquitetura do projeto
-2. Fluxos de aplicação
-3. Regras de negócio
-4. Entradas e saídas por fluxo
-5. Entidades
-6. Documento mais recente de estado atual da branch `PROD_HOSTINGER_V2`, se existir no `kronos-business/main`
-
-## Arquivos deste pacote
-
-| Arquivo | Função |
+| Camada | Tecnologia |
 |---|---|
-| `00-contexto-observado.md` | Contexto técnico já observado e decisões obrigatórias |
-| `rules/redis-architecture-rules.md` | Regras arquiteturais para Redis no Kronos |
-| `rules/security-lgpd-observability-rules.md` | Regras de segurança, LGPD e observabilidade |
-| `skills/redis-spring-boot-skill.md` | Skill de implementação Redis/Spring Boot |
-| `skills/hostinger-redis-prod-skill.md` | Skill de deploy Redis local na VPS Hostinger |
-| `agents/*.md` | Agentes principais para execução/revisão |
-| `subagents/*.md` | Subagentes especializados por área |
-| `plan/redis-action-plan.md` | Plano de ação cronológico com tarefas e critérios de aceite |
-| `prompts/CODEX_REDIS_IMPLEMENTATION_PROMPT.md` | Prompt principal para colar no CODEX |
-| `checklists/review-checklist.md` | Checklist final de revisão técnica |
+| Runtime | Java 21 |
+| Framework | Spring Boot 3.5 |
+| Build | Gradle |
+| API | Spring Web MVC |
+| Segurança | Spring Security + JWT + cookie HttpOnly + CSRF |
+| Persistência | Spring Data JPA + PostgreSQL + Flyway |
+| Cache e suporte distribuído | Spring Cache + Spring Data Redis |
+| Observabilidade | Actuator + Micrometer + Prometheus + OpenTelemetry |
+| Testes | JUnit 5 + Spring Test + Mockito + Testcontainers |
 
-## Decisão central
+## Arquitetura da Aplicação
 
-Redis deve ser usado como infraestrutura auxiliar para:
+A estrutura principal segue separação por camadas e responsabilidades:
 
-- rate limit distribuído;
-- tokens temporários de recuperação de senha;
-- blacklist de JWT com TTL;
-- cache-aside de consultas caras e seguras;
-- locks/idempotência de curta duração;
-- cache de integrações externas, como geolocalização.
+```text
+src/main/java/com/kts/kronos/
+  adapter/         entrada e saída da aplicação
+  application/     serviços, casos de uso e portas
+  config/          configuração técnica
+  constants/       constantes e caminhos compartilhados
+  domain/          regras e modelos de domínio
+  infrastructure/  integrações e suporte técnico
+  observability/   métricas, tracing e saúde
+```
 
-Redis não deve armazenar como fonte primária:
+## Integrações Relevantes
 
-- registros de ponto;
-- NSR;
-- AFD/AEJ;
-- documentos;
-- auditoria legal;
-- consentimentos legais;
-- dados LGPD duráveis;
-- imagens biométricas.
+- PostgreSQL como fonte primária de dados;
+- Redis para cache, TTL, blacklist, rate limit e suporte distribuído;
+- AWS S3 para armazenamento documental;
+- AWS Rekognition para fluxos biométricos;
+- SMTP para notificações e recuperação de acesso;
+- HERE para geolocalização, quando habilitado.
+
+## Execução Local
+
+### Pré-requisitos
+
+- Java 21;
+- Docker e Docker Compose;
+- variáveis de ambiente configuradas a partir de [`.env.example`](/home/kronos/Documentos/Codigin/kronos/Kronos-Tech-Solutions-KTS/.env.example).
+
+### Infraestrutura local
+
+O repositório já possui `docker-compose.yml` para PostgreSQL e Redis.
+
+```bash
+docker compose up -d
+```
+
+### Subida da aplicação
+
+```bash
+./gradlew bootRun
+```
+
+A aplicação usa `SERVER_PORT=8080` no exemplo de ambiente padrão.
+
+## Qualidade e Validação
+
+Comandos principais:
+
+```bash
+./gradlew test
+./gradlew build
+./gradlew jacocoTestReport
+```
+
+Comandos auxiliares:
+
+```bash
+./gradlew unitTest
+./gradlew dataJpaTest
+./gradlew jacocoTestCoverageVerification
+```
+
+## Segurança e Conformidade
+
+Diretrizes operacionais desta base:
+
+- não expor segredos reais em arquivos versionados;
+- não registrar tokens, payloads sensíveis ou dados biométricos em texto puro;
+- não usar Redis como fonte primária para dados regulatórios ou permanentes;
+- preservar trilhas de auditoria e consistência dos contratos expostos;
+- validar impactos de LGPD, autenticação e retenção em qualquer mudança sensível.
+
+## Observabilidade
+
+O projeto já inclui componentes para:
+
+- health checks;
+- métricas Prometheus;
+- tracing com OpenTelemetry;
+- artefatos locais de observabilidade em `infra/`, `prometheus/`, `loki/` e `tempo/`.
+
+## Estrutura do Repositório
+
+```text
+src/          código-fonte e testes
+deploy/       artefatos de entrega e apoio operacional
+docs/         documentação complementar
+infra/        configuração de observabilidade e suporte
+storage/      área local de documentos quando aplicável
+```
+
+## Dependências de Ecossistema
+
+Este repositório trabalha em conjunto com:
+
+- `../Kronos-Tech-Solution-User-Plataform`: front-end web da plataforma;
+- `../kronos-business`: documentação funcional, técnica e arquitetural.
+
+Mudanças de contrato devem ser refletidas de forma coordenada entre esses repositórios.
+
+## Fluxo de Colaboração
+
+1. validar impacto de domínio e contrato;
+2. implementar mantendo compatibilidade externa quando exigido;
+3. executar testes adequados ao escopo;
+4. revisar segurança, observabilidade e conformidade;
+5. atualizar documentação correlata quando a mudança alterar comportamento público ou operacional.
+
+## Licença e Uso
+
+Uso interno do ecossistema Kronos. Qualquer distribuição externa deve seguir aprovação formal e política de governança da organização.
