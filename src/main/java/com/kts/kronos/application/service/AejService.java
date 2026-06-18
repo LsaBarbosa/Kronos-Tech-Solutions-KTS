@@ -13,6 +13,7 @@ import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,7 +66,7 @@ public class AejService implements AejUseCase {
 
         // Buffer em memória para montar o texto antes de assinar
         try {
-            kronosTracing.observe("kronos.legal.aej", () -> {
+            tracing().observe("kronos.legal.aej", () -> {
                 try (var textBuffer = new ByteArrayOutputStream();
                      var writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
 
@@ -123,15 +124,15 @@ public class AejService implements AejUseCase {
                         signedContent = signatureService.signData(originalContent);
                     } catch (DigitalSignatureException ex) {
                         signatureFailure[0] = true;
-                        kronosMetrics.legalFailure("aej", "digital_signature");
-                        kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                        metrics().legalFailure("aej", "digital_signature");
+                        metrics().recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
                         log.error("event=legal_aej_generation result=failure reason=digital_signature exception_type={}",
                                 ex.getClass().getSimpleName());
                         throw ex;
                     } catch (RuntimeException ex) {
                         signatureFailure[0] = true;
-                        kronosMetrics.legalFailure("aej", "digital_signature");
-                        kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                        metrics().legalFailure("aej", "digital_signature");
+                        metrics().recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
                         log.error("event=legal_aej_generation result=failure reason=digital_signature_unexpected exception_type={}",
                                 ex.getClass().getSimpleName());
                         throw new DigitalSignatureException("Falha ao assinar documento digitalmente.", ex);
@@ -143,8 +144,8 @@ public class AejService implements AejUseCase {
                 }
             });
 
-            kronosMetrics.legalSuccess("aej");
-            kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            metrics().legalSuccess("aej");
+            metrics().recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "success");
             log.info("event=legal_aej_generation result=success");
         } catch (DigitalSignatureException e) {
             // Já foi medido/logado no catch interno; propaga preservando o tipo
@@ -152,8 +153,8 @@ public class AejService implements AejUseCase {
             throw e;
         } catch (RuntimeException e) {
             if (!signatureFailure[0]) {
-                kronosMetrics.legalFailure("aej", "generation");
-                kronosMetrics.recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+                metrics().legalFailure("aej", "generation");
+                metrics().recordLegalDuration("aej", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
                 log.error("event=legal_aej_generation result=failure reason=generation exception_type={}",
                         e.getClass().getSimpleName());
             }
@@ -294,5 +295,13 @@ public class AejService implements AejUseCase {
         // Formato ISO extendido exigido no layout: yyyy-MM-ddThh:mm:ss-Offset
         // Aqui fixamos -0300 (Brasília), mas o ideal é pegar do ZoneId se multi-região.
         return dt.format(GENERATION_DATE_FMT) + "-0300";
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 }
