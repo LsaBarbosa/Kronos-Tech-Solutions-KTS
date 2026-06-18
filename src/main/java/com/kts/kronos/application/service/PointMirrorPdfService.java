@@ -22,7 +22,6 @@ import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,10 +51,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final CompanyProvider companyProvider;
     private final TimeRecordProvider recordRepository;
     private final DomainAuthorizationService domainAuthorizationService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
 
 
@@ -84,7 +81,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         try {
-            byte[] pdfBytes = kronosTracing.observe("kronos.legal.point_mirror.generate", () -> {
+            byte[] pdfBytes = kronosTracing.observe("kronos.legal.point_mirror", () -> {
                 try (var baos = new ByteArrayOutputStream()) {
                     var writer = new PdfWriter(baos);
                     var pdf = new PdfDocument(writer);

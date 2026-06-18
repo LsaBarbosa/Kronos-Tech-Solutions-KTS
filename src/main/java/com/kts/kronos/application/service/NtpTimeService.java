@@ -2,8 +2,10 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.net.ntp.NTPUDPClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -25,13 +27,14 @@ public class NtpTimeService {
     @Value("${kronos.ntp.timeout:5000}")
     private int timeout;
 
+    @Autowired
     public NtpTimeService(KronosMetrics kronosMetrics, KronosTracing kronosTracing) {
         this.kronosMetrics = kronosMetrics;
         this.kronosTracing = kronosTracing;
     }
 
     protected NtpTimeService() {
-        this(new KronosMetrics(), new KronosTracing());
+        this(ObservabilityDefaults.metrics(), ObservabilityDefaults.tracing());
     }
 
     /**
@@ -39,7 +42,7 @@ public class NtpTimeService {
      * Retorna null se falhar (para não travar a aplicação).
      */
     public Long getNetworkTimeOffset() {
-        return kronosTracing.observe("kronos.ntp.check", () -> {
+        return kronosTracing.observe("kronos.external.ntp", () -> {
             var client = createClient();
             client.setDefaultTimeout(timeout);
 
@@ -51,10 +54,12 @@ public class NtpTimeService {
 
                 var offset = info.getOffset();
                 kronosMetrics.setNtpDriftMillis(offset);
+                kronosMetrics.recordExternalProviderRequest("ntp", "time_check", "success", "none");
                 log.info("event=ntp_check result=success");
                 return offset;
             } catch (IOException e) {
                 kronosMetrics.setNtpDriftMillis(null);
+                kronosMetrics.recordExternalProviderRequest("ntp", "time_check", "failure", "io");
                 log.warn("event=ntp_check result=failure reason=io");
                 return null;
             } finally {

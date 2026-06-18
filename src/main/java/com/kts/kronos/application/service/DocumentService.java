@@ -38,7 +38,6 @@ import java.util.HexFormat;
 import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -62,10 +61,8 @@ public class DocumentService implements DocumentUseCase {
     private final FileScanningProvider fileScanningProvider;
     private final AuditService auditService;
     private final AuditRequestContextService auditRequestContextService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Value("${kronos.security.upload.max-bytes:5242880}")
     private long maxUploadBytes;
@@ -88,10 +85,10 @@ public class DocumentService implements DocumentUseCase {
                 throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
             }
 
-            byte[] fileData = bucketStorageProvider.downloadFile(
+            byte[] fileData = kronosTracing.observe("kronos.document.download", () -> bucketStorageProvider.downloadFile(
                     doc.type(),
                     doc.storagePath()
-            );
+            ), "document_type", documentType, "operation", "download");
             kronosMetrics.documentDownloadSuccess(documentType);
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
@@ -270,7 +267,7 @@ public class DocumentService implements DocumentUseCase {
                         employee.companyId(),
                         additionalDetails
                 );
-            });
+            }, "document_type", normalizeDocumentType(type), "operation", "upload");
             kronosMetrics.documentUploadSuccess(normalizeDocumentType(type));
             log.info("event=document_upload result=success document_type={}", normalizeDocumentType(type));
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {

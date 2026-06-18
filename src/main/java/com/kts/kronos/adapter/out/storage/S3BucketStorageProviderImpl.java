@@ -3,6 +3,8 @@ package com.kts.kronos.adapter.out.storage;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 @Slf4j
 @Component
@@ -28,6 +31,8 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
 
     private final S3DocumentBucketProperties bucketProperties;
     private final S3Client s3Client;
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @PostConstruct
     void init() {
@@ -37,16 +42,23 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
     @Override
     public String uploadFile(DocumentType documentType, String objectName, byte[] fileData, String contentType) {
         var bucket = bucketProperties.bucketFor(documentType);
+        long startedAt = System.nanoTime();
 
         try {
-            var request = PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(objectName)
-                    .contentType(contentType)
-                    .serverSideEncryption(ServerSideEncryption.AES256)
-                    .build();
+            kronosTracing.observe("kronos.external.s3", () -> {
+                var request = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(objectName)
+                        .contentType(contentType)
+                        .serverSideEncryption(ServerSideEncryption.AES256)
+                        .build();
 
-            s3Client.putObject(request, RequestBody.fromBytes(fileData));
+                s3Client.putObject(request, RequestBody.fromBytes(fileData));
+            }, "provider", "s3", "operation", "upload");
+
+            kronosMetrics.recordExternalProviderRequest("s3", "upload", "success", "none");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "upload",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "success");
 
             log.info(
                     "event=document_s3_upload result=success document_type={} bucket={} key={}",
@@ -57,6 +69,9 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
 
             return objectName;
         } catch (SdkException e) {
+            kronosMetrics.recordExternalProviderRequest("s3", "upload", "failure", "sdk_exception");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "upload",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error(
                     "event=document_s3_upload result=failure document_type={} bucket={} key={} exception_type={}",
                     documentType,
@@ -72,14 +87,25 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
     @Override
     public byte[] downloadFile(DocumentType documentType, String objectName) {
         var bucket = bucketProperties.bucketFor(documentType);
+        long startedAt = System.nanoTime();
 
         try {
-            var request = GetObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(objectName)
-                    .build();
+            byte[] bytes = kronosTracing.observe("kronos.external.s3", () -> {
+                try {
+                    var request = GetObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(objectName)
+                            .build();
 
-            var bytes = s3Client.getObject(request).readAllBytes();
+                    return s3Client.getObject(request).readAllBytes();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }, "provider", "s3", "operation", "download");
+
+            kronosMetrics.recordExternalProviderRequest("s3", "download", "success", "none");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "download",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "success");
 
             log.info(
                     "event=document_s3_download result=success document_type={} bucket={} key={} file_size_bytes={}",
@@ -91,6 +117,9 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
 
             return bytes;
         } catch (NoSuchKeyException e) {
+            kronosMetrics.recordExternalProviderRequest("s3", "download", "failure", "object_not_found");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "download",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.warn(
                     "event=document_s3_download result=failure reason=object_not_found document_type={} bucket={} key={}",
                     documentType,
@@ -100,6 +129,9 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
             throw new ResourceNotFoundException("Arquivo não encontrado no S3.");
         } catch (S3Exception e) {
             if (e.statusCode() == 404) {
+                kronosMetrics.recordExternalProviderRequest("s3", "download", "failure", "object_not_found");
+                kronosMetrics.recordExternalProviderRequestDuration("s3", "download",
+                        java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
                 log.warn(
                         "event=document_s3_download result=failure reason=object_not_found document_type={} bucket={} key={} status={}",
                         documentType,
@@ -110,6 +142,9 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
                 throw new ResourceNotFoundException("Arquivo não encontrado no S3.");
             }
 
+            kronosMetrics.recordExternalProviderRequest("s3", "download", "failure", "s3_error");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "download",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error(
                     "event=document_s3_download result=failure reason=s3_error document_type={} bucket={} key={} status={}",
                     documentType,
@@ -120,7 +155,10 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
             );
 
             throw new RuntimeException("Erro ao baixar arquivo do S3.", e);
-        } catch (IOException e) {
+        } catch (UncheckedIOException e) {
+            kronosMetrics.recordExternalProviderRequest("s3", "download", "failure", "io");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "download",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error(
                     "event=document_s3_download result=failure reason=io document_type={} bucket={} key={}",
                     documentType,
@@ -128,21 +166,28 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
                     objectName,
                     e
             );
-            throw new RuntimeException("Erro ao ler arquivo do S3.", e);
+            throw new RuntimeException("Erro ao ler arquivo do S3.", e.getCause());
         }
     }
 
     @Override
     public void deleteFile(DocumentType documentType, String objectName) {
         var bucket = bucketProperties.bucketFor(documentType);
+        long startedAt = System.nanoTime();
 
         try {
-            var request = DeleteObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(objectName)
-                    .build();
+            kronosTracing.observe("kronos.external.s3", () -> {
+                var request = DeleteObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(objectName)
+                        .build();
 
-            s3Client.deleteObject(request);
+                s3Client.deleteObject(request);
+            }, "provider", "s3", "operation", "delete");
+
+            kronosMetrics.recordExternalProviderRequest("s3", "delete", "success", "none");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "delete",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "success");
 
             log.info(
                     "event=document_s3_delete result=success document_type={} bucket={} key={}",
@@ -151,6 +196,9 @@ public class S3BucketStorageProviderImpl implements BucketStorageProvider {
                     objectName
             );
         } catch (SdkException e) {
+            kronosMetrics.recordExternalProviderRequest("s3", "delete", "failure", "sdk_exception");
+            kronosMetrics.recordExternalProviderRequestDuration("s3", "delete",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error(
                     "event=document_s3_delete result=failure document_type={} bucket={} key={} exception_type={}",
                     documentType,

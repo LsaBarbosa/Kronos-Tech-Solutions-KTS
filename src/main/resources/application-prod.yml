@@ -82,6 +82,12 @@ springdoc:
     enabled: false
 
 management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
   endpoints:
     web:
       exposure:
@@ -217,6 +223,14 @@ kronos:
         apply-confirmed: ${LGPD_RETENTION_SCHEDULER_APPLY_CONFIRMED:false}
         justification: ${LGPD_RETENTION_SCHEDULER_JUSTIFICATION:Scheduled LGPD retention batch}
       allow-apply: ${LGPD_RETENTION_ALLOW_APPLY:false}
+  observability:
+    frontend:
+      events:
+        enabled: ${KRONOS_FRONTEND_EVENTS_ENABLED:true}
+        rate-limit:
+          limit: ${KRONOS_FRONTEND_EVENTS_RATE_LIMIT:120}
+          window-seconds: ${KRONOS_FRONTEND_EVENTS_WINDOW_SECONDS:60}
+        max-payload-characters: ${KRONOS_FRONTEND_EVENTS_MAX_PAYLOAD_CHARACTERS:4096}
 biometric:
   max-base64-chars: ${BIOMETRIC_MAX_BASE64_CHARS:1500000}
   liveness-required: ${BIOMETRIC_LIVENESS_REQUIRED:false}

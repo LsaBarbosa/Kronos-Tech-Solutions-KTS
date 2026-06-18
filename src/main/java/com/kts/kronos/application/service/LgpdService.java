@@ -36,6 +36,8 @@ import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.LgpdRequestStatus;
 import com.kts.kronos.domain.model.enuns.LgpdRequestType;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -81,63 +83,70 @@ public class LgpdService implements LgpdUseCase {
     private final DryRunTokenService dryRunTokenService;
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final PrivacyLogReferenceService privacyLogReferenceService;
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Override
     public LgpdRequest createRequest(CreateLgpdRequestRequest request, String ipAddress, String userAgent) {
-        validateCreateRequest(request);
-        Employee targetEmployee = resolveTargetEmployee(request.employeeId());
-        Instant now = Instant.now();
-        Instant dueAt = lgpdSlaPolicyService.calculateDueAt(request.type(), now);
-        String priority = lgpdSlaPolicyService.priorityBySla(dueAt);
+        try {
+            validateCreateRequest(request);
+            Employee targetEmployee = resolveTargetEmployee(request.employeeId());
+            Instant now = Instant.now();
+            Instant dueAt = lgpdSlaPolicyService.calculateDueAt(request.type(), now);
+            String priority = lgpdSlaPolicyService.priorityBySla(dueAt);
 
-        LgpdRequest toSave = new LgpdRequest(
-                null,
-                targetEmployee.employeeId(),
-                jwtAuthenticatedUser.getuserId(),
-                targetEmployee.companyId(),
-                request.type(),
-                LgpdRequestStatus.OPEN,
-                request.description().trim(),
-                null,
-                now,
-                now,
-                null,
-                null,
-                null,
-                dueAt,
-                priority,
-                null,
-                null,
-                null,
-                request.targetConsentType(),
-                null,
-                false
-        );
+            LgpdRequest toSave = new LgpdRequest(
+                    null,
+                    targetEmployee.employeeId(),
+                    jwtAuthenticatedUser.getuserId(),
+                    targetEmployee.companyId(),
+                    request.type(),
+                    LgpdRequestStatus.OPEN,
+                    request.description().trim(),
+                    null,
+                    now,
+                    now,
+                    null,
+                    null,
+                    null,
+                    dueAt,
+                    priority,
+                    null,
+                    null,
+                    null,
+                    request.targetConsentType(),
+                    null,
+                    false
+            );
 
-        LgpdRequest saved = lgpdRequestProvider.save(toSave);
-        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
-                null,
-                saved.requestId(),
-                saved.status(),
-                "Solicitação criada.",
-                jwtAuthenticatedUser.getuserId(),
-                now
-        ));
+            LgpdRequest saved = lgpdRequestProvider.save(toSave);
+            lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                    null,
+                    saved.requestId(),
+                    saved.status(),
+                    "Solicitação criada.",
+                    jwtAuthenticatedUser.getuserId(),
+                    now
+            ));
 
-        auditService.registerLgpd(
-                AuditAction.LGPD_REQUEST_CREATED,
-                jwtAuthenticatedUser.getuserId(),
-                targetEmployee.employeeId(),
-                targetEmployee.companyId(),
-                "LGPD_REQUEST",
-                saved.requestId().toString(),
-                "MEDIUM",
-                String.format("Solicitação LGPD criada. requestId=%s, requestType=%s", saved.requestId(), saved.requestType()),
-                ipAddress,
-                userAgent
-        );
-
-        return saved;
+            auditService.registerLgpd(
+                    AuditAction.LGPD_REQUEST_CREATED,
+                    jwtAuthenticatedUser.getuserId(),
+                    targetEmployee.employeeId(),
+                    targetEmployee.companyId(),
+                    "LGPD_REQUEST",
+                    saved.requestId().toString(),
+                    "MEDIUM",
+                    String.format("Solicitação LGPD criada. requestId=%s, requestType=%s", saved.requestId(), saved.requestType()),
+                    ipAddress,
+                    userAgent
+            );
+            kronosMetrics.recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
+            return saved;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdRequest(request.type().name().toLowerCase(), "creation_failed", "failure");
+            throw e;
+        }
     }
 
     private void validateCreateRequest(CreateLgpdRequestRequest request) {
@@ -186,28 +195,33 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public LgpdRequest updateRequestStatus(UUID requestId, UpdateLgpdRequestStatusRequest request) {
-        LgpdRequest existing = findAuthorizedRequest(requestId);
-        validateStatusTransition(requestId, existing.status(), request.status());
-        Instant changedAt = Instant.now();
+        try {
+            LgpdRequest existing = findAuthorizedRequest(requestId);
+            validateStatusTransition(requestId, existing.status(), request.status());
+            Instant changedAt = Instant.now();
 
-        LgpdRequest updated = existing.updateStatus(
-                request.status(),
-                jwtAuthenticatedUser.getuserId(),
-                request.notes(),
-                changedAt
-        );
+            LgpdRequest updated = existing.updateStatus(
+                    request.status(),
+                    jwtAuthenticatedUser.getuserId(),
+                    request.notes(),
+                    changedAt
+            );
 
-        LgpdRequest saved = lgpdRequestProvider.save(updated);
-        lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
-                null,
-                saved.requestId(),
-                saved.status(),
-                request.notes(),
-                jwtAuthenticatedUser.getuserId(),
-                changedAt
-        ));
-
-        return saved;
+            LgpdRequest saved = lgpdRequestProvider.save(updated);
+            lgpdRequestHistoryProvider.save(new LgpdRequestHistory(
+                    null,
+                    saved.requestId(),
+                    saved.status(),
+                    request.notes(),
+                    jwtAuthenticatedUser.getuserId(),
+                    changedAt
+            ));
+            kronosMetrics.recordLgpdRequest(saved.requestType().name().toLowerCase(), saved.status().name().toLowerCase(), "success");
+            return saved;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdRequest("status_update", "update_failed", "failure");
+            throw e;
+        }
     }
 
     @Override
@@ -238,34 +252,40 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public LgpdEmployeeExportResponse exportOwnEmployeeData(String ipAddress, String userAgent) {
-        UUID requestedByEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
-        Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(requestedByEmployeeId);
+        try {
+            UUID requestedByEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+            UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
+            Employee targetEmployee = domainAuthorizationService.authorizeEmployeeAccess(requestedByEmployeeId);
 
-        LgpdEmployeeExportResponse response = buildExport(
-                targetEmployee,
-                requestedByUserId,
-                false
-        );
+            LgpdEmployeeExportResponse response = kronosTracing.observe("kronos.lgpd.export", () -> buildExport(
+                    targetEmployee,
+                    requestedByUserId,
+                    false
+            ), "event_type", "export_own", "status", "completed");
 
-        auditService.registerLgpd(
-                AuditAction.LGPD_OWN_DATA_EXPORTED,
-                requestedByUserId,
-                targetEmployee.employeeId(),
-                targetEmployee.companyId(),
-                "EMPLOYEE",
-                response.manifest().exportId().toString(),
-                "MEDIUM",
-                String.format(
-                        "Exportação LGPD própria gerada. exportId=%s, employeeId=%s, preciseGeolocationIncluded=false",
-                        response.manifest().exportId(),
-                        targetEmployee.employeeId()
-                ),
-                ipAddress,
-                userAgent
-        );
+            auditService.registerLgpd(
+                    AuditAction.LGPD_OWN_DATA_EXPORTED,
+                    requestedByUserId,
+                    targetEmployee.employeeId(),
+                    targetEmployee.companyId(),
+                    "EMPLOYEE",
+                    response.manifest().exportId().toString(),
+                    "MEDIUM",
+                    String.format(
+                            "Exportação LGPD própria gerada. exportId=%s, employeeId=%s, preciseGeolocationIncluded=false",
+                            response.manifest().exportId(),
+                            targetEmployee.employeeId()
+                    ),
+                    ipAddress,
+                    userAgent
+            );
 
-        return response;
+            kronosMetrics.recordLgpdRequest("export_own", "completed", "success");
+            return response;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdRequest("export_own", "failed", "failure");
+            throw e;
+        }
     }
 
     @Override
@@ -278,42 +298,48 @@ public class LgpdService implements LgpdUseCase {
             String ipAddress,
             String userAgent
     ) {
-        LgpdRequest request = findAuthorizedAdminRequest(requestId);
-        UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
+        try {
+            LgpdRequest request = findAuthorizedAdminRequest(requestId);
+            UUID requestedByUserId = jwtAuthenticatedUser.getuserId();
 
-        validateAdministrativeExportRequest(request, includePreciseGeolocation, reviewerNotes);
+            validateAdministrativeExportRequest(request, includePreciseGeolocation, reviewerNotes);
 
-        Employee targetEmployee = employeeProvider.findById(request.employeeId())
-                .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
+            Employee targetEmployee = employeeProvider.findById(request.employeeId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado"));
 
-        LgpdEmployeeExportResponse response = buildExport(
-                targetEmployee,
-                requestedByUserId,
-                includePreciseGeolocation
-        );
+            LgpdEmployeeExportResponse response = kronosTracing.observe("kronos.lgpd.export", () -> buildExport(
+                    targetEmployee,
+                    requestedByUserId,
+                    includePreciseGeolocation
+            ), "event_type", "export_admin", "status", "completed");
 
-        auditService.registerLgpd(
-                AuditAction.LGPD_ADMIN_DATA_EXPORTED,
-                requestedByUserId,
-                targetEmployee.employeeId(),
-                targetEmployee.companyId(),
-                "LGPD_REQUEST",
-                requestId.toString(),
-                includePreciseGeolocation ? "HIGH" : "MEDIUM",
-                String.format(
-                        "Exportação LGPD administrativa gerada. exportId=%s, requestId=%s, employeeId=%s, approvedByUserId=%s, preciseGeolocationIncluded=%s, legalBasis=%s",
-                        response.manifest().exportId(),
-                        requestId,
-                        targetEmployee.employeeId(),
-                        requestedByUserId,
-                        includePreciseGeolocation,
-                        legalBasis
-                ),
-                ipAddress,
-                userAgent
-        );
+            auditService.registerLgpd(
+                    AuditAction.LGPD_ADMIN_DATA_EXPORTED,
+                    requestedByUserId,
+                    targetEmployee.employeeId(),
+                    targetEmployee.companyId(),
+                    "LGPD_REQUEST",
+                    requestId.toString(),
+                    includePreciseGeolocation ? "HIGH" : "MEDIUM",
+                    String.format(
+                            "Exportação LGPD administrativa gerada. exportId=%s, requestId=%s, employeeId=%s, approvedByUserId=%s, preciseGeolocationIncluded=%s, legalBasis=%s",
+                            response.manifest().exportId(),
+                            requestId,
+                            targetEmployee.employeeId(),
+                            requestedByUserId,
+                            includePreciseGeolocation,
+                            legalBasis
+                    ),
+                    ipAddress,
+                    userAgent
+            );
 
-        return response;
+            kronosMetrics.recordLgpdRequest("export_admin", "completed", "success");
+            return response;
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdRequest("export_admin", "failed", "failure");
+            throw e;
+        }
     }
 
     private LgpdEmployeeExportResponse buildExport(
@@ -582,12 +608,18 @@ public class LgpdService implements LgpdUseCase {
 
     @Override
     public void anonymizeEmployee(UUID employeeId, String ipAddress, String userAgent) {
-        employeeAnonymizationService.anonymize(
-                employeeId,
-                ipAddress,
-                userAgent,
-                jwtAuthenticatedUser.getuserId()
-        );
+        try {
+            kronosTracing.observe("kronos.lgpd.anonymization", () -> employeeAnonymizationService.anonymize(
+                    employeeId,
+                    ipAddress,
+                    userAgent,
+                    jwtAuthenticatedUser.getuserId()
+            ), "mode", "apply", "status", "completed");
+            kronosMetrics.recordLgpdAnonymization("apply", "success", "none");
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdAnonymization("apply", "failure", "unknown");
+            throw e;
+        }
     }
 
     public AnonymizationConsolidatedResult executeAnonymizationForRequest(UUID requestId) {
@@ -616,7 +648,16 @@ public class LgpdService implements LgpdUseCase {
                 true
         );
 
-        AnonymizationConsolidatedResult consolidatedResult = anonymizationPlanExecutor.executePlanWithConsolidatedResult(plan, "APPLY");
+        AnonymizationConsolidatedResult consolidatedResult;
+        try {
+            consolidatedResult = kronosTracing.observe("kronos.lgpd.anonymization",
+                    () -> anonymizationPlanExecutor.executePlanWithConsolidatedResult(plan, "APPLY"),
+                    "mode", "apply", "status", "completed");
+            kronosMetrics.recordLgpdAnonymization("apply", "success", "none");
+        } catch (RuntimeException e) {
+            kronosMetrics.recordLgpdAnonymization("apply", "failure", "request_execution");
+            throw e;
+        }
 
         var entity = new AnonymizationConsolidatedResultEntity(
                 consolidatedResult.consolidatedExecutionId(),

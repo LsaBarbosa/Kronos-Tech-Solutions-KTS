@@ -16,7 +16,6 @@ import com.kts.kronos.observability.application.KronosTracing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,10 +41,8 @@ public class AejService implements AejUseCase {
     private final EmployeeProvider employeeProvider;
     private final TimeRecordProvider recordRepository;
     private final DigitalSignatureService signatureService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Value("${kronos.legal.inpi-number:999999999}")
     private String inpiNumber;
@@ -68,7 +65,7 @@ public class AejService implements AejUseCase {
 
         // Buffer em memória para montar o texto antes de assinar
         try {
-            kronosTracing.observe("kronos.legal.aej.generate", () -> {
+            kronosTracing.observe("kronos.legal.aej", () -> {
                 try (var textBuffer = new ByteArrayOutputStream();
                      var writer = new PrintWriter(textBuffer, true, StandardCharsets.ISO_8859_1)) {
 
