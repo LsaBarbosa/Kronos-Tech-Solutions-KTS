@@ -46,20 +46,17 @@ services:
         --bind 0.0.0.0
         --maxmemory-policy noeviction
 
-    expose:
-      - "6379"
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
 
     volumes:
       - kronos_redis_local_data:/data
 
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      test: [ "CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG" ]
       interval: 10s
       timeout: 5s
       retries: 5
-
-    networks:
-      - kronos-local-network
 
 
 volumes:
