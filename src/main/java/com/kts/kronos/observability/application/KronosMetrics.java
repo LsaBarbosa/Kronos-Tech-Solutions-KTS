@@ -6,7 +6,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -21,12 +21,13 @@ public class KronosMetrics {
         this(meterRegistry, new ObservabilityTagSanitizer());
     }
 
+    @Autowired
     public KronosMetrics(MeterRegistry meterRegistry, ObservabilityTagSanitizer tagSanitizer) {
-        this.meterRegistry = meterRegistry;
-        this.tagSanitizer = tagSanitizer;
-        Gauge.builder("kronos_ntp_drift_seconds", ntpDriftSeconds, AtomicReference::get)
-                .description("Current NTP drift in seconds")
-                .register(meterRegistry);
+    this.meterRegistry = meterRegistry;
+    this.tagSanitizer = tagSanitizer;
+    Gauge.builder("kronos_ntp_drift_seconds", ntpDriftSeconds, AtomicReference::get)
+            .description("Current NTP drift in seconds")
+            .register(meterRegistry);
     }
 
     public void recordAuthLogin(String method, String result, String reason) {
