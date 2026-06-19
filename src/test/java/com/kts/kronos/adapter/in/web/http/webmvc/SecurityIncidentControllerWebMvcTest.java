@@ -2,11 +2,13 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentResponse;
 import com.kts.kronos.adapter.in.web.http.SecurityIncidentController;
+import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.application.port.in.usecase.SecurityIncidentUseCase;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentSeverity;
 import com.kts.kronos.domain.model.enuns.SecurityIncidentStatus;
 import jakarta.annotation.Resource;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -38,6 +40,14 @@ class SecurityIncidentControllerWebMvcTest {
 
     @MockitoBean
     private SecurityIncidentUseCase securityIncidentUseCase;
+
+    @MockitoBean
+    private ClientIpResolver clientIpResolver;
+
+    @BeforeEach
+    void setUp() {
+        when(clientIpResolver.resolve(any())).thenReturn("127.0.0.1");
+    }
 
     @Test
     void shouldCreateIncidentSuccessfully() throws Exception {
