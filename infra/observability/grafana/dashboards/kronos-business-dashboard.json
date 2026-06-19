@@ -8,10 +8,10 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "id": 1,
       "targets": [
-        { "expr": "increase(kronos_auth_login_success_total[15m]) or on() vector(0)", "legendFormat": "login senha sucesso" },
-        { "expr": "increase(kronos_auth_login_failure_total[15m]) or on() vector(0)", "legendFormat": "login senha falha" },
-        { "expr": "increase(kronos_auth_face_login_success_total[15m]) or on() vector(0)", "legendFormat": "login facial sucesso" },
-        { "expr": "increase(kronos_auth_face_login_failure_total[15m]) or on() vector(0)", "legendFormat": "login facial falha" }
+        { "expr": "sum(increase(kronos_auth_login_total{method=\"password\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "login senha sucesso" },
+        { "expr": "sum(increase(kronos_auth_login_total{method=\"password\",result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "login senha falha" },
+        { "expr": "sum(increase(kronos_auth_login_total{method=\"face\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "login facial sucesso" },
+        { "expr": "sum(increase(kronos_auth_login_total{method=\"face\",result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "login facial falha" }
       ],
       "title": "Autenticacao",
       "type": "timeseries"
@@ -21,9 +21,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "id": 2,
       "targets": [
-        { "expr": "increase(kronos_time_record_checkin_success_total[15m]) or on() vector(0)", "legendFormat": "check-in" },
-        { "expr": "increase(kronos_time_record_checkout_success_total[15m]) or on() vector(0)", "legendFormat": "check-out" },
-        { "expr": "increase(kronos_time_record_failure_total[15m]) or on() vector(0)", "legendFormat": "falhas" }
+        { "expr": "sum(increase(kronos_time_record_operation_total{operation=\"checkin\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "check-in" },
+        { "expr": "sum(increase(kronos_time_record_operation_total{operation=\"checkout\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "check-out" },
+        { "expr": "sum(increase(kronos_time_record_operation_total{result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "falhas" }
       ],
       "title": "Registro de ponto",
       "type": "timeseries"
@@ -33,9 +33,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "id": 3,
       "targets": [
-        { "expr": "increase(kronos_document_upload_success_total[15m]) or on() vector(0)", "legendFormat": "upload" },
-        { "expr": "increase(kronos_document_download_success_total[15m]) or on() vector(0)", "legendFormat": "download" },
-        { "expr": "increase(kronos_document_delete_success_total[15m]) or on() vector(0)", "legendFormat": "delete" }
+        { "expr": "sum(increase(kronos_document_operation_total{operation=\"upload\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "upload" },
+        { "expr": "sum(increase(kronos_document_operation_total{operation=\"download\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "download" },
+        { "expr": "sum(increase(kronos_document_operation_total{operation=\"delete\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "delete" }
       ],
       "title": "Documentos",
       "type": "timeseries"
@@ -45,10 +45,10 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "id": 4,
       "targets": [
-        { "expr": "increase(kronos_legal_afd_generation_success_total[15m]) or on() vector(0)", "legendFormat": "AFD" },
-        { "expr": "increase(kronos_legal_aej_generation_success_total[15m]) or on() vector(0)", "legendFormat": "AEJ" },
-        { "expr": "increase(kronos_legal_point_mirror_generation_success_total[15m]) or on() vector(0)", "legendFormat": "Espelho" },
-        { "expr": "increase(kronos_legal_technical_certificate_success_total[15m]) or on() vector(0)", "legendFormat": "Atestado" }
+        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"afd\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "AFD" },
+        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"aej\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "AEJ" },
+        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"point_mirror\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "Espelho" },
+        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"technical_certificate\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "Atestado" }
       ],
       "title": "Legal/Fiscal",
       "type": "timeseries"
@@ -58,8 +58,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "id": 5,
       "targets": [
-        { "expr": "increase(kronos_scheduler_execution_success_total[30m]) or on() vector(0)", "legendFormat": "sucesso" },
-        { "expr": "increase(kronos_scheduler_execution_failure_total[30m]) or on() vector(0)", "legendFormat": "falha" }
+        { "expr": "sum(increase(kronos_scheduler_execution_total{result=\"success\"}[30m])) or on() vector(0)", "legendFormat": "sucesso" },
+        { "expr": "sum(increase(kronos_scheduler_execution_total{result=\"failure\"}[30m])) or on() vector(0)", "legendFormat": "falha" }
       ],
       "title": "Schedulers",
       "type": "timeseries"
@@ -79,9 +79,9 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "id": 7,
       "targets": [
-        { "expr": "increase(kronos_company_created_total[15m]) or on() vector(0)", "legendFormat": "empresa criada" },
+        { "expr": "increase(kronos_company_total[15m]) or on() vector(0)", "legendFormat": "empresa criada" },
         { "expr": "increase(kronos_company_updated_total[15m]) or on() vector(0)", "legendFormat": "empresa atualizada" },
-        { "expr": "increase(kronos_user_created_total[15m]) or on() vector(0)", "legendFormat": "usuário criado" },
+        { "expr": "increase(kronos_user_total[15m]) or on() vector(0)", "legendFormat": "usuário criado" },
         { "expr": "increase(kronos_user_updated_total[15m]) or on() vector(0)", "legendFormat": "usuário atualizado" }
       ],
       "title": "Empresas e Usuários",
@@ -92,7 +92,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "id": 8,
       "targets": [
-        { "expr": "increase(kronos_employee_created_total[15m]) or on() vector(0)", "legendFormat": "funcionário criado" },
+        { "expr": "increase(kronos_employee_total[15m]) or on() vector(0)", "legendFormat": "funcionário criado" },
         { "expr": "increase(kronos_employee_updated_total[15m]) or on() vector(0)", "legendFormat": "funcionário atualizado" },
         { "expr": "increase(kronos_biometric_enrollment_success_total[15m]) or on() vector(0)", "legendFormat": "enrollment biométrico sucesso" },
         { "expr": "increase(kronos_biometric_enrollment_failure_total[15m]) or on() vector(0)", "legendFormat": "enrollment biométrico falha" }
