@@ -68,7 +68,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
         exclude: env,heapdump,beans,configprops,threaddump,flyway,logfile,loggers
   health:
     mail:
