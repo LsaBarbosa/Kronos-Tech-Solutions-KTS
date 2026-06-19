@@ -22,7 +22,7 @@ groups:
                 type: prometheus
                 uid: Prometheus
               editorMode: code
-              expr: count(up{job="kronos-backend"} == 0)
+              expr: max(up{job="kronos-backend"})
               instant: true
               range: false
               intervalMs: 1000
@@ -65,9 +65,9 @@ groups:
                     type: last
                     params: []
                   evaluator:
-                    type: gt
+                    type: lt
                     params:
-                      - 0
+                      - 1
                   operator:
                     type: and
 
