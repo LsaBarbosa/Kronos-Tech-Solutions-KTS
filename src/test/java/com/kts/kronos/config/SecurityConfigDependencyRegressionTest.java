@@ -6,6 +6,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.in.usecase.GeolocationUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
@@ -73,6 +74,9 @@ class SecurityConfigDependencyRegressionTest {
 
     @MockitoBean
     private CompanyUseCase companyUseCase;
+
+    @MockitoBean
+    private GeolocationUseCase geolocationUseCase;
 
     @MockitoBean
     private ObservabilityStatusUseCase observabilityStatusUseCase;
