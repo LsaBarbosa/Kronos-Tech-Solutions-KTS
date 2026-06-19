@@ -1,0 +1,36 @@
+{
+  "id": null,
+  "uid": "kronos-frontend-ux",
+  "title": "Kronos Frontend UX",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Frontend Events",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_frontend_event_total[5m])) by (event_type, result)",
+          "legendFormat": "{{event_type}} {{result}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Frontend Error Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_frontend_event_total{result=\"failure\"}[5m])) by (event_type)",
+          "legendFormat": "{{event_type}}"
+        }
+      ]
+    }
+  ]
+}

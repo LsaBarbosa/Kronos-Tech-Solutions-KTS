@@ -9,10 +9,10 @@ import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,10 +37,8 @@ public class AfdService implements AdfUseCase {
 
     private final AfdEntryProvider afdProvider;
     private final CompanyProvider companyProvider;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     // Removemos dados hardcoded e usamos configuração
     @Value("${kronos.legal.inpi-number:999999999}")
@@ -83,7 +81,7 @@ public class AfdService implements AdfUseCase {
         var company = companyProvider.findById(companyId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
         try {
-            kronosTracing.observe("kronos.legal.afd.generate", () -> {
+            tracing().observe("kronos.legal.afd", () -> {
                 try (var writer = new PrintWriter(outputStream, true, StandardCharsets.UTF_8)) {
                     var header = String.format("0000000011%s%s%s",
                             "1",
@@ -109,12 +107,12 @@ public class AfdService implements AdfUseCase {
                 }
             });
 
-            kronosMetrics.legalSuccess("afd");
-            kronosMetrics.recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            metrics().legalSuccess("afd");
+            metrics().recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "success");
             log.info("event=legal_afd_generation result=success");
         } catch (RuntimeException e) {
-            kronosMetrics.legalFailure("afd", "generation");
-            kronosMetrics.recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            metrics().legalFailure("afd", "generation");
+            metrics().recordLegalDuration("afd", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error("event=legal_afd_generation result=failure reason=generation exception_type={}",
                     e.getClass().getSimpleName());
             throw new RuntimeException(FAILURE_TO_GENERATE_AFD, e);
@@ -164,5 +162,13 @@ public class AfdService implements AdfUseCase {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(ERROR_TO_GENERATE_HASH, e);
         }
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 }

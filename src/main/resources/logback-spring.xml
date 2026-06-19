@@ -1,0 +1,67 @@
+<configuration scan="false">
+    <springProperty name="serviceName" source="spring.application.name" defaultValue="kronos-backend"/>
+    <springProperty name="appEnv" source="APP_ENV" defaultValue="local"/>
+    <springProperty name="logDir" source="KRONOS_LOG_DIR" defaultValue="./logs/kronos"/>
+
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"${serviceName}","environment":"${appEnv}"}</customFields>
+            <includeMdc>true</includeMdc>
+            <includeStructuredArguments>true</includeStructuredArguments>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <levelValue>[ignore]</levelValue>
+                <version>[ignore]</version>
+                <stackTrace>stack_trace</stackTrace>
+            </fieldNames>
+            <mdcKeyFieldName>traceId=trace_id</mdcKeyFieldName>
+            <mdcKeyFieldName>spanId=span_id</mdcKeyFieldName>
+            <mdcKeyFieldName>correlation_id=correlation_id</mdcKeyFieldName>
+            <mdcKeyFieldName>event=event</mdcKeyFieldName>
+            <mdcKeyFieldName>result=result</mdcKeyFieldName>
+            <mdcKeyFieldName>reason=reason</mdcKeyFieldName>
+            <mdcKeyFieldName>exception_type=exception_type</mdcKeyFieldName>
+        </encoder>
+    </appender>
+
+    <springProfile name="file-logs">
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logDir}/kronos-backend.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logDir}/archive/kronos-backend.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+                <maxFileSize>25MB</maxFileSize>
+                <maxHistory>14</maxHistory>
+                <totalSizeCap>1GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"${serviceName}","environment":"${appEnv}"}</customFields>
+                <includeMdc>true</includeMdc>
+                <includeStructuredArguments>true</includeStructuredArguments>
+                <fieldNames>
+                    <timestamp>timestamp</timestamp>
+                    <levelValue>[ignore]</levelValue>
+                    <version>[ignore]</version>
+                    <stackTrace>stack_trace</stackTrace>
+                </fieldNames>
+                <mdcKeyFieldName>traceId=trace_id</mdcKeyFieldName>
+                <mdcKeyFieldName>spanId=span_id</mdcKeyFieldName>
+                <mdcKeyFieldName>correlation_id=correlation_id</mdcKeyFieldName>
+                <mdcKeyFieldName>event=event</mdcKeyFieldName>
+                <mdcKeyFieldName>result=result</mdcKeyFieldName>
+                <mdcKeyFieldName>reason=reason</mdcKeyFieldName>
+                <mdcKeyFieldName>exception_type=exception_type</mdcKeyFieldName>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <root level="INFO">
+        <appender-ref ref="JSON_CONSOLE"/>
+    </root>
+
+    <springProfile name="file-logs">
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE"/>
+            <appender-ref ref="JSON_FILE"/>
+        </root>
+    </springProfile>
+</configuration>

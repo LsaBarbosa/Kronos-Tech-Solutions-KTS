@@ -18,3 +18,20 @@ scrape_configs:
           application: kronos-backend
           environment: ${APP_ENV}
           __path__: /var/log/kronos/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            service: service
+            environment: environment
+            logger: logger
+            event: event
+            result: result
+            reason: reason
+            message: message
+      - labels:
+          level:
+          service:
+          environment:
+          event:
+          result:

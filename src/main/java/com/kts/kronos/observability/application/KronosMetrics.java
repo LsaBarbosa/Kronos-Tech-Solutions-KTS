@@ -1,11 +1,13 @@
 package com.kts.kronos.observability.application;
 
+import com.kts.kronos.observability.support.ObservabilityTagSanitizer;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -25,20 +27,16 @@ public class KronosMetrics {
             "action",
             "cache_name"
     );
-
     private final MeterRegistry meterRegistry;
+    private final ObservabilityTagSanitizer tagSanitizer;
     private final AtomicReference<Double> ntpDriftSeconds = new AtomicReference<>(0.0d);
 
     public KronosMetrics() {
-        this(new SimpleMeterRegistry());
+        this(new SimpleMeterRegistry(), new ObservabilityTagSanitizer());
     }
 
     public KronosMetrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-        Gauge.builder("kronos_ntp_drift_seconds", ntpDriftSeconds, AtomicReference::get)
-                .description("Current NTP drift in seconds")
-                .register(meterRegistry);
-        preRegisterCounters();
+        this(meterRegistry, new ObservabilityTagSanitizer());
     }
 
     private void preRegisterCounters() {
@@ -70,123 +68,163 @@ public class KronosMetrics {
         }
     }
 
-    public void authLoginSuccess() {
-        increment("kronos_auth_login_success_total");
+    @Autowired
+    public KronosMetrics(MeterRegistry meterRegistry, ObservabilityTagSanitizer tagSanitizer) {
+        this.meterRegistry = meterRegistry;
+        this.tagSanitizer = tagSanitizer;
+        Gauge.builder("kronos_ntp_drift_seconds", ntpDriftSeconds, AtomicReference::get)
+                .description("Current NTP drift in seconds")
+                .register(meterRegistry);
+        preRegisterCounters();
     }
 
-    public void authLoginFailure(String reason) {
-        increment("kronos_auth_login_failure_total", "reason", reason);
+    public void recordAuthLogin(String method, String result, String reason) {
+        increment("kronos_auth_login_total",
+                "method", method,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void authFaceLoginSuccess() {
-        increment("kronos_auth_face_login_success_total");
+    public void recordPasswordRecovery(String result, String reason) {
+        increment("kronos_auth_password_recovery_total",
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void authFaceLoginFailure(String reason) {
-        increment("kronos_auth_face_login_failure_total", "reason", reason);
+    public void recordPasswordReset(String result, String reason) {
+        increment("kronos_auth_password_reset_total",
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void passwordRecoveryRequested() {
-        increment("kronos_password_recovery_request_total");
+    public void recordTokenRefresh(String result, String reason) {
+        increment("kronos_auth_token_refresh_total",
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void passwordRecoveryEmailSent() {
-        increment("kronos_password_recovery_email_sent_total");
+    public void recordTimeRecordOperation(String operation, String result, String reason) {
+        increment("kronos_time_record_operation_total",
+                "operation", operation,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void passwordRecoveryFailure(String reason) {
-        increment("kronos_password_recovery_failure_total", "reason", reason);
+    public void recordTimeRecordOperationDuration(String operation, Duration duration, String result) {
+        record("kronos_time_record_operation_duration_seconds", duration,
+                "operation", operation,
+                "result", result
+        );
     }
 
-    public void passwordResetSuccess() {
-        increment("kronos_password_reset_success_total");
+    public void recordDocumentOperation(String operation, String documentType, String result, String reason) {
+        increment("kronos_document_operation_total",
+                "operation", operation,
+                "document_type", documentType,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void passwordResetFailure(String reason) {
-        increment("kronos_password_reset_failure_total", "reason", reason);
+    public void recordDocumentOperationDuration(String operation, String documentType, Duration duration, String result) {
+        record("kronos_document_operation_duration_seconds", duration,
+                "operation", operation,
+                "document_type", documentType,
+                "result", result
+        );
     }
 
-    public void timeRecordCheckinSuccess() {
-        increment("kronos_time_record_checkin_success_total");
+    public void recordLegalGeneration(String documentType, String result, String reason) {
+        increment("kronos_legal_generation_total",
+                "legal_document_type", documentType,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void timeRecordCheckoutSuccess() {
-        increment("kronos_time_record_checkout_success_total");
+    public void recordLegalGenerationDuration(String documentType, Duration duration, String result) {
+        record("kronos_legal_generation_duration_seconds", duration,
+                "legal_document_type", documentType,
+                "result", result
+        );
     }
 
-    public void timeRecordImplicitBreak() {
-        increment("kronos_time_record_implicit_break_total");
+    public void recordLgpdRequest(String eventType, String status, String result) {
+        increment("kronos_lgpd_request_total",
+                "event_type", eventType,
+                "status", status,
+                "result", result
+        );
     }
 
-    public void timeRecordDayOffConverted() {
-        increment("kronos_time_record_day_off_converted_total");
+    public void recordLgpdAnonymization(String mode, String result, String reason) {
+        increment("kronos_lgpd_anonymization_total",
+                "mode", mode,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void timeRecordAbsenceConverted() {
-        increment("kronos_time_record_absence_converted_total");
+    public void recordRetentionExecution(String mode, String result, String reason) {
+        increment("kronos_retention_execution_total",
+                "mode", mode,
+                "result", result,
+                "reason", reason
+        );
     }
 
-    public void timeRecordFailure(String reason) {
-        increment("kronos_time_record_failure_total", "reason", reason);
+    public void recordSecurityIncident(String eventType, String severity, String status, String result) {
+        increment("kronos_security_incident_total",
+                "event_type", eventType,
+                "severity", severity,
+                "status", status,
+                "result", result
+        );
     }
 
-    public void recordTimeRecordDuration(String action, Duration duration) {
-        record("kronos_time_record_duration_seconds", duration, "action", action);
-    }
-
-    public void documentUploadSuccess(String documentType) {
-        increment("kronos_document_upload_success_total", "document_type", documentType);
-    }
-
-    public void documentUploadFailure(String documentType, String reason) {
-        increment("kronos_document_upload_failure_total", "document_type", documentType, "reason", reason);
-    }
-
-    public void documentDownloadSuccess(String documentType) {
-        increment("kronos_document_download_success_total", "document_type", documentType);
-    }
-
-    public void documentDownloadFailure(String documentType, String reason) {
-        increment("kronos_document_download_failure_total", "document_type", documentType, "reason", reason);
-    }
-
-    public void documentDeleteSuccess(String documentType) {
-        increment("kronos_document_delete_success_total", "document_type", documentType);
-    }
-
-    public void documentDeleteFailure(String documentType, String reason) {
-        increment("kronos_document_delete_failure_total", "document_type", documentType, "reason", reason);
-    }
-
-    public void legalSuccess(String documentType) {
-        increment(successMetricFor(documentType), "legal_document_type", documentType, "result", "success");
-    }
-
-    public void legalFailure(String documentType, String reason) {
-        increment(failureMetricFor(documentType), "legal_document_type", documentType, "result", "failure", "reason", reason);
-    }
-
-    public void recordLegalDuration(String documentType, Duration duration, String result) {
-        record("kronos_legal_generation_duration_seconds", duration, "legal_document_type", documentType, "result", result);
-    }
-
-    public void schedulerSuccess(String scheduler) {
-        increment("kronos_scheduler_execution_success_total", "scheduler", scheduler, "result", "success");
-    }
-
-    public void schedulerFailure(String scheduler) {
-        increment("kronos_scheduler_execution_failure_total", "scheduler", scheduler, "result", "failure");
+    public void recordSchedulerExecution(String scheduler, String result, String reason) {
+        increment("kronos_scheduler_execution_total",
+                "scheduler", scheduler,
+                "result", result,
+                "reason", reason
+        );
     }
 
     public void recordSchedulerDuration(String scheduler, Duration duration, String result) {
-        record("kronos_scheduler_execution_duration_seconds", duration, "scheduler", scheduler, "result", result);
+        record("kronos_scheduler_execution_duration_seconds", duration,
+                "scheduler", scheduler,
+                "result", result
+        );
     }
 
-    public void schedulerRecordsProcessed(String scheduler, double amount) {
-        meterRegistry.counter(
-                "kronos_scheduler_records_processed_total",
-                tags("scheduler", scheduler)
-        ).increment(amount);
+    public void recordExternalProviderRequest(String provider, String operation, String result, String reason) {
+        increment("kronos_external_provider_request_total",
+                "provider", provider,
+                "operation", operation,
+                "result", result,
+                "reason", reason
+        );
+    }
+
+    public void recordExternalProviderRequestDuration(String provider, String operation, Duration duration, String result) {
+        record("kronos_external_provider_request_duration_seconds", duration,
+                "provider", provider,
+                "operation", operation,
+                "result", result
+        );
+    }
+
+    public void recordFrontendEvent(String eventType, String result, String reason) {
+        increment("kronos_frontend_event_total",
+                "event_type", eventType,
+                "result", result,
+                "reason", reason
+        );
     }
 
     public void setNtpDriftMillis(Long offsetMillis) {
@@ -194,54 +232,162 @@ public class KronosMetrics {
         ntpDriftSeconds.set(drift);
     }
 
-    // --- Company ---
+    public void authLoginSuccess() {
+        recordAuthLogin("password", "success", "none");
+    }
+
+    public void authLoginFailure(String reason) {
+        recordAuthLogin("password", "failure", reason);
+    }
+
+    public void authFaceLoginSuccess() {
+        recordAuthLogin("face", "success", "none");
+    }
+
+    public void authFaceLoginFailure(String reason) {
+        recordAuthLogin("face", "failure", reason);
+    }
+
+    public void passwordRecoveryRequested() {
+        recordPasswordRecovery("accepted", "request_received");
+    }
+
+    public void passwordRecoveryEmailSent() {
+        recordPasswordRecovery("success", "email_sent");
+    }
+
+    public void passwordRecoveryFailure(String reason) {
+        recordPasswordRecovery("failure", reason);
+    }
+
+    public void passwordResetSuccess() {
+        recordPasswordReset("success", "none");
+    }
+
+    public void passwordResetFailure(String reason) {
+        recordPasswordReset("failure", reason);
+    }
+
+    public void timeRecordCheckinSuccess() {
+        recordTimeRecordOperation("checkin", "success", "none");
+    }
+
+    public void timeRecordCheckoutSuccess() {
+        recordTimeRecordOperation("checkout", "success", "none");
+    }
+
+    public void timeRecordImplicitBreak() {
+        recordTimeRecordOperation("implicit_break", "success", "none");
+    }
+
+    public void timeRecordDayOffConverted() {
+        recordTimeRecordOperation("checkin_on_day_off", "success", "none");
+    }
+
+    public void timeRecordAbsenceConverted() {
+        recordTimeRecordOperation("absence_converted", "success", "none");
+    }
+
+    public void timeRecordFailure(String reason) {
+        recordTimeRecordOperation("register", "failure", reason);
+    }
+
+    public void recordTimeRecordDuration(String operation, Duration duration) {
+        recordTimeRecordOperationDuration(operation, duration, "success");
+    }
+
+    public void documentUploadSuccess(String documentType) {
+        recordDocumentOperation("upload", documentType, "success", "none");
+    }
+
+    public void documentUploadFailure(String documentType, String reason) {
+        recordDocumentOperation("upload", documentType, "failure", reason);
+    }
+
+    public void documentDownloadSuccess(String documentType) {
+        recordDocumentOperation("download", documentType, "success", "none");
+    }
+
+    public void documentDownloadFailure(String documentType, String reason) {
+        recordDocumentOperation("download", documentType, "failure", reason);
+    }
+
+    public void documentDeleteSuccess(String documentType) {
+        recordDocumentOperation("delete", documentType, "success", "none");
+    }
+
+    public void documentDeleteFailure(String documentType, String reason) {
+        recordDocumentOperation("delete", documentType, "failure", reason);
+    }
+
+    public void legalSuccess(String documentType) {
+        recordLegalGeneration(documentType, "success", "none");
+    }
+
+    public void legalFailure(String documentType, String reason) {
+        recordLegalGeneration(documentType, "failure", reason);
+    }
+
+    public void recordLegalDuration(String documentType, Duration duration, String result) {
+        recordLegalGenerationDuration(documentType, duration, result);
+    }
+
+    public void schedulerSuccess(String scheduler) {
+        recordSchedulerExecution(scheduler, "success", "none");
+    }
+
+    public void schedulerFailure(String scheduler) {
+        recordSchedulerExecution(scheduler, "failure", "unknown");
+    }
+
+    public void schedulerRecordsProcessed(String scheduler, double amount) {
+        meterRegistry.counter("kronos_scheduler_records_processed_total",
+                tags("scheduler", scheduler)
+        ).increment(amount);
+    }
+
     public void companyCreated() { increment("kronos_company_created_total"); }
     public void companyUpdated() { increment("kronos_company_updated_total"); }
-
-    // --- Employee ---
     public void employeeCreated() { increment("kronos_employee_created_total"); }
     public void employeeUpdated() { increment("kronos_employee_updated_total"); }
+    public void userCreated() { increment("kronos_user_created_total"); }
+    public void userUpdated() { increment("kronos_user_updated_total"); }
+    public void consentAccepted() { increment("kronos_consent_accepted_total"); }
+    public void consentRevoked() { increment("kronos_consent_revoked_total"); }
 
-    // --- Biometric enrollment ---
-    public void biometricEnrollmentSuccess() { increment("kronos_biometric_enrollment_success_total"); }
+    public void biometricEnrollmentSuccess() {
+        increment("kronos_biometric_enrollment_success_total");
+    }
+
     public void biometricEnrollmentFailure(String reason) {
         increment("kronos_biometric_enrollment_failure_total", "reason", reason);
     }
+
     public void recordBiometricEnrollmentDuration(Duration duration) {
         record("kronos_biometric_enrollment_duration_seconds", duration);
     }
 
-    // --- User ---
-    public void userCreated() { increment("kronos_user_created_total"); }
-    public void userUpdated() { increment("kronos_user_updated_total"); }
+    public void geolocationLookupSuccess() {
+        increment("kronos_geolocation_lookup_success_total");
+    }
 
-    // --- Consent/LGPD ---
-    public void consentAccepted() { increment("kronos_consent_accepted_total"); }
-    public void consentRevoked()  { increment("kronos_consent_revoked_total"); }
-
-    // --- Geolocation ---
-    public void geolocationLookupSuccess() { increment("kronos_geolocation_lookup_success_total"); }
     public void geolocationLookupFailure(String reason) {
         increment("kronos_geolocation_lookup_failure_total", "reason", reason);
     }
+
     public void recordGeolocationDuration(Duration duration) {
         record("kronos_geolocation_lookup_duration_seconds", duration);
     }
 
-    // --- Time adjustments ---
     public void timeAdjustmentRequested() { increment("kronos_time_adjustment_requested_total"); }
-    public void timeAdjustmentApproved()  { increment("kronos_time_adjustment_approved_total"); }
-    public void timeAdjustmentRejected()  { increment("kronos_time_adjustment_rejected_total"); }
-
-    // --- Vacation ---
+    public void timeAdjustmentApproved() { increment("kronos_time_adjustment_approved_total"); }
+    public void timeAdjustmentRejected() { increment("kronos_time_adjustment_rejected_total"); }
     public void vacationRequested() { increment("kronos_vacation_requested_total"); }
-    public void vacationApproved()  { increment("kronos_vacation_approved_total"); }
-    public void vacationRejected()  { increment("kronos_vacation_rejected_total"); }
-
-    // --- Time off ---
+    public void vacationApproved() { increment("kronos_vacation_approved_total"); }
+    public void vacationRejected() { increment("kronos_vacation_rejected_total"); }
     public void timeOffRequested() { increment("kronos_time_off_requested_total"); }
-    public void timeOffApproved()  { increment("kronos_time_off_approved_total"); }
-    public void timeOffRejected()  { increment("kronos_time_off_rejected_total"); }
+    public void timeOffApproved() { increment("kronos_time_off_approved_total"); }
+    public void timeOffRejected() { increment("kronos_time_off_rejected_total"); }
 
     // --- Redis / Cache ---
     public void redisCacheHit(String cacheName) { increment("kronos_redis_cache_hit_total", "cache_name", cacheName); }
@@ -279,39 +425,17 @@ public class KronosMetrics {
     }
 
     private Iterable<io.micrometer.core.instrument.Tag> tags(String... tagKeyValues) {
+        Tags tags = Tags.empty();
         if (tagKeyValues.length % 2 != 0) {
-            throw new IllegalArgumentException("Tag key/value arguments must be even");
+            throw new IllegalArgumentException("Metric tag key/value arguments must be even");
         }
 
-        Tags tags = Tags.empty();
         for (int i = 0; i < tagKeyValues.length; i += 2) {
-            String key = tagKeyValues[i];
-            String value = tagKeyValues[i + 1];
-            if (!ALLOWED_TAG_KEYS.contains(key)) {
-                throw new IllegalArgumentException("Unsupported metric tag: " + key);
-            }
-            tags = tags.and(key, value == null || value.isBlank() ? "unknown" : value);
+            tags = tags.and(
+                    tagSanitizer.sanitizeTagKey(tagKeyValues[i]),
+                    tagSanitizer.sanitizeTagValue(tagKeyValues[i], tagKeyValues[i + 1])
+            );
         }
         return tags;
-    }
-
-    private String successMetricFor(String documentType) {
-        return switch (documentType) {
-            case "afd" -> "kronos_legal_afd_generation_success_total";
-            case "aej" -> "kronos_legal_aej_generation_success_total";
-            case "point_mirror" -> "kronos_legal_point_mirror_generation_success_total";
-            case "technical_certificate" -> "kronos_legal_technical_certificate_success_total";
-            default -> throw new IllegalArgumentException("Unsupported legal document type: " + documentType);
-        };
-    }
-
-    private String failureMetricFor(String documentType) {
-        return switch (documentType) {
-            case "afd" -> "kronos_legal_afd_generation_failure_total";
-            case "aej" -> "kronos_legal_aej_generation_failure_total";
-            case "point_mirror" -> "kronos_legal_point_mirror_generation_failure_total";
-            case "technical_certificate" -> "kronos_legal_technical_certificate_failure_total";
-            default -> throw new IllegalArgumentException("Unsupported legal document type: " + documentType);
-        };
     }
 }

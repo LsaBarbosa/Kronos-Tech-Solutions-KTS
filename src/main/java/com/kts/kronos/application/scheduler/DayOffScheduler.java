@@ -9,6 +9,8 @@ import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import com.kts.kronos.observability.application.KronosMetrics;
+import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,13 +38,30 @@ public class DayOffScheduler {
     private final TimeRecordProvider trRepo;
     private final CompanyProvider companyProvider;
     private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Autowired
-    public DayOffScheduler(EmployeeProvider empRepo, TimeRecordProvider trRepo, CompanyProvider companyProvider, KronosMetrics kronosMetrics) {
+    public DayOffScheduler(
+            EmployeeProvider empRepo,
+            TimeRecordProvider trRepo,
+            CompanyProvider companyProvider,
+            KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing
+    ) {
         this.empRepo = empRepo;
         this.trRepo = trRepo;
         this.companyProvider = companyProvider;
         this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
+    }
+
+    public DayOffScheduler(
+            EmployeeProvider empRepo,
+            TimeRecordProvider trRepo,
+            CompanyProvider companyProvider,
+            KronosMetrics kronosMetrics
+    ) {
+        this(empRepo, trRepo, companyProvider, kronosMetrics, ObservabilityDefaults.tracing());
     }
 
 
@@ -75,7 +94,8 @@ public class DayOffScheduler {
         var today = LocalDate.now(SAO_PAULO);
         long startedAt = System.nanoTime();
         try {
-            DailyRunStats stats = ensureDayOffRecords(today);
+            DailyRunStats stats = kronosTracing.observe("kronos.scheduler.day_off", () -> ensureDayOffRecords(today),
+                    "scheduler", DAY_OFF_SCHEDULER, "result", "success");
             kronosMetrics.schedulerSuccess(DAY_OFF_SCHEDULER);
             kronosMetrics.schedulerRecordsProcessed(DAY_OFF_SCHEDULER, stats.totalCreated());
             kronosMetrics.recordSchedulerDuration(
