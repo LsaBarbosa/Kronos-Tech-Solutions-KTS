@@ -46,7 +46,7 @@ services:
     networks:
       - observability
 
-    tempo:
+  tempo:
     image: ${TEMPO_IMAGE:-grafana/tempo:latest}
     container_name: kronos-tempo
     command:
@@ -69,6 +69,14 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SERVER_ROOT_URL: https://observability.kronostechsolutions.com
+
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST}
+      GF_SMTP_USER: ${GRAFANA_SMTP_USER}
+      GF_SMTP_PASSWORD: ${GRAFANA_SMTP_PASSWORD}
+      GF_SMTP_FROM_ADDRESS: ${GRAFANA_SMTP_FROM_ADDRESS}
+      GF_SMTP_FROM_NAME: ${GRAFANA_SMTP_FROM_NAME:-Kronos Observability}
+      GF_SMTP_STARTTLS_POLICY: ${GRAFANA_SMTP_STARTTLS_POLICY:-MandatoryStartTLS}
     ports:
       - 127.0.0.1:3000:3000
     volumes:
