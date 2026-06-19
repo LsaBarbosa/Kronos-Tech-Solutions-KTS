@@ -3,6 +3,7 @@ package com.kts.kronos.observability.application;
 import com.kts.kronos.observability.support.ObservabilityTagSanitizer;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.function.Supplier;
@@ -17,6 +18,7 @@ public class KronosTracing {
         this(observationRegistry, new ObservabilityTagSanitizer());
     }
 
+    @Autowired
     public KronosTracing(
             ObservationRegistry observationRegistry,
             ObservabilityTagSanitizer tagSanitizer
