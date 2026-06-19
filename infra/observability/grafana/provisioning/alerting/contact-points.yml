@@ -1,0 +1,11 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Kronos Email Admin
+    receivers:
+      - uid: kronos-email-admin
+        type: email
+        settings:
+          addresses: ${GRAFANA_ALERT_EMAIL_TO}
+          singleEmail: true
