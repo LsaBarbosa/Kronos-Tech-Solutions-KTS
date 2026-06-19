@@ -17,18 +17,24 @@ scrape_configs:
           job: kronos-backend
           application: kronos-backend
           environment: ${APP_ENV}
-          __path__: /var/log/kronos/*.log
+          __path__: /var/log/kronos/kronos-backend.log
     pipeline_stages:
       - json:
           expressions:
+            timestamp: timestamp
             level: level
             service: service
             environment: environment
-            logger: logger
+            logger_name: logger_name
             event: event
             result: result
             reason: reason
             message: message
+            trace_id: trace_id
+            span_id: span_id
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
       - labels:
           level:
           service:
