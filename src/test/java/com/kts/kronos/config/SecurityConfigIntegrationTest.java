@@ -179,9 +179,9 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldKeepActuatorHealthProtectedOnMainPort() throws Exception {
+    void shouldExposeActuatorHealthOnMainPort() throws Exception {
         mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -210,9 +210,8 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldExposePrometheusEndpointForInternalObservabilityValidation() throws Exception {
-        mockMvc.perform(get("/actuator/prometheus")
-                        .with(user("manager").roles("MANAGER")))
+    void shouldExposePrometheusEndpointWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isOk());
     }
 
