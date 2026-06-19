@@ -217,3 +217,11 @@
 
 - Status final: `Aprovado`
 - Justificativa: não restou falha crítica ou alta aberta sem mitigação, os achados confirmados do relatório foram corrigidos ou mitigados, e os testes/builds principais passaram em back-end e front-end.
+
+## 13. Verificação final suplementar
+
+- `SecurityConfigIntegrationTest` confirmou que `GET /actuator/health` e `GET /actuator/prometheus` permanecem públicos, enquanto os demais endpoints protegidos continuam exigindo autenticação.
+- `ObservabilityProdProfileContextSmokeTest` confirmou `management.server.port=8081`, `management.server.address=127.0.0.1` e `management.endpoint.health.show-details=never` no perfil de produção observability.
+- `ApplicationProdProfileConfigTest` confirmou os defaults seguros de produção para health details e demais flags de observabilidade.
+- `deploy/hostinger-nginx.conf` mantém hardening de headers com `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` e `Strict-Transport-Security`.
+- Risco residual aceito: `prometheus` continua exposto sem autenticação por desenho do ambiente; a contenção esperada é de rede/proxy reverso e não de autorização de aplicação.
