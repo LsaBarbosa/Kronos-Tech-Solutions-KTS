@@ -14,6 +14,7 @@ import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,6 @@ import java.util.HexFormat;
 import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
@@ -62,10 +62,8 @@ public class DocumentService implements DocumentUseCase {
     private final FileScanningProvider fileScanningProvider;
     private final AuditService auditService;
     private final AuditRequestContextService auditRequestContextService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Value("${kronos.security.upload.max-bytes:5242880}")
     private long maxUploadBytes;
@@ -82,17 +80,17 @@ public class DocumentService implements DocumentUseCase {
 
         try {
             if (doc.storagePath() == null || doc.storagePath().isBlank()) {
-                kronosMetrics.documentDownloadFailure(documentType, "invalid_storage_path");
+                metrics().documentDownloadFailure(documentType, "invalid_storage_path");
                 log.warn("event=document_download result=failure document_type={} reason=invalid_storage_path document_id={}",
                         documentType, documentId);
                 throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
             }
 
-            byte[] fileData = bucketStorageProvider.downloadFile(
+            byte[] fileData = tracing().observe("kronos.document.download", () -> bucketStorageProvider.downloadFile(
                     doc.type(),
                     doc.storagePath()
-            );
-            kronosMetrics.documentDownloadSuccess(documentType);
+            ), "document_type", documentType, "operation", "download");
+            metrics().documentDownloadSuccess(documentType);
             log.info("event=document_download result=success document_type={} document_id={} file_size_bytes={}",
                     documentType, documentId, fileData.length);
 
@@ -119,17 +117,17 @@ public class DocumentService implements DocumentUseCase {
 
         } catch (ResourceNotFoundException e) {
             if (e.getMessage().contains("Arquivo não encontrado")) {
-                kronosMetrics.documentDownloadFailure(documentType, "storage_object_not_found");
+                metrics().documentDownloadFailure(documentType, "storage_object_not_found");
                 log.warn("event=document_download result=failure document_type={} reason=storage_object_not_found document_id={}",
                         documentType, documentId);
             } else {
-                kronosMetrics.documentDownloadFailure(documentType, "metadata_not_found");
+                metrics().documentDownloadFailure(documentType, "metadata_not_found");
                 log.warn("event=document_download result=failure document_type={} reason=metadata_not_found document_id={}",
                         documentType, documentId);
             }
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
-            kronosMetrics.documentDownloadFailure(documentType, "storage_error");
+            metrics().documentDownloadFailure(documentType, "storage_error");
             log.error("event=document_download result=failure document_type={} reason=storage_error exception_type={} message={}",
                     documentType,
                     e.getClass().getSimpleName(),
@@ -217,14 +215,14 @@ public class DocumentService implements DocumentUseCase {
                 documentProvider.save(updatedDoc);
             }
 
-            kronosMetrics.documentDeleteSuccess(documentType);
+            metrics().documentDeleteSuccess(documentType);
             log.info("event=document_delete result=success document_type={}", documentType);
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
-            kronosMetrics.documentDeleteFailure(documentType, "validation");
+            metrics().documentDeleteFailure(documentType, "validation");
             log.warn("event=document_delete result=failure document_type={} reason=validation", documentType);
             throw e;
         } catch (RuntimeException e) {
-            kronosMetrics.documentDeleteFailure(documentType, "unknown");
+            metrics().documentDeleteFailure(documentType, "unknown");
             log.error("event=document_delete result=failure document_type={} reason=unknown exception_type={}",
                     documentType,
                     e.getClass().getSimpleName());
@@ -240,7 +238,7 @@ public class DocumentService implements DocumentUseCase {
         try {
             var uploadData = validateAndPrepareUpload(file);
             var employee = getAuthorizedEmployee(employeeId);
-            kronosTracing.observe("kronos.document.upload", () -> {
+            tracing().observe("kronos.document.upload", () -> {
                 var uniqueObjectName = buildStorageKey(employee, type, uploadData.fileName());
                 var storagePath = bucketStorageProvider.uploadFile(
                         type,
@@ -270,21 +268,21 @@ public class DocumentService implements DocumentUseCase {
                         employee.companyId(),
                         additionalDetails
                 );
-            });
-            kronosMetrics.documentUploadSuccess(normalizeDocumentType(type));
+            }, "document_type", normalizeDocumentType(type), "operation", "upload");
+            metrics().documentUploadSuccess(normalizeDocumentType(type));
             log.info("event=document_upload result=success document_type={}", normalizeDocumentType(type));
         } catch (BadRequestException | ForbiddenException | ResourceNotFoundException e) {
-            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "validation");
+            metrics().documentUploadFailure(normalizeDocumentType(type), "validation");
             log.warn("event=document_upload result=failure document_type={} reason=validation",
                     normalizeDocumentType(type));
             throw e;
         } catch (IOException e) {
-            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "io");
+            metrics().documentUploadFailure(normalizeDocumentType(type), "io");
             log.warn("event=document_upload result=failure document_type={} reason=io",
                     normalizeDocumentType(type));
             throw new BadRequestException(NOT_ABLE_TO_READ_FILE);
         } catch (RuntimeException e) {
-            kronosMetrics.documentUploadFailure(normalizeDocumentType(type), "unknown");
+            metrics().documentUploadFailure(normalizeDocumentType(type), "unknown");
             log.error("event=document_upload result=failure document_type={} reason=unknown exception_type={}",
                     normalizeDocumentType(type),
                     e.getClass().getSimpleName());
@@ -574,6 +572,14 @@ public class DocumentService implements DocumentUseCase {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 
 }

@@ -14,10 +14,10 @@ import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.infrastructure.DigitalSignatureService;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,7 +37,6 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/legal")
-@RequiredArgsConstructor
 @Tag(name = "Fiscal - Arquivos Legais", description = "Geração de arquivos para fiscalização e espelhos de ponto (Portaria 671)")
 public class LegalController {
 
@@ -50,10 +49,61 @@ public class LegalController {
     private final DomainAuthorizationService domainAuthorizationService;
     private final TechnicalCertificatePdfService certificateService;
     private final DigitalSignatureService signatureService;
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
+
     @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    public LegalController(
+            AdfUseCase afdUseCase,
+            AejUseCase aejUseCase,
+            PointMirrorPdfUseCase pointMirrorPdfUseCase,
+            JwtAuthenticatedUser jwtAuthenticatedUser,
+            EmployeeProvider employeeProvider,
+            CompanyProvider companyProvider,
+            DomainAuthorizationService domainAuthorizationService,
+            TechnicalCertificatePdfService certificateService,
+            DigitalSignatureService signatureService,
+            KronosMetrics kronosMetrics,
+            KronosTracing kronosTracing
+    ) {
+        this.afdUseCase = afdUseCase;
+        this.aejUseCase = aejUseCase;
+        this.pointMirrorPdfUseCase = pointMirrorPdfUseCase;
+        this.jwtAuthenticatedUser = jwtAuthenticatedUser;
+        this.employeeProvider = employeeProvider;
+        this.companyProvider = companyProvider;
+        this.domainAuthorizationService = domainAuthorizationService;
+        this.certificateService = certificateService;
+        this.signatureService = signatureService;
+        this.kronosMetrics = kronosMetrics;
+        this.kronosTracing = kronosTracing;
+    }
+
+    public LegalController(
+            AdfUseCase afdUseCase,
+            AejUseCase aejUseCase,
+            PointMirrorPdfUseCase pointMirrorPdfUseCase,
+            JwtAuthenticatedUser jwtAuthenticatedUser,
+            EmployeeProvider employeeProvider,
+            CompanyProvider companyProvider,
+            DomainAuthorizationService domainAuthorizationService,
+            TechnicalCertificatePdfService certificateService,
+            DigitalSignatureService signatureService
+    ) {
+        this(
+                afdUseCase,
+                aejUseCase,
+                pointMirrorPdfUseCase,
+                jwtAuthenticatedUser,
+                employeeProvider,
+                companyProvider,
+                domainAuthorizationService,
+                certificateService,
+                signatureService,
+                ObservabilityDefaults.metrics(),
+                ObservabilityDefaults.tracing()
+        );
+    }
 
     @GetMapping("/technical-certificate")
     @PreAuthorize("hasAnyRole('MANAGER', 'CTO')")
@@ -66,7 +116,7 @@ public class LegalController {
             var company = companyProvider.findById(companyId)
                     .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
-            byte[] signedBytes = kronosTracing.observe("kronos.legal.technical_certificate.generate", () -> {
+            byte[] signedBytes = kronosTracing.observe("kronos.legal.technical_certificate", () -> {
                 byte[] pdfBytes = certificateService.generateCertificate(company);
                 return signatureService.signData(pdfBytes);
             });

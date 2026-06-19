@@ -1,0 +1,36 @@
+{
+  "id": null,
+  "uid": "kronos-auth-security",
+  "title": "Kronos Auth & Security",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Auth Login Totals",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_auth_login_total[5m])) by (method, result)",
+          "legendFormat": "{{method}} {{result}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Token Refresh",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(kronos_auth_token_refresh_total[5m])) by (result, reason)",
+          "legendFormat": "{{result}} {{reason}}"
+        }
+      ]
+    }
+  ]
+}

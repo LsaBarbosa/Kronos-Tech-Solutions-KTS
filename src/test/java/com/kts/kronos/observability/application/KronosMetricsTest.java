@@ -1,6 +1,7 @@
 package com.kts.kronos.observability.application;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.search.MeterNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -72,33 +73,33 @@ class KronosMetricsTest {
         metrics.timeOffApproved();
         metrics.timeOffRejected();
 
-        assertEquals(1.0d, registry.get("kronos_auth_login_success_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_auth_login_failure_total").tag("reason", "invalid_credentials").counter().count());
-        assertEquals(1.0d, registry.get("kronos_auth_face_login_success_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_auth_face_login_failure_total").tag("reason", "face_not_recognized").counter().count());
-        assertEquals(1.0d, registry.get("kronos_password_recovery_request_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_password_recovery_email_sent_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_password_recovery_failure_total").tag("reason", "rate_limited").counter().count());
-        assertEquals(1.0d, registry.get("kronos_password_reset_success_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_password_reset_failure_total").tag("reason", "validation").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_checkin_success_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_checkout_success_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_implicit_break_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_day_off_converted_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_absence_converted_total").counter().count());
-        assertEquals(1.0d, registry.get("kronos_time_record_failure_total").tag("reason", "ntp").counter().count());
-        assertEquals(1L, registry.get("kronos_time_record_duration_seconds").tag("action", "checkin").timer().count());
-        assertEquals(1.0d, registry.get("kronos_document_upload_success_total").tag("document_type", "time_off").counter().count());
-        assertEquals(1.0d, registry.get("kronos_document_upload_failure_total").tag("document_type", "time_off").tag("reason", "validation").counter().count());
-        assertEquals(1.0d, registry.get("kronos_document_download_success_total").tag("document_type", "time_off").counter().count());
-        assertEquals(1.0d, registry.get("kronos_document_download_failure_total").tag("document_type", "time_off").tag("reason", "not_found").counter().count());
-        assertEquals(1.0d, registry.get("kronos_document_delete_success_total").tag("document_type", "time_off").counter().count());
-        assertEquals(1.0d, registry.get("kronos_document_delete_failure_total").tag("document_type", "time_off").tag("reason", "validation").counter().count());
-        assertEquals(1.0d, registry.get("kronos_legal_afd_generation_success_total").tag("legal_document_type", "afd").tag("result", "success").counter().count());
-        assertEquals(1.0d, registry.get("kronos_legal_afd_generation_failure_total").tag("legal_document_type", "afd").tag("result", "failure").tag("reason", "generation").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_login_total").tag("method", "password").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_login_total").tag("method", "password").tag("result", "failure").tag("reason", "invalid_credentials").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_login_total").tag("method", "face").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_login_total").tag("method", "face").tag("result", "failure").tag("reason", "face_not_recognized").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_password_recovery_total").tag("result", "accepted").tag("reason", "request_received").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_password_recovery_total").tag("result", "success").tag("reason", "email_sent").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_password_recovery_total").tag("result", "failure").tag("reason", "rate_limited").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_password_reset_total").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_auth_password_reset_total").tag("result", "failure").tag("reason", "validation").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "checkin").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "checkout").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "implicit_break").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "checkin_on_day_off").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "absence_converted").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_time_record_operation_total").tag("operation", "register").tag("result", "failure").tag("reason", "ntp").counter().count());
+        assertEquals(1L, registry.get("kronos_time_record_operation_duration_seconds").tag("operation", "checkin").tag("result", "success").timer().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "upload").tag("document_type", "time_off").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "upload").tag("document_type", "time_off").tag("result", "failure").tag("reason", "validation").counter().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "download").tag("document_type", "time_off").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "download").tag("document_type", "time_off").tag("result", "failure").tag("reason", "not_found").counter().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "delete").tag("document_type", "time_off").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_document_operation_total").tag("operation", "delete").tag("document_type", "time_off").tag("result", "failure").tag("reason", "validation").counter().count());
+        assertEquals(1.0d, registry.get("kronos_legal_generation_total").tag("legal_document_type", "afd").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_legal_generation_total").tag("legal_document_type", "afd").tag("result", "failure").tag("reason", "generation").counter().count());
         assertEquals(1L, registry.get("kronos_legal_generation_duration_seconds").tag("legal_document_type", "afd").tag("result", "success").timer().count());
-        assertEquals(1.0d, registry.get("kronos_scheduler_execution_success_total").tag("scheduler", "time_sync").tag("result", "success").counter().count());
-        assertEquals(1.0d, registry.get("kronos_scheduler_execution_failure_total").tag("scheduler", "time_sync").tag("result", "failure").counter().count());
+        assertEquals(1.0d, registry.get("kronos_scheduler_execution_total").tag("scheduler", "time_sync").tag("result", "success").tag("reason", "none").counter().count());
+        assertEquals(1.0d, registry.get("kronos_scheduler_execution_total").tag("scheduler", "time_sync").tag("result", "failure").tag("reason", "unknown").counter().count());
         assertEquals(1L, registry.get("kronos_scheduler_execution_duration_seconds").tag("scheduler", "time_sync").tag("result", "failure").timer().count());
         assertEquals(4.0d, registry.get("kronos_scheduler_records_processed_total").tag("scheduler", "time_sync").counter().count());
         assertEquals(5.0d, registry.get("kronos_ntp_drift_seconds").gauge().value());
@@ -140,13 +141,14 @@ class KronosMetricsTest {
     }
 
     @Test
-    void preRegisteredCountersShouldExistWithZeroCountBeforeAnyEvent() {
+    void shouldExposeOnlyGaugeBeforeCountersAreEmitted() {
         var registry = new SimpleMeterRegistry();
         new KronosMetrics(registry);
 
-        assertEquals(0.0d, registry.get("kronos_company_created_total").counter().count());
-        assertEquals(0.0d, registry.get("kronos_consent_accepted_total").counter().count());
-        assertEquals(0.0d, registry.get("kronos_vacation_requested_total").counter().count());
-        assertEquals(0.0d, registry.get("kronos_time_off_approved_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_ntp_drift_seconds").gauge().value());
+        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_company_created_total").counter());
+        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_consent_accepted_total").counter());
+        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_vacation_requested_total").counter());
+        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_time_off_approved_total").counter());
     }
 }

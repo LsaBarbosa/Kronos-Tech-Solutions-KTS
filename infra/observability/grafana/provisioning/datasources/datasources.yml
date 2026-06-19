@@ -24,6 +24,8 @@ datasources:
     editable: false
     jsonData:
       httpMethod: GET
+      serviceMap:
+        datasourceUid: Prometheus
       tracesToLogsV2:
         datasourceUid: Loki
         spanStartTimeShift: -5m

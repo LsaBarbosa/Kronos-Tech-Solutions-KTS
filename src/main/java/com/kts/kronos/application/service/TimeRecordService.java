@@ -30,6 +30,7 @@ import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -80,10 +81,8 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Autowired(required = false)
     private DistributedLockProvider distributedLockProvider;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
@@ -92,7 +91,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         final boolean[] implicitBreakCreated = {false};
 
         try {
-            ActionResponse response = kronosTracing.observe("kronos.time_record.register", () -> {
+            ActionResponse response = tracing().observe("kronos.time_record.checkin", () -> {
                 ntpTimeService.validateSystemTime(10);
 
                 var employeeId = jwtAuthenticatedUser.getEmployeeId();
@@ -266,20 +265,20 @@ public class TimeRecordService implements TimeRecordUseCase {
             });
 
             if (CHECKOUT.equals(response.actionType())) {
-                kronosMetrics.timeRecordCheckoutSuccess();
-                kronosMetrics.recordTimeRecordDuration("checkout", Duration.ofNanos(System.nanoTime() - startedAt));
+                metrics().timeRecordCheckoutSuccess();
+                metrics().recordTimeRecordDuration("checkout", Duration.ofNanos(System.nanoTime() - startedAt));
                 log.info("event=time_record_register result=success action=checkout");
             } else {
-                kronosMetrics.timeRecordCheckinSuccess();
-                kronosMetrics.recordTimeRecordDuration("checkin", Duration.ofNanos(System.nanoTime() - startedAt));
+                metrics().timeRecordCheckinSuccess();
+                metrics().recordTimeRecordDuration("checkin", Duration.ofNanos(System.nanoTime() - startedAt));
                 if (implicitBreakCreated[0]) {
-                    kronosMetrics.timeRecordImplicitBreak();
+                    metrics().timeRecordImplicitBreak();
                 }
                 if (convertedFromStatus[0] == StatusRecord.DAY_OFF) {
-                    kronosMetrics.timeRecordDayOffConverted();
+                    metrics().timeRecordDayOffConverted();
                 }
                 if (convertedFromStatus[0] == StatusRecord.ABSENCE) {
-                    kronosMetrics.timeRecordAbsenceConverted();
+                    metrics().timeRecordAbsenceConverted();
                 }
                 log.info("event=time_record_register result=success action=checkin");
             }
@@ -287,7 +286,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             return response;
         } catch (RuntimeException e) {
             String reason = resolveTimeRecordFailureReason(e);
-            kronosMetrics.timeRecordFailure(reason);
+            metrics().timeRecordFailure(reason);
             log.warn("event=time_record_register result=failure reason={}", reason);
             throw e;
         }
@@ -371,7 +370,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi APROVADA.", timeRecordId);
-        kronosMetrics.timeAdjustmentApproved();
+        metrics().timeAdjustmentApproved();
         invalidateTimeRecordCaches();
     }
 
@@ -387,7 +386,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         approvalProvider.deleteByTimeRecordId(timeRecordId);
 
         log.info("Solicitação para o registro {} foi REJEITADA.", timeRecordId);
-        kronosMetrics.timeAdjustmentRejected();
+        metrics().timeAdjustmentRejected();
         invalidateTimeRecordCaches();
     }
 
@@ -669,7 +668,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                     currentDay.format(DATE_FORMATTER), privacyLogReferenceService.employeeRef(employeeId));
         }
 
-        kronosMetrics.vacationRequested();
+        metrics().vacationRequested();
         invalidateTimeRecordCaches();
         return createdRecordIds; // Retorna os IDs criados para referência
     }
@@ -695,7 +694,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 log.warn("Tentativa de aprovar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
             }
         }
-        kronosMetrics.vacationApproved();
+        metrics().vacationApproved();
         invalidateTimeRecordCaches();
     }
 
@@ -719,7 +718,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                 log.warn("Tentativa de rejeitar registro de férias (ID: {}) com status inválido: {}", recordId, record.statusRecord());
             }
         }
-        kronosMetrics.vacationRejected();
+        metrics().vacationRejected();
         invalidateTimeRecordCaches();
     }
 
@@ -887,7 +886,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         if (firstRecordId == null) {
             throw new BadRequestException(FAILED_TO_CREATE_FIRST_RECORD);
         }
-        kronosMetrics.timeOffRequested();
+        metrics().timeOffRequested();
         invalidateTimeRecordCaches();
         return firstRecordId;
     }
@@ -908,7 +907,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
-        kronosMetrics.timeOffApproved();
+        metrics().timeOffApproved();
         invalidateTimeRecordCaches();
     }
 
@@ -929,7 +928,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else {
             throw new BadRequestException(INVALID_RECORD + record.statusRecord() + ").");
         }
-        kronosMetrics.timeOffRejected();
+        metrics().timeOffRejected();
         invalidateTimeRecordCaches();
     }
 
@@ -1387,7 +1386,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     private void checkGeolocation(UUID employeeId, double requestLatitude, double requestLongitude) {
-        kronosTracing.observe("kronos.time_record.validate_geolocation", () -> {
+        tracing().observe("kronos.time_record.validate_geolocation", () -> {
             var employee = getEmployee(employeeId);
 
             var company = companyProvider.findById(employee.companyId())
@@ -1595,7 +1594,7 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     private void validateFaceRecognition(UUID expectedEmployeeId, String faceImageBase64) {
         try {
-            kronosTracing.observe("kronos.time_record.validate_face", () -> {
+            tracing().observe("kronos.time_record.validate_face", () -> {
                 byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
                 ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
                 UUID recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
@@ -1819,5 +1818,13 @@ public class TimeRecordService implements TimeRecordUseCase {
             return "status";
         }
         return "unknown";
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 }
