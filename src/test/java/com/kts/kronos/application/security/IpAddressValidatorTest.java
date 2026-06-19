@@ -11,6 +11,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class IpAddressValidatorTest {
 
     @Test
+    @DisplayName("Validates IP address syntax")
+    void isValidIpAddress_validAndInvalidInputs() {
+        assertTrue(IpAddressValidator.isValidIpAddress("203.0.113.1"));
+        assertTrue(IpAddressValidator.isValidIpAddress("2001:db8::1"));
+        assertFalse(IpAddressValidator.isValidIpAddress("not-an-ip"));
+        assertFalse(IpAddressValidator.isValidIpAddress(" "));
+    }
+
+    @Test
     @DisplayName("Validates IPv4 in CIDR range")
     void isTrustedProxy_ipv4InRange_returnsTrue() {
         assertTrue(IpAddressValidator.isTrustedProxy("192.168.1.5", Arrays.asList("192.168.1.0/24")));
