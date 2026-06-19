@@ -1,0 +1,683 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: kronos-production-alerts
+    folder: Kronos Production Alerts
+    interval: 1m
+
+    rules:
+      - uid: kronos_backend_down
+        title: KronosBackendDown
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: count(up{job="kronos-backend"} == 0)
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1m
+        labels:
+          severity: critical
+          service: kronos-backend
+          source: grafana-managed
+        annotations:
+          summary: KRONOS backend indisponível
+          description: O target kronos-backend deixou de responder ao Prometheus.
+
+      - uid: kronos_backend_5xx_high
+        title: KronosBackendHttp5xxHigh
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: sum(rate(http_server_requests_seconds_count{job="kronos-backend",status=~"5.."}[5m]))
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 0.2
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: high
+          service: kronos-backend
+          source: grafana-managed
+        annotations:
+          summary: KRONOS com erros HTTP 5xx
+          description: A API principal está retornando erro 5xx acima do limite.
+
+      - uid: kronos_backend_latency_p95
+        title: KronosBackendLatencyP95High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="kronos-backend"}[5m])) by (le, uri))
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 2
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        labels:
+          severity: high
+          service: kronos-backend
+          source: grafana-managed
+        annotations:
+          summary: KRONOS com latência p95 elevada
+          description: Um ou mais endpoints excederam 2 segundos no p95.
+
+      - uid: kronos_auth_failure_spike
+        title: KronosAuthFailureSpike
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: increase(kronos_auth_login_total{result="failure"}[10m])
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 10
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: critical
+          service: kronos-auth
+          source: grafana-managed
+        annotations:
+          summary: Pico de falhas de autenticação
+          description: O total de falhas de login excedeu o limite nos últimos 10 minutos.
+
+      - uid: kronos_face_login_failure
+        title: KronosFaceLoginFailureSpike
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: increase(kronos_auth_login_total{method="face",result="failure"}[10m])
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 5
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: high
+          service: kronos-auth
+          source: grafana-managed
+        annotations:
+          summary: Pico de falhas no login facial
+          description: O total de falhas de autenticação facial ultrapassou o limite nos últimos 10 minutos.
+
+      - uid: kronos_legal_failure
+        title: KronosLegalFailure
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 1200
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: increase(kronos_legal_generation_total{result="failure"}[15m])
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: high
+          service: kronos-legal
+          source: grafana-managed
+        annotations:
+          summary: Falha na geração de documentos legais
+          description: A geração de AFD, AEJ, espelho ou atestado técnico falhou.
+
+      - uid: kronos_retention_apply_fail
+        title: KronosRetentionApplyFailure
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 2400
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: increase(kronos_retention_execution_total{mode="apply",result="failure"}[30m])
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: critical
+          service: kronos-retention
+          source: grafana-managed
+        annotations:
+          summary: Falha na aplicação de retenção
+          description: A execução APPLY de retenção falhou e exige intervenção.
+
+      - uid: kronos_ntp_drift_high
+        title: KronosNtpDriftHigh
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: abs(kronos_ntp_drift_seconds)
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 5
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 2m
+        labels:
+          severity: critical
+          service: kronos-ntp
+          source: grafana-managed
+        annotations:
+          summary: Drift NTP acima do limite
+          description: O desvio entre o horário local e o NTP excedeu 5 segundos.
+
+      - uid: kronos_frontend_error_spike
+        title: KronosFrontendErrorSpike
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: Prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: Prometheus
+              editorMode: code
+              expr: increase(kronos_frontend_event_total{result="failure"}[10m])
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: B
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: reduce
+              expression: A
+              reducer: last
+              settings:
+                mode: ""
+
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 0
+              to: 0
+            model:
+              refId: C
+              datasource:
+                type: __expr__
+                uid: __expr__
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    type: last
+                    params: []
+                  evaluator:
+                    type: gt
+                    params:
+                      - 10
+                  operator:
+                    type: and
+
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: high
+          service: kronos-frontend
+          source: grafana-managed
+        annotations:
+          summary: Pico de erros no front-end
+          description: Eventos de erro do front-end cresceram acima do limite nos últimos 10 minutos.
