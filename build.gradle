@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '3.5.3'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'jacoco'
+    id 'org.owasp.dependencycheck' version '12.1.0'
 }
 
 group = 'com.kts'
@@ -176,6 +177,18 @@ tasks.named('jacocoTestCoverageVerification') {
 
 tasks.named('check') {
     dependsOn(tasks.named('jacocoTestCoverageVerification'))
+}
+
+dependencyCheck {
+    failBuildOnCVSS = 9.0f
+    formats = ['HTML', 'JSON']
+    suppressionFile = file('dependency-check-suppressions.xml').exists() ? file('dependency-check-suppressions.xml').absolutePath : null
+    analyzers {
+        assemblyEnabled = false
+    }
+    nvd {
+        apiKey = System.getenv('NVD_API_KEY')
+    }
 }
 
 tasks.register('dataJpaTest', Test) {

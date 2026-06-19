@@ -1,7 +1,6 @@
 package com.kts.kronos.observability.application;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.core.instrument.search.MeterNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -146,9 +145,9 @@ class KronosMetricsTest {
         new KronosMetrics(registry);
 
         assertEquals(0.0d, registry.get("kronos_ntp_drift_seconds").gauge().value());
-        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_company_created_total").counter());
-        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_consent_accepted_total").counter());
-        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_vacation_requested_total").counter());
-        assertThrows(MeterNotFoundException.class, () -> registry.get("kronos_time_off_approved_total").counter());
+        assertEquals(0.0d, registry.get("kronos_company_created_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_consent_accepted_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_vacation_requested_total").counter().count());
+        assertEquals(0.0d, registry.get("kronos_time_off_approved_total").counter().count());
     }
 }
