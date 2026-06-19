@@ -19,14 +19,14 @@ groups:
           summary: KRONOS com erros HTTP 5xx
           description: A API principal esta retornando erro 5xx.
 
-      - alert: KronosBackendLatencyP95High
-        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="kronos-backend"}[5m])) by (le, uri)) > 2
+      - alert: KronosBackendLatencyAverageHigh
+        expr: sum(rate(http_server_requests_seconds_sum{job="kronos-backend"}[5m])) / sum(rate(http_server_requests_seconds_count{job="kronos-backend"}[5m])) > 2
         for: 10m
         labels:
           severity: high
         annotations:
-          summary: KRONOS com latencia p95 elevada
-          description: Um ou mais endpoints excederam 2s no p95.
+          summary: KRONOS com latencia media elevada
+          description: A latencia media da API excedeu 2s.
 
       - alert: KronosAuthFailureSpike
         expr: increase(kronos_auth_login_total{result="failure"}[10m]) > 10

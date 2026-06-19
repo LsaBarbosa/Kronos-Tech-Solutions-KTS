@@ -9,7 +9,7 @@
       "id": 1,
       "targets": [
         {
-          "expr": "{job=\"kronos-backend\",application=\"kronos-backend\"} |= `event=`",
+          "expr": "{job=\"kronos-backend\",application=\"kronos-backend\"} | json",
           "queryType": "range"
         }
       ],
@@ -22,11 +22,11 @@
       "id": 2,
       "targets": [
         {
-          "expr": "sum by (event) (count_over_time({job=\"kronos-backend\"} | logfmt | event!=\"\" [15m]))",
+          "expr": "sum by (level) (count_over_time({job=\"kronos-backend\"}[15m]))",
           "queryType": "range"
         }
       ],
-      "title": "Logs por event",
+      "title": "Logs por nível",
       "type": "timeseries"
     },
     {
@@ -35,11 +35,11 @@
       "id": 3,
       "targets": [
         {
-          "expr": "sum by (reason) (count_over_time({job=\"kronos-backend\"} | logfmt | result=\"failure\" [15m]))",
+          "expr": "sum by (logger_name) (count_over_time({job=\"kronos-backend\"} | json | level=\"ERROR\" [15m]))",
           "queryType": "range"
         }
       ],
-      "title": "Falhas por reason",
+      "title": "Erros por logger",
       "type": "timeseries"
     }
   ],

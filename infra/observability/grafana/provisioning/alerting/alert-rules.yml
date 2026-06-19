@@ -158,7 +158,7 @@ groups:
           description: A API principal está retornando erro 5xx acima do limite.
 
       - uid: kronos_backend_latency_p95
-        title: KronosBackendLatencyP95High
+        title: KronosBackendLatencyAverageHigh
         condition: C
         data:
           - refId: A
@@ -172,7 +172,7 @@ groups:
                 type: prometheus
                 uid: Prometheus
               editorMode: code
-              expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job="kronos-backend"}[5m])) by (le, uri))
+              expr: sum(rate(http_server_requests_seconds_sum{job="kronos-backend"}[5m])) / sum(rate(http_server_requests_seconds_count{job="kronos-backend"}[5m]))
               instant: true
               range: false
               intervalMs: 1000
@@ -229,8 +229,8 @@ groups:
           service: kronos-backend
           source: grafana-managed
         annotations:
-          summary: KRONOS com latência p95 elevada
-          description: Um ou mais endpoints excederam 2 segundos no p95.
+          summary: KRONOS com latência média elevada
+          description: A latência média da API excedeu 2 segundos.
 
       - uid: kronos_auth_failure_spike
         title: KronosAuthFailureSpike
