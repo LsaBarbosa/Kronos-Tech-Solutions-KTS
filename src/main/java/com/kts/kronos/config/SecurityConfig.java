@@ -148,6 +148,11 @@ public class SecurityConfig {
                     "/observability/status"
             ).permitAll();
             auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/actuator",
+                    "/actuator/**"
+            ).permitAll();
+            auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
                     "/observability/frontend/events"
             ).permitAll();
