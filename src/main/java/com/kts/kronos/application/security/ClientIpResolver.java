@@ -29,27 +29,58 @@ public class ClientIpResolver {
         }
 
         String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
+        if (isValidForwardedFor(forwardedFor)) {
             String[] hops = forwardedFor.split(",");
-            if (hops.length > 0 && !hops[0].trim().isBlank()) {
-                String firstHop = hops[0].trim();
-                // Validate proxy chain: all hops except first should be trusted proxies
-                boolean chainValid = validateProxyChain(hops);
-                return ClientIpResolution.of(firstHop, ClientIpResolution.IpSource.X_FORWARDED_FOR, true, chainValid);
+            String firstHop = hops[0].trim();
+            boolean chainValid = validateProxyChain(hops, remoteAddr);
+            if (chainValid) {
+                return ClientIpResolution.of(firstHop, ClientIpResolution.IpSource.X_FORWARDED_FOR, true, true);
             }
         }
 
         String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
+        if (IpAddressValidator.isValidIpAddress(realIp)) {
             return ClientIpResolution.of(realIp.trim(), ClientIpResolution.IpSource.X_REAL_IP, true, true);
         }
 
         return resolveDirect(remoteAddr);
     }
 
-    private boolean validateProxyChain(String[] hops) {
-        // All hops after the first one should be trusted proxies
-        // hops[1..n] should all be trusted, and the last one should match remoteAddr
+    private boolean isValidForwardedFor(String forwardedFor) {
+        if (forwardedFor == null || forwardedFor.isBlank()) {
+            return false;
+        }
+
+        String[] hops = forwardedFor.split(",");
+        if (hops.length == 0 || hops[0].trim().isBlank()) {
+            return false;
+        }
+
+        for (String hop : hops) {
+            if (!IpAddressValidator.isValidIpAddress(hop)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean validateProxyChain(String[] hops, String remoteAddr) {
+        if (hops.length == 0 || !IpAddressValidator.isValidIpAddress(remoteAddr)) {
+            return false;
+        }
+
+        if (!IpAddressValidator.isTrustedProxy(remoteAddr, properties.getTrustedProxyCidrs())) {
+            return false;
+        }
+
+        for (String hop : hops) {
+            if (!IpAddressValidator.isValidIpAddress(hop)) {
+                return false;
+            }
+        }
+
+        // When proxy chains are present, every hop after the client must be a trusted proxy.
         for (int i = 1; i < hops.length; i++) {
             String hop = hops[i].trim();
             if (!IpAddressValidator.isTrustedProxy(hop, properties.getTrustedProxyCidrs())) {
