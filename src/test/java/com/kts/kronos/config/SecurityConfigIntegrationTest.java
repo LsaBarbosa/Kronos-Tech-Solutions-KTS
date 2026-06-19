@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.in.usecase.GeolocationUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
@@ -51,6 +52,9 @@ class SecurityConfigIntegrationTest {
 
     @MockitoBean
     private CompanyUseCase companyUseCase;
+
+    @MockitoBean
+    private GeolocationUseCase geolocationUseCase;
 
     @MockitoBean
     private CustomUserDetailsService customUserDetailsService;
@@ -108,6 +112,23 @@ class SecurityConfigIntegrationTest {
                 .andExpect(jsonPath("$.detail").value("Token CSRF ausente ou inválido."));
 
         verifyNoInteractions(companyUseCase);
+    }
+
+    @Test
+    void shouldRejectAuthenticatedGeolocationResolveWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/geolocation/resolve")
+                        .with(user("manager").roles("MANAGER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "postalCode": "01001000",
+                                  "number": "100"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("Token CSRF ausente ou inválido."));
+
+        verifyNoInteractions(geolocationUseCase);
     }
 
     @Test

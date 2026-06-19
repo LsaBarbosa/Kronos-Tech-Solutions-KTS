@@ -111,8 +111,7 @@ public class SecurityConfig {
                                 post("/auth/login"),
                                 post("/auth/login-face"),
                                 post("/auth/recover-password"),
-                                post("/auth/reset-password"),
-                                post("/geolocation/resolve")
+                                post("/auth/reset-password")
                         )
                 )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
