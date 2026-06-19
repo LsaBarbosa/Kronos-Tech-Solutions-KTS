@@ -6,6 +6,30 @@ contactPoints:
     receivers:
       - uid: kronos-email-admin
         type: email
+        disableResolveMessage: false
         settings:
           addresses: ${GRAFANA_ALERT_EMAIL_TO}
           singleEmail: true
+          subject: |
+            [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} - Kronos
+          message: |
+            {{ if eq .Status "firing" }}
+            ALERTA DISPARADO
+            {{ else }}
+            ALERTA RESOLVIDO
+            {{ end }}
+
+            Ambiente: Kronos Production
+            Severidade: {{ .CommonLabels.severity }}
+            Alerta: {{ .CommonLabels.alertname }}
+
+            {{ range .Alerts }}
+            Resumo: {{ .Annotations.summary }}
+            Descrição: {{ .Annotations.description }}
+
+            Labels:
+            {{ range .Labels.SortedPairs }}
+            - {{ .Name }} = {{ .Value }}
+            {{ end }}
+
+            {{ end }}
