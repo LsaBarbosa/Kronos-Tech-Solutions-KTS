@@ -21,6 +21,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
+import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
@@ -61,6 +62,7 @@ public class UserService implements UserUseCase {
     private final KronosMetrics kronosMetrics;
     private final AuditService auditService;
     private final CacheProvider cacheProvider;
+    private final ClientIpResolver clientIpResolver;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -374,10 +376,7 @@ public class UserService implements UserUseCase {
             var requestAttrs = RequestContextHolder.getRequestAttributes();
             if (requestAttrs instanceof ServletRequestAttributes servletAttrs) {
                 var request = servletAttrs.getRequest();
-                ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isBlank()) {
-                    ipAddress = request.getRemoteAddr();
-                }
+                ipAddress = clientIpResolver.resolve(request);
                 userAgent = request.getHeader("User-Agent");
                 if (userAgent == null) {
                     userAgent = "unknown";

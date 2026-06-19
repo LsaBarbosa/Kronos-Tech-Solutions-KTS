@@ -231,9 +231,13 @@ class SecurityConfigIntegrationTest {
     }
 
     @Test
-    void shouldExposePrometheusEndpointWithoutAuthentication() throws Exception {
+    void shouldNotExposePrometheusEndpointWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
-                .andExpect(status().isOk());
+                .andExpect(result -> assertTrue(
+                        result.getResponse().getStatus() == 401
+                                || result.getResponse().getStatus() == 403
+                                || result.getResponse().getStatus() == 404
+                ));
     }
 
     @Test
