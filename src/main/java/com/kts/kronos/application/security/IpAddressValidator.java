@@ -6,13 +6,26 @@ import java.util.List;
 public class IpAddressValidator {
     private IpAddressValidator() {}
 
-    public static boolean isTrustedProxy(String remoteAddr, List<String> trustedCidrs) {
-        if (remoteAddr == null || remoteAddr.isBlank() || trustedCidrs == null || trustedCidrs.isEmpty()) {
+    public static boolean isValidIpAddress(String address) {
+        if (address == null || address.isBlank()) {
             return false;
         }
 
         try {
-            InetAddress remote = InetAddress.getByName(remoteAddr);
+            InetAddress.getByName(address.trim());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public static boolean isTrustedProxy(String remoteAddr, List<String> trustedCidrs) {
+        if (!isValidIpAddress(remoteAddr) || trustedCidrs == null || trustedCidrs.isEmpty()) {
+            return false;
+        }
+
+        try {
+            InetAddress remote = InetAddress.getByName(remoteAddr.trim());
             for (String cidr : trustedCidrs) {
                 if (isInCidr(remote, cidr)) {
                     return true;

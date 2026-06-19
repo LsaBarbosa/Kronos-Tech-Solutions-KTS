@@ -93,7 +93,7 @@ class TermsControllerTest {
         when(jwtUtils.generateToken(employeeId, "alice", "PARTNER", userId, consentStatus, 0L)).thenReturn("new-token");
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/terms/accept-biometric");
-        request.addHeader("X-Forwarded-For", "203.0.113.10, 10.0.0.2");
+        request.addHeader("X-Forwarded-For", "203.0.113.10, 127.0.0.1");
         request.setRemoteAddr("127.0.0.1");
 
         var response = controller.acceptBiometricTerms(

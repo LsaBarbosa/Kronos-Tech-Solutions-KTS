@@ -73,7 +73,7 @@ class ClientIpResolverTest {
     @DisplayName("Handles X-Forwarded-For with multiple IPs (takes first)")
     void resolve_multipleForwardedIps_takesFirst() {
         when(request.getRemoteAddr()).thenReturn("127.0.0.1");
-        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.1, 203.0.113.2, 203.0.113.3");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.1, 127.0.0.1");
 
         String result = resolver.resolve(request);
         assertEquals("203.0.113.1", result);
@@ -88,6 +88,27 @@ class ClientIpResolverTest {
 
         String result = resolver.resolve(request);
         assertEquals("203.0.113.99", result);
+    }
+
+    @Test
+    @DisplayName("Falls back to remoteAddr when X-Forwarded-For contains an invalid hop")
+    void resolve_invalidForwardedFor_fallsBackToRemoteAddr() {
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.1, not-an-ip");
+
+        String result = resolver.resolve(request);
+        assertEquals("127.0.0.1", result);
+    }
+
+    @Test
+    @DisplayName("Falls back to remoteAddr when X-Real-IP is invalid")
+    void resolve_invalidXRealIp_fallsBackToRemoteAddr() {
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("");
+        when(request.getHeader("X-Real-IP")).thenReturn("999.999.999.999");
+
+        String result = resolver.resolve(request);
+        assertEquals("127.0.0.1", result);
     }
 
     @Test

@@ -1,0 +1,7 @@
+title = "Kronos back-end gitleaks allowlist"
+
+[allowlist]
+paths = [
+  '''^docs/''',
+  '''^src/test/''',
+]
