@@ -2,6 +2,7 @@ package com.kts.kronos.infrastructure;
 
 import com.kts.kronos.application.exceptions.DigitalSignatureException;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.*;
@@ -10,6 +11,7 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.util.Store;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -57,12 +59,13 @@ public class DigitalSignatureService {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
     }
 
+    @Autowired
     public DigitalSignatureService(KronosTracing kronosTracing) {
         this.kronosTracing = kronosTracing;
     }
 
     public DigitalSignatureService() {
-        this(new KronosTracing());
+        this(ObservabilityDefaults.tracing());
     }
 
     /**

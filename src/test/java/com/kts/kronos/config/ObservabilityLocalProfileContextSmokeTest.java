@@ -5,7 +5,7 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
-import com.kts.kronos.observability.adapter.in.web.CorrelationIdFilter;
+import com.kts.kronos.observability.web.CorrelationIdFilter;
 import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

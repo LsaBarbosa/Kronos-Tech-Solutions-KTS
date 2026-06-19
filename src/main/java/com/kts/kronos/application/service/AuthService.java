@@ -19,10 +19,10 @@ import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -64,10 +64,8 @@ public class AuthService implements AuthUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final AuditService auditService;
     private final AuditRequestContextService auditRequestContextService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
     @Override
     public String login(String username, String password) {
@@ -81,7 +79,7 @@ public class AuthService implements AuthUseCase {
             authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedUsername, password));
         } catch (AuthenticationException ex) {
             authenticationRateLimitService.onLoginFailure(normalizedUsername);
-            kronosMetrics.authLoginFailure("invalid_credentials");
+            metrics().authLoginFailure("invalid_credentials");
             log.warn("event=auth_login result=failure reason=invalid_credentials");
 
             // Auditoria de falha de login
@@ -104,7 +102,7 @@ public class AuthService implements AuthUseCase {
         }
         var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> {
-                    kronosMetrics.authLoginFailure("user_not_found");
+                    metrics().authLoginFailure("user_not_found");
                     log.warn("event=auth_login result=failure reason=user_not_found");
 
                     // Auditoria de falha - usuário não encontrado
@@ -128,7 +126,7 @@ public class AuthService implements AuthUseCase {
 
         var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
         authenticationRateLimitService.onLoginSuccess(normalizedUsername);
-        kronosMetrics.authLoginSuccess();
+        metrics().authLoginSuccess();
         log.info("event=auth_login result=success");
 
         // Auditoria de sucesso de login
@@ -167,7 +165,7 @@ public class AuthService implements AuthUseCase {
         User[] authenticatedFaceUser = new User[1];
 
         try {
-            String token = kronosTracing.observe("kronos.auth.face_login", () -> {
+            String token = tracing().observe("kronos.auth.face_login", () -> {
                 byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
                 var inputStream = new ByteArrayInputStream(imageBytes);
 
@@ -203,7 +201,7 @@ public class AuthService implements AuthUseCase {
                 );
             });
 
-            kronosMetrics.authFaceLoginSuccess();
+            metrics().authFaceLoginSuccess();
             log.info("event=auth_face_login result=success");
 
             // Auditoria de sucesso de login facial
@@ -225,7 +223,7 @@ public class AuthService implements AuthUseCase {
 
             return token;
         } catch (IllegalArgumentException e) {
-            kronosMetrics.authFaceLoginFailure("invalid_image");
+            metrics().authFaceLoginFailure("invalid_image");
             log.warn("event=auth_face_login result=failure reason=invalid_image");
 
             // Auditoria de falha - imagem inválida
@@ -248,7 +246,7 @@ public class AuthService implements AuthUseCase {
             throw new BadRequestException(INVALID_IMAGE);
         } catch (ForbiddenException | ResourceNotFoundException | BadRequestException e) {
             String reason = resolveFaceLoginFailureReason(e);
-            kronosMetrics.authFaceLoginFailure(reason);
+            metrics().authFaceLoginFailure(reason);
             log.warn("event=auth_face_login result=failure reason={}", reason);
 
             // Auditoria de falha de login facial
@@ -272,7 +270,7 @@ public class AuthService implements AuthUseCase {
 
             throw e;
         } catch (RuntimeException e) {
-            kronosMetrics.authFaceLoginFailure("unknown");
+            metrics().authFaceLoginFailure("unknown");
             log.error("event=auth_face_login result=failure reason=unknown exception_type={}",
                     e.getClass().getSimpleName());
 
@@ -301,14 +299,14 @@ public class AuthService implements AuthUseCase {
     public void recoverPassword(RecoverPasswordRequest request) {
         String normalizedCpf = request.cpf() == null ? null : request.cpf().trim();
         String normalizedEmail = request.email() == null ? null : request.email().trim();
-        kronosMetrics.passwordRecoveryRequested();
+        metrics().passwordRecoveryRequested();
         log.info("event=password_recovery result=accepted");
 
         try {
             try {
                 authenticationRateLimitService.checkPasswordRecoveryAllowed(normalizedCpf, normalizedEmail);
             } catch (TooManyRequestsException ex) {
-                kronosMetrics.passwordRecoveryFailure("rate_limited");
+                metrics().passwordRecoveryFailure("rate_limited");
                 log.warn("event=password_recovery result=failure reason=rate_limited");
                 return;
             }
@@ -319,7 +317,7 @@ public class AuthService implements AuthUseCase {
                     .orElse(null);
 
             if (employee == null) {
-                kronosMetrics.passwordRecoveryFailure("identity_not_matched");
+                metrics().passwordRecoveryFailure("identity_not_matched");
                 log.info("event=password_recovery result=accepted reason=identity_not_matched");
                 return;
             }
@@ -327,7 +325,7 @@ public class AuthService implements AuthUseCase {
             var user = userProvider.findByEmployeeId(employee.employeeId()).orElse(null);
 
             if (user == null) {
-                kronosMetrics.passwordRecoveryFailure("user_not_found");
+                metrics().passwordRecoveryFailure("user_not_found");
                 log.info("event=password_recovery result=accepted reason=user_not_found");
                 return;
             }
@@ -347,15 +345,15 @@ public class AuthService implements AuthUseCase {
                         user.username(),
                         defaultFrontendBaseUrl
                 );
-                kronosMetrics.passwordRecoveryEmailSent();
+                metrics().passwordRecoveryEmailSent();
                 log.info("event=password_recovery result=success reason=email_sent");
             } catch (RuntimeException e) {
-                kronosMetrics.passwordRecoveryFailure("email_dispatch");
+                metrics().passwordRecoveryFailure("email_dispatch");
                 log.error("event=password_recovery result=failure reason=email_dispatch exception_type={}",
                         e.getClass().getSimpleName());
             }
         } catch (RuntimeException e) {
-            kronosMetrics.passwordRecoveryFailure("unknown");
+            metrics().passwordRecoveryFailure("unknown");
             log.error("event=password_recovery result=failure reason=unknown exception_type={}",
                     e.getClass().getSimpleName());
         }
@@ -384,7 +382,7 @@ public class AuthService implements AuthUseCase {
             userProvider.save(user.withPassword(hashed).incrementSessionVersion());
 
             tokenProvider.deleteToken(request.token());
-            kronosMetrics.passwordResetSuccess();
+            metrics().passwordResetSuccess();
             log.info("event=password_reset result=success");
 
             // Auditoria de sucesso de reset de senha
@@ -404,15 +402,15 @@ public class AuthService implements AuthUseCase {
                 log.debug("Falha ao registrar auditoria de reset de senha", auditEx);
             }
         } catch (BadRequestException e) {
-            kronosMetrics.passwordResetFailure("validation");
+            metrics().passwordResetFailure("validation");
             log.warn("event=password_reset result=failure reason=validation");
             throw e;
         } catch (ResourceNotFoundException e) {
-            kronosMetrics.passwordResetFailure("token_or_user_not_found");
+            metrics().passwordResetFailure("token_or_user_not_found");
             log.warn("event=password_reset result=failure reason=token_or_user_not_found");
             throw e;
         } catch (RuntimeException e) {
-            kronosMetrics.passwordResetFailure("unknown");
+            metrics().passwordResetFailure("unknown");
             log.error("event=password_reset result=failure reason=unknown exception_type={}",
                     e.getClass().getSimpleName());
             throw e;
@@ -434,63 +432,75 @@ public class AuthService implements AuthUseCase {
         String ipAddress = auditContext.ipAddress();
         String userAgent = auditContext.userAgent();
 
-        if (rawToken == null || rawToken.isBlank()) {
-            throw new BadRequestException("Token não fornecido.");
-        }
-
-        var claims = jwtUtils.getClaimsFromExpiredToken(rawToken);
-        if (claims == null) {
-            throw new BadRequestException("Token ainda é válido. Nenhuma renovação necessária.");
-        }
-
-        if (tokenBlacklistProvider.isBlacklisted(rawToken)) {
-            throw new BadRequestException("Token foi revogado.");
-        }
-
-        var userId = java.util.UUID.fromString(claims.get("userId", String.class));
-        var user = userProvider.findById(userId)
-                .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
-
-        if (!user.active()) {
-            throw new ForbiddenException("Conta de usuário inativa.");
-        }
-
-        long tokenSessionVersion = claims.get("session_version", Long.class);
-        if (user.sessionVersion() != tokenSessionVersion) {
-            throw new BadRequestException("Sessão invalidada. Faça login novamente.");
-        }
-
-        var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
-
-        String newToken = jwtUtils.generateToken(
-                user.employeeId(),
-                user.username(),
-                user.role().name(),
-                user.userId(),
-                consentStatus,
-                user.sessionVersion()
-        );
-
-        Date oldExpiration = claims.getExpiration();
-        tokenBlacklistProvider.addToBlacklist(rawToken, oldExpiration);
-
         try {
-            auditService.registerSecurity(
-                    AuditAction.AUTH_TOKEN_REFRESH,
-                    user.userId(),
-                    user.employeeId(),
-                    "LOW",
-                    "USER",
-                    null,
-                    "token_refresh_success",
-                    ipAddress,
-                    userAgent
-            );
-        } catch (Exception auditEx) {
-            log.debug("Falha ao registrar auditoria de refresh de token", auditEx);
-        }
+            if (rawToken == null || rawToken.isBlank()) {
+                throw new BadRequestException("Token não fornecido.");
+            }
 
-        return newToken;
+            var claims = jwtUtils.getClaimsFromExpiredToken(rawToken);
+            if (claims == null) {
+                throw new BadRequestException("Token ainda é válido. Nenhuma renovação necessária.");
+            }
+
+            if (tokenBlacklistProvider.isBlacklisted(rawToken)) {
+                throw new BadRequestException("Token foi revogado.");
+            }
+
+            var userId = java.util.UUID.fromString(claims.get("userId", String.class));
+            var user = userProvider.findById(userId)
+                    .orElseThrow(() -> new BadRequestException("Usuário não encontrado."));
+
+            if (!user.active()) {
+                throw new ForbiddenException("Conta de usuário inativa.");
+            }
+
+            long tokenSessionVersion = claims.get("session_version", Long.class);
+            if (user.sessionVersion() != tokenSessionVersion) {
+                throw new BadRequestException("Sessão invalidada. Faça login novamente.");
+            }
+
+            var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
+
+            String newToken = jwtUtils.generateToken(
+                    user.employeeId(),
+                    user.username(),
+                    user.role().name(),
+                    user.userId(),
+                    consentStatus,
+                    user.sessionVersion()
+            );
+
+            Date oldExpiration = claims.getExpiration();
+            tokenBlacklistProvider.addToBlacklist(rawToken, oldExpiration);
+            metrics().recordTokenRefresh("success", "none");
+
+            try {
+                auditService.registerSecurity(
+                        AuditAction.AUTH_TOKEN_REFRESH,
+                        user.userId(),
+                        user.employeeId(),
+                        "LOW",
+                        "USER",
+                        null,
+                        "token_refresh_success",
+                        ipAddress,
+                        userAgent
+                );
+            } catch (Exception auditEx) {
+                log.debug("Falha ao registrar auditoria de refresh de token", auditEx);
+            }
+
+            return newToken;
+        } catch (BadRequestException e) {
+            metrics().recordTokenRefresh("failure", "validation");
+            throw e;
+        } catch (ForbiddenException e) {
+            metrics().recordTokenRefresh("failure", "inactive_user");
+            throw e;
+        } catch (RuntimeException e) {
+            metrics().recordTokenRefresh("failure", "unknown");
+            throw e;
+        }
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha
@@ -515,6 +525,14 @@ public class AuthService implements AuthUseCase {
             return "inactive_user";
         }
         return "unknown";
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 
 }

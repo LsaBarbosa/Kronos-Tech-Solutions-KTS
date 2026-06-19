@@ -20,9 +20,9 @@ import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
+import com.kts.kronos.observability.support.ObservabilityDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,10 +52,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final CompanyProvider companyProvider;
     private final TimeRecordProvider recordRepository;
     private final DomainAuthorizationService domainAuthorizationService;
-    @Autowired
-    private KronosMetrics kronosMetrics = new KronosMetrics();
-    @Autowired
-    private KronosTracing kronosTracing = new KronosTracing();
+    private final KronosMetrics kronosMetrics;
+    private final KronosTracing kronosTracing;
 
 
 
@@ -84,7 +82,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException("Empresa não encontrada"));
 
         try {
-            byte[] pdfBytes = kronosTracing.observe("kronos.legal.point_mirror.generate", () -> {
+            byte[] pdfBytes = tracing().observe("kronos.legal.point_mirror", () -> {
                 try (var baos = new ByteArrayOutputStream()) {
                     var writer = new PdfWriter(baos);
                     var pdf = new PdfDocument(writer);
@@ -156,13 +154,13 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 }
             });
 
-            kronosMetrics.legalSuccess("point_mirror");
-            kronosMetrics.recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "success");
+            metrics().legalSuccess("point_mirror");
+            metrics().recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "success");
             log.info("event=legal_point_mirror_generation result=success");
             return pdfBytes;
         } catch (RuntimeException e) {
-            kronosMetrics.legalFailure("point_mirror", "generation");
-            kronosMetrics.recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            metrics().legalFailure("point_mirror", "generation");
+            metrics().recordLegalDuration("point_mirror", Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error("event=legal_point_mirror_generation result=failure reason=generation exception_type={}",
                     e.getClass().getSimpleName());
             throw new RuntimeException("Erro na geração do PDF", e);
@@ -325,5 +323,13 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private String formatBalance(Duration d) {
         var sign = d.isNegative() ? "-" : "+";
         return sign + formatDuration(d.abs());
+    }
+
+    private KronosMetrics metrics() {
+        return kronosMetrics != null ? kronosMetrics : ObservabilityDefaults.metrics();
+    }
+
+    private KronosTracing tracing() {
+        return kronosTracing != null ? kronosTracing : ObservabilityDefaults.tracing();
     }
 }
