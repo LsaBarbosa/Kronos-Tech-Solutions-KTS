@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.security.*;
 import com.kts.kronos.application.port.in.usecase.SecurityIncidentUseCase;
+import com.kts.kronos.application.security.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import static com.kts.kronos.constants.Messages.KRONOS;
 public class SecurityIncidentController {
 
     private final SecurityIncidentUseCase securityIncidentUseCase;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping
     @PreAuthorize(KRONOS)
@@ -30,10 +32,7 @@ public class SecurityIncidentController {
             @Valid @RequestBody CreateSecurityIncidentRequest request,
             HttpServletRequest httpRequest
     ) {
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
+        String ipAddress = clientIpResolver.resolve(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
         if (userAgent == null) {
             userAgent = "unknown";
@@ -64,10 +63,7 @@ public class SecurityIncidentController {
             @Valid @RequestBody UpdateSecurityIncidentRequest request,
             HttpServletRequest httpRequest
     ) {
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
+        String ipAddress = clientIpResolver.resolve(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
         if (userAgent == null) {
             userAgent = "unknown";
@@ -84,10 +80,7 @@ public class SecurityIncidentController {
             @Valid @RequestBody SecurityIncidentRiskAssessmentRequest request,
             HttpServletRequest httpRequest
     ) {
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
+        String ipAddress = clientIpResolver.resolve(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
         if (userAgent == null) {
             userAgent = "unknown";
@@ -104,10 +97,7 @@ public class SecurityIncidentController {
             @Valid @RequestBody SecurityIncidentCorrectionPlanRequest request,
             HttpServletRequest httpRequest
     ) {
-        String ipAddress = httpRequest.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isBlank()) {
-            ipAddress = httpRequest.getRemoteAddr();
-        }
+        String ipAddress = clientIpResolver.resolve(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
         if (userAgent == null) {
             userAgent = "unknown";
