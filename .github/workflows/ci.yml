@@ -67,10 +67,13 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Run build and security analysis
+      - name: Run build
+        run: ./gradlew clean build --info --stacktrace
+
+      - name: Run OWASP Dependency Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: ./gradlew clean build dependencyCheckAnalyze --info --stacktrace
+        run: timeout 20m ./gradlew dependencyCheckAnalyze --info --stacktrace
 
       - name: Upload unit test reports
         if: always()
