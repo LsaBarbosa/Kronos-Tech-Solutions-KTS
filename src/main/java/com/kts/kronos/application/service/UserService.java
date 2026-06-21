@@ -77,13 +77,22 @@ public class UserService implements UserUseCase {
             throw new BadRequestException(USER_ALREADY_LINKED_TO_EMPLOYEE);
         }
 
+        var requestedRole = Role.valueOf(req.role());
+
+        // Prevent privilege escalation: only CTO can create a CTO user
+        var callerRole = jwtAuthenticatedUser.getCurrentRole();
+        if (requestedRole == Role.CTO && callerRole != Role.CTO) {
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Apenas o CTO pode criar um usuário com o papel CTO.");
+        }
+
         var randomSystemPassword = UUID.randomUUID().toString();
         var hashed = passwordEncoder.encode(randomSystemPassword);
 
         var user = new User(
                 req.username(),
                 hashed,
-                Role.valueOf(req.role()),
+                requestedRole,
                 req.employeeId()
         );
         try {
@@ -180,6 +189,14 @@ public class UserService implements UserUseCase {
         }
 
         var role = Role.valueOf(req.role() != null ? req.role() : existing.role().name());
+
+        // Prevent privilege escalation: only CTO can assign the CTO role
+        var callerRole = jwtAuthenticatedUser.getCurrentRole();
+        if (role == Role.CTO && callerRole != Role.CTO) {
+            throw new com.kts.kronos.application.exceptions.ForbiddenException(
+                    "Apenas o CTO pode atribuir o papel CTO a outro usuário.");
+        }
+
         boolean active = req.enabled() != null ? req.enabled() : existing.active();
         var updated = new User(userId, username, password, role, active, existing.employeeId());
         updated = new User(

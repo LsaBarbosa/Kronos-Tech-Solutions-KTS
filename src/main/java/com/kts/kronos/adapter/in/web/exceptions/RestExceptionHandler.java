@@ -129,7 +129,8 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<Object> handleDisabledException(DisabledException ex, WebRequest request) {
-        return buildResponseEntity(ex, HttpStatus.FORBIDDEN, "USER_DISABLED", ex.getMessage(), request, null, null);
+        // Generic message prevents user enumeration: "account disabled" would reveal the username exists
+        return buildResponseEntity(ex, HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED", "Usuário ou senha inválidos", request, null, null);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
