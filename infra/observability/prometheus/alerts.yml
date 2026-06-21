@@ -81,3 +81,61 @@ groups:
         annotations:
           summary: Pico de erros no front-end
           description: Eventos de erro do front-end cresceram acima do limite nos ultimos 10 minutos.
+
+      # ═══════════════════════════════════════════════════════════════
+      # AÇÃO 4: Segurança — Brute Force & Authentication
+      # ═══════════════════════════════════════════════════════════════
+
+      - alert: RateLimitingActive
+        expr: increase(kronos_rate_limit_blocked_total[5m]) > 50
+        for: 2m
+        labels:
+          severity: high
+          category: brute-force
+        annotations:
+          summary: "Rate limiting bloqueou {{ $value }} requisições"
+          description: "Usuário: {{ $labels.username }} | IP: {{ $labels.client_ip }} | Padrão: possível força bruta"
+
+      - alert: SuspiciousLoginAttempts
+        expr: increase(kronos_authentication_failures_total{reason='invalid_credentials'}[1m]) > 10
+        for: 1m
+        labels:
+          severity: high
+          category: brute-force
+        annotations:
+          summary: "{{ $value }} tentativas de login falhadas/min"
+          description: "Usuário: {{ $labels.username }} | Possível ataque de força bruta"
+
+      - alert: AuthServiceHighErrorRate
+        expr: rate(kronos_authentication_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: high
+          category: auth
+        annotations:
+          summary: "Taxa alta de erros no serviço de autenticação"
+          description: "Taxa de erro: {{ $value | humanizePercentage }} | Possível indisponibilidade ou ataque"
+
+      # ═══════════════════════════════════════════════════════════════
+      # AÇÃO 4: Segurança — Infraestrutura
+      # ═══════════════════════════════════════════════════════════════
+
+      - alert: RedisUnavailable
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: infra
+        annotations:
+          summary: "Redis indisponível"
+          description: "Redis (rate limiting storage) está inacessível. Rate limiting pode falhar."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: hikari_connections_active / hikari_connections_max > 0.9
+        for: 2m
+        labels:
+          severity: high
+          category: database
+        annotations:
+          summary: "Pool de conexões BD em {{ $value | humanizePercentage }}"
+          description: "Possível leak de conexões ou DoS contra banco de dados"

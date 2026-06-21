@@ -1,148 +1,579 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": true,
-  "graphTooltip": 1,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
   "panels": [
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 1,
-      "targets": [
-        { "expr": "sum(increase(kronos_auth_login_total{method=\"password\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "login senha sucesso" },
-        { "expr": "sum(increase(kronos_auth_login_total{method=\"password\",result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "login senha falha" },
-        { "expr": "sum(increase(kronos_auth_login_total{method=\"face\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "login facial sucesso" },
-        { "expr": "sum(increase(kronos_auth_login_total{method=\"face\",result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "login facial falha" }
-      ],
-      "title": "Autenticacao",
-      "type": "timeseries"
+      "panels": [],
+      "title": "Autenticacao e Usuarios",
+      "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "sum(increase(kronos_time_record_operation_total{operation=\"checkin\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "check-in" },
-        { "expr": "sum(increase(kronos_time_record_operation_total{operation=\"checkout\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "check-out" },
-        { "expr": "sum(increase(kronos_time_record_operation_total{result=\"failure\"}[15m])) or on() vector(0)", "legendFormat": "falhas" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_auth_login_total{result=\"success\",application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Registro de ponto",
-      "type": "timeseries"
+      "title": "Logins com sucesso (24h)",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "sum(increase(kronos_document_operation_total{operation=\"upload\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "upload" },
-        { "expr": "sum(increase(kronos_document_operation_total{operation=\"download\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "download" },
-        { "expr": "sum(increase(kronos_document_operation_total{operation=\"delete\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "delete" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_auth_login_total{result=\"failure\",application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Documentos",
-      "type": "timeseries"
+      "title": "Falhas de login (24h)",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"afd\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "AFD" },
-        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"aej\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "AEJ" },
-        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"point_mirror\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "Espelho" },
-        { "expr": "sum(increase(kronos_legal_generation_total{legal_document_type=\"technical_certificate\",result=\"success\"}[15m])) or on() vector(0)", "legendFormat": "Atestado" }
+        {
+          "datasource": "Prometheus",
+          "expr": "kronos_user_total{application=\"kronos-backend\",environment=\"production\"} or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Legal/Fiscal",
-      "type": "timeseries"
+      "title": "Total Usuarios",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "sum(increase(kronos_scheduler_execution_total{result=\"success\"}[30m])) or on() vector(0)", "legendFormat": "sucesso" },
-        { "expr": "sum(increase(kronos_scheduler_execution_total{result=\"failure\"}[30m])) or on() vector(0)", "legendFormat": "falha" }
+        {
+          "datasource": "Prometheus",
+          "expr": "kronos_employee_total{application=\"kronos-backend\",environment=\"production\"} or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Schedulers",
-      "type": "timeseries"
+      "title": "Total Funcionarios",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
       "id": 6,
-      "targets": [
-        { "expr": "kronos_ntp_drift_seconds or on() vector(0)", "legendFormat": "drift NTP" }
-      ],
-      "title": "Drift NTP",
-      "type": "timeseries"
+      "panels": [],
+      "title": "Ponto e Jornada",
+      "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 6 },
       "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "increase(kronos_company_total[15m]) or on() vector(0)", "legendFormat": "empresa criada" },
-        { "expr": "increase(kronos_company_updated_total[15m]) or on() vector(0)", "legendFormat": "empresa atualizada" },
-        { "expr": "increase(kronos_user_total[15m]) or on() vector(0)", "legendFormat": "usuário criado" },
-        { "expr": "increase(kronos_user_updated_total[15m]) or on() vector(0)", "legendFormat": "usuário atualizado" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_adjustment_requested_total{application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Empresas e Usuários",
-      "type": "timeseries"
+      "title": "Ajustes de Ponto Solicitados (24h)",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 6 },
       "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "increase(kronos_employee_total[15m]) or on() vector(0)", "legendFormat": "funcionário criado" },
-        { "expr": "increase(kronos_employee_updated_total[15m]) or on() vector(0)", "legendFormat": "funcionário atualizado" },
-        { "expr": "increase(kronos_biometric_enrollment_success_total[15m]) or on() vector(0)", "legendFormat": "enrollment biométrico sucesso" },
-        { "expr": "increase(kronos_biometric_enrollment_failure_total[15m]) or on() vector(0)", "legendFormat": "enrollment biométrico falha" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_adjustment_approved_total{application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Funcionários e Biometria",
-      "type": "timeseries"
+      "title": "Ajustes de Ponto Aprovados (24h)",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "red", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 6 },
       "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "increase(kronos_consent_accepted_total[15m]) or on() vector(0)", "legendFormat": "consentimento aceito" },
-        { "expr": "increase(kronos_consent_revoked_total[15m]) or on() vector(0)", "legendFormat": "consentimento revogado" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_adjustment_rejected_total{application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "LGPD Consentimento",
-      "type": "timeseries"
+      "title": "Ajustes de Ponto Rejeitados (24h)",
+      "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
       "id": 10,
+      "panels": [],
+      "title": "Ferias e Folgas",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 11 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "increase(kronos_geolocation_lookup_success_total[15m]) or on() vector(0)", "legendFormat": "lookup sucesso" },
-        { "expr": "increase(kronos_geolocation_lookup_failure_total[15m]) or on() vector(0)", "legendFormat": "lookup falha" },
-        { "expr": "rate(kronos_geolocation_lookup_duration_seconds_sum[5m]) / rate(kronos_geolocation_lookup_duration_seconds_count[5m]) or on() vector(0)", "legendFormat": "latência média (s)" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_vacation_requested_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Ferias Solicitadas",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_vacation_approved_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Ferias Aprovadas",
+          "refId": "B"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_vacation_rejected_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Ferias Rejeitadas",
+          "refId": "C"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_off_requested_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Folgas Solicitadas",
+          "refId": "D"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_off_approved_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Folgas Aprovadas",
+          "refId": "E"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_time_off_rejected_total{application=\"kronos-backend\",environment=\"production\"}[6h])) or vector(0)",
+          "legendFormat": "Folgas Rejeitadas",
+          "refId": "F"
+        }
       ],
-      "title": "Geolocalização",
+      "title": "Fluxo de Ferias e Folgas (6h)",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
-      "id": 11,
+      "collapsed": false,
+      "datasource": "Prometheus",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+      "id": 12,
+      "panels": [],
+      "title": "Integracoes e Sistema",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 20 },
+      "id": 13,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
       "targets": [
-        { "expr": "increase(kronos_time_adjustment_requested_total[15m]) or on() vector(0)", "legendFormat": "ajuste solicitado" },
-        { "expr": "increase(kronos_time_adjustment_approved_total[15m]) or on() vector(0)", "legendFormat": "ajuste aprovado" },
-        { "expr": "increase(kronos_time_adjustment_rejected_total[15m]) or on() vector(0)", "legendFormat": "ajuste rejeitado" },
-        { "expr": "increase(kronos_vacation_requested_total[15m]) or on() vector(0)", "legendFormat": "férias solicitadas" },
-        { "expr": "increase(kronos_vacation_approved_total[15m]) or on() vector(0)", "legendFormat": "férias aprovadas" },
-        { "expr": "increase(kronos_vacation_rejected_total[15m]) or on() vector(0)", "legendFormat": "férias rejeitadas" },
-        { "expr": "increase(kronos_time_off_requested_total[15m]) or on() vector(0)", "legendFormat": "folga solicitada" },
-        { "expr": "increase(kronos_time_off_approved_total[15m]) or on() vector(0)", "legendFormat": "folga aprovada" },
-        { "expr": "increase(kronos_time_off_rejected_total[15m]) or on() vector(0)", "legendFormat": "folga rejeitada" }
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_geolocation_lookup_success_total{application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
       ],
-      "title": "Solicitações de Ponto",
+      "title": "Consultas de Geolocalizacao (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 20 },
+      "id": 14,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(kronos_biometric_enrollment_success_total{application=\"kronos-backend\",environment=\"production\"}[24h])) or vector(0)",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Enrollments Biometricos (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 15,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by (scheduler) (increase(kronos_scheduler_execution_total{application=\"kronos-backend\",environment=\"production\"}[1h]))",
+          "legendFormat": "{{scheduler}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Execucoes de Schedulers (1h)",
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 39,
+  "refresh": "1m",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["kronos", "negocio", "business"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
   "title": "KRONOS Negocio",
-  "uid": "kronos-business"
+  "uid": "kronos-business",
+  "version": 1
 }
