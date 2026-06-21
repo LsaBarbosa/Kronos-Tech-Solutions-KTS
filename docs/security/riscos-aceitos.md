@@ -9,8 +9,10 @@
 | Configuração | BIOMETRIC_LIVENESS_REQUIRED=false |
 | Decisão | Aceito temporariamente |
 | Justificativa | Decisão operacional atual do projeto |
-| Responsável | PENDENTE_DE_RESPONSAVEL |
-| Data | 2026-06-20 |
+| Responsável | Lucas SantAnna (CEO/CTO) |
+| Data de Aceitação | 2026-06-21 |
+| Assinado por | Lucas SantAnna (CEO/CTO) |
+| Motivo da Aceitação | Decisão financeira operacional |
 | Prazo de revisão | 2026-08-19 |
 | Controles compensatórios | rate limit facial, consentimento biométrico, auditoria, logs minimizados, bloqueio por tentativas, alertas de falha, proteção de IP/dispositivo |
 | Plano futuro | Reavaliar ativação de liveness após validação técnica e de UX |
