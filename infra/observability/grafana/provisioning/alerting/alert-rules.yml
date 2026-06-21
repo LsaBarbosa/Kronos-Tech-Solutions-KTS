@@ -98,8 +98,8 @@ groups:
             relativeTimeRange: { from: 600, to: 0 }
             model:
               expr: >
-                jvm_memory_used_bytes{application="kronos-backend", area="heap"}
-                / jvm_memory_max_bytes{application="kronos-backend", area="heap"}
+                sum(jvm_memory_used_bytes{application="kronos-backend", area="heap"})
+                / sum(jvm_memory_committed_bytes{application="kronos-backend", area="heap"})
               instant: true
               refId: A
           - refId: B
