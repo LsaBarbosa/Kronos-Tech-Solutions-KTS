@@ -27,16 +27,26 @@ jobs:
       - name: Run local secret scanner
         run: bash scripts/security/assert-no-secrets.sh
 
-      - name: Run Gitleaks
+      - name: Run Gitleaks with custom config
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
             zricethezav/gitleaks:v8.24.2 detect \
             --source . \
+            --config .gitleaks.toml \
             --redact \
             --exit-code 1 \
-            --log-opts="--all"
+            --log-opts="--all" \
+            --report-format json \
+            --report-path gitleaks-report.json
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
 
   unit-tests:
     name: Unit Tests
