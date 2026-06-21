@@ -2,35 +2,150 @@
   "id": null,
   "uid": "kronos-legal-documents",
   "title": "Kronos Legal Documents",
-  "schemaVersion": 39,
-  "version": 1,
+  "tags": [],
+  "style": "dark",
   "timezone": "browser",
+  "refresh": "5m",
+  "schemaVersion": 27,
+  "version": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Legal Generation Totals",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "title": "Consent Activity",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
       "targets": [
         {
-          "expr": "sum(rate(kronos_legal_generation_total[5m])) by (legal_document_type, result)",
-          "legendFormat": "{{legal_document_type}} {{result}}"
+          "refId": "A",
+          "expr": "increase(kronos_consent_accepted_total{application=\"kronos-backend\",environment=\"production\"}[1h])",
+          "legendFormat": "Accepted"
+        },
+        {
+          "refId": "B",
+          "expr": "increase(kronos_consent_revoked_total{application=\"kronos-backend\",environment=\"production\"}[1h])",
+          "legendFormat": "Revoked"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
     },
     {
       "id": 2,
-      "type": "timeseries",
-      "title": "Document Operations",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "type": "stat",
+      "title": "Consents Accepted Total",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 4 },
       "targets": [
         {
-          "expr": "sum(rate(kronos_document_operation_total[5m])) by (operation, document_type, result)",
-          "legendFormat": "{{operation}} {{document_type}} {{result}}"
+          "refId": "A",
+          "expr": "kronos_consent_accepted_total{application=\"kronos-backend\",environment=\"production\"} or vector(0)",
+          "legendFormat": ""
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Consents Revoked Total",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kronos_consent_revoked_total{application=\"kronos-backend\",environment=\"production\"} or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Password Reset Tokens Created",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "kronos_redis_reset_token_total{application=\"kronos-backend\",environment=\"production\"} or vector(0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "External API Requests",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(kronos_external_provider_request_total{application=\"kronos-backend\",environment=\"production\"}[5m])",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "External API Latency",
+      "datasource": "Prometheus",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(kronos_external_provider_request_duration_seconds_sum{application=\"kronos-backend\",environment=\"production\"}[5m]) / rate(kronos_external_provider_request_duration_seconds_count{application=\"kronos-backend\",environment=\"production\"}[5m])",
+          "legendFormat": "{{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
     }
   ]
 }

@@ -1,0 +1,119 @@
+name: OWASP Dependency-Check
+
+on:
+  push:
+    branches: [main, homolog]
+  pull_request:
+    branches: [main, homolog]
+  schedule:
+    # Executar toda semana (domingo às 2 AM)
+    - cron: '0 2 * * 0'
+
+jobs:
+  dependency-check:
+    name: OWASP Dependency-Check Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'Kronos-Tech-Solutions'
+          path: '.'
+          format: 'JSON'
+          args: >
+            --enable-retired
+            --enable-experimental
+
+      - name: Upload Dependency-Check Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: reports/dependency-check-report.json
+          retention-days: 30
+
+      - name: Parse and Check for Critical Vulnerabilities
+        id: check-vulns
+        run: |
+          if [ -f "reports/dependency-check-report.json" ]; then
+            CRITICAL=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="CRITICAL")] | length' reports/dependency-check-report.json)
+            HIGH=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="HIGH")] | length' reports/dependency-check-report.json)
+            MEDIUM=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="MEDIUM")] | length' reports/dependency-check-report.json)
+
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+            echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+
+            echo "## 🔍 Dependency-Check Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Severidade | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 CRITICAL | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 HIGH | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 MEDIUM | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$CRITICAL" -gt 0 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 🚨 CRÍTICO: Vulnerabilidades críticas encontradas!" >> $GITHUB_STEP_SUMMARY
+              echo "Este build será bloqueado até as dependências serem atualizadas." >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Relatório não foi gerado"
+            exit 1
+          fi
+
+      - name: Fail on Critical Vulnerabilities
+        if: steps.check-vulns.outputs.critical > 0
+        run: |
+          echo "❌ Build falhou: ${{ steps.check-vulns.outputs.critical }} vulnerabilidades CRÍTICAS encontradas"
+          exit 1
+
+      - name: Warn on High Vulnerabilities
+        if: steps.check-vulns.outputs.high > 0 && steps.check-vulns.outputs.critical == 0
+        run: |
+          echo "⚠️ Aviso: ${{ steps.check-vulns.outputs.high }} vulnerabilidades HIGH encontradas"
+          echo "Recomendação: Atualize as dependências o mais rápido possível"
+
+      - name: Comment PR with Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('reports/dependency-check-report.json', 'utf8'));
+
+            const critical = report.reportSchema.vulnerabilities.filter(v => v.severity === 'CRITICAL').length;
+            const high = report.reportSchema.vulnerabilities.filter(v => v.severity === 'HIGH').length;
+            const medium = report.reportSchema.vulnerabilities.filter(v => v.severity === 'MEDIUM').length;
+
+            let comment = `## 🔒 Dependency-Check Report\n\n`;
+            comment += `| Severidade | Count |\n`;
+            comment += `|-----------|-------|\n`;
+            comment += `| 🔴 CRITICAL | ${critical} |\n`;
+            comment += `| 🟠 HIGH | ${high} |\n`;
+            comment += `| 🟡 MEDIUM | ${medium} |\n`;
+
+            if (critical > 0) {
+              comment += `\n### 🚨 CRÍTICO\n`;
+              comment += `Este PR foi bloqueado devido a vulnerabilidades críticas.\n`;
+              comment += `Por favor, atualize as dependências antes de fazer merge.\n`;
+            } else if (high > 0) {
+              comment += `\n### ⚠️ AVISO\n`;
+              comment += `Vulnerabilidades HIGH detectadas. Recomenda-se atualizar as dependências.\n`;
+            } else {
+              comment += `\n### ✅ OK\n`;
+              comment += `Nenhuma vulnerabilidade crítica ou alta encontrada.\n`;
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

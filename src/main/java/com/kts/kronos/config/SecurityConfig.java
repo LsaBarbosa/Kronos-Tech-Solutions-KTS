@@ -150,7 +150,8 @@ public class SecurityConfig {
                     org.springframework.http.HttpMethod.GET,
                     "/actuator/health",
                     "/actuator/health/**",
-                    "/actuator/info"
+                    "/actuator/info",
+                    "/actuator/prometheus"
             ).permitAll();
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
