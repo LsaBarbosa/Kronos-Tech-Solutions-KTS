@@ -28,9 +28,9 @@ groups:
 
       - alert: KronosHeapMemoryHigh
         expr: >
-          jvm_memory_used_bytes{application="kronos-backend", area="heap"}
+          sum(jvm_memory_used_bytes{application="kronos-backend", area="heap"})
           /
-          jvm_memory_max_bytes{application="kronos-backend", area="heap"}
+          sum(jvm_memory_committed_bytes{application="kronos-backend", area="heap"})
           > 0.85
         for: 5m
         labels:
@@ -38,13 +38,13 @@ groups:
           category: infra
         annotations:
           summary: "Heap JVM em {{ $value | humanizePercentage }}"
-          description: "Uso de heap acima de 85%. Risco de OutOfMemoryError."
+          description: "Uso de heap acima de 85% do committed. Risco de OutOfMemoryError."
 
       - alert: KronosHeapMemoryCritical
         expr: >
-          jvm_memory_used_bytes{application="kronos-backend", area="heap"}
+          sum(jvm_memory_used_bytes{application="kronos-backend", area="heap"})
           /
-          jvm_memory_max_bytes{application="kronos-backend", area="heap"}
+          sum(jvm_memory_committed_bytes{application="kronos-backend", area="heap"})
           > 0.95
         for: 2m
         labels:
