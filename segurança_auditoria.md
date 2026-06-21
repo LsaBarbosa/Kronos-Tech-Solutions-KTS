@@ -180,6 +180,34 @@
 | Error disclosure | `RestExceptionHandler` usa `SensitiveDataMasker` + mensagem genérica em produção | Limpo |
 | IP Spoofing | `ClientIpResolver` valida cadeia de proxies confiáveis antes de aceitar `X-Forwarded-For` | Limpo |
 | Secrets em config | `application.yml` / `application-prod.yml` usam `${VAR}` sem defaults hardcoded | Limpo |
+| BOLA/IDOR | `DomainAuthorizationService.validateSameTenant` enforça isolamento cross-tenant em todo acesso | Limpo |
+| Open Redirect | `redirectUrl` em `TermsNotAcceptedException` é hardcoded no código, não aceita input | Limpo |
+| Cookie Security | JWT em cookie `httpOnly=true`, `secure=true`, `SameSite=Lax` | Limpo |
+| Session revogação | `logout()` faz blacklist do token; troca de senha chama `incrementSessionVersion()` | Limpo |
+| Password Reset | Token: `SecureRandom` 32 bytes, SHA-256 no DB, comparação `MessageDigest.isEqual` (timing-safe), TTL 30 min | Limpo |
+| Rate Limiting | IP + username, penalidades escalonadas (5/15/30 min), Redis distribuído com fallback in-memory | Limpo |
+| Upload de arquivo | `validateAndPrepareUpload`: extensão + MIME detectado + antivírus scan (`fileScanningProvider`) | Limpo |
+| Admin endpoints | `PlatformHealthController` e admin LGPD requerem `hasRole('CTO')` | Limpo |
+| Logs sensíveis | `SensitiveDataLoggingFilter` mascara URI/query; `SensitiveDataMasker` nos handlers | Limpo |
+
+### KRONOS-SEC-009 — Enumeração de usuário via resposta diferenciada em conta desativada
+
+- Severidade: `Baixa`
+- Status: `Corrigida`
+- Arquivo afetado: `src/main/java/com/kts/kronos/adapter/in/web/exceptions/RestExceptionHandler.java`
+- Descrição: `DisabledException` retornava 403 com mensagem "A sua conta foi desativada...", revelando que o username existe. Credenciais incorretas retornavam 401 genérico. A diferença permitia enumerar usernames ativos vs desativados.
+- Correção implementada: `handleDisabledException` agora retorna 401 "Usuário ou senha inválidos" (mesmo comportamento que `BadCredentialsException`).
+
+### KRONOS-SEC-010 — Escalada de privilégio via campo `role` em criação/atualização de usuário
+
+- Severidade: `Alta`
+- Status: `Corrigida`
+- Arquivos afetados: `src/main/java/com/kts/kronos/application/service/UserService.java`
+- Módulo: `Controle de acesso / RBAC`
+- Categoria: `OWASP API3:2023 — Broken Object Property Level Authorization`
+- Descrição: endpoints `POST /users` (`@PreAuthorize(ADMINISTRATOR)`) e `PATCH /users/{id}` (`@PreAuthorize(MANAGER)`) aceitavam `role: "CTO"` no body sem verificar se o caller tem autoridade para atribuir esse papel. Um MANAGER poderia elevar qualquer usuário da sua empresa ao papel CTO (sem restrição de tenant), obtendo acesso global à plataforma após re-login.
+- Evidência: `DomainAuthorizationService.authorizeResolvedUserAccess()` valida apenas mesmo tenant, sem comparar papel do caller com papel solicitado.
+- Correção implementada: guard adicionado em `createUser()` e `updateUser()` em `UserService.java` — se `requestedRole == CTO && callerRole != CTO` lança `ForbiddenException`.
 
 ## 8. Correções adicionais (sessão anterior)
 
