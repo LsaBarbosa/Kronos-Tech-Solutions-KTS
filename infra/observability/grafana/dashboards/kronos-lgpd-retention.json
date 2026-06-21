@@ -2,33 +2,363 @@
   "id": null,
   "uid": "kronos-lgpd-retention",
   "title": "Kronos LGPD & Retention",
-  "schemaVersion": 39,
+  "schemaVersion": 27,
   "version": 1,
-  "timezone": "browser",
+  "style": "dark",
+  "timezone": "",
+  "refresh": "5m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "tags": ["lgpd", "retention", "kronos"],
+  "links": [],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "templating": {
+    "list": []
+  },
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
-      "title": "LGPD Requests",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "title": "LGPD Consent Activity",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
       "targets": [
         {
-          "expr": "sum(rate(kronos_lgpd_request_total[5m])) by (event_type, status, result)",
-          "legendFormat": "{{event_type}} {{status}} {{result}}"
+          "datasource": "Prometheus",
+          "expr": "increase(kronos_consent_accepted_total{application=\"kronos-backend\", environment=\"production\"}[1h])",
+          "interval": "",
+          "legendFormat": "Consents Accepted",
+          "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "increase(kronos_consent_revoked_total{application=\"kronos-backend\", environment=\"production\"}[1h])",
+          "interval": "",
+          "legendFormat": "Consents Revoked",
+          "refId": "B"
         }
       ]
     },
     {
       "id": 2,
-      "type": "timeseries",
-      "title": "Retention Executions",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "type": "stat",
+      "title": "Total Consents Accepted",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
       "targets": [
         {
-          "expr": "sum(rate(kronos_retention_execution_total[5m])) by (mode, result, reason)",
-          "legendFormat": "{{mode}} {{result}} {{reason}}"
+          "datasource": "Prometheus",
+          "expr": "kronos_consent_accepted_total{application=\"kronos-backend\", environment=\"production\"} or vector(0)",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "Total Accepted",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Consents Revoked",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "kronos_consent_revoked_total{application=\"kronos-backend\", environment=\"production\"} or vector(0)",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "Total Revoked",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Password Resets (24h)",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "increase(kronos_redis_reset_token_total{application=\"kronos-backend\", environment=\"production\"}[24h]) or vector(0)",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "Password Resets",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "External Provider Requests by Provider",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by(provider)(rate(kronos_external_provider_request_total{application=\"kronos-backend\", environment=\"production\"}[5m]))",
+          "interval": "",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Scheduler Executions by Scheduler",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {}
+        }
+      ],
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum by(scheduler, result)(increase(kronos_scheduler_execution_total{application=\"kronos-backend\", environment=\"production\"}[24h]))",
+          "format": "table",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
         }
       ]
     }

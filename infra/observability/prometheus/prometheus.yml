@@ -12,4 +12,27 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - host.docker.internal:8081
+          - 172.18.0.1:8080
+        labels:
+          application: kronos-api
+          environment: production
+
+  # Redis - Rate Limiting Storage & Cache
+  - job_name: redis
+    static_configs:
+      - targets:
+          - host.docker.internal:6379
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'redis_keyspace.*|redis_connected_clients|redis_used_memory'
+        action: keep
+
+  # ModSecurity/WAF Metrics (quando AÇÃO 3 implementada)
+  - job_name: modsecurity
+    static_configs:
+      - targets:
+          - host.docker.internal:9100
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'modsecurity_.*|waf_.*'
+        action: keep

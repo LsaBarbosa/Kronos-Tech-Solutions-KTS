@@ -1,67 +1,321 @@
 {
-  "annotations": { "list": [] },
+  "id": null,
+  "uid": "kronos-hikari",
+  "title": "KRONOS Hikari/PostgreSQL",
+  "tags": ["kronos", "hikari", "postgresql"],
+  "style": "dark",
+  "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "schemaVersion": 27,
+  "version": 1,
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
   "panels": [
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "id": 1,
-      "targets": [
-        { "expr": "hikaricp_connections_active{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "ativas" },
-        { "expr": "hikaricp_connections_idle{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "ociosas" }
-      ],
-      "title": "Conexoes Hikari",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "id": 2,
-      "targets": [
-        { "expr": "hikaricp_connections_pending{application=~\"$application\",environment=~\"$environment\"}", "legendFormat": "pendentes" }
-      ],
-      "title": "Fila de conexoes",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "id": 3,
-      "targets": [
-        { "expr": "increase(hikaricp_connections_timeout_total{application=~\"$application\",environment=~\"$environment\"}[15m])", "legendFormat": "timeouts" }
-      ],
-      "title": "Timeouts de conexao",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "id": 4,
-      "targets": [
-        { "expr": "max(hikaricp_connections{application=~\"$application\",environment=~\"$environment\"})", "legendFormat": "max pool" }
-      ],
-      "title": "Uso maximo observado do pool",
-      "type": "timeseries"
-    }
-  ],
-  "schemaVersion": 39,
-  "templating": {
-    "list": [
-      {
-        "current": { "selected": true, "text": "kronos-backend", "value": "kronos-backend" },
-        "name": "application",
-        "query": "label_values(hikaricp_connections_active, application)",
-        "type": "query"
+      "title": "Pool Connections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      {
-        "current": { "selected": true, "text": "production", "value": "production" },
-        "name": "environment",
-        "query": "label_values(hikaricp_connections_active, environment)",
-        "type": "query"
-      }
-    ]
-  },
-  "title": "KRONOS Hikari/PostgreSQL",
-  "uid": "kronos-hikari"
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "lineWidth": 1,
+            "fillOpacity": 50
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Active",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections_idle{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Idle",
+          "refId": "B"
+        },
+        {
+          "expr": "hikaricp_connections_pending{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Pending",
+          "refId": "C"
+        },
+        {
+          "expr": "hikaricp_connections_max{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Max Pool Size",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pool Usage Ratio",
+      "type": "gauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"} / hikaricp_connections_max{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Usage Ratio",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Pending Threads Waiting",
+      "type": "gauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_pending{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}",
+          "legendFormat": "Pending Threads",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Connection Timeouts (Last 1h)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "increase(hikaricp_connections_timeout_total{application=\"kronos-backend\", environment=\"production\", pool=\"HikariPool-1\"}[1h])",
+          "legendFormat": "Timeouts",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Avg Connection Acquire Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(hikaricp_connections_acquire_seconds_sum{application=\"kronos-backend\", environment=\"production\"}[5m]) / rate(hikaricp_connections_acquire_seconds_count{application=\"kronos-backend\", environment=\"production\"}[5m])",
+          "legendFormat": "Avg Acquire Time",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Avg Connection Usage Time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(hikaricp_connections_usage_seconds_sum{application=\"kronos-backend\", environment=\"production\"}[5m]) / rate(hikaricp_connections_usage_seconds_count{application=\"kronos-backend\", environment=\"production\"}[5m])",
+          "legendFormat": "Avg Usage Time",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Repository Invocations Rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(spring_data_repository_invocations_seconds_count{application=\"kronos-backend\", environment=\"production\"}[5m])",
+          "legendFormat": "{{repository}} - {{method}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
 }

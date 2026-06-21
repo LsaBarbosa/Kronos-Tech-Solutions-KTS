@@ -2,35 +2,171 @@
   "id": null,
   "uid": "kronos-jvm-postgres",
   "title": "Kronos JVM & Postgres",
-  "schemaVersion": 39,
+  "style": "dark",
+  "schemaVersion": 27,
   "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
   "timezone": "browser",
+  "tags": [],
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "links": [],
   "panels": [
     {
       "id": 1,
       "type": "timeseries",
-      "title": "JVM Heap Used",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "title": "JVM Heap",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
-          "expr": "sum(jvm_memory_used_bytes{job=\"kronos-backend\",area=\"heap\"})",
-          "legendFormat": "heap"
+          "expr": "jvm_memory_used_bytes{application=\"kronos-backend\", area=\"heap\"}",
+          "legendFormat": "Heap Used",
+          "refId": "A"
+        },
+        {
+          "expr": "jvm_memory_max_bytes{application=\"kronos-backend\", area=\"heap\"}",
+          "legendFormat": "Heap Max",
+          "refId": "B"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
     },
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Hikari Active Connections",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "title": "DB Pool",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "targets": [
         {
-          "expr": "hikaricp_connections_active{job=\"kronos-backend\"}",
-          "legendFormat": "active"
+          "expr": "hikaricp_connections_active{application=\"kronos-backend\"}",
+          "legendFormat": "Active Connections",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections_max{application=\"kronos-backend\"}",
+          "legendFormat": "Max Connections",
+          "refId": "B"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "CPU Usage",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{application=\"kronos-backend\"} * 100",
+          "legendFormat": "CPU Usage",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Live Threads",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{application=\"kronos-backend\"}",
+          "legendFormat": "Live Threads",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 5,
+      "type": "gauge",
+      "title": "GC Overhead",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "jvm_gc_overhead{application=\"kronos-backend\"}",
+          "legendFormat": "GC Overhead",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.2 },
+              { "color": "red", "value": 0.4 }
+            ]
+          },
+          "mappings": [],
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      }
     }
   ]
 }
