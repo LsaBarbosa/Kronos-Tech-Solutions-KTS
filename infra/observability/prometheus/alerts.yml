@@ -1,141 +1,295 @@
 groups:
-  - name: kronos-observability
+
+  # ═══════════════════════════════════════════════════════════════
+  # INFRAESTRUTURA
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-infra
     rules:
+
       - alert: KronosBackendDown
         expr: up{job="kronos-backend"} == 0
         for: 1m
         labels:
           severity: critical
+          category: infra
         annotations:
-          summary: KRONOS backend indisponivel
-          description: O target kronos-backend deixou de responder ao Prometheus.
+          summary: "Backend KRONOS indisponivel"
+          description: "O Prometheus nao consegue scrapeaar o backend. Verifique o processo kronos-backend na VPS."
 
-      - alert: KronosBackendHttp5xxHigh
-        expr: sum(rate(http_server_requests_seconds_count{job="kronos-backend",status=~"5.."}[5m])) > 0.2
+      - alert: KronosCpuHigh
+        expr: process_cpu_usage{application="kronos-backend"} > 0.85
         for: 5m
         labels:
           severity: high
+          category: infra
         annotations:
-          summary: KRONOS com erros HTTP 5xx
-          description: A API principal esta retornando erro 5xx.
+          summary: "CPU do backend em {{ $value | humanizePercentage }}"
+          description: "O processo Java esta consumindo mais de 85% de CPU por mais de 5 minutos."
 
-      - alert: KronosBackendLatencyAverageHigh
-        expr: sum(rate(http_server_requests_seconds_sum{job="kronos-backend"}[5m])) / sum(rate(http_server_requests_seconds_count{job="kronos-backend"}[5m])) > 2
-        for: 10m
-        labels:
-          severity: high
-        annotations:
-          summary: KRONOS com latencia media elevada
-          description: A latencia media da API excedeu 2s.
-
-      - alert: KronosAuthFailureSpike
-        expr: increase(kronos_auth_login_total{result="failure"}[10m]) > 10
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: Pico de falhas de autenticacao
-          description: O total de falhas de login excedeu o limite nos ultimos 10 minutos.
-
-      - alert: KronosFaceLoginFailureSpike
-        expr: increase(kronos_auth_login_total{method="face",result="failure"}[10m]) > 5
+      - alert: KronosHeapMemoryHigh
+        expr: >
+          jvm_memory_used_bytes{application="kronos-backend", area="heap"}
+          /
+          jvm_memory_max_bytes{application="kronos-backend", area="heap"}
+          > 0.85
         for: 5m
         labels:
           severity: high
+          category: infra
         annotations:
-          summary: Pico de falhas no login facial
-          description: O total de falhas de autenticacao facial ultrapassou o limite nos ultimos 10 minutos.
+          summary: "Heap JVM em {{ $value | humanizePercentage }}"
+          description: "Uso de heap acima de 85%. Risco de OutOfMemoryError."
 
-      - alert: KronosLegalFailure
-        expr: increase(kronos_legal_generation_total{result="failure"}[15m]) > 0
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: Falha na geracao de documentos legais
-          description: A geracao de AFD, AEJ, espelho ou atestado tecnico falhou.
-
-      - alert: KronosRetentionApplyFailure
-        expr: increase(kronos_retention_execution_total{mode="apply",result="failure"}[30m]) > 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: Falha na aplicacao de retention
-          description: A execucao APPLY de retention falhou e exige intervencao.
-
-      - alert: KronosNtpDriftHigh
-        expr: abs(kronos_ntp_drift_seconds) > 5
-        for: 2m
-        labels:
-          severity: critical
-        annotations:
-          summary: Drift NTP acima do limite
-          description: O desvio entre o horario local e o NTP excedeu 5 segundos.
-
-      - alert: KronosFrontendErrorSpike
-        expr: increase(kronos_frontend_event_total{result="failure"}[10m]) > 10
-        for: 5m
-        labels:
-          severity: high
-        annotations:
-          summary: Pico de erros no front-end
-          description: Eventos de erro do front-end cresceram acima do limite nos ultimos 10 minutos.
-
-      # ═══════════════════════════════════════════════════════════════
-      # AÇÃO 4: Segurança — Brute Force & Authentication
-      # ═══════════════════════════════════════════════════════════════
-
-      - alert: RateLimitingActive
-        expr: increase(kronos_rate_limit_blocked_total[5m]) > 50
-        for: 2m
-        labels:
-          severity: high
-          category: brute-force
-        annotations:
-          summary: "Rate limiting bloqueou {{ $value }} requisições"
-          description: "Usuário: {{ $labels.username }} | IP: {{ $labels.client_ip }} | Padrão: possível força bruta"
-
-      - alert: SuspiciousLoginAttempts
-        expr: increase(kronos_authentication_failures_total{reason='invalid_credentials'}[1m]) > 10
-        for: 1m
-        labels:
-          severity: high
-          category: brute-force
-        annotations:
-          summary: "{{ $value }} tentativas de login falhadas/min"
-          description: "Usuário: {{ $labels.username }} | Possível ataque de força bruta"
-
-      - alert: AuthServiceHighErrorRate
-        expr: rate(kronos_authentication_errors_total[5m]) > 0.1
-        for: 2m
-        labels:
-          severity: high
-          category: auth
-        annotations:
-          summary: "Taxa alta de erros no serviço de autenticação"
-          description: "Taxa de erro: {{ $value | humanizePercentage }} | Possível indisponibilidade ou ataque"
-
-      # ═══════════════════════════════════════════════════════════════
-      # AÇÃO 4: Segurança — Infraestrutura
-      # ═══════════════════════════════════════════════════════════════
-
-      - alert: RedisUnavailable
-        expr: up{job="redis"} == 0
+      - alert: KronosHeapMemoryCritical
+        expr: >
+          jvm_memory_used_bytes{application="kronos-backend", area="heap"}
+          /
+          jvm_memory_max_bytes{application="kronos-backend", area="heap"}
+          > 0.95
         for: 2m
         labels:
           severity: critical
           category: infra
         annotations:
-          summary: "Redis indisponível"
-          description: "Redis (rate limiting storage) está inacessível. Rate limiting pode falhar."
+          summary: "Heap JVM critica: {{ $value | humanizePercentage }}"
+          description: "Heap acima de 95%. OutOfMemoryError iminente. Reinicializacao pode ser necessaria."
 
-      - alert: DatabaseConnectionPoolExhausted
-        expr: hikari_connections_active / hikari_connections_max > 0.9
+      - alert: KronosGcOverheadHigh
+        expr: jvm_gc_overhead{application="kronos-backend"} > 0.25
+        for: 5m
+        labels:
+          severity: high
+          category: infra
+        annotations:
+          summary: "GC overhead em {{ $value | humanizePercentage }}"
+          description: "O GC esta consumindo mais de 25% do CPU. Possivel memory leak."
+
+      - alert: KronosDiskSpaceLow
+        expr: disk_free_bytes{application="kronos-backend"} / disk_total_bytes{application="kronos-backend"} < 0.15
+        for: 5m
+        labels:
+          severity: high
+          category: infra
+        annotations:
+          summary: "Espaco em disco em {{ $value | humanizePercentage }} livre"
+          description: "Menos de 15% de espaco livre no disco da aplicacao."
+
+  # ═══════════════════════════════════════════════════════════════
+  # BANCO DE DADOS
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-database
+    rules:
+
+      - alert: KronosDbPoolExhausted
+        expr: >
+          hikaricp_connections_active{application="kronos-backend"}
+          /
+          hikaricp_connections_max{application="kronos-backend"}
+          > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Pool de conexoes DB em {{ $value | humanizePercentage }}"
+          description: "Mais de 90% das conexoes do HikariCP estao em uso. Risco de timeout de conexao."
+
+      - alert: KronosDbConnectionTimeout
+        expr: increase(hikaricp_connections_timeout_total{application="kronos-backend"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: high
+          category: database
+        annotations:
+          summary: "Timeout de conexao ao banco detectado"
+          description: "{{ $value }} conexoes falharam por timeout nos ultimos 5 minutos."
+
+      - alert: KronosDbPendingConnections
+        expr: hikaricp_connections_pending{application="kronos-backend"} > 5
         for: 2m
         labels:
           severity: high
           category: database
         annotations:
-          summary: "Pool de conexões BD em {{ $value | humanizePercentage }}"
-          description: "Possível leak de conexões ou DoS contra banco de dados"
+          summary: "{{ $value }} threads aguardando conexao DB"
+          description: "Fila de espera por conexao acima de 5 por mais de 2 minutos."
+
+  # ═══════════════════════════════════════════════════════════════
+  # API HTTP
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-api
+    rules:
+
+      - alert: KronosHttp5xxHigh
+        expr: >
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend", status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend"}[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: high
+          category: api
+        annotations:
+          summary: "Taxa de erros 5xx em {{ $value | humanizePercentage }}"
+          description: "Mais de 5% das requisicoes estao retornando erro 5xx por 5 minutos."
+
+      - alert: KronosHttp5xxCritical
+        expr: >
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend", status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend"}[5m]))
+          > 0.25
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "CRITICO: Taxa de erros 5xx em {{ $value | humanizePercentage }}"
+          description: "Mais de 25% das requisicoes retornando erro 5xx. Provavel falha critica no backend."
+
+      - alert: KronosLatencyHigh
+        expr: >
+          sum(rate(http_server_requests_seconds_sum{application="kronos-backend"}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend"}[5m]))
+          > 2
+        for: 10m
+        labels:
+          severity: high
+          category: api
+        annotations:
+          summary: "Latencia media da API: {{ $value | humanizeDuration }}"
+          description: "A latencia media superou 2 segundos por mais de 10 minutos."
+
+      - alert: KronosLatencyCritical
+        expr: >
+          sum(rate(http_server_requests_seconds_sum{application="kronos-backend"}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{application="kronos-backend"}[5m]))
+          > 5
+        for: 3m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "CRITICO: Latencia media da API: {{ $value | humanizeDuration }}"
+          description: "A latencia media superou 5 segundos. Possivel degradacao severa do servico."
+
+  # ═══════════════════════════════════════════════════════════════
+  # SEGURANÇA E AUTENTICAÇÃO
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-security
+    rules:
+
+      - alert: KronosBruteForcePassword
+        expr: increase(kronos_auth_login_total{method="password", result="failure"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Possivel brute force: {{ $value }} falhas de login (senha) em 5min"
+          description: "Pico de falhas de autenticacao por senha detectado. Verifique logs para identificar IP de origem."
+
+      - alert: KronosBruteForceFace
+        expr: increase(kronos_auth_login_total{method="face", result="failure"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: high
+          category: security
+        annotations:
+          summary: "Possivel ataque facial: {{ $value }} falhas de login biometrico em 5min"
+          description: "Pico de falhas de autenticacao biometrica detectado."
+
+      - alert: KronosRateLimitBlocking
+        expr: increase(kronos_redis_rate_limit_blocked_total[5m]) > 20
+        for: 2m
+        labels:
+          severity: high
+          category: security
+        annotations:
+          summary: "Rate limiting bloqueou {{ $value }} requisicoes em 5min"
+          description: "Volume elevado de requisicoes bloqueadas por rate limiting. Possivel ataque DDoS ou bot."
+
+      - alert: KronosRateLimitCritical
+        expr: increase(kronos_redis_rate_limit_blocked_total[1m]) > 50
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "CRITICO: {{ $value }} bloqueios de rate limit em 1 minuto"
+          description: "Volume extremo de bloqueios. Possivel ataque DDoS ativo."
+
+      - alert: KronosHttp401Spike
+        expr: increase(http_server_requests_seconds_count{application="kronos-backend", status="401"}[5m]) > 15
+        for: 2m
+        labels:
+          severity: high
+          category: security
+        annotations:
+          summary: "{{ $value }} respostas HTTP 401 em 5min"
+          description: "Pico de erros de autorizacao. Possivel tentativa de acesso nao autorizado."
+
+      - alert: KronosRedisUnavailable
+        expr: increase(kronos_redis_unavailable_total[2m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "Redis indisponivel - rate limiting comprometido"
+          description: "O backend detectou falha de conexao com Redis. Rate limiting e cache podem estar falhando."
+
+  # ═══════════════════════════════════════════════════════════════
+  # NTP / INTEGRIDADE DE HORÁRIO
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-ntp
+    rules:
+
+      - alert: KronosNtpDriftHigh
+        expr: abs(kronos_ntp_drift_seconds) > 2
+        for: 2m
+        labels:
+          severity: high
+          category: ntp
+        annotations:
+          summary: "Drift NTP em {{ $value }}s"
+          description: "Desvio de horario acima de 2 segundos. Registros de ponto podem ser imprecisos."
+
+      - alert: KronosNtpDriftCritical
+        expr: abs(kronos_ntp_drift_seconds) > 5
+        for: 1m
+        labels:
+          severity: critical
+          category: ntp
+        annotations:
+          summary: "CRITICO: Drift NTP em {{ $value }}s"
+          description: "Desvio de horario acima de 5 segundos. Conformidade trabalhista comprometida."
+
+      - alert: KronosNtpSyncFailing
+        expr: increase(kronos_scheduler_execution_total{scheduler="time_sync", result="failure"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: high
+          category: ntp
+        annotations:
+          summary: "Sincronizacao NTP falhando"
+          description: "O scheduler de sincronizacao de tempo falhou. Verificar conectividade com servidor NTP."
+
+  # ═══════════════════════════════════════════════════════════════
+  # LOGS DE ERROS
+  # ═══════════════════════════════════════════════════════════════
+  - name: kronos-logs
+    rules:
+
+      - alert: KronosErrorLogSpike
+        expr: increase(logback_events_total{application="kronos-backend", level="error"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: high
+          category: logs
+        annotations:
+          summary: "{{ $value }} logs de erro em 5 minutos"
+          description: "Pico de logs ERROR no backend. Verifique o dashboard KRONOS Logs para detalhes."
