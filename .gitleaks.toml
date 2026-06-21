@@ -1,7 +1,56 @@
-title = "Kronos back-end gitleaks allowlist"
+# Gitleaks configuration for Kronos Tech Solutions
+# Detects secrets in Git history with custom rules
 
-[allowlist]
+title = "Gitleaks config — Kronos Tech Solutions"
+
+[extend]
+useDefault = true
+
+# Custom rules for Kronos-specific secrets
+[[rules]]
+id = "kronos-jwt-secret"
+description = "Kronos JWT Secret exposed"
+regex = '''(?i)(JWT_SECRET|jwtSecret|jwt_secret|LGPD_LOG_HASH_SECRET)\s*[=:]\s*['""]?([a-zA-Z0-9\-_.+/]{20,})['""]?'''
+secretGroup = 2
+keywords = ["JWT_SECRET", "LGPD_LOG_HASH_SECRET"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "kronos-aws-credentials"
+description = "AWS Secret Access Key exposed"
+regex = '''(?i)(AWS_SECRET_ACCESS_KEY|aws_secret_access_key)\s*[=:]\s*['""]?([A-Za-z0-9/+]{40})['""]?'''
+secretGroup = 2
+keywords = ["AWS_SECRET"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "kronos-digital-certificate-password"
+description = "Digital Certificate Password"
+regex = '''(?i)(DIGITAL_CERTIFICATE_PASSWORD|digital_certificate_password)\s*[=:]\s*['""]?([^'""\s;]{8,})['""]?'''
+secretGroup = 2
+keywords = ["CERTIFICATE_PASSWORD"]
+severity = "CRITICAL"
+
+[[rules]]
+id = "kronos-mail-credentials"
+description = "SMTP Mail Password"
+regex = '''(?i)(MAIL_PASSWORD|mail_password)\s*[=:]\s*['""]?([^'""\s]+)['""]?'''
+secretGroup = 2
+keywords = ["MAIL_PASSWORD"]
+severity = "HIGH"
+
+[[rules]]
+id = "kronos-private-key"
+description = "Private RSA/OPENSSH/EC Key"
+regex = '''-----BEGIN\s+(RSA|OPENSSH|EC|PRIVATE)\s+PRIVATE\s+KEY'''
+keywords = ["PRIVATE KEY"]
+severity = "CRITICAL"
+
+[[allowlist]]
+description = "Ignore test files and examples"
 paths = [
-  '''^docs/''',
-  '''^src/test/''',
+  "src/test/",
+  "docs/examples/",
+  ".env.example",
+  "docs/LOGIN_TROUBLESHOOTING.md"
 ]
