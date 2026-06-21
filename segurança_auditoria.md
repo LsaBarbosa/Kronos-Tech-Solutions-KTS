@@ -227,13 +227,52 @@
 - Correção implementada: adição do plugin `org.owasp.dependencycheck` com saída HTML/JSON, `failBuildOnCVSS = 9.0` e suporte opcional a `NVD_API_KEY`.
 - Resultado do reteste: a tarefa agora existe e executa; a atualização NVD falhou por indisponibilidade externa (`NVD Returned Status Code: 524`), não por erro de configuração local.
 
-## 9. Arquivos alterados
+## 9. Verificações adicionais — 2026-06-21 (rodada 2)
+
+### Verificadas sem achados
+
+| Área | Verificação | Resultado |
+|---|---|---|
+| Docker/Infra | Sem modo privileged, Redis bind 127.0.0.1, secrets via `${VAR}`, Grafana user 472 | Limpo |
+| XXE / RCE | Sem `XMLInputFactory`, `DocumentBuilder`, `ProcessBuilder`, `Runtime.exec` | Limpo |
+| Log injection | Inputs de usuário passam por `SensitiveDataMasker` / `privacyLogReferenceService` antes de logar | Limpo |
+| Stack | Spring Boot 3.5.3, Java 21 LTS, BouncyCastle 1.78.1, jjwt 0.11.5 (sem CVE crítico) | Limpo |
+| CSRF | `CookieCsrfTokenRepository`, isenção só pre-auth, prod: `secure=true` SameSite=None | Limpo |
+| Métrica tags | `ObservabilityTagSanitizer` com allowlist de chaves + truncamento 64 chars | Limpo |
+| Escalada de seção | Email template usa string estática + username do banco (não input do usuário) | Limpo |
+| Atuador | Prod expõe apenas `health` e `prometheus` na porta 8081 (127.0.0.1 only) | Limpo |
+| EnvironmentFile | `/etc/kronos/kronos.env` permissão `640 root:kronos` — adequado | Limpo |
+| Dependências backend | Sem CVE crítico identificado manualmente (scan OWASP executado — ver SUPPLY-002) | Limpo |
+
+### KRONOS-INFRA-001 — Log Logback criado com permissão 644 (world-readable)
+
+- Severidade: `Baixa`
+- Status: `Pendente ação operacional`
+- Arquivo afetado: `/var/log/kronos/kronos-backend.log`
+- Descrição: o Spring Boot cria `kronos-backend.log` via Logback `RollingFileAppender` com permissão `644` (leitura universal). Qualquer processo no servidor pode ler eventos de autenticação, correlation IDs e detalhes operacionais. Os logs redirecionados pelo systemd (`backend.log`, `backend-error.log`) estão com `750` — corretos.
+- Causa raiz: o processo `kronos` usa o umask padrão do sistema (`022`), criando arquivos com `644`.
+- Correção recomendada: adicionar `UMask=0027` ao bloco `[Service]` em `/etc/systemd/system/kronos-backend.service` e reiniciar o serviço. Novos arquivos de log serão criados com `640`.
+- Permissão dos logs corrigidos manualmente (imediato):
+  ```
+  sudo chmod 640 /var/log/kronos/kronos-backend.log
+  sudo chmod -x /var/log/kronos/backend.log /var/log/kronos/backend-error.log
+  ```
+
+### KRONOS-SUPPLY-002 — Scan OWASP dependencyCheckAnalyze executado com NVD disponível
+
+- Status: `Em andamento`
+- Descrição: NVD retornou HTTP 200 em 2026-06-21. Scan `./gradlew dependencyCheckAnalyze` iniciado — aguardando relatório em `build/reports/dependency-check-report.html`.
+- Resultado do reteste: pendente conclusão.
+
+## 10. Arquivos alterados
 
 ### Back-end
 
 - `build.gradle`
 - `scripts/security/assert-no-secrets.sh`
 - `src/main/java/com/kts/kronos/config/SecurityConfig.java` (CORS: `setAllowedHeaders` explícito)
+- `src/main/java/com/kts/kronos/adapter/in/web/exceptions/RestExceptionHandler.java` (SEC-009)
+- `src/main/java/com/kts/kronos/application/service/UserService.java` (SEC-010)
 - `src/test/java/com/kts/kronos/observability/application/KronosMetricsTest.java`
 - `deploy/hostinger-nginx.conf` (server_tokens off no HTTP, proxy_hide_header)
 - `segurança_auditoria.md`
