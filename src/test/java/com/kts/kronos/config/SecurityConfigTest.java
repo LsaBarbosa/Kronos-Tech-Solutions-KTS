@@ -99,7 +99,8 @@ class SecurityConfigTest {
                 configuration.getAllowedOrigins()
         );
         assertEquals(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"), configuration.getAllowedMethods());
-        assertEquals(List.of("*"), configuration.getAllowedHeaders());
+        // SEC-007: explicit allowlist replaces wildcard "*" to prevent arbitrary internal header injection
+        assertEquals(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"), configuration.getAllowedHeaders());
         assertTrue(Boolean.TRUE.equals(configuration.getAllowCredentials()));
     }
 
