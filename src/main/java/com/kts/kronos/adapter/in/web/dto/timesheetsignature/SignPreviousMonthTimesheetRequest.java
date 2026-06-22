@@ -28,6 +28,6 @@ public record SignPreviousMonthTimesheetRequest(
         @NotBlank(message = "Hash dos registros do mês de referência é obrigatório.")
         String recordsSnapshotHashSha256,
 
-        @NotBlank(message = "Senha é obrigatória.")
-        String password
+        @NotBlank(message = "Imagem biométrica é obrigatória.")
+        String faceImageBase64
 ) {}
