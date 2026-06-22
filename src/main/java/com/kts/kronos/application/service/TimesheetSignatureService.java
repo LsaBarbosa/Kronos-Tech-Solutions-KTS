@@ -14,13 +14,13 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
 import com.kts.kronos.application.port.in.usecase.TimesheetSignatureUseCase;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.TimesheetSignatureProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimesheetSignature;
-import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -35,11 +35,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -82,10 +83,10 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
     private final TimesheetSignatureProvider signatureProvider;
     private final TimeRecordProvider timeRecordProvider;
     private final EmployeeProvider employeeProvider;
-    private final UserProvider userProvider;
+    private final FaceRecognitionProvider faceRecognitionProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final PointMirrorPdfUseCase pointMirrorPdfUseCase;
-    private final PasswordEncoder passwordEncoder;
+    private final BiometricProtectionService biometricProtectionService;
     private final AuditService auditService;
     private final DocumentUseCase documentUseCase;
     private final DigitalSignatureService digitalSignatureService;
@@ -122,8 +123,6 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
         Employee employee = getAuthenticatedEmployee();
         UUID currentUserId = jwtAuthenticatedUser.getuserId();
-        User user = userProvider.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
 
         YearMonth previous = resolveTargetMonth(request.referenceYear(), request.referenceMonth());
         LocalDate periodStart = previous.atDay(1);
@@ -155,10 +154,31 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
             throw new ConflictException("Não é possível assinar: há pendências no período. Resolva antes de assinar.");
         }
 
-        // Validação da senha (reautenticação)
-        if (!passwordEncoder.matches(request.password(), user.password())) {
+        // Reconhecimento facial (reautenticação biométrica)
+        biometricProtectionService.protectTimesheetSigning(employee.employeeId(), request.faceImageBase64());
+
+        UUID recognizedEmployeeId;
+        try {
+            byte[] imageBytes = Base64.getDecoder().decode(request.faceImageBase64());
+            recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(new ByteArrayInputStream(imageBytes));
+        } catch (IllegalArgumentException ex) {
             auditService.registerSecurity(
-                    AuditAction.TIMESHEET_SIGNATURE_PASSWORD_INVALID,
+                    AuditAction.TIMESHEET_SIGNATURE_FACIAL_AUTH_FAILED,
+                    currentUserId,
+                    employee.employeeId(),
+                    "HIGH",
+                    "TIMESHEET_SIGNATURE",
+                    null,
+                    String.format("year=%d,month=%d,reason=invalid_base64", previous.getYear(), previous.getMonthValue()),
+                    ipAddress,
+                    userAgent
+            );
+            throw new ForbiddenException("Imagem biométrica inválida.");
+        }
+
+        if (!employee.employeeId().equals(recognizedEmployeeId)) {
+            auditService.registerSecurity(
+                    AuditAction.TIMESHEET_SIGNATURE_FACIAL_AUTH_FAILED,
                     currentUserId,
                     employee.employeeId(),
                     "HIGH",
@@ -168,7 +188,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                     ipAddress,
                     userAgent
             );
-            throw new ForbiddenException("Senha inválida.");
+            throw new ForbiddenException("Reconhecimento facial não confirmado.");
         }
 
         // Hash canônico dos registros (determinístico) — usado como anti-tamper real.
@@ -279,7 +299,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                 now,
                 TIMESHEET_ZONE.getId(),
                 TimesheetSignatureType.INTERNAL_ADVANCED,
-                TimesheetSignatureMethod.PASSWORD_REAUTH,
+                TimesheetSignatureMethod.FACIAL_RECOGNITION,
                 TimesheetSignatureStatus.ACTIVE,
                 documentId,
                 mirrorHash,
@@ -632,7 +652,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
     private String buildEvidenceJson(int recordCount) {
         return String.format(Locale.ROOT,
-                "{\"recordCount\":%d,\"hashAlgorithm\":\"SHA-256\",\"signatureType\":\"INTERNAL_ADVANCED\",\"method\":\"PASSWORD_REAUTH\"}",
+                "{\"recordCount\":%d,\"hashAlgorithm\":\"SHA-256\",\"signatureType\":\"INTERNAL_ADVANCED\",\"method\":\"FACIAL_RECOGNITION\"}",
                 recordCount
         );
     }
@@ -657,15 +677,19 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
     ) {
         StringBuilder sb = new StringBuilder(512);
         sb.append('{');
-        appendJson(sb, "authMethod", "PASSWORD_REAUTH"); sb.append(',');
+        appendJson(sb, "authMethod", "FACIAL_RECOGNITION"); sb.append(',');
         appendJson(sb, "companyId", employee.companyId().toString()); sb.append(',');
         appendJson(sb, "declarationHashSha256", declarationHash); sb.append(',');
         appendJson(sb, "declarationVersion", DECLARATION_VERSION_V1); sb.append(',');
         appendJson(sb, "documentType", "POINT_MIRROR"); sb.append(',');
         appendJson(sb, "documentVersion", DECLARATION_VERSION_V1); sb.append(',');
         appendJson(sb, "employeeId", employee.employeeId().toString()); sb.append(',');
+        appendJson(sb, "faceMatchThreshold", "90.0"); sb.append(',');
+        appendJson(sb, "facialVerificationStatus", "APPROVED"); sb.append(',');
         appendJson(sb, "hashAlgorithm", "SHA-256"); sb.append(',');
         appendJson(sb, "ipAddress", ipAddress); sb.append(',');
+        appendJson(sb, "livenessEnabled", "false"); sb.append(',');
+        appendJson(sb, "livenessStatus", "DISABLED"); sb.append(',');
         appendJson(sb, "periodEnd", periodEnd.toString()); sb.append(',');
         appendJson(sb, "periodStart", periodStart.toString()); sb.append(',');
         appendJson(sb, "recordsSnapshotHashSha256", recordsHash); sb.append(',');

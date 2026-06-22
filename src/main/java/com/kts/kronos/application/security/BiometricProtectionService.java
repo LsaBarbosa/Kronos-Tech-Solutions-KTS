@@ -31,6 +31,8 @@ public class BiometricProtectionService {
     private static final String LOGIN_FACE_RATE_LIMIT = "Muitas tentativas de login facial. Tente novamente em instantes.";
     private static final String CHECKIN_RATE_LIMIT = "Muitas tentativas biométricas de registro de ponto. Tente novamente em instantes.";
     private static final String ENROLLMENT_RATE_LIMIT = "Muitas tentativas de cadastro/atualização biométrica. Tente novamente em instantes.";
+    private static final String CONTRACT_SIGN_RATE_LIMIT = "Muitas tentativas de assinatura biométrica. Tente novamente em instantes.";
+    private static final String TIMESHEET_SIGN_RATE_LIMIT = "Muitas tentativas de assinatura de espelho de ponto. Tente novamente em instantes.";
 
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
@@ -77,6 +79,18 @@ public class BiometricProtectionService {
     @Value("${app.biometric.enrollment.window-seconds:${biometric.enrollment.window-seconds:600}}")
     private int enrollmentWindowSeconds;
 
+    @Value("${app.biometric.contract-sign.limit:${biometric.contract-sign.limit:5}}")
+    private int contractSignLimit;
+
+    @Value("${app.biometric.contract-sign.window-seconds:${biometric.contract-sign.window-seconds:300}}")
+    private int contractSignWindowSeconds;
+
+    @Value("${app.biometric.timesheet-sign.limit:${biometric.timesheet-sign.limit:5}}")
+    private int timesheetSignLimit;
+
+    @Value("${app.biometric.timesheet-sign.window-seconds:${biometric.timesheet-sign.window-seconds:300}}")
+    private int timesheetSignWindowSeconds;
+
     public void protectPublicLogin(String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.FACE_LOGIN, null);
@@ -98,6 +112,30 @@ public class BiometricProtectionService {
                 checkinLimit,
                 Duration.ofSeconds(checkinWindowSeconds),
                 CHECKIN_RATE_LIMIT
+        );
+    }
+
+    public void protectTimesheetSigning(UUID employeeId, String faceImageBase64) {
+        ensurePayloadSize(faceImageBase64);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.TIMESHEET_SIGNING, employeeId);
+        consume(
+                RedisRateLimitNames.BIOMETRIC_TIMESHEET_SIGN,
+                employeeId + "|" + clientIp(),
+                timesheetSignLimit,
+                Duration.ofSeconds(timesheetSignWindowSeconds),
+                TIMESHEET_SIGN_RATE_LIMIT
+        );
+    }
+
+    public void protectContractSigning(UUID employeeId, String faceImageBase64) {
+        ensurePayloadSize(faceImageBase64);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.CONTRACT_SIGNING, employeeId);
+        consume(
+                RedisRateLimitNames.BIOMETRIC_CONTRACT_SIGN,
+                employeeId + "|" + clientIp(),
+                contractSignLimit,
+                Duration.ofSeconds(contractSignWindowSeconds),
+                CONTRACT_SIGN_RATE_LIMIT
         );
     }
 

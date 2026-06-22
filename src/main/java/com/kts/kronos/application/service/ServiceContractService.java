@@ -19,16 +19,16 @@ import com.kts.kronos.application.port.in.usecase.ServiceContractUseCase;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.ServiceContractAssignmentProvider;
 import com.kts.kronos.application.port.out.provider.ServiceContractProvider;
 import com.kts.kronos.application.port.out.provider.ServiceContractSignatureProvider;
-import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.ServiceContract;
 import com.kts.kronos.domain.model.ServiceContractAssignment;
 import com.kts.kronos.domain.model.ServiceContractSignature;
-import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ContractSignatureMethod;
 import com.kts.kronos.domain.model.enuns.ContractSignatureStatus;
@@ -44,13 +44,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -81,9 +82,9 @@ public class ServiceContractService implements ServiceContractUseCase {
     private final ServiceContractAssignmentProvider assignmentProvider;
     private final ServiceContractSignatureProvider signatureProvider;
     private final EmployeeProvider employeeProvider;
-    private final UserProvider userProvider;
+    private final FaceRecognitionProvider faceRecognitionProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
-    private final PasswordEncoder passwordEncoder;
+    private final BiometricProtectionService biometricProtectionService;
     private final AuditService auditService;
     private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
@@ -376,8 +377,6 @@ public class ServiceContractService implements ServiceContractUseCase {
         }
         Employee employee = getAuthenticatedEmployee();
         UUID currentUserId = jwtAuthenticatedUser.getuserId();
-        User user = userProvider.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário autenticado não encontrado."));
 
         ServiceContract contract = contractProvider.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contrato não encontrado."));
@@ -412,9 +411,30 @@ public class ServiceContractService implements ServiceContractUseCase {
             throw new BadRequestException("A declaração informada está desatualizada. Recarregue a tela.");
         }
 
-        if (!passwordEncoder.matches(request.password(), user.password())) {
+        biometricProtectionService.protectContractSigning(employee.employeeId(), request.faceImageBase64());
+
+        UUID recognizedEmployeeId;
+        try {
+            byte[] imageBytes = Base64.getDecoder().decode(request.faceImageBase64());
+            recognizedEmployeeId = faceRecognitionProvider.searchFaceByImage(new ByteArrayInputStream(imageBytes));
+        } catch (IllegalArgumentException ex) {
             auditService.registerSecurity(
-                    AuditAction.SERVICE_CONTRACT_PASSWORD_INVALID,
+                    AuditAction.SERVICE_CONTRACT_FACIAL_AUTH_FAILED,
+                    currentUserId,
+                    employee.employeeId(),
+                    "HIGH",
+                    "SERVICE_CONTRACT",
+                    contractId.toString(),
+                    "reason=invalid_base64",
+                    ipAddress,
+                    userAgent
+            );
+            throw new ForbiddenException("Imagem biométrica inválida.");
+        }
+
+        if (!employee.employeeId().equals(recognizedEmployeeId)) {
+            auditService.registerSecurity(
+                    AuditAction.SERVICE_CONTRACT_FACIAL_AUTH_FAILED,
                     currentUserId,
                     employee.employeeId(),
                     "HIGH",
@@ -424,7 +444,7 @@ public class ServiceContractService implements ServiceContractUseCase {
                     ipAddress,
                     userAgent
             );
-            throw new ForbiddenException("Senha inválida.");
+            throw new ForbiddenException("Reconhecimento facial não confirmado.");
         }
 
         Instant now = Instant.now();
@@ -509,7 +529,7 @@ public class ServiceContractService implements ServiceContractUseCase {
                 now,
                 CONTRACT_ZONE.getId(),
                 ContractSignatureType.INTERNAL_ADVANCED,
-                ContractSignatureMethod.PASSWORD_REAUTH,
+                ContractSignatureMethod.FACIAL_RECOGNITION,
                 ContractSignatureStatus.ACTIVE,
                 signedDocumentId,
                 contract.documentHashSha256(),
@@ -686,7 +706,7 @@ public class ServiceContractService implements ServiceContractUseCase {
         StringBuilder sb = new StringBuilder(512);
         sb.append('{');
         appendJson(sb, "assignmentId", assignment.assignmentId().toString()); sb.append(',');
-        appendJson(sb, "authMethod", "PASSWORD_REAUTH"); sb.append(',');
+        appendJson(sb, "authMethod", "FACIAL_RECOGNITION"); sb.append(',');
         appendJson(sb, "companyId", employee.companyId().toString()); sb.append(',');
         appendJson(sb, "contractId", contract.contractId().toString()); sb.append(',');
         appendJson(sb, "declarationHashSha256", declarationHash); sb.append(',');
@@ -695,8 +715,12 @@ public class ServiceContractService implements ServiceContractUseCase {
         appendJson(sb, "documentType", "SERVICE_CONTRACT"); sb.append(',');
         appendJson(sb, "documentVersion", DECLARATION_VERSION_V1); sb.append(',');
         appendJson(sb, "employeeId", employee.employeeId().toString()); sb.append(',');
+        appendJson(sb, "faceMatchThreshold", "90.0"); sb.append(',');
+        appendJson(sb, "facialVerificationStatus", "APPROVED"); sb.append(',');
         appendJson(sb, "hashAlgorithm", "SHA-256"); sb.append(',');
         appendJson(sb, "ipAddress", ipAddress); sb.append(',');
+        appendJson(sb, "livenessEnabled", "false"); sb.append(',');
+        appendJson(sb, "livenessStatus", "DISABLED"); sb.append(',');
         appendJson(sb, "signatureId", signatureId.toString()); sb.append(',');
         appendJson(sb, "signatureType", "INTERNAL_ADVANCED"); sb.append(',');
         appendJson(sb, "signedAt", signedAt.toString()); sb.append(',');
