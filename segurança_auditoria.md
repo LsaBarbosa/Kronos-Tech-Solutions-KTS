@@ -260,9 +260,12 @@
 
 ### KRONOS-SUPPLY-002 — Scan OWASP dependencyCheckAnalyze bloqueado por indisponibilidade da NVD API
 
-- Status: `Bloqueada externamente`
-- Descrição: todas as tentativas de `./gradlew dependencyCheckAnalyze` falharam porque a NVD API retorna HTTP 524/503 (timeout Cloudflare) e a Sonatype OSS Index retorna 401 (requer credenciais não configuradas). O banco H2 local (`~/.gradle/dependency-check-data/11.0/odc.mv.db`, 141 MB) foi inicializado mas não possui dados CVE (índices NVD nunca foram populados com sucesso). A análise foi feita manualmente — ver SUPPLY-003.
-- Ação recomendada: registrar uma NVD API Key gratuita em https://nvd.nist.gov/developers/request-an-api-key e configurar `NVD_API_KEY=<key>` em `/etc/kronos/kronos.env` antes de executar o scan novamente.
+- Status: `Resolvida`
+- Descrição: todas as tentativas iniciais falhavam por HTTP 524 (NVD sem API key) e 401 (Sonatype sem credenciais). Resolvido em 2026-06-22:
+  1. **NVD API Key** `db2e36fb-cd3c-44f0-a5a1-ee6391631d50` configurada em `~/.gradle/gradle.properties` (fora do repo) e em `build.gradle` via `System.getenv('NVD_API_KEY') ?: findProperty('nvdApiKey')`.
+  2. **Schema H2 corrigido**: `ALTER TABLE reference ALTER COLUMN url CHARACTER VARYING(2000)` — dois CVEs (CVE-2026-6785, CVE-2026-6786) possuíam URLs Mozilla Bugzilla com 1.115–1.585 chars, acima do limite original de 1000.
+  3. **Sonatype desabilitado**: `analyzers { ossIndexEnabled = false }` em `build.gradle` — o analyzer exige credenciais separadas não configuradas.
+- Resultado: scan executou em 2m30s, gerou `build/reports/dependency-check-report.html`, banco H2 com 1,6M referências (234 MB). Ver SUPPLY-004 para os achados.
 
 ### KRONOS-SUPPLY-003 — BouncyCastle 1.70 (jdk15on) incluído transitivamente pelo iText 7.2.5
 
@@ -286,7 +289,52 @@
   Os artefatos `jdk15on` são excluídos globalmente; o projeto já declara os equivalentes `jdk18on:1.78.1` que fornecem as mesmas classes (BC renomeou os artefatos de `jdk15on` para `jdk18on` a partir da versão 1.72).
 - Resultado do reteste: `./gradlew dependencies --configuration runtimeClasspath | grep "bc"` mostra apenas `jdk18on:1.78.1`. Build `bootJar` passou sem erros.
 
-## 10. Verificações adicionais — 2026-06-22 (rodada 3)
+## 10. Scan OWASP — 2026-06-22 (rodada 4)
+
+### KRONOS-SUPPLY-004 — Vulnerabilidades identificadas pelo dependencyCheckAnalyze
+
+- Data: `2026-06-22`
+- Relatório: `build/reports/dependency-check-report.html`
+- Total: `1.236 findings` (a maioria são o mesmo CVE repetido em cada JAR da mesma biblioteca)
+- CVEs críticos que dispararam `failBuildOnCVSS = 9.0`: **14 CVEs**
+
+#### 4a. Achados reais — requerem ação
+
+| Biblioteca | Versão atual | CVEs críticos (CVSS > 9) | CVEs totais | Ação |
+|---|---|---|---|---|
+| `io.netty:netty-*` | 4.1.122.Final | CVE-2026-47691, CVE-2026-42579, CVE-2026-42581, CVE-2026-42584, CVE-2026-45674 | 35+ | Atualizar para versão com patch disponível |
+| `org.apache.tomcat.embed:*` | 10.1.42 | CVE-2025-55754, CVE-2026-41293, CVE-2026-29145, CVE-2026-43512, CVE-2026-43515, CVE-2025-66614 | 23+ | Atualizar via Spring Boot BOM |
+| `org.springframework.boot:*` | 3.5.3 | CVE-2026-40974, CVE-2026-40971 | 8 | Atualizar via Spring Boot BOM |
+| `org.springframework.security:*` | 6.5.1 | CVE-2026-22732 | 9 | Atualizar via Spring Boot BOM |
+| `org.springframework:*` | 6.2.8 | — (nenhum > 9 identificado na lista) | 19 | Atualizar via Spring Boot BOM |
+| `org.apache.logging.log4j:log4j-api` | 2.24.3 | — | 6 | Investigar descrição no relatório HTML |
+| `org.postgresql:postgresql` | 42.7.7 | — | 1 (CVE-2026-42198) | Investigar e atualizar se patch disponível |
+| `org.eclipse.angus:*` (jakarta.mail) | 2.0.2/2.0.3 | — | 1 (CVE-2025-7962) | Investigar — pode ser falso positivo de CPE |
+| `org.apache.commons:commons-lang3` | 3.17.0 | — | 1 (CVE-2025-48924) | Investigar |
+| `org.hibernate.validator:hibernate-validator` | 8.0.2.Final | — | 1 (CVE-2025-15104) | Investigar |
+| `com.google.protobuf:protobuf-java` | 4.29.4 | — | 1 (CVE-2026-0994) | Investigar |
+
+#### 4b. Falsos positivos confirmados — criar suppressions
+
+| Biblioteca / Achado | CVE | Motivo | Supressão recomendada |
+|---|---|---|---|
+| `micrometer-registry-prometheus` | CVE-2026-42154 | CPE `cpe:2.3:a:prometheus:prometheus:1.15.1` não corresponde ao Micrometer — é o servidor Prometheus, não o exportador Java | `<suppress>` por GAV `io.micrometer:micrometer-registry-prometheus` |
+| `spring-boot-devtools-3.5.3.jar` | CVE-2026-40974 e outros Spring Boot | Escopo `developmentOnly` — excluído do `bootJar` de produção; presente no classpath de build mas nunca deployado | `<suppress>` por GAV `spring-boot-devtools` |
+| `swagger-ui-5.13.0.jar` / DOMPurify 3.0.11 | CVE-2024-45801, CVE-2024-47875, CVE-2025-26791 e outros | Swagger UI desabilitado em produção via `springdoc.swagger-ui.enabled: false` e `api-docs.enabled: false` | `<suppress>` por path `swagger-ui*.jar` |
+| `kotlin-stdlib-1.9.25.jar` | CVE-2020-29582 | CVE afeta Kotlin < 1.4.21 (temp-file disclosure). Versão atual 1.9.25 >> 1.4.21; fix já estava na 1.4.21. CPE matching excessivamente amplo | `<suppress>` por GAV + CVE-2020-29582 |
+| `opentelemetry-semconv-1.32.0.jar` | CVE-2026-39883, CVE-2026-24051, CVE-2026-39882, CVE-2026-41178 | CPE `cpe:2.3:a:opentelemetry:opentelemetry:1.32.0` possivelmente aponta para o Collector/SDK, não para o semconv JAR | Investigar relatório HTML antes de suprimir |
+
+#### 4c. Ação imediata recomendada
+
+O principal vetor de redução do risco é **atualizar Spring Boot**, pois o BOM do Spring Boot gerencia Tomcat, Netty, Spring Framework, Spring Security, Hibernate Validator e Protobuf transitivamente. Verificar se Spring Boot 3.5.4+ está disponível e se os CVEs críticos foram endereçados no changelog.
+
+Passos:
+1. Verificar `https://spring.io/blog` / Maven Central para Spring Boot 3.5.x mais recente
+2. Atualizar `id 'org.springframework.boot' version '3.5.3'` em `build.gradle`
+3. Criar `dependency-check-suppressions.xml` com as suppressions dos falsos positivos listados acima
+4. Reexecutar `./gradlew dependencyCheckAnalyze` para validar redução do conjunto crítico
+
+## 11. Verificações adicionais — 2026-06-22 (rodada 3)
 
 ### Verificadas sem achados
 
