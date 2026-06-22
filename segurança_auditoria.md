@@ -236,7 +236,7 @@
 | Docker/Infra | Sem modo privileged, Redis bind 127.0.0.1, secrets via `${VAR}`, Grafana user 472 | Limpo |
 | XXE / RCE | Sem `XMLInputFactory`, `DocumentBuilder`, `ProcessBuilder`, `Runtime.exec` | Limpo |
 | Log injection | Inputs de usuário passam por `SensitiveDataMasker` / `privacyLogReferenceService` antes de logar | Limpo |
-| Stack | Spring Boot 3.5.3, Java 21 LTS, BouncyCastle 1.78.1, jjwt 0.11.5 (sem CVE crítico) | Limpo |
+| Stack | Spring Boot 3.5.3, Java 21 LTS, BouncyCastle jdk18on 1.78.1, jjwt 0.11.5 (sem CVE crítico) | Limpo |
 | CSRF | `CookieCsrfTokenRepository`, isenção só pre-auth, prod: `secure=true` SameSite=None | Limpo |
 | Métrica tags | `ObservabilityTagSanitizer` com allowlist de chaves + truncamento 64 chars | Limpo |
 | Escalada de seção | Email template usa string estática + username do banco (não input do usuário) | Limpo |
@@ -258,13 +258,62 @@
   sudo chmod -x /var/log/kronos/backend.log /var/log/kronos/backend-error.log
   ```
 
-### KRONOS-SUPPLY-002 — Scan OWASP dependencyCheckAnalyze executado com NVD disponível
+### KRONOS-SUPPLY-002 — Scan OWASP dependencyCheckAnalyze bloqueado por indisponibilidade da NVD API
 
-- Status: `Em andamento`
-- Descrição: NVD retornou HTTP 200 em 2026-06-21. Scan `./gradlew dependencyCheckAnalyze` iniciado — aguardando relatório em `build/reports/dependency-check-report.html`.
-- Resultado do reteste: pendente conclusão.
+- Status: `Bloqueada externamente`
+- Descrição: todas as tentativas de `./gradlew dependencyCheckAnalyze` falharam porque a NVD API retorna HTTP 524/503 (timeout Cloudflare) e a Sonatype OSS Index retorna 401 (requer credenciais não configuradas). O banco H2 local (`~/.gradle/dependency-check-data/11.0/odc.mv.db`, 141 MB) foi inicializado mas não possui dados CVE (índices NVD nunca foram populados com sucesso). A análise foi feita manualmente — ver SUPPLY-003.
+- Ação recomendada: registrar uma NVD API Key gratuita em https://nvd.nist.gov/developers/request-an-api-key e configurar `NVD_API_KEY=<key>` em `/etc/kronos/kronos.env` antes de executar o scan novamente.
 
-## 10. Arquivos alterados
+### KRONOS-SUPPLY-003 — BouncyCastle 1.70 (jdk15on) incluído transitivamente pelo iText 7.2.5
+
+- Severidade: `Média`
+- Status: `Corrigida`
+- Arquivo afetado: `build.gradle`
+- Módulo: `Supply chain / Crypto`
+- Categoria: `OWASP A06:2021 — Vulnerable and Outdated Components`
+- Descrição: `com.itextpdf:kernel:7.2.5` (e módulos `sign`, `forms`, `pdfa`, `layout`) declara como dependência transitiva `org.bouncycastle:bcprov-jdk15on:1.70`, `bcpkix-jdk15on:1.70` e `bcutil-jdk15on:1.70`. Essa versão contém múltiplos CVEs corrigidos na série 1.78:
+  - **CVE-2024-29857**: bypass de validação de certificado X.509
+  - **CVE-2024-30171**: side-channel de tempo em decriptação RSA PKCS#1 v1.5 (ataque Marvin)
+  - **CVE-2024-30172**: loop infinito em parsing `ASN1Sequence` — DoS local
+  - Embora o projeto declare `bcprov-jdk18on:1.78.1` explicitamente, os JARs `jdk15on:1.70` chegavam ao classpath como coordenadas Maven distintas, podendo ser carregadas simultaneamente com comportamento indefinido.
+- Evidência: `./gradlew dependencies --configuration runtimeClasspath | grep "bcprov"` → `bcprov-jdk15on:1.70` presente antes da correção.
+- Correção implementada: adicionado a `configurations.configureEach` em `build.gradle`:
+  ```groovy
+  exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
+  exclude group: 'org.bouncycastle', module: 'bcpkix-jdk15on'
+  exclude group: 'org.bouncycastle', module: 'bcutil-jdk15on'
+  ```
+  Os artefatos `jdk15on` são excluídos globalmente; o projeto já declara os equivalentes `jdk18on:1.78.1` que fornecem as mesmas classes (BC renomeou os artefatos de `jdk15on` para `jdk18on` a partir da versão 1.72).
+- Resultado do reteste: `./gradlew dependencies --configuration runtimeClasspath | grep "bc"` mostra apenas `jdk18on:1.78.1`. Build `bootJar` passou sem erros.
+
+## 10. Verificações adicionais — 2026-06-22 (rodada 3)
+
+### Verificadas sem achados
+
+| Área | Verificação | Resultado |
+|---|---|---|
+| Upload de arquivo | Magic-byte MIME detection, extensão-MIME consistency, filename sanitization, AV scan, size limit 5 MB, SHA-256 hash, auth via `domainAuthorizationService` | Limpo |
+| Desserialização JSON | `RedisCacheProvider`: `StringRedisTemplate` (sem Java serialization), `readValue(json, type)` sem `activateDefaultTyping` | Limpo |
+| SSRF | `ViaCepClientImpl`: base URL via constante, CEP como path template; `HereGeolocationClientImpl`: base URL via config, query como `queryParam` (URL-encoded) | Limpo |
+| SpEL injection | Todas as `@PreAuthorize` usam constantes estáticas; nenhuma recebe input de usuário | Limpo |
+| Email header injection | `MimeMessageHelper` encoda subject e recipiente; destinatário vem do banco, não do body | Limpo |
+| Session invalidation | `sessionVersion` no JWT comparado ao DB em cada request; troca de senha incrementa versão e invalida todos os tokens | Limpo |
+| LGPD export BOLA | `exportEmployeeData` verifica `employeeId == caller.employeeId()`; `exportForApprovedRequest` chama `authorizeEmployeeAccess + authorizeCompanyAccess` | Limpo |
+| Token refresh | `parseClaimsJws` valida assinatura antes da verificação de expiração; blacklist + sessionVersion verificados; old token blacklistado após refresh | Limpo |
+| Password policy | Regex `^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$` em criação e mudança de senha; `BCryptPasswordEncoder` | Limpo |
+| DevTools em prod | `developmentOnly` scope — excluído automaticamente do `bootJar` de produção | Limpo |
+| Swagger em prod | `springdoc.api-docs.enabled: false` e `swagger-ui.enabled: false` nos perfis padrão e prod | Limpo |
+| CSP em prod | nginx serve `Content-Security-Policy` completo: `default-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'` etc. | Limpo |
+| BouncyCastle classpath | Após SUPPLY-003: apenas `jdk18on:1.78.1` no classpath — `jdk15on:1.70` excluído globalmente | Limpo |
+
+### Achados — baixa severidade (informativo)
+
+| ID | Descrição | Impacto | Recomendação |
+|---|---|---|---|
+| INFO-001 | `listTimeOffRequests` (MANAGER-only): sem clamping de `size` no controller/service | MANAGER pode solicitar página ilimitada da sua empresa, causando carga extra no DB | Adicionar `Math.min(size, 100)` no controller ou no service (linha 955 de `TimeRecordService`) |
+| INFO-002 | Política de senha sem limite máximo: regex `.{8,}` sem upper bound | BCrypt limita a 72 bytes internamente; regex percorre string inteira sem limite — potencial DoS em payload muito grande | Adicionar `@Size(max = 200)` no DTO ou checar `raw.length() > 200` em `validatePasswordPolicy` |
+
+## 11. Arquivos alterados
 
 ### Back-end
 
