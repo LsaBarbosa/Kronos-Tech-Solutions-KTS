@@ -13,4 +13,6 @@ public final class RedisRateLimitNames {
     public static final String BIOMETRIC_LOGIN_FACE = "biometric-login-face";
     public static final String BIOMETRIC_CHECKIN = "biometric-checkin";
     public static final String BIOMETRIC_ENROLLMENT = "biometric-enrollment";
+    public static final String BIOMETRIC_CONTRACT_SIGN = "biometric-contract-sign";
+    public static final String BIOMETRIC_TIMESHEET_SIGN = "biometric-timesheet-sign";
 }
