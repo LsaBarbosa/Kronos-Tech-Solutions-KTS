@@ -191,6 +191,7 @@ dependencyCheck {
     suppressionFile = file('dependency-check-suppressions.xml').exists() ? file('dependency-check-suppressions.xml').absolutePath : null
     analyzers {
         assemblyEnabled = false
+        ossIndexEnabled = false  // Sonatype OSS Index requires credentials; disable to avoid 401 noise
     }
     nvd {
         // Reads from env var NVD_API_KEY or, as fallback, from nvdApiKey in ~/.gradle/gradle.properties
