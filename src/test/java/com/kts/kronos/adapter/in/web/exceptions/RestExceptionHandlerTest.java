@@ -22,15 +22,16 @@ class RestExceptionHandlerTest {
     private final RestExceptionHandler handler = new RestExceptionHandler();
 
     @Test
-    void shouldHandleDisabledExceptionAsForbidden() {
+    void shouldHandleDisabledExceptionAsUnauthorized() {
         var request = request("/auth/login");
         var response = handler.handleDisabledException(new DisabledException("usuario inativo"), request);
         var body = (ProblemDetail) response.getBody();
 
-        assertEquals(403, response.getStatusCode().value());
-        assertEquals("Forbidden", body.getTitle());
-        assertEquals("usuario inativo", body.getDetail());
-        assertEquals("USER_DISABLED", body.getCode());
+        // SEC-009: DisabledException now returns generic 401 to prevent user enumeration
+        assertEquals(401, response.getStatusCode().value());
+        assertEquals("Unauthorized", body.getTitle());
+        assertEquals("Usuário ou senha inválidos", body.getDetail());
+        assertEquals("AUTHENTICATION_FAILED", body.getCode());
         assertEquals("/auth/login", body.getPath());
     }
 
