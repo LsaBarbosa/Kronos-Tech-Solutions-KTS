@@ -23,6 +23,12 @@ configurations {
 
 configurations.configureEach {
     exclude group: 'com.spotify', module: 'docker-client'
+    // iText 7.2.5 pulls bcprov/bcpkix/bcutil jdk15on:1.70 (CVEs fixed in 1.78).
+    // Exclude the legacy jdk15on variants globally; the project already declares jdk18on:1.78.1
+    // which provides the same classes under the renamed artifact IDs (BC renamed at v1.72).
+    exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
+    exclude group: 'org.bouncycastle', module: 'bcpkix-jdk15on'
+    exclude group: 'org.bouncycastle', module: 'bcutil-jdk15on'
 
     resolutionStrategy {
         force 'com.github.docker-java:docker-java-api:3.4.2'
