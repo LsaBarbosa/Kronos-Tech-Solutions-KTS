@@ -193,7 +193,8 @@ dependencyCheck {
         assemblyEnabled = false
     }
     nvd {
-        apiKey = System.getenv('NVD_API_KEY')
+        // Reads from env var NVD_API_KEY or, as fallback, from nvdApiKey in ~/.gradle/gradle.properties
+        apiKey = System.getenv('NVD_API_KEY') ?: (project.findProperty('nvdApiKey') ?: '')
     }
 }
 
