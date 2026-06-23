@@ -41,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import org.springframework.dao.DataIntegrityViolationException;
 import java.util.Base64;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -330,7 +331,14 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                 padesStatus
         );
 
-        TimesheetSignature saved = signatureProvider.save(signature);
+        TimesheetSignature saved;
+        try {
+            saved = signatureProvider.save(signature);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("event=timesheet_signature_duplicate_rejected employee_ref={} year={} month={}",
+                    employee.employeeId(), previous.getYear(), previous.getMonthValue());
+            throw new ConflictException("Já existe uma assinatura ativa para o mês de referência.");
+        }
 
         log.info("event=timesheet_signature result=success employee_ref={} year={} month={} records={}",
                 employee.employeeId(), previous.getYear(), previous.getMonthValue(), records.size());
