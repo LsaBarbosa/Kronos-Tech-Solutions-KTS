@@ -17,6 +17,7 @@ import com.kts.kronos.application.port.out.provider.ServiceContractAssignmentPro
 import com.kts.kronos.application.port.out.provider.ServiceContractProvider;
 import com.kts.kronos.application.port.out.provider.ServiceContractSignatureProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.ServiceContract;
@@ -67,6 +68,7 @@ class ServiceContractServiceTest {
     @Mock FaceRecognitionProvider faceRecognitionProvider;
     @Mock JwtAuthenticatedUser jwtAuthenticatedUser;
     @Mock BiometricProtectionService biometricProtectionService;
+    @Mock PrivacyLogReferenceService privacyLogReferenceService;
     @Mock AuditService auditService;
     @Mock DocumentUseCase documentUseCase;
     @Mock DocumentProvider documentProvider;
@@ -381,7 +383,7 @@ class ServiceContractServiceTest {
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(signatureProvider.findById(sigId)).thenReturn(Optional.of(otherTenantSig));
 
-        assertThatThrownBy(() -> service.downloadSignatureDocument(sigId))
+        assertThatThrownBy(() -> service.downloadSignatureDocument(sigId, "127.0.0.1", "test-agent"))
                 .isInstanceOf(ForbiddenException.class);
     }
 
