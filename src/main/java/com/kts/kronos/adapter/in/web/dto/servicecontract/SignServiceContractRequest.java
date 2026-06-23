@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.in.web.dto.servicecontract;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record SignServiceContractRequest(
         @AssertTrue(message = "É necessário confirmar a declaração para assinar o contrato.")
@@ -17,5 +18,6 @@ public record SignServiceContractRequest(
         String contractDocumentHashSha256,
 
         @NotBlank(message = "Imagem biométrica é obrigatória.")
+        @Size(max = 1_500_000, message = "Imagem biométrica excede o tamanho máximo permitido.")
         String faceImageBase64
 ) {}

@@ -97,14 +97,14 @@ app:
     public-docs-enabled: false
     cookies:
       http-only: true
-      secure: false
-      same-site: Lax
+      secure: ${APP_SECURITY_COOKIES_SECURE:true}
+      same-site: ${APP_SECURITY_COOKIES_SAME_SITE:None}
     csrf:
       cookie-name: KRONOS_CSRF_TOKEN
       header-name: X-CSRF-TOKEN
       cookie-path: /
-      secure: false
-      same-site: Lax
+      secure: ${APP_SECURITY_CSRF_SECURE:true}
+      same-site: ${APP_SECURITY_CSRF_SAME_SITE:None}
 
 logging:
   pattern:
