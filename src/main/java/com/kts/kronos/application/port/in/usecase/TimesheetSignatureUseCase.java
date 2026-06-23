@@ -20,7 +20,7 @@ public interface TimesheetSignatureUseCase {
      * Pré-visualização do espelho de um mês específico (anterior ao vigente).
      * Se {@code year} e {@code month} forem nulos, usa o mês imediatamente anterior.
      */
-    byte[] previewMonthMirror(Integer year, Integer month);
+    byte[] previewMonthMirror(Integer year, Integer month, String ipAddress, String userAgent);
 
     /**
      * Assina o espelho de ponto do mês indicado em {@code request.referenceYear/Month}.
@@ -32,7 +32,7 @@ public interface TimesheetSignatureUseCase {
             String userAgent
     );
 
-    SignedDocumentDownload downloadSignatureDocument(UUID signatureId);
+    SignedDocumentDownload downloadSignatureDocument(UUID signatureId, String ipAddress, String userAgent);
 
     AdminTimesheetSignaturePageResponse findAdmin(
             Integer year,

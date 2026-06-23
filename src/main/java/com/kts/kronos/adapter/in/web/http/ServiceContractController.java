@@ -92,8 +92,10 @@ public class ServiceContractController {
 
     @PreAuthorize("isAuthenticated()")
     @GetMapping(SERVICE_CONTRACT_PREVIEW)
-    public ResponseEntity<byte[]> preview(@PathVariable UUID contractId) {
-        byte[] pdf = useCase.preview(contractId);
+    public ResponseEntity<byte[]> preview(@PathVariable UUID contractId, HttpServletRequest httpServletRequest) {
+        String ip = clientIpResolver.resolve(httpServletRequest);
+        String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
+        byte[] pdf = useCase.preview(contractId, ip, ua);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"contrato_" + contractId + ".pdf\"")
@@ -114,8 +116,10 @@ public class ServiceContractController {
 
     @PreAuthorize("isAuthenticated()")
     @GetMapping(SERVICE_CONTRACT_SIGNATURE_DOCUMENT)
-    public ResponseEntity<byte[]> downloadSignedDocument(@PathVariable UUID signatureId) {
-        ServiceContractUseCase.SignedDocumentDownload d = useCase.downloadSignatureDocument(signatureId);
+    public ResponseEntity<byte[]> downloadSignedDocument(@PathVariable UUID signatureId, HttpServletRequest httpServletRequest) {
+        String ip = clientIpResolver.resolve(httpServletRequest);
+        String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
+        ServiceContractUseCase.SignedDocumentDownload d = useCase.downloadSignatureDocument(signatureId, ip, ua);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(d.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + d.fileName() + "\"")
