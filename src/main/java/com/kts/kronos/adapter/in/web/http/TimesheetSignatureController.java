@@ -85,8 +85,14 @@ public class TimesheetSignatureController {
         String ip = clientIpResolver.resolve(httpServletRequest);
         String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
         TimesheetSignatureUseCase.SignedDocumentDownload download = useCase.downloadSignatureDocument(signatureId, ip, ua);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(download.contentType());
+        } catch (Exception ignored) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(download.contentType()))
+                .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.fileName() + "\"")
                 .body(download.data());
     }

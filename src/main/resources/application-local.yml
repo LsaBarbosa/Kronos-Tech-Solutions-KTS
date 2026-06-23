@@ -89,6 +89,7 @@ app:
       same-site: Lax
 
 jwt:
+  # ATENÇÃO: default fraco — use apenas em dev local. Produção exige JWT_SECRET via variável de ambiente.
   secret: ${JWT_SECRET:local-dev-secret-with-at-least-32-characters-kronos}
   expiration: ${JWT_EXPIRATION:3600000}
 

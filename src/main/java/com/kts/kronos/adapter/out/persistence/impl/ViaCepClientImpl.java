@@ -35,7 +35,7 @@ public class ViaCepClientImpl implements AddressLookupProvider {
                     .uri("/{cep}/json", postalCode)
                     .retrieve()
                     .bodyToMono(ViaCepResponse.class)
-                    .block();
+                    .block(java.time.Duration.ofSeconds(45));
 
             if (resp == null || Boolean.TRUE.equals(resp.erro)) {
                 log.warn("CEP não encontrado no ViaCEP. postalCode={}", postalCode);

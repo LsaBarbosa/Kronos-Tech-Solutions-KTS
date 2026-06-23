@@ -107,6 +107,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
+                        // Estes endpoints são públicos/stateless: o usuário não tem cookie de sessão
+                        // nem CSRF token no momento da chamada. A proteção é feita via credenciais
+                        // (senha, token de reset one-time) transmitidas no corpo da requisição.
                         .ignoringRequestMatchers(
                                 post("/auth/login"),
                                 post("/auth/login-face"),

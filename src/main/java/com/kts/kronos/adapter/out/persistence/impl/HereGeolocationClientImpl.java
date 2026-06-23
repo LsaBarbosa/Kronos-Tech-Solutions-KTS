@@ -86,7 +86,7 @@ public class HereGeolocationClientImpl implements GeolocationProvider {
                             .build())
                     .retrieve()
                     .bodyToMono(HereGeocodeResponse.class)
-                    .block(), "provider", "here", "operation", "geocode");
+                    .block(java.time.Duration.ofSeconds(45)), "provider", "here", "operation", "geocode");
 
             HerePosition position = response != null && response.items != null && !response.items.isEmpty()
                     ? response.items.get(0).position
