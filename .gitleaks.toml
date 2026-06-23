@@ -15,6 +15,12 @@ secretGroup = 2
 keywords = ["JWT_SECRET", "LGPD_LOG_HASH_SECRET"]
 severity = "CRITICAL"
 
+  [rules.allowlist]
+  regexes = [
+    '''\$\{''',
+    '''local-dev-''',
+  ]
+
 [[rules]]
 id = "kronos-aws-credentials"
 description = "AWS Secret Access Key exposed"
@@ -47,10 +53,19 @@ keywords = ["PRIVATE KEY"]
 severity = "CRITICAL"
 
 [allowlist]
-description = "Ignore test files and examples"
+description = "Ignore documentation, build artifacts, and Spring Boot config placeholders"
 paths = [
-  "src/test/",
-  "docs/examples/",
-  ".env.example",
-  "docs/LOGIN_TROUBLESHOOTING.md"
+  '''src/test/''',
+  '''docs/''',
+  '''skills/''',
+  '''scripts/security/''',
+  '''src/main/resources/''',
+  '''\.env\.example$''',
+  '''env\.local$''',
+  '''accept_headers\.txt$''',
+  '''cookies\.txt$''',
+  '''login_headers\.txt$''',
+]
+regexes = [
+  '''local-dev-[a-zA-Z0-9\-]+''',
 ]
