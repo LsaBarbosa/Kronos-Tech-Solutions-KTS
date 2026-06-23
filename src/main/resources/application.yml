@@ -31,6 +31,10 @@ spring:
       ssl:
         enabled: ${REDIS_SSL_ENABLED:false}
 
+  devtools:
+    restart:
+      enabled: false
+
   docker:
     compose:
       enabled: false
