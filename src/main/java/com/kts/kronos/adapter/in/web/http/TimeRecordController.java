@@ -162,7 +162,9 @@ public class TimeRecordController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "5") int size
     ) {
-         var requests = useCase.listTimeOffRequests(statusFilter, employeeName, page, size);
+        var safePage = Math.max(page, 0);
+        var safeSize = Math.max(1, Math.min(size, 100));
+        var requests = useCase.listTimeOffRequests(statusFilter, employeeName, safePage, safeSize);
         return ResponseEntity.ok(requests);
     }
 
@@ -177,7 +179,7 @@ public class TimeRecordController {
     public ResponseEntity<RecentTimeRecordsResponse> listMyRecentRecords(
             @RequestParam(value = "limit", defaultValue = "5") int limit
     ) {
-        return ResponseEntity.ok(useCase.listMyRecentRecords(limit));
+        return ResponseEntity.ok(useCase.listMyRecentRecords(Math.max(1, Math.min(limit, 50))));
     }
 
     @PreAuthorize(ANY_EMPLOYEE)
@@ -185,6 +187,6 @@ public class TimeRecordController {
     public ResponseEntity<MyRequestsResponse> listMyRequests(
             @RequestParam(value = "limit", defaultValue = "5") int limit
     ) {
-        return ResponseEntity.ok(useCase.listMyRequests(limit));
+        return ResponseEntity.ok(useCase.listMyRequests(Math.max(1, Math.min(limit, 50))));
     }
 }

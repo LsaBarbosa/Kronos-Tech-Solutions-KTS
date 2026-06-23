@@ -120,8 +120,14 @@ public class ServiceContractController {
         String ip = clientIpResolver.resolve(httpServletRequest);
         String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
         ServiceContractUseCase.SignedDocumentDownload d = useCase.downloadSignatureDocument(signatureId, ip, ua);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(d.contentType());
+        } catch (Exception ignored) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(d.contentType()))
+                .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + d.fileName() + "\"")
                 .body(d.data());
     }

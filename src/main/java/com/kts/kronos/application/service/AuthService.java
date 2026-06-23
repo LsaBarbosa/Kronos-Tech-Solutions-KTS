@@ -109,10 +109,12 @@ public class AuthService implements AuthUseCase {
         }
         var user = userProvider.findByUsername(normalizedUsername)
                 .orElseThrow(() -> {
+                    // Spring Security autenticou com sucesso mas o usuário não existe no provider —
+                    // inconsistência interna; trata como falha para manter contadores corretos
+                    authenticationRateLimitService.onLoginFailure(normalizedUsername);
                     metrics().authLoginFailure("user_not_found");
                     log.warn("event=auth_login result=failure reason=user_not_found");
 
-                    // Auditoria de falha - usuário não encontrado
                     try {
                         auditService.registerSecurity(
                                 AuditAction.AUTH_LOGIN_FAILURE,
