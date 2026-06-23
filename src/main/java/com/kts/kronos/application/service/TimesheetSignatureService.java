@@ -18,6 +18,7 @@ import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.TimesheetSignatureProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimesheetSignature;
@@ -87,6 +88,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final PointMirrorPdfUseCase pointMirrorPdfUseCase;
     private final BiometricProtectionService biometricProtectionService;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
     private final AuditService auditService;
     private final DocumentUseCase documentUseCase;
     private final DigitalSignatureService digitalSignatureService;
@@ -177,6 +179,12 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
         }
 
         if (!employee.employeeId().equals(recognizedEmployeeId)) {
+            String mismatchDetail = recognizedEmployeeId != null
+                    ? String.format("year=%d,month=%d,reason=identity_mismatch,recognized_ref=%s",
+                            previous.getYear(), previous.getMonthValue(),
+                            privacyLogReferenceService.employeeRef(recognizedEmployeeId))
+                    : String.format("year=%d,month=%d,reason=face_not_found",
+                            previous.getYear(), previous.getMonthValue());
             auditService.registerSecurity(
                     AuditAction.TIMESHEET_SIGNATURE_FACIAL_AUTH_FAILED,
                     currentUserId,
@@ -184,7 +192,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                     "HIGH",
                     "TIMESHEET_SIGNATURE",
                     null,
-                    String.format("year=%d,month=%d", previous.getYear(), previous.getMonthValue()),
+                    mismatchDetail,
                     ipAddress,
                     userAgent
             );
@@ -648,13 +656,6 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
               .append('\n');
         }
         return sha256Hex(sb.toString().getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String buildEvidenceJson(int recordCount) {
-        return String.format(Locale.ROOT,
-                "{\"recordCount\":%d,\"hashAlgorithm\":\"SHA-256\",\"signatureType\":\"INTERNAL_ADVANCED\",\"method\":\"FACIAL_RECOGNITION\"}",
-                recordCount
-        );
     }
 
     /**
