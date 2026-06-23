@@ -46,7 +46,7 @@ regex = '''-----BEGIN\s+(RSA|OPENSSH|EC|PRIVATE)\s+PRIVATE\s+KEY'''
 keywords = ["PRIVATE KEY"]
 severity = "CRITICAL"
 
-[[allowlist]]
+[allowlist]
 description = "Ignore test files and examples"
 paths = [
   "src/test/",
