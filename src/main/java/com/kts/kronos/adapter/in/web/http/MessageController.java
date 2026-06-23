@@ -41,7 +41,9 @@ public class MessageController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size
     ) {
-        var messages = useCase.listMessagesForMyCompany(page, size);
+        var safePage = (page == null || page < 0) ? 0 : page;
+        var safeSize = (size == null || size < 1) ? 10 : Math.min(size, 100);
+        var messages = useCase.listMessagesForMyCompany(safePage, safeSize);
         var responseList = messages.stream()
                 .map(message -> MessageResponse.fromDomain(
                         message,

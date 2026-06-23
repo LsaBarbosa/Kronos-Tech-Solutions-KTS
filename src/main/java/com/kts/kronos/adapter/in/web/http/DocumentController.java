@@ -64,8 +64,14 @@ public class DocumentController {
 
         DocumentWithData doc = useCase.downloadDocument(employeeId, documentId);
 
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(doc.contentType());
+        } catch (Exception ignored) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(doc.contentType()))
+                .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + doc.fileName() + "\"")
                 .body(doc.data());
