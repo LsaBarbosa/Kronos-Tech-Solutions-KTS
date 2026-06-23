@@ -111,7 +111,8 @@ public class SecurityConfig {
                                 post("/auth/login"),
                                 post("/auth/login-face"),
                                 post("/auth/recover-password"),
-                                post("/auth/reset-password")
+                                post("/auth/reset-password"),
+                                post("/public/commercial-leads")
                         )
                 )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -156,6 +157,10 @@ public class SecurityConfig {
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
                     "/observability/frontend/events"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.POST,
+                    "/public/commercial-leads"
             ).permitAll();
 
             if (publicDocsEnabled) {
