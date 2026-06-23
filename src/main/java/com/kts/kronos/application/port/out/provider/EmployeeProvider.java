@@ -20,4 +20,8 @@ public interface EmployeeProvider {
     long countByCompanyIdAndActive(UUID companyId, boolean active);
     List<Employee> findAllByIds(Collection<UUID> ids);
     List<CompanyEmployeeCountsProjection> countByCompanyIds(Collection<UUID> companyIds);
+
+    boolean cpfExistsInCompany(UUID companyId, String cpf);
+    Optional<Employee> findByCompanyIdAndCpf(UUID companyId, String cpf);
+    List<Employee> findAllByCpf(String cpf);
 }

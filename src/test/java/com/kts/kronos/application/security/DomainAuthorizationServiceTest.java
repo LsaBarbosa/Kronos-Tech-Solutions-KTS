@@ -364,8 +364,7 @@ class DomainAuthorizationServiceTest {
     @DisplayName("companyId: cto pode acessar qualquer empresa")
     void shouldAllowCtoAccessAnyCompany() {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
-        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        // CTO com requestedCompanyId não-nulo não chama getAuthenticatedEmployee()
 
         var result = service.authorizeCompanyAccess(companyBId);
 

@@ -1,6 +1,7 @@
 package com.kts.kronos.application.port.in.usecase;
 
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.user.AddCompanyAccessRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 public interface UserUseCase {
     void createUser(CreateUserRequest req);
+    void addCompanyAccess(UUID userId, AddCompanyAccessRequest req);
     User getUserByUsername(String username);
     User getUserById(UUID userId);
     UserResponse getOwnProfileResponse();

@@ -13,6 +13,7 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
+import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
@@ -88,6 +89,8 @@ class AuthServiceAuthenticationAndResetTest {
     private AuditRequestContextService auditRequestContextService;
     @Mock
     private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock
+    private UserCompanyAccessProvider userCompanyAccessProvider;
 
     private UUID employeeId;
     private UUID userId;
@@ -118,10 +121,15 @@ class AuthServiceAuthenticationAndResetTest {
     @DisplayName("login: autentica, verifica aceite e gera token")
     void shouldLoginAndGenerateToken() {
         var consentStatus = buildBiometricConsentStatus(true, "2026.05.21", "current-hash");
+        UUID companyId = UUID.randomUUID();
+        var access = new com.kts.kronos.domain.model.UserCompanyAccess(
+                UUID.randomUUID(), userId, companyId, employeeId, "MANAGER", true, true, null, null
+        );
         when(userProvider.findByUsername("alice")).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L)).thenReturn("jwt-token");
+        when(userCompanyAccessProvider.findDefaultActiveByUserId(userId)).thenReturn(Optional.of(access));
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L, companyId)).thenReturn("jwt-token");
 
         String token = authService.login("Alice", "secret");
 
@@ -183,11 +191,16 @@ class AuthServiceAuthenticationAndResetTest {
     void loginFace_shouldGenerateTokenWhenBiometricConsentIsActive() {
         String imageBase64 = Base64.getEncoder().encodeToString("img".getBytes(StandardCharsets.UTF_8));
         var consentStatus = buildBiometricConsentStatus(true, "2026.05.21", "current-hash");
+        UUID companyId = UUID.randomUUID();
+        var access = new com.kts.kronos.domain.model.UserCompanyAccess(
+                UUID.randomUUID(), userId, companyId, employeeId, "MANAGER", true, true, null, null
+        );
         when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(activeUser));
         when(legalConsentProvider.existsActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION)).thenReturn(true);
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
-        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L)).thenReturn("face-jwt");
+        when(userCompanyAccessProvider.findDefaultActiveByUserId(userId)).thenReturn(Optional.of(access));
+        when(jwtUtils.generateToken(employeeId, "alice", "MANAGER", userId, consentStatus, 2L, companyId)).thenReturn("face-jwt");
 
         String token = authService.loginFace(imageBase64, true);
 

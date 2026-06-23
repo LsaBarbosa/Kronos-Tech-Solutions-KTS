@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.user.AddCompanyAccessRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
@@ -16,15 +17,18 @@ import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.application.port.out.provider.CacheProvider;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
+import com.kts.kronos.domain.model.UserCompanyAccess;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
@@ -63,6 +67,8 @@ public class UserService implements UserUseCase {
     private final AuditService auditService;
     private final CacheProvider cacheProvider;
     private final ClientIpResolver clientIpResolver;
+    private final UserCompanyAccessProvider userCompanyAccessProvider;
+    private final CompanyProvider companyProvider;
 
     @Override
     public void createUser(CreateUserRequest req) {
@@ -355,6 +361,61 @@ public class UserService implements UserUseCase {
                 UserResponse.class,
                 () -> UserResponse.fromDomain(getOwnProfile())
         );
+    }
+
+    @Override
+    public void addCompanyAccess(UUID userId, AddCompanyAccessRequest req) {
+        var user = userProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
+        var company = companyProvider.findById(req.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + req.companyId()));
+
+        if (!company.active()) {
+            throw new com.kts.kronos.application.exceptions.BadRequestException("Empresa inativa.");
+        }
+
+        var employee = employeeProvider.findById(req.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
+
+        if (!employee.companyId().equals(req.companyId())) {
+            throw new com.kts.kronos.application.exceptions.BadRequestException(
+                    "Colaborador não pertence à empresa informada.");
+        }
+
+        if (userCompanyAccessProvider.existsActiveByUserIdAndCompanyId(userId, req.companyId())) {
+            throw new ConflictException("Usuário já possui acesso ativo a esta empresa.");
+        }
+
+        var access = new UserCompanyAccess(
+                java.util.UUID.randomUUID(),
+                userId,
+                req.companyId(),
+                req.employeeId(),
+                req.role(),
+                true,
+                req.defaultCompany(),
+                java.time.LocalDateTime.now(),
+                null
+        );
+        userCompanyAccessProvider.save(access);
+
+        try {
+            String[] ipAndUA = extractIpAndUserAgent();
+            auditService.registerSecurity(
+                    AuditAction.USER_COMPANY_ACCESS_ADDED,
+                    currentUserIdOrNull(),
+                    user.employeeId(),
+                    "MEDIUM",
+                    "USER",
+                    userId.toString(),
+                    "companyId=" + req.companyId() + ",role=" + req.role(),
+                    ipAndUA[0],
+                    ipAndUA[1]
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de vínculo empresa-usuário", auditEx);
+        }
     }
 
     @Override

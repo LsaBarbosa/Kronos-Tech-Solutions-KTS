@@ -345,18 +345,18 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
-    @DisplayName("checkCpfAvailability: retorna 200 quando CPF existe")
+    @DisplayName("checkCpfAvailability: retorna 200 quando CPF existe na empresa ativa")
     void shouldReturnOkWhenCpfExists() throws Exception {
-        when(useCase.cpfExists("52998224725")).thenReturn(true);
+        when(useCase.cpfExistsInActiveCompany("52998224725")).thenReturn(true);
 
         mockMvc.perform(get("/employee/check-cpf").param("cpf", "52998224725"))
                 .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("checkCpfAvailability: retorna 404 quando CPF não existe")
+    @DisplayName("checkCpfAvailability: retorna 404 quando CPF não existe na empresa ativa")
     void shouldReturnNotFoundWhenCpfDoesNotExist() throws Exception {
-        when(useCase.cpfExists("52998224725")).thenReturn(false);
+        when(useCase.cpfExistsInActiveCompany("52998224725")).thenReturn(false);
 
         mockMvc.perform(get("/employee/check-cpf").param("cpf", "52998224725"))
                 .andExpect(status().isNotFound());

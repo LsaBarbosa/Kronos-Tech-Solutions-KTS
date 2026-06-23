@@ -34,7 +34,7 @@ public class EmployeeEntity {
     @Column(name = "full_name", length = 200, nullable = false)
     private String fullName;
 
-    @Column(name = "cpf", length = 14, nullable = false, unique = true)
+    @Column(name = "cpf", length = 14, nullable = false)
     private String cpf;
 
     @Column(name = "pis", length = 14, unique = true)

@@ -4,7 +4,9 @@ import com.kts.kronos.adapter.out.security.CustomUserDetailsService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
@@ -72,6 +74,12 @@ class UserEnumerationExposureIntegrationTest {
 
     @MockitoBean
     private AcceptTermsUseCase acceptTermsUseCase;
+
+    @MockitoBean
+    private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @Test
     void shouldBlockPublicCnpjEnumerationEndpoint() throws Exception {

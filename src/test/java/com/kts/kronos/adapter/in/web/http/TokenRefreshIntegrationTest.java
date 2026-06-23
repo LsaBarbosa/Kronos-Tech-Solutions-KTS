@@ -11,6 +11,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
@@ -35,6 +36,9 @@ class TokenRefreshIntegrationTest {
 
     @MockitoBean
     private AuthCookieService authCookieService;
+
+    @MockitoBean
+    private JwtUtils jwtUtils;
 
     private static final String REFRESH_ENDPOINT = "/auth/refresh";
     private static final String TEST_TOKEN = "expired.test.token";

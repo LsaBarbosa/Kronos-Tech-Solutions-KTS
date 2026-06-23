@@ -23,6 +23,8 @@ public class ApiPaths {
     public static final String OWN_PROFILE = "/own-profile";
     public static final String CHECK_CPF = "/check-cpf";
     public static final String TOGGLE_ACTIVATE_EMPLOYEE = "/toggle-activate/{employeeId}";
+    public static final String EMPLOYEES_BY_COMPANY = "/by-company/{companyId}";
+    public static final String FIND_BY_CPF = "/find-by-cpf";
 
     // Recods
     public static final String RECORDS = "/records";
@@ -81,6 +83,9 @@ public class ApiPaths {
     public static final String RECOVER_PASSWORD = "/recover-password"; // Novo
     public static final String RESET_PASSWORD = "/reset-password";
     public static final String REFRESH = "/refresh";
+    public static final String SWITCH_COMPANY = "/switch-company";
+    public static final String ME_COMPANIES = "/me/companies";
+    public static final String USER_COMPANY_ACCESS = "/{userId}/company-access";
 
     //Cep
     public static final String API_VIA_CEP = "https://viacep.com.br/ws";

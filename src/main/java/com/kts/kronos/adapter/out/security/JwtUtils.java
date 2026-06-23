@@ -112,6 +112,33 @@ public class JwtUtils {
                 .compact();
     }
 
+    public String generateToken(
+            UUID employeeId,
+            String username,
+            String roleName,
+            UUID userId,
+            BiometricConsentStatus consentStatus,
+            long sessionVersion,
+            UUID activeCompanyId
+    ) {
+        var now = new Date();
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("userId", userId != null ? userId.toString() : null)
+                .claim("role", roleName)
+                .claim("employeeId", employeeId != null ? employeeId.toString() : null)
+                .claim("terms_accepted", consentStatus.accepted())
+                .claim("biometricConsentAccepted", consentStatus.accepted())
+                .claim("biometricConsentVersion", consentStatus.acceptedVersion())
+                .claim("biometricConsentHash", consentStatus.acceptedHash())
+                .claim("session_version", sessionVersion)
+                .claim("activeCompanyId", activeCompanyId != null ? activeCompanyId.toString() : null)
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + expirationMs))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public String getUsernameFromToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key)
@@ -222,5 +249,19 @@ public class JwtUtils {
         } catch (ExpiredJwtException e) {
             return e.getClaims();
         }
+    }
+
+    public UUID getActiveCompanyIdFromToken(String token) {
+        var claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        String companyIdStr = claims.get("activeCompanyId", String.class);
+        if (companyIdStr == null || companyIdStr.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(companyIdStr);
     }
 }

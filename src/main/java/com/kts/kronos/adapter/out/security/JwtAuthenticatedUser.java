@@ -39,6 +39,11 @@ public class JwtAuthenticatedUser {
         return id;
     }
 
+    public UUID getActiveCompanyId() {
+        String token = extractToken();
+        return jwtUtils.getActiveCompanyIdFromToken(token);
+    }
+
     public String getUsername() {
         String token = extractToken();
         return jwtUtils.getUsernameFromToken(token);

@@ -1,11 +1,15 @@
 package com.kts.kronos.adapter.in.web.http;
 
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.user.AccessibleCompanyResponse;
+import com.kts.kronos.adapter.in.web.dto.user.AddCompanyAccessRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
+import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.ApiPaths.*;
@@ -26,6 +31,8 @@ import static com.kts.kronos.constants.Messages.*;
 public class UserController {
     private final UserUseCase useCase;
     private final AuthCookieService authCookieService;
+    private final AuthUseCase authUseCase;
+    private final JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @PostMapping
     @PreAuthorize(ADMINISTRATOR)
@@ -104,5 +111,23 @@ public class UserController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @GetMapping(ME_COMPANIES)
+    @PreAuthorize(ANY_EMPLOYEE)
+    public ResponseEntity<List<AccessibleCompanyResponse>> getMyCompanies() {
+        UUID userId = jwtAuthenticatedUser.getuserId();
+        List<AccessibleCompanyResponse> companies = authUseCase.getAccessibleCompanies(userId);
+        return ResponseEntity.ok(companies);
+    }
+
+    @PostMapping(USER_COMPANY_ACCESS)
+    @PreAuthorize(ADMINISTRATOR)
+    public ResponseEntity<Void> addCompanyAccess(
+            @PathVariable UUID userId,
+            @Valid @RequestBody AddCompanyAccessRequest req
+    ) {
+        useCase.addCompanyAccess(userId, req);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }

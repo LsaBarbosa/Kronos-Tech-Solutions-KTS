@@ -134,6 +134,12 @@ public class Messages {
     public static final String JWT_USER_ID_NOT_FOUND = "JWT sem userId.";
     public static final String JWT_EMPLOYEE_ID_NOT_FOUND = "JWT sem employeeId.";
     public static final String HEADER_AUTHORIZATION_NOT_FOUND = "Token JWT não encontrado no cookie de autenticação.";
+    public static final String JWT_ACTIVE_COMPANY_ID_NOT_FOUND = "JWT sem activeCompanyId.";
+
+    // Multiempresa
+    public static final String CPF_ALREADY_EXIST_IN_COMPANY = "CPF já cadastrado nesta empresa.";
+    public static final String COMPANY_ACCESS_DENIED = "Acesso negado: usuário não possui acesso ativo a esta empresa.";
+    public static final String COMPANY_SWITCH_SUCCESS = "Empresa ativa alterada com sucesso.";
 
     // Messages (Chat/Avisos)
     public static final String MESSAGE_NOT_FOUND = "Mensagem não encontrada";

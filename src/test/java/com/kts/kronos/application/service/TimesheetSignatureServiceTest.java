@@ -12,7 +12,9 @@ import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.TimesheetSignatureProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.TimesheetSignature;
@@ -35,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -57,6 +60,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TimesheetSignatureServiceTest {
 
+    /** Valid base64 string representing a minimal fake face image for tests. */
+    private static final String VALID_FACE_IMAGE_BASE64 = Base64.getEncoder().encodeToString("fake-face-image".getBytes(StandardCharsets.UTF_8));
+
     @Mock TimesheetSignatureProvider signatureProvider;
     @Mock TimeRecordProvider timeRecordProvider;
     @Mock EmployeeProvider employeeProvider;
@@ -68,6 +74,8 @@ class TimesheetSignatureServiceTest {
     @Mock DocumentUseCase documentUseCase;
     @Mock DigitalSignatureService digitalSignatureService;
     @Mock EvidenceWatermarkService evidenceWatermarkService;
+    @Mock BiometricProtectionService biometricProtectionService;
+    @Mock FaceRecognitionProvider faceRecognitionProvider;
 
     @InjectMocks
     TimesheetSignatureService service;
@@ -105,6 +113,7 @@ class TimesheetSignatureServiceTest {
         lenient().when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
         lenient().when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         lenient().when(userProvider.findById(userId)).thenReturn(Optional.of(user));
+        lenient().when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(employeeId);
         lenient().when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(periodStart), eq(periodEnd)))
                 .thenReturn(mirrorPdf);
         // Watermark e sign retornam o mesmo array (pass-through nos testes que precisam mock simples).
@@ -174,7 +183,6 @@ class TimesheetSignatureServiceTest {
         when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
                 .thenReturn(Optional.empty());
         when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(List.of(closedRecord(employeeId, periodStart)));
-        when(passwordEncoder.matches("senha-correta", user.password())).thenReturn(true);
         UUID expectedDocumentId = UUID.randomUUID();
         byte[] companySignedPdf = "company-signed-pdf-bytes".getBytes(StandardCharsets.UTF_8);
         when(digitalSignatureService.signPdf(any(), any(), any())).thenReturn(companySignedPdf);
@@ -184,11 +192,11 @@ class TimesheetSignatureServiceTest {
         when(signatureProvider.save(captor.capture())).thenAnswer(inv -> inv.getArgument(0));
 
         SignPreviousMonthTimesheetResponse response = service.signMonth(
-                signRequest("senha-correta"), "10.0.0.1", "JUnit"
+                signRequest(VALID_FACE_IMAGE_BASE64), "10.0.0.1", "JUnit"
         );
 
         assertThat(response.signatureType()).isEqualTo("INTERNAL_ADVANCED");
-        assertThat(response.signatureMethod()).isEqualTo("PASSWORD_REAUTH");
+        assertThat(response.signatureMethod()).isEqualTo("FACIAL_RECOGNITION");
         assertThat(response.pointMirrorDocumentId()).isEqualTo(expectedDocumentId);
         // O hash persistido é do PDF DEPOIS de assinado pela empresa (não do PDF cru)
         assertThat(response.pointMirrorHashSha256())
@@ -241,14 +249,14 @@ class TimesheetSignatureServiceTest {
     }
 
     @Test
-    @DisplayName("sign: 403 quando senha não confere")
+    @DisplayName("sign: 403 quando imagem biométrica é inválida (base64 corrompido)")
     void signRejectsInvalidPassword() {
         when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
                 .thenReturn(Optional.empty());
         when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(List.of(closedRecord(employeeId, periodStart)));
-        when(passwordEncoder.matches("errada", user.password())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.signMonth(signRequest("errada"), "ip", "ua"))
+        // "errada" não é base64 válido — o serviço lança ForbiddenException("Imagem biométrica inválida.")
+        assertThatThrownBy(() -> service.signMonth(signRequest("errada%%%"), "ip", "ua"))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("inválida");
         verify(signatureProvider, never()).save(any());
@@ -260,7 +268,6 @@ class TimesheetSignatureServiceTest {
         when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
                 .thenReturn(Optional.empty());
         when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(List.of(closedRecord(employeeId, periodStart)));
-        when(passwordEncoder.matches(any(), any())).thenReturn(true);
 
         SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
                 previous.getYear(), previous.getMonthValue(),
@@ -268,7 +275,7 @@ class TimesheetSignatureServiceTest {
                 TimesheetSignatureService.DECLARATION_VERSION_V1,
                 declarationHash,
                 "0000000000000000000000000000000000000000000000000000000000000000", // hash que não bate
-                "senha"
+                VALID_FACE_IMAGE_BASE64
         );
 
         assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
@@ -370,7 +377,6 @@ class TimesheetSignatureServiceTest {
         when(timeRecordProvider.findByEmployeeIdsAndRange(eq(List.of(employeeId)),
                 eq(olderStart.atStartOfDay()), eq(olderEnd.atTime(23, 59, 59))))
                 .thenReturn(List.of(olderRecord));
-        when(passwordEncoder.matches("senha", user.password())).thenReturn(true);
         when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(olderStart), eq(olderEnd)))
                 .thenReturn("older-pdf".getBytes(StandardCharsets.UTF_8));
         when(evidenceWatermarkService.applyEvidenceWatermark(any(), any()))
@@ -386,7 +392,7 @@ class TimesheetSignatureServiceTest {
                 TimesheetSignatureService.DECLARATION_VERSION_V1,
                 olderDeclarationHash,
                 olderRecordsHash,
-                "senha"
+                VALID_FACE_IMAGE_BASE64
         );
 
         SignPreviousMonthTimesheetResponse response = service.signMonth(req, "ip", "ua");

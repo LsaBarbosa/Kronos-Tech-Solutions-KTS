@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.user.AccessibleCompanyResponse;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
@@ -12,6 +13,8 @@ import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.out.provider.*;
+
+import java.util.List;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.User;
@@ -32,6 +35,8 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Objects;
+import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.*;
 
@@ -66,6 +71,8 @@ public class AuthService implements AuthUseCase {
     private final AuditRequestContextService auditRequestContextService;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+    private final UserCompanyAccessProvider userCompanyAccessProvider;
+    private final CompanyProvider companyProvider;
 
     @Override
     public String login(String username, String password) {
@@ -146,13 +153,16 @@ public class AuthService implements AuthUseCase {
             log.debug("Falha ao registrar auditoria de login bem-sucedido", auditEx);
         }
 
+        UUID activeCompanyId = resolveActiveCompanyId(user.userId(), user.employeeId());
+
         return jwtUtils.generateToken(
                 user.employeeId(),
                 user.username(),
                 user.role().name(),
                 user.userId(),
                 consentStatus,
-                user.sessionVersion()
+                user.sessionVersion(),
+                activeCompanyId
         );
     }
 
@@ -191,13 +201,16 @@ public class AuthService implements AuthUseCase {
                     );
                 }
 
+                UUID activeCompanyIdFace = resolveActiveCompanyId(user.userId(), user.employeeId());
+
                 return jwtUtils.generateToken(
                         user.employeeId(),
                         user.username(),
                         user.role().name(),
                         user.userId(),
                         consentStatus,
-                        user.sessionVersion()
+                        user.sessionVersion(),
+                        activeCompanyIdFace
                 );
             });
 
@@ -461,13 +474,24 @@ public class AuthService implements AuthUseCase {
 
             var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
 
+            String activeCompanyIdStr = claims.get("activeCompanyId", String.class);
+            UUID activeCompanyId = (activeCompanyIdStr != null && !activeCompanyIdStr.isBlank())
+                    ? UUID.fromString(activeCompanyIdStr)
+                    : resolveActiveCompanyId(user.userId(), user.employeeId());
+
+            // Revalida que o usuário ainda tem acesso à empresa ativa
+            if (activeCompanyId != null && !userCompanyAccessProvider.existsActiveByUserIdAndCompanyId(user.userId(), activeCompanyId)) {
+                activeCompanyId = resolveActiveCompanyId(user.userId(), user.employeeId());
+            }
+
             String newToken = jwtUtils.generateToken(
                     user.employeeId(),
                     user.username(),
                     user.role().name(),
                     user.userId(),
                     consentStatus,
-                    user.sessionVersion()
+                    user.sessionVersion(),
+                    activeCompanyId
             );
 
             Date oldExpiration = claims.getExpiration();
@@ -501,6 +525,101 @@ public class AuthService implements AuthUseCase {
             metrics().recordTokenRefresh("failure", "unknown");
             throw e;
         }
+    }
+
+    @Override
+    public String switchCompany(UUID userId, UUID targetCompanyId) {
+        var auditContext = auditRequestContextService.extractContext();
+        String ipAddress = auditContext.ipAddress();
+        String userAgent = auditContext.userAgent();
+
+        var user = userProvider.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(USER_NOT_FOUND));
+
+        if (!user.active()) {
+            throw new ForbiddenException(INACTIVE_USER);
+        }
+
+        var access = userCompanyAccessProvider.findActiveByUserIdAndCompanyId(userId, targetCompanyId)
+                .orElseThrow(() -> new ForbiddenException(COMPANY_ACCESS_DENIED));
+
+        var company = companyProvider.findById(targetCompanyId)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + targetCompanyId));
+
+        if (!company.active()) {
+            throw new ForbiddenException("Empresa inativa.");
+        }
+
+        UUID employeeIdForCompany = access.employeeId();
+
+        var consentStatus = employeeIdForCompany != null
+                ? acceptTermsUseCase.getBiometricConsentStatus(employeeIdForCompany)
+                : acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
+
+        String newToken = jwtUtils.generateToken(
+                employeeIdForCompany != null ? employeeIdForCompany : user.employeeId(),
+                user.username(),
+                access.role(),
+                user.userId(),
+                consentStatus,
+                user.sessionVersion(),
+                targetCompanyId
+        );
+
+        try {
+            auditService.registerSecurity(
+                    AuditAction.COMPANY_SWITCH_SUCCESS,
+                    user.userId(),
+                    employeeIdForCompany,
+                    "LOW",
+                    "USER",
+                    user.userId().toString(),
+                    "targetCompanyId=" + targetCompanyId,
+                    ipAddress,
+                    userAgent
+            );
+        } catch (Exception auditEx) {
+            log.debug("Falha ao registrar auditoria de troca de empresa", auditEx);
+        }
+
+        return newToken;
+    }
+
+    @Override
+    public List<AccessibleCompanyResponse> getAccessibleCompanies(UUID userId) {
+        var accesses = userCompanyAccessProvider.findActiveByUserId(userId);
+        return accesses.stream()
+                .map(access -> {
+                    var company = companyProvider.findById(access.companyId()).orElse(null);
+                    if (company == null) return null;
+                    return new AccessibleCompanyResponse(
+                            access.companyId(),
+                            company.name(),
+                            company.cnpj(),
+                            access.role(),
+                            access.defaultCompany(),
+                            access.active()
+                    );
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private UUID resolveActiveCompanyId(UUID userId, UUID employeeId) {
+        var defaultAccess = userCompanyAccessProvider.findDefaultActiveByUserId(userId);
+        if (defaultAccess.isPresent()) {
+            return defaultAccess.get().companyId();
+        }
+        var activeAccesses = userCompanyAccessProvider.findActiveByUserId(userId);
+        if (!activeAccesses.isEmpty()) {
+            return activeAccesses.get(0).companyId();
+        }
+        if (employeeId != null) {
+            return employeeProvider.findById(employeeId)
+                    .map(e -> e.companyId())
+                    .orElse(null);
+        }
+        return null;
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha

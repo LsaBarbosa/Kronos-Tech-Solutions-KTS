@@ -79,22 +79,14 @@ public class EmployeeService implements EmployeeUseCase {
             }
             companyId = req.companyId();
         } else if (userRole == Role.MANAGER) {
-            var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
-            var managerEmployee = employeeProvider.findById(managerEmployeeId)
-                    .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-            companyId = managerEmployee.companyId();
+            companyId = getCompanyIdFromLoggedUser();
         } else {
             throw new ForbiddenException("Usuário sem permissão para criar colaboradores.");
         }
 
-        var existingEmployeeOpt = employeeProvider.findByCpf(req.cpf());
-
-        if (existingEmployeeOpt.isPresent()) {
-            var existingEmployee = existingEmployeeOpt.get();
-            if (userProvider.existsByEmployeeId(existingEmployee.employeeId())) {
-                throw new BadRequestException(CPF_ALREADY_EXIST);
-            }
-            return updateOrphanEmployee(existingEmployee, req, companyId);
+        // Verificar se já existe CPF nesta empresa (bloqueado pela constraint por tenant)
+        if (employeeProvider.cpfExistsInCompany(companyId, req.cpf())) {
+            throw new ConflictException(CPF_ALREADY_EXIST_IN_COMPANY);
         }
 
         var address = viaCep.lookup(req.address().postalCode())
@@ -156,6 +148,22 @@ public class EmployeeService implements EmployeeUseCase {
                 EmployeeListResponse.class,
                 () -> buildEmployeeListResponse(active)
         );
+    }
+
+    @Override
+    public EmployeeListResponse listEmployeesByCompany(UUID companyId, Boolean active) {
+        var employees = active == null
+                ? employeeProvider.findByCompanyId(companyId)
+                : employeeProvider.findByCompanyIdAndActive(companyId, active);
+
+        var companyName = companyProvider.findById(companyId)
+                .map(Company::name)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+
+        var items = employees.stream()
+                .map(e -> EmployeeListItemResponse.fromDomain(e, companyName))
+                .toList();
+        return new EmployeeListResponse(items);
     }
 
     @Override
@@ -310,6 +318,32 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     @Override
+    public boolean cpfExistsInActiveCompany(String cpf) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
+        UUID companyId = getCompanyIdFromLoggedUser();
+        return employeeProvider.cpfExistsInCompany(companyId, cpf);
+    }
+
+    @Override
+    public boolean cpfExistsInCompany(UUID companyId, String cpf) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
+        return employeeProvider.cpfExistsInCompany(companyId, cpf);
+    }
+
+    @Override
+    public java.util.Optional<EmployeeDetailResponse> findByCpfGlobal(String cpf) {
+        authenticationRateLimitService.checkAdminSearchRateLimit();
+        return employeeProvider.findAllByCpf(cpf).stream()
+                .findFirst()
+                .map(employee -> {
+                    String companyName = companyProvider.findById(employee.companyId())
+                            .map(Company::name)
+                            .orElse("");
+                    return EmployeeDetailResponse.fromDomain(employee, companyName, null);
+                });
+    }
+
+    @Override
     public void toggleActivate(UUID employeeId) {
         var employee = getEmployee(employeeId);
 
@@ -441,6 +475,11 @@ public class EmployeeService implements EmployeeUseCase {
     }
 
     private UUID getCompanyIdFromLoggedUser() {
+        UUID activeCompanyId = jwtAuthenticatedUser.getActiveCompanyId();
+        if (activeCompanyId != null) {
+            return activeCompanyId;
+        }
+        // Fallback para tokens antigos sem activeCompanyId
         var managerId = jwtAuthenticatedUser.getEmployeeId();
         var manager = employeeProvider.findById(managerId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
