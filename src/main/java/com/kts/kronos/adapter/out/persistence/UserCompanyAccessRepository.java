@@ -16,4 +16,10 @@ public interface UserCompanyAccessRepository extends JpaRepository<UserCompanyAc
     Optional<UserCompanyAccessEntity> findByUserIdAndDefaultCompanyTrueAndActiveTrue(UUID userId);
 
     boolean existsByUserIdAndCompanyIdAndActiveTrue(UUID userId, UUID companyId);
+
+    List<UserCompanyAccessEntity> findByCompanyId(UUID companyId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM UserCompanyAccessEntity a WHERE a.companyId = :companyId")
+    int deleteByCompanyId(@org.springframework.data.repository.query.Param("companyId") UUID companyId);
 }

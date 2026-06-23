@@ -123,6 +123,12 @@ public class ApiPaths {
     public static final String ADMIN_PLATFORM = "/admin/platform";
     public static final String HEALTH = "/health";
 
+    // CTO Demo Sandbox
+    public static final String CTO_DEMO = "/cto/demo";
+    public static final String CTO_DEMO_CREATE   = "/create";
+    public static final String CTO_DEMO_STATUS   = "/status";
+    public static final String CTO_DEMO_VALIDATE = "/validate";
+
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
     public static final String SERVICE_CONTRACT_ADMIN = "/admin";

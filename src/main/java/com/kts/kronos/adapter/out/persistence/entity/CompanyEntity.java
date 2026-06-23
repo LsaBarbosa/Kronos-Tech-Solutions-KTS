@@ -54,6 +54,13 @@ public class CompanyEntity {
     @Column(name = "deactivation_reason", length = 255)
     private String deactivationReason;
 
+    @Builder.Default
+    @Column(name = "is_sandbox", nullable = false)
+    private boolean sandbox = false;
+
+    @Column(name = "sandbox_key", length = 50)
+    private String sandboxKey;
+
     public Company toDomain(){
         return new Company(
                 id,
