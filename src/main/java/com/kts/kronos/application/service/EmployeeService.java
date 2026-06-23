@@ -274,10 +274,12 @@ public class EmployeeService implements EmployeeUseCase {
                 EmployeeDetailResponse.class,
                 () -> {
                     var profile = getOwnProfile();
-                    var companyName = companyProvider.findById(profile.employee().companyId())
+                    var companyId = profile.employee().companyId();
+                    var companyName = companyProvider.findById(companyId)
                             .map(Company::name)
                             .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
-                    return EmployeeDetailResponse.fromDomain(profile.employee(), companyName, profile.role());
+                    var sandbox = companyProvider.isSandbox(companyId);
+                    return EmployeeDetailResponse.fromDomain(profile.employee(), companyName, profile.role(), sandbox);
                 }
         );
     }

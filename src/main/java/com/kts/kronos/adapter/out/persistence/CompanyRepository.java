@@ -14,4 +14,8 @@ public interface CompanyRepository extends JpaRepository<CompanyEntity, UUID> {
     List<CompanyEntity> findByActiveFalse();
     void deleteByCnpj(String cnpj);
 
+    java.util.Optional<CompanyEntity> findBySandboxKey(String sandboxKey);
+    boolean existsBySandboxKey(String sandboxKey);
+    java.util.List<CompanyEntity> findBySandboxTrue();
+    boolean existsByIdAndSandboxTrue(UUID id);
 }

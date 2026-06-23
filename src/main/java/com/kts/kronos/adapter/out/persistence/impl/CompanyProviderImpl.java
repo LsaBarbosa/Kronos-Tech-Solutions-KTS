@@ -64,6 +64,11 @@ public class CompanyProviderImpl implements CompanyProvider {
         repository.deleteByCnpj(cnpj);
     }
 
+    @Override
+    public boolean isSandbox(UUID companyId) {
+        return repository.existsByIdAndSandboxTrue(companyId);
+    }
+
     private CompanyEntity toEntity(Company company) {
         return CompanyEntity.builder()
                 .id(company.companyId())

@@ -29,6 +29,7 @@ public record EmployeeDetailResponse(
         String companyName,
         boolean homeOffice,
         String role,
+        boolean sandbox,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime lastSeenMessageTimestamp,
@@ -47,6 +48,10 @@ public record EmployeeDetailResponse(
         Set<DayOfWeek> fixedWorkDays
 ) {
     public static EmployeeDetailResponse fromDomain(Employee employee, String companyName, String role) {
+        return fromDomain(employee, companyName, role, false);
+    }
+
+    public static EmployeeDetailResponse fromDomain(Employee employee, String companyName, String role, boolean sandbox) {
         return new EmployeeDetailResponse(
                 employee.employeeId(),
                 employee.fullName(),
@@ -59,6 +64,7 @@ public record EmployeeDetailResponse(
                 companyName,
                 employee.homeOffice(),
                 role,
+                sandbox,
                 employee.lastSeenMessageTimestamp(),
                 employee.workStartTime(),
                 employee.workEndTime(),
