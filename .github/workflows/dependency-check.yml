@@ -27,8 +27,7 @@ jobs:
           path: '.'
           format: 'JSON'
           args: >
-            --enable-retired
-            --enable-experimental
+            --enableExperimental
 
       - name: Upload Dependency-Check Report
         if: always()
