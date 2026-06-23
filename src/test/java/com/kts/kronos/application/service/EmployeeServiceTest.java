@@ -125,7 +125,7 @@ class EmployeeServiceTest {
         );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -147,7 +147,7 @@ class EmployeeServiceTest {
         CreateEmployeeRequest request = createRequest("Maria Silva", "12345678901", companyId, null);
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
 
@@ -242,7 +242,7 @@ class EmployeeServiceTest {
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
-        when(employeeProvider.findByCpf("98765432100")).thenReturn(Optional.empty());
+        when(employeeProvider.cpfExistsInCompany(companyId, "98765432100")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -264,14 +264,11 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: CPF órfão reaproveita employee existente")
-    void shouldUpdateOrphanEmployeeWhenCpfAlreadyExistsWithoutUser() {
-        UUID orphanEmployeeId = UUID.randomUUID();
-        Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID());
-
+    @DisplayName("createEmployee: CPF já cadastrado na mesma empresa lança ConflictException (R-002)")
+    void shouldThrowConflictWhenCpfAlreadyExistsInSameCompany() {
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Novo Nome",
-                orphan.cpf(),
+                "12345678901",
                 "12345678901",
                 "Tech Lead",
                 "novo@kts.com",
@@ -293,48 +290,57 @@ class EmployeeServiceTest {
         );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
-        when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
-        when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
-        when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(true);
 
-        Employee updated = service.createEmployee(request);
-
-        assertEquals(orphanEmployeeId, updated.employeeId());
-        assertEquals(companyId, updated.companyId());
-        assertEquals("Novo Nome", updated.fullName());
-        assertEquals("99", updated.address().number());
+        assertThrows(ConflictException.class, () -> service.createEmployee(request));
+        verify(employeeProvider, never()).save(any());
     }
 
     @Test
-    @DisplayName("createEmployee: CPF órfão sem face mantém face anterior")
-    void shouldUpdateOrphanEmployeePreservingFaceAfterBlock() {
-        UUID orphanEmployeeId = UUID.randomUUID();
-        Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID()).withFaceS3ObjectKey("faces/old.jpg");
-        CreateEmployeeRequest request = createRequest("Novo Nome", orphan.cpf(), companyId, null);
+    @DisplayName("createEmployee: mesmo CPF em empresa diferente deve ser permitido (R-001, R-002)")
+    void shouldAllowSameCpfInDifferentCompany() {
+        UUID outraEmpresaId = UUID.randomUUID();
+        CreateEmployeeRequest request = new CreateEmployeeRequest(
+                "Mesmo CPF Outra Empresa",
+                "12345678901",
+                null,
+                "Dev",
+                "outro@kts.com",
+                5000.0,
+                "21933333333",
+                new AddressRequest("12345678", "10"),
+                outraEmpresaId,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
-        when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
+        // CPF existe na empresa A mas NÃO na outraEmpresaId
+        when(employeeProvider.cpfExistsInCompany(outraEmpresaId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Employee updated = service.createEmployee(request);
+        Employee created = service.createEmployee(request);
 
-        assertEquals(orphanEmployeeId, updated.employeeId());
-        assertEquals("faces/old.jpg", updated.faceS3ObjectKey());
-        verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
+        assertEquals(outraEmpresaId, created.companyId());
         verify(employeeProvider).save(any(Employee.class));
     }
 
     @Test
-    @DisplayName("createEmployee: CPF já vinculado a user falha")
-    void shouldFailWhenCpfAlreadyLinkedToAUser() {
-        Employee existing = buildEmployee(UUID.randomUUID(), companyId);
-
+    @DisplayName("createEmployee: CPF já cadastrado na empresa (com ou sem user) lança ConflictException")
+    void shouldFailWhenCpfExistsInCompanyRegardlessOfUserLink() {
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Nome",
-                existing.cpf(),
+                "12345678901",
                 null,
                 "Dev",
                 "nome@kts.com",
@@ -356,10 +362,9 @@ class EmployeeServiceTest {
         );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf(existing.cpf())).thenReturn(Optional.of(existing));
-        when(userProvider.existsByEmployeeId(existing.employeeId())).thenReturn(true);
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(true);
 
-        assertThrows(BadRequestException.class, () -> service.createEmployee(request));
+        assertThrows(ConflictException.class, () -> service.createEmployee(request));
         verify(employeeProvider, never()).save(any());
     }
 
@@ -390,7 +395,7 @@ class EmployeeServiceTest {
         );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -438,7 +443,7 @@ class EmployeeServiceTest {
         CreateEmployeeRequest request = createRequest("Face Test", "12345678901", companyId, null);
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf("12345678901")).thenReturn(Optional.empty());
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua A", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -764,17 +769,15 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("createEmployee: CPF órfão usa salário default quando ausente")
-    void shouldUpdateOrphanEmployeeWithDefaultSalary() {
-        UUID orphanEmployeeId = UUID.randomUUID();
-        Employee orphan = buildEmployee(orphanEmployeeId, UUID.randomUUID());
+    @DisplayName("createEmployee: salary null usa valor default 0.0")
+    void shouldCreateEmployeeWithDefaultSalaryWhenNull() {
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Novo Nome",
-                orphan.cpf(),
+                "12345678901",
                 "12345678901",
                 "Tech Lead",
                 "novo@kts.com",
-                null,
+                null, // salary null
                 "21922222222",
                 new AddressRequest("12345678", "99"),
                 companyId,
@@ -792,14 +795,13 @@ class EmployeeServiceTest {
         );
 
         when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
-        when(employeeProvider.findByCpf(orphan.cpf())).thenReturn(Optional.of(orphan));
-        when(userProvider.existsByEmployeeId(orphanEmployeeId)).thenReturn(false);
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(false);
         when(viaCep.lookup("12345678")).thenReturn(new Address("Rua B", "0", "12345678", "Rio", "RJ"));
         when(employeeProvider.save(any(Employee.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Employee updated = service.createEmployee(request);
+        Employee created = service.createEmployee(request);
 
-        assertEquals(0.0, updated.salary());
+        assertEquals(0.0, created.salary());
     }
 
     private CreateEmployeeRequest createRequest(String name, String cpf, UUID requestCompanyId, String faceImageBase64) {

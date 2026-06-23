@@ -13,7 +13,10 @@ import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.port.out.provider.PasswordResetTokenProvider;
+import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.domain.model.UserCompanyAccess;
+import java.util.List;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.application.service.AuditRequestContextService;
@@ -87,6 +90,8 @@ class AuthServiceTest {
     private com.kts.kronos.application.port.out.provider.TokenBlacklistProvider tokenBlacklistProvider;
     @Mock
     private AuditService auditService;
+    @Mock
+    private UserCompanyAccessProvider userCompanyAccessProvider;
 
     @BeforeEach
     void setup() {
@@ -111,11 +116,14 @@ class AuthServiceTest {
     void shouldLoginAndGenerateToken() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         BiometricConsentStatus consentStatus = buildBiometricConsentStatus(true);
+        var access = new UserCompanyAccess(UUID.randomUUID(), userId, companyId, employeeId, "MANAGER", true, true, null, null);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L)).thenReturn("jwt");
+        when(userCompanyAccessProvider.findDefaultActiveByUserId(userId)).thenReturn(Optional.of(access));
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L, companyId)).thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
 
@@ -127,6 +135,7 @@ class AuthServiceTest {
     void shouldLoginWhenLegacyBiometricConsentStatusRequiresNewAcceptance() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         BiometricConsentStatus legacyConsentStatus = new BiometricConsentStatus(
                 false,
@@ -136,14 +145,16 @@ class AuthServiceTest {
                 "current-hash",
                 true
         );
+        var access = new UserCompanyAccess(UUID.randomUUID(), userId, companyId, employeeId, "MANAGER", true, true, null, null);
         when(userProvider.findByUsername("manager@kts.com")).thenReturn(Optional.of(user));
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(legacyConsentStatus);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L))
+        when(userCompanyAccessProvider.findDefaultActiveByUserId(userId)).thenReturn(Optional.of(access));
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L, companyId))
                 .thenReturn("jwt");
 
         assertEquals("jwt", service.login("Manager@KTS.com", "secret"));
 
-        verify(jwtUtils).generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L);
+        verify(jwtUtils).generateToken(employeeId, "manager@kts.com", "MANAGER", userId, legacyConsentStatus, 0L, companyId);
     }
 
     @Test
@@ -227,13 +238,16 @@ class AuthServiceTest {
     void loginFace_shouldGenerateTokenWhenBiometricConsentIsActive() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
         String image = Base64.getEncoder().encodeToString("face".getBytes());
         User user = new User(userId, "manager@kts.com", "hash", Role.MANAGER, true, employeeId);
         BiometricConsentStatus consentStatus = buildBiometricConsentStatus(true);
+        var access = new UserCompanyAccess(UUID.randomUUID(), userId, companyId, employeeId, "MANAGER", true, true, null, null);
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
         when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user));
         when(acceptTermsUseCase.getBiometricConsentStatus(employeeId)).thenReturn(consentStatus);
-        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L)).thenReturn("face-jwt");
+        when(userCompanyAccessProvider.findDefaultActiveByUserId(userId)).thenReturn(Optional.of(access));
+        when(jwtUtils.generateToken(employeeId, "manager@kts.com", "MANAGER", userId, consentStatus, 0L, companyId)).thenReturn("face-jwt");
 
         assertEquals("face-jwt", service.loginFace(image, true));
     }

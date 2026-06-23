@@ -91,15 +91,25 @@ public class DomainAuthorizationService {
     }
 
     public UUID authorizeCompanyAccess(UUID requestedCompanyId) {
-        var authenticatedEmployee = getAuthenticatedEmployee();
-        var targetCompanyId = requestedCompanyId == null ? authenticatedEmployee.companyId() : requestedCompanyId;
         var role = jwtAuthenticatedUser.getCurrentRole();
 
         if (isCto(role)) {
+            var targetCompanyId = requestedCompanyId == null
+                    ? getAuthenticatedEmployee().companyId()
+                    : requestedCompanyId;
             return targetCompanyId;
         }
 
-        if (!authenticatedEmployee.companyId().equals(targetCompanyId)) {
+        // Para MANAGER/PARTNER: usa activeCompanyId do JWT
+        UUID activeCompanyId = jwtAuthenticatedUser.getActiveCompanyId();
+        if (activeCompanyId == null) {
+            // Fallback para tokens sem activeCompanyId
+            activeCompanyId = getAuthenticatedEmployee().companyId();
+        }
+
+        var targetCompanyId = requestedCompanyId == null ? activeCompanyId : requestedCompanyId;
+
+        if (!activeCompanyId.equals(targetCompanyId)) {
             throw new ForbiddenException(MANAGER_DIFFERENT_COMPANY);
         }
         return targetCompanyId;
@@ -143,7 +153,10 @@ public class DomainAuthorizationService {
     }
 
     private void validateSameTenant(Employee authenticatedEmployee, Employee targetEmployee) {
-        if (!authenticatedEmployee.companyId().equals(targetEmployee.companyId())) {
+        UUID activeCompanyId = jwtAuthenticatedUser.getActiveCompanyId();
+        UUID effectiveCompanyId = activeCompanyId != null ? activeCompanyId : authenticatedEmployee.companyId();
+
+        if (!effectiveCompanyId.equals(targetEmployee.companyId())) {
             throw new ForbiddenException(MANAGER_DIFFERENT_COMPANY);
         }
     }

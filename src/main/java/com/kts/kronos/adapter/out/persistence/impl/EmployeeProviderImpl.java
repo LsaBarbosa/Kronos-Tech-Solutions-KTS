@@ -97,6 +97,38 @@ public class EmployeeProviderImpl implements EmployeeProvider {
         return repository.countByCompanyIds(companyIds);
     }
 
+    @Override
+    public boolean cpfExistsInCompany(UUID companyId, String cpf) {
+        for (String candidate : buildCpfCandidates(cpf)) {
+            if (repository.existsByCompanyIdAndCpfAndDeletedAtIsNull(companyId, candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Optional<Employee> findByCompanyIdAndCpf(UUID companyId, String cpf) {
+        for (String candidate : buildCpfCandidates(cpf)) {
+            Optional<EmployeeEntity> opt = repository.findByCompanyIdAndCpfAndDeletedAtIsNull(companyId, candidate);
+            if (opt.isPresent()) {
+                return opt.map(EmployeeEntity::toDomain);
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public List<Employee> findAllByCpf(String cpf) {
+        for (String candidate : buildCpfCandidates(cpf)) {
+            List<EmployeeEntity> results = repository.findAllByCpf(candidate);
+            if (!results.isEmpty()) {
+                return results.stream().map(EmployeeEntity::toDomain).toList();
+            }
+        }
+        return List.of();
+    }
+
     private List<String> buildCpfCandidates(String cpf) {
         if (cpf == null) {
             return List.of();

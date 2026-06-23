@@ -17,6 +17,10 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> 
     boolean existsByCpf(String cpf);
     Optional<EmployeeEntity> findByCpf(String cpf);
 
+    boolean existsByCompanyIdAndCpfAndDeletedAtIsNull(UUID companyId, String cpf);
+    Optional<EmployeeEntity> findByCompanyIdAndCpfAndDeletedAtIsNull(UUID companyId, String cpf);
+    List<EmployeeEntity> findAllByCpf(String cpf);
+
     void deleteById(UUID id);
     List<EmployeeEntity> findByCompanyId(UUID companyId);
     List<EmployeeEntity> findByCompanyIdAndActive(UUID companyId, boolean active);

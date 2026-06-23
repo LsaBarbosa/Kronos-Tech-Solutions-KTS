@@ -81,6 +81,7 @@ class SecurityConfigTest {
         ReflectionTestUtils.setField(securityConfig, "plataformUrl", "http://platform.local");
         ReflectionTestUtils.setField(securityConfig, "local", "http://local.test");
         ReflectionTestUtils.setField(securityConfig, "local_2", "http://local2.test");
+        ReflectionTestUtils.setField(securityConfig, "csrfHeaderName", "X-CSRF-TOKEN");
     }
 
     @Test
@@ -100,7 +101,8 @@ class SecurityConfigTest {
         );
         assertEquals(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"), configuration.getAllowedMethods());
         // SEC-007: explicit allowlist replaces wildcard "*" to prevent arbitrary internal header injection
-        assertEquals(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"), configuration.getAllowedHeaders());
+        assertEquals(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin",
+                "X-Correlation-ID", "X-CSRF-TOKEN"), configuration.getAllowedHeaders());
         assertTrue(Boolean.TRUE.equals(configuration.getAllowCredentials()));
     }
 

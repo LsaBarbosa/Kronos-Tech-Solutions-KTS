@@ -2,7 +2,9 @@ package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.http.UserController;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
+import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
@@ -51,6 +53,12 @@ class UserControllerWebMvcTest {
 
     @MockitoBean
     private UserUseCase useCase;
+
+    @MockitoBean
+    private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private JwtAuthenticatedUser jwtAuthenticatedUser;
 
     @MockitoBean
     private AuthCookieService authCookieService;

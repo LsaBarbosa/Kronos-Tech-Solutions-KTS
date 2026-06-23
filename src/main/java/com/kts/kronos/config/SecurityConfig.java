@@ -180,7 +180,8 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(resolveAllowedOrigins());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
+                "Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin",
+                "X-Correlation-ID", csrfHeaderName));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

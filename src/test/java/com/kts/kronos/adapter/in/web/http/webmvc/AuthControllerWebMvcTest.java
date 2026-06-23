@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
 import com.kts.kronos.adapter.in.web.http.AuthController;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
+import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
@@ -42,6 +43,9 @@ class AuthControllerWebMvcTest {
 
     @MockitoBean
     private AuthUseCase authUseCase;
+
+    @MockitoBean
+    private JwtUtils jwtUtils;
 
     @Test
     void shouldLoginSuccessfully() throws Exception {
