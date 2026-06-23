@@ -31,11 +31,11 @@ public interface ServiceContractUseCase {
 
     PendingServiceContractListResponse findPendingForCurrentEmployee();
 
-    byte[] preview(UUID contractId);
+    byte[] preview(UUID contractId, String ipAddress, String userAgent);
 
     SignServiceContractResponse sign(UUID contractId, SignServiceContractRequest request, String ipAddress, String userAgent);
 
-    SignedDocumentDownload downloadSignatureDocument(UUID signatureId);
+    SignedDocumentDownload downloadSignatureDocument(UUID signatureId, String ipAddress, String userAgent);
 
     ServiceContractSignatureAdminPageResponse findAdminSignatures(
             UUID contractId,

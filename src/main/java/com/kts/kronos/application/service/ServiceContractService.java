@@ -321,7 +321,7 @@ public class ServiceContractService implements ServiceContractUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] preview(UUID contractId) {
+    public byte[] preview(UUID contractId, String ipAddress, String userAgent) {
         Employee employee = getAuthenticatedEmployee();
         UUID currentUserId = jwtAuthenticatedUser.getuserId();
         ServiceContract contract = contractProvider.findById(contractId)
@@ -351,8 +351,8 @@ public class ServiceContractService implements ServiceContractUseCase {
                 "SERVICE_CONTRACT",
                 contractId.toString(),
                 "source=preview",
-                (String) null,
-                null
+                ipAddress,
+                userAgent
         );
         return bytes;
     }
@@ -587,7 +587,7 @@ public class ServiceContractService implements ServiceContractUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public SignedDocumentDownload downloadSignatureDocument(UUID signatureId) {
+    public SignedDocumentDownload downloadSignatureDocument(UUID signatureId, String ipAddress, String userAgent) {
         Employee authenticated = getAuthenticatedEmployee();
         UUID currentUserId = jwtAuthenticatedUser.getuserId();
         ServiceContractSignature signature = signatureProvider.findById(signatureId)
@@ -618,8 +618,8 @@ public class ServiceContractService implements ServiceContractUseCase {
                 "SERVICE_CONTRACT_SIGNATURE",
                 signature.signatureId().toString(),
                 String.format("contract_id=%s", signature.contractId()),
-                (String) null,
-                null
+                ipAddress,
+                userAgent
         );
 
         String fileName = String.format(Locale.ROOT,

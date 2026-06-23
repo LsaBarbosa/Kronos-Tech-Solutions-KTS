@@ -105,12 +105,25 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] previewMonthMirror(Integer year, Integer month) {
+    public byte[] previewMonthMirror(Integer year, Integer month, String ipAddress, String userAgent) {
         Employee employee = getAuthenticatedEmployee();
+        UUID currentUserId = jwtAuthenticatedUser.getuserId();
         YearMonth target = resolveTargetMonth(year, month);
         LocalDate start = target.atDay(1);
         LocalDate end = target.atEndOfMonth();
-        return pointMirrorPdfUseCase.generateMirror(employee.employeeId(), start, end);
+        byte[] pdf = pointMirrorPdfUseCase.generateMirror(employee.employeeId(), start, end);
+        auditService.registerSecurity(
+                AuditAction.TIMESHEET_SIGNATURE_VIEWED,
+                currentUserId,
+                employee.employeeId(),
+                "LOW",
+                "TIMESHEET_SIGNATURE",
+                null,
+                String.format("year=%d,month=%d,source=preview", target.getYear(), target.getMonthValue()),
+                ipAddress,
+                userAgent
+        );
+        return pdf;
     }
 
     @Override
@@ -359,7 +372,7 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public SignedDocumentDownload downloadSignatureDocument(UUID signatureId) {
+    public SignedDocumentDownload downloadSignatureDocument(UUID signatureId, String ipAddress, String userAgent) {
         Employee authenticated = getAuthenticatedEmployee();
         UUID currentUserId = jwtAuthenticatedUser.getuserId();
 
@@ -392,8 +405,8 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                         "TIMESHEET_SIGNATURE",
                         signature.signatureId().toString(),
                         String.format("year=%d,month=%d,source=persisted", signature.referenceYear(), signature.referenceMonth()),
-                        (String) null,
-                        null
+                        ipAddress,
+                        userAgent
                 );
                 return new SignedDocumentDownload(doc.data(), doc.fileName(), doc.contentType());
             } catch (java.io.IOException ex) {
@@ -421,8 +434,8 @@ public class TimesheetSignatureService implements TimesheetSignatureUseCase {
                 "TIMESHEET_SIGNATURE",
                 signature.signatureId().toString(),
                 String.format("year=%d,month=%d,source=regenerated,diverged=%s", signature.referenceYear(), signature.referenceMonth(), diverged),
-                (String) null,
-                null
+                ipAddress,
+                userAgent
         );
 
         String fileName = String.format(Locale.ROOT,

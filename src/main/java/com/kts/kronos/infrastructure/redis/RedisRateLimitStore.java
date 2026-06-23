@@ -6,16 +6,28 @@ import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
 public class RedisRateLimitStore implements RateLimitStore {
+
+    // INCR + EXPIRE atômicos: evita chave sem TTL quando EXPIRE falha após INCR
+    private static final RedisScript<Long> INCR_WITH_TTL = new DefaultRedisScript<>(
+            "local c = redis.call('INCR', KEYS[1])\n" +
+            "if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end\n" +
+            "return c",
+            Long.class
+    );
+
     private final KronosRedisProperties properties;
     private final RedisKeyFactory keyFactory;
     private final KronosMetrics kronosMetrics;
@@ -41,15 +53,13 @@ public class RedisRateLimitStore implements RateLimitStore {
         String key = keyFactory.rateLimitCounterKey(bucketName, scope);
         if (redisEnabled()) {
             try {
-                Long value = redisTemplate.opsForValue().increment(key);
-                if (value != null && value == 1L) {
-                    redisTemplate.expire(key, ttl);
-                }
+                Long value = redisTemplate.execute(INCR_WITH_TTL, List.of(key),
+                        String.valueOf(ttl.toSeconds()));
                 kronosMetrics.redisRateLimitAllowed(bucketName);
                 return value == null ? 0L : value;
             } catch (RuntimeException ex) {
                 kronosMetrics.redisUnavailable("rate-limit:" + bucketName);
-                log.warn("event=redis_rate_limit_unavailable bucket={} reason={}",
+                log.warn("event=redis_rate_limit_unavailable bucket={} reason={} fallback=in_memory",
                         bucketName, ex.getClass().getSimpleName());
             }
         }
@@ -75,14 +85,12 @@ public class RedisRateLimitStore implements RateLimitStore {
         String key = keyFactory.rateLimitPenaltyKey(bucketName, scope);
         if (redisEnabled()) {
             try {
-                Long value = redisTemplate.opsForValue().increment(key);
-                if (value != null && value == 1L) {
-                    redisTemplate.expire(key, ttl);
-                }
+                Long value = redisTemplate.execute(INCR_WITH_TTL, List.of(key),
+                        String.valueOf(ttl.toSeconds()));
                 return value == null ? 0L : value;
             } catch (RuntimeException ex) {
                 kronosMetrics.redisUnavailable("rate-limit-penalty:" + bucketName);
-                log.warn("event=redis_rate_limit_penalty_unavailable bucket={} reason={}",
+                log.warn("event=redis_rate_limit_penalty_unavailable bucket={} reason={} fallback=in_memory",
                         bucketName, ex.getClass().getSimpleName());
             }
         }

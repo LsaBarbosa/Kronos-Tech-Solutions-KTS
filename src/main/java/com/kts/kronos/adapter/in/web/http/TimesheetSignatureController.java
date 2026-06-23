@@ -53,9 +53,12 @@ public class TimesheetSignatureController {
     @GetMapping(TIMESHEET_SIGNATURE_PREVIEW)
     public ResponseEntity<byte[]> preview(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month
+            @RequestParam(required = false) Integer month,
+            HttpServletRequest httpServletRequest
     ) {
-        byte[] pdf = useCase.previewMonthMirror(year, month);
+        String ip = clientIpResolver.resolve(httpServletRequest);
+        String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
+        byte[] pdf = useCase.previewMonthMirror(year, month, ip, ua);
         String fileName = (year != null && month != null)
                 ? String.format("espelho_preview_%04d-%02d.pdf", year, month)
                 : "espelho_preview.pdf";
@@ -78,8 +81,10 @@ public class TimesheetSignatureController {
 
     @PreAuthorize("isAuthenticated()")
     @GetMapping(TIMESHEET_SIGNATURE_DOCUMENT)
-    public ResponseEntity<byte[]> downloadDocument(@PathVariable UUID signatureId) {
-        TimesheetSignatureUseCase.SignedDocumentDownload download = useCase.downloadSignatureDocument(signatureId);
+    public ResponseEntity<byte[]> downloadDocument(@PathVariable UUID signatureId, HttpServletRequest httpServletRequest) {
+        String ip = clientIpResolver.resolve(httpServletRequest);
+        String ua = httpServletRequest.getHeader(HttpHeaders.USER_AGENT);
+        TimesheetSignatureUseCase.SignedDocumentDownload download = useCase.downloadSignatureDocument(signatureId, ip, ua);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(download.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + download.fileName() + "\"")

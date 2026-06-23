@@ -15,12 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Deque;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Slf4j
 @Component
@@ -38,8 +33,6 @@ public class BiometricProtectionService {
     private final ClientIpResolver clientIpResolver;
     private final ObjectProvider<LivenessVerificationProvider> livenessVerificationProvider;
     private final PrivacyLogReferenceService privacyLogReferenceService;
-    private final Map<String, Deque<Instant>> buckets = new ConcurrentHashMap<>();
-
     @Autowired(required = false)
     private RateLimitStore rateLimitStore;
 
@@ -208,33 +201,15 @@ public class BiometricProtectionService {
     }
 
     private void consume(String bucketName, String rawScope, int limit, Duration window, String message) {
-        Instant now = Instant.now();
-        if (rateLimitStore != null) {
-            var count = rateLimitStore.increment(bucketName, rawScope, window);
-            if (count > limit) {
-                log.warn("event=biometric_rate_limit_exceeded rateLimitRef={}",
-                        privacyLogReferenceService.genericRef("biometric_rate_limit", bucketName + ":" + rawScope));
-                throw new TooManyRequestsException(message);
-            }
+        if (rateLimitStore == null) {
+            log.error("event=biometric_rate_limit_store_missing bucket={} — rate limiting disabled", bucketName);
             return;
         }
-
-        Instant threshold = now.minus(window);
-        String key = bucketName + ":" + rawScope;
-        Deque<Instant> bucket = buckets.computeIfAbsent(key, ignored -> new ConcurrentLinkedDeque<>());
-
-        synchronized (bucket) {
-            while (!bucket.isEmpty() && bucket.peekFirst().isBefore(threshold)) {
-                bucket.pollFirst();
-            }
-
-            if (bucket.size() >= limit) {
-                log.warn("event=biometric_rate_limit_exceeded rateLimitRef={}",
-                        privacyLogReferenceService.genericRef("biometric_rate_limit", key));
-                throw new TooManyRequestsException(message);
-            }
-
-            bucket.addLast(now);
+        var count = rateLimitStore.increment(bucketName, rawScope, window);
+        if (count > limit) {
+            log.warn("event=biometric_rate_limit_exceeded rateLimitRef={}",
+                    privacyLogReferenceService.genericRef("biometric_rate_limit", bucketName + ":" + rawScope));
+            throw new TooManyRequestsException(message);
         }
     }
 
