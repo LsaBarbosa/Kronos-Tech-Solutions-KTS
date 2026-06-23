@@ -258,14 +258,11 @@ public class EmployeeService implements EmployeeUseCase {
     public EmployeeProfile getOwnProfile() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = getEmployee(employeeId);
-
-        // BUSCA O USER PELO employeeId
-        var user = userProvider.findByEmployeeId(employeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para este colaborador."));
-
-        // RETORNA O EMPLOYEE E A ROLE
-        // own profile is cacheable by controller; writes in this service invalidate it explicitly.
-        return new EmployeeProfile(employee, user.role().name());
+        // Role comes from the JWT (Spring Security context) — covers both single-company
+        // (User.employee_id) and multi-company (tb_user_company_access.employee_id) users
+        // without querying User.employee_id which only exists for the primary company.
+        var role = jwtAuthenticatedUser.getCurrentRole().name();
+        return new EmployeeProfile(employee, role);
     }
 
     @Override
