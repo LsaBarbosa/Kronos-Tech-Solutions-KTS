@@ -67,4 +67,10 @@ public interface LegalConsentRepository extends JpaRepository<LegalConsentEntity
     @Modifying
     @Query("DELETE FROM LegalConsentEntity c WHERE c.createdAt < :cutoff")
     int deleteCreatedBefore(@Param("cutoff") Instant cutoff);
+
+    List<LegalConsentEntity> findByEmployeeId(UUID employeeId);
+
+    @Modifying
+    @Query("DELETE FROM LegalConsentEntity c WHERE c.employeeId = :employeeId")
+    int deleteByEmployeeId(@Param("employeeId") UUID employeeId);
 }

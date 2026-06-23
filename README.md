@@ -1,71 +1,77 @@
-# Kronos — Pacote Claude Code para correção multiempresa por CPF
+# Kronos — Pacote Claude Code para fluxo CTO de CRIAR DEMO / DELETAR DEMO
 
 ## Objetivo
 
-Implementar de forma segura o cenário em que uma mesma pessoa física, identificada por um CPF, pode atuar como gestor em mais de uma empresa no Kronos, sem quebrar isolamento por tenant, autenticação, autorização, LGPD, auditoria e fluxos existentes.
+Implementar, revisar e validar o fluxo controlado por usuário `CTO` para criar e deletar uma empresa sandbox/demo chamada `Kronos Teste`.
 
-## Decisão técnica central
+O fluxo deve criar dados sintéticos completos para demonstração e permitir purge idempotente sem deixar resíduos de banco, storage local, sessão, cache, permissões ou arquivos.
 
-Não remover validação de CPF.
+## Repositórios e branches obrigatórias
 
-Ajustar a modelagem para diferenciar:
+| Camada | Repositório | Branch |
+|---|---|---|
+| Back-end | `Kronos-Tech-Solutions-KTS` | `homolog` |
+| Front-end | `Kronos-Tech-Solution-User-Plataform` | `homolog` |
+| Documentação | `kronos-business` | `main` |
 
-1. CPF como identidade da pessoa física.
-2. `company_id` como escopo/tenant.
-3. Acesso do usuário como relação entre usuário, empresa e papel.
-4. Colaborador como vínculo operacional/trabalhista dentro de uma empresa.
-
-## Entrega esperada
-
-Este pacote contém:
-
-- regras permanentes para Claude Code;
-- skill de implementação;
-- agentes e subagentes especializados;
-- plano de ação por fases;
-- critérios de aceite;
-- plano de rollback;
-- prompt mestre para execução no Claude Code;
-- prompt compatível caso o executor seja Codex.
-
-## Estrutura
+## Estrutura do pacote
 
 ```text
 .claude/
   rules/
+    kronos-demo-sandbox.rules.md
   skills/
+    kronos-demo-sandbox/
+      SKILL.md
   agents/
+    kronos-demo-sandbox-architect.md
+    kronos-backend-demo-agent.md
+    kronos-frontend-demo-agent.md
+    kronos-qa-security-agent.md
   subagents/
+    backend-domain-mapping-subagent.md
+    sandbox-storage-purge-subagent.md
+    frontend-cto-ui-subagent.md
+    validation-test-subagent.md
+    documentation-contract-subagent.md
   commands/
-plan/
-prompts/
+    implement-kronos-demo-sandbox.md
 docs_index/
+  REPOSITORY_READING_MAP.md
+  DEMO_SANDBOX_CONTRACT.md
+plan/
+  IMPLEMENTATION_PLAN_CTO_DEMO_SANDBOX.md
+prompts/
+  CLAUDE_CODE_MASTER_PROMPT.md
+  CODEX_COMPATIBLE_PROMPT.md
+scripts/
+  install_into_repos.sh
 ```
 
-## Como usar
+## Como usar na VPS
 
-1. Copie o conteúdo deste pacote para a raiz do repositório backend Kronos.
-2. Garanta que a branch atual seja `homolog`.
-3. Garanta que os documentos técnicos estejam disponíveis no repositório ou no diretório de documentação do projeto.
-4. Abra o Claude Code na raiz do repositório.
-5. Execute o prompt de `prompts/CLAUDE_CODE_MASTER_PROMPT.md`.
+1. Copie este pacote para `/home/deploy/apps`.
+2. Execute:
 
-## Escopo seguro para homolog
+```bash
+cd /home/deploy/apps
+bash kronos-demo-sandbox-claude-package/scripts/install_into_repos.sh
+```
 
-A implementação deve seguir uma estratégia incremental:
+3. Entre no back-end:
 
-1. Corrigir unicidade de CPF por empresa: `UNIQUE(company_id, cpf)`.
-2. Criar relação explícita de acesso usuário-empresa: `tb_user_company_access`.
-3. Adicionar contexto de empresa ativa no JWT.
-4. Adicionar endpoints para listar empresas acessíveis e trocar empresa ativa.
-5. Ajustar validações de cadastro, login, autorização e testes.
-6. Ajustar front-end somente depois do backend estabilizado.
+```bash
+cd /home/deploy/apps/Kronos-Tech-Solutions-KTS
+git switch homolog
+claude
+```
 
-## O que não fazer
+4. No Claude Code, cole o conteúdo de:
 
-- Não remover a validação de CPF.
-- Não permitir CPF duplicado dentro da mesma empresa.
-- Não confiar em `companyId` vindo do front quando o usuário autenticado é MANAGER.
-- Não colocar regra de negócio em controller.
-- Não quebrar fluxos de PARTNER, CTO, login facial, termos, LGPD e ponto.
-- Não emitir JWT sem empresa ativa para usuário MANAGER/PARTNER em fluxos autenticados normais.
+```text
+prompts/CLAUDE_CODE_MASTER_PROMPT.md
+```
+
+## Diretriz principal
+
+A implementação deve ser feita primeiro no back-end, depois no front-end, e por fim na documentação. O front-end não deve inventar contrato. Ele só deve consumir endpoints implementados e testados no back-end.
