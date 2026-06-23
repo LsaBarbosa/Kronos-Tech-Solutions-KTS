@@ -5,6 +5,7 @@ import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.out.provider.LivenessVerificationProvider;
+import com.kts.kronos.application.port.out.provider.RateLimitStore;
 import com.kts.kronos.domain.model.LivenessVerificationResult;
 import com.kts.kronos.domain.model.enuns.LivenessOperation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +17,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +71,7 @@ class BiometricProtectionServiceTest {
         ReflectionTestUtils.setField(service, "checkinWindowSeconds", 60);
         ReflectionTestUtils.setField(service, "enrollmentLimit", 2);
         ReflectionTestUtils.setField(service, "enrollmentWindowSeconds", 60);
+        ReflectionTestUtils.setField(service, "rateLimitStore", new InMemoryRateLimitStore());
     }
 
     @Test
@@ -159,6 +165,7 @@ class BiometricProtectionServiceTest {
         ReflectionTestUtils.setField(blankIpService, "livenessRequired", false);
         ReflectionTestUtils.setField(blankIpService, "loginFaceLimit", 1);
         ReflectionTestUtils.setField(blankIpService, "loginFaceWindowSeconds", 60);
+        ReflectionTestUtils.setField(blankIpService, "rateLimitStore", new InMemoryRateLimitStore());
 
         blankIpService.protectPublicLogin("abc", null);
 
@@ -284,5 +291,42 @@ class BiometricProtectionServiceTest {
         ObjectProvider<LivenessVerificationProvider> livenessProvider = mock(ObjectProvider.class);
         when(livenessProvider.getIfAvailable()).thenReturn(provider);
         return livenessProvider;
+    }
+
+    private static class InMemoryRateLimitStore implements RateLimitStore {
+        private final ConcurrentHashMap<String, AtomicLong> counts = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Instant> expiry = new ConcurrentHashMap<>();
+
+        @Override
+        public long increment(String bucketName, String scope, Duration ttl) {
+            String key = bucketName + ":" + scope;
+            Instant now = Instant.now();
+            Instant exp = expiry.get(key);
+            if (exp == null || !now.isBefore(exp)) {
+                counts.remove(key);
+                expiry.remove(key);
+            }
+            long count = counts.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
+            expiry.putIfAbsent(key, now.plus(ttl));
+            return count;
+        }
+
+        @Override
+        public long incrementPenalty(String bucketName, String scope, Duration ttl) {
+            return increment(bucketName, scope, ttl);
+        }
+
+        @Override
+        public boolean isCoolingDown(String bucketName, String scope) { return false; }
+
+        @Override
+        public void setCooldown(String bucketName, String scope, Duration ttl) {}
+
+        @Override
+        public void reset(String bucketName, String scope) {
+            String key = bucketName + ":" + scope;
+            counts.remove(key);
+            expiry.remove(key);
+        }
     }
 }

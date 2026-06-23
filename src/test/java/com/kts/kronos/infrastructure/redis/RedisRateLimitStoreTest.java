@@ -13,11 +13,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.springframework.data.redis.core.script.RedisScript;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -56,12 +60,13 @@ class RedisRateLimitStoreTest {
         String bucket = "auth-login-ip";
         String scope = "198.51.100.10";
         String key = keyFactory.rateLimitCounterKey(bucket, scope);
-        when(valueOperations.increment(key)).thenReturn(1L);
+        when(redisTemplate.<Long>execute(any(RedisScript.class), eq(List.of(key)), eq("30")))
+                .thenReturn(1L);
 
         long count = store.increment(bucket, scope, Duration.ofSeconds(30));
 
         assertEquals(1L, count);
-        verify(redisTemplate).expire(key, Duration.ofSeconds(30));
+        verify(redisTemplate).execute(any(RedisScript.class), eq(List.of(key)), eq("30"));
     }
 
     @Test
