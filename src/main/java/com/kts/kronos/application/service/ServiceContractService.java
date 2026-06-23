@@ -24,6 +24,7 @@ import com.kts.kronos.application.port.out.provider.ServiceContractAssignmentPro
 import com.kts.kronos.application.port.out.provider.ServiceContractProvider;
 import com.kts.kronos.application.port.out.provider.ServiceContractSignatureProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.ServiceContract;
@@ -85,6 +86,7 @@ public class ServiceContractService implements ServiceContractUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BiometricProtectionService biometricProtectionService;
+    private final PrivacyLogReferenceService privacyLogReferenceService;
     private final AuditService auditService;
     private final DocumentUseCase documentUseCase;
     private final DocumentProvider documentProvider;
@@ -433,6 +435,9 @@ public class ServiceContractService implements ServiceContractUseCase {
         }
 
         if (!employee.employeeId().equals(recognizedEmployeeId)) {
+            String mismatchDetail = recognizedEmployeeId != null
+                    ? "reason=identity_mismatch,recognized_ref=" + privacyLogReferenceService.employeeRef(recognizedEmployeeId)
+                    : "reason=face_not_found";
             auditService.registerSecurity(
                     AuditAction.SERVICE_CONTRACT_FACIAL_AUTH_FAILED,
                     currentUserId,
@@ -440,7 +445,7 @@ public class ServiceContractService implements ServiceContractUseCase {
                     "HIGH",
                     "SERVICE_CONTRACT",
                     contractId.toString(),
-                    null,
+                    mismatchDetail,
                     ipAddress,
                     userAgent
             );

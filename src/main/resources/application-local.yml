@@ -81,6 +81,12 @@ management:
 app:
   security:
     public-docs-enabled: true
+    cookies:
+      secure: false
+      same-site: Lax
+    csrf:
+      secure: false
+      same-site: Lax
 
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-with-at-least-32-characters-kronos}
