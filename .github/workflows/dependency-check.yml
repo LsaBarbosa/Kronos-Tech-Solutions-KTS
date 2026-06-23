@@ -41,9 +41,9 @@ jobs:
         id: check-vulns
         run: |
           if [ -f "reports/dependency-check-report.json" ]; then
-            CRITICAL=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="CRITICAL")] | length' reports/dependency-check-report.json)
-            HIGH=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="HIGH")] | length' reports/dependency-check-report.json)
-            MEDIUM=$(jq '[.reportSchema.vulnerabilities[] | select(.severity=="MEDIUM")] | length' reports/dependency-check-report.json)
+            CRITICAL=$(jq '[.dependencies[].vulnerabilities[]? | select(.severity=="CRITICAL")] | length' reports/dependency-check-report.json)
+            HIGH=$(jq '[.dependencies[].vulnerabilities[]? | select(.severity=="HIGH")] | length' reports/dependency-check-report.json)
+            MEDIUM=$(jq '[.dependencies[].vulnerabilities[]? | select(.severity=="MEDIUM")] | length' reports/dependency-check-report.json)
 
             echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
             echo "high=$HIGH" >> $GITHUB_OUTPUT
@@ -87,9 +87,10 @@ jobs:
             const fs = require('fs');
             const report = JSON.parse(fs.readFileSync('reports/dependency-check-report.json', 'utf8'));
 
-            const critical = report.reportSchema.vulnerabilities.filter(v => v.severity === 'CRITICAL').length;
-            const high = report.reportSchema.vulnerabilities.filter(v => v.severity === 'HIGH').length;
-            const medium = report.reportSchema.vulnerabilities.filter(v => v.severity === 'MEDIUM').length;
+            const allVulns = report.dependencies.flatMap(d => d.vulnerabilities ?? []);
+            const critical = allVulns.filter(v => v.severity === 'CRITICAL').length;
+            const high = allVulns.filter(v => v.severity === 'HIGH').length;
+            const medium = allVulns.filter(v => v.severity === 'MEDIUM').length;
 
             let comment = `## 🔒 Dependency-Check Report\n\n`;
             comment += `| Severidade | Count |\n`;
