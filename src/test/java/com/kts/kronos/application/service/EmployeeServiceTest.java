@@ -616,12 +616,11 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("getOwnProfile: retorna colaborador e role atual")
+    @DisplayName("getOwnProfile: retorna colaborador e role do JWT (multi-empresa)")
     void shouldReturnOwnProfileWithRole() {
-        User user = new User(UUID.randomUUID(), "partner", "x", Role.PARTNER, true, loggedEmployeeId);
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
         when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
-        when(userProvider.findByEmployeeId(loggedEmployeeId)).thenReturn(Optional.of(user));
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
 
         EmployeeProfile profile = service.getOwnProfile();
 
@@ -630,11 +629,10 @@ class EmployeeServiceTest {
     }
 
     @Test
-    @DisplayName("getOwnProfile: falha quando user vinculado não existe")
-    void shouldFailOwnProfileWhenUserIsMissing() {
+    @DisplayName("getOwnProfile: falha quando colaborador não existe")
+    void shouldFailOwnProfileWhenEmployeeIsMissing() {
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
-        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
-        when(userProvider.findByEmployeeId(loggedEmployeeId)).thenReturn(Optional.empty());
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> service.getOwnProfile());
     }
