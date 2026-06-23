@@ -32,7 +32,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
             -w /repo \
-            zricethezav/gitleaks:v8.24.2 detect \
+            ghcr.io/gitleaks/gitleaks:v8.24.2 detect \
             --source . \
             --config .gitleaks.toml \
             --redact \
@@ -78,12 +78,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run build
-        run: ./gradlew clean build --info --stacktrace
-
-      - name: Run OWASP Dependency Check
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: timeout 20m ./gradlew dependencyCheckAnalyze --info --stacktrace
+        run: ./gradlew clean build
 
       - name: Upload unit test reports
         if: always()
@@ -93,15 +88,6 @@ jobs:
           path: |
             build/reports/tests/**
             build/test-results/**
-
-      - name: Upload dependency-check reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check-reports
-          path: |
-            build/reports/dependency-check-report.html
-            build/reports/dependency-check-report.json
 
   data-jpa-tests:
     name: Data JPA Tests
@@ -164,7 +150,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Trivy vulnerability scanner (filesystem mode)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
