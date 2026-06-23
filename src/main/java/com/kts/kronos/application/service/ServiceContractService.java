@@ -51,6 +51,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import org.springframework.dao.DataIntegrityViolationException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.security.MessageDigest;
@@ -553,7 +554,13 @@ public class ServiceContractService implements ServiceContractUseCase {
                 auditLogId,
                 padesStatus
         );
-        ServiceContractSignature savedSignature = signatureProvider.save(signature);
+        ServiceContractSignature savedSignature;
+        try {
+            savedSignature = signatureProvider.save(signature);
+        } catch (DataIntegrityViolationException ex) {
+            log.warn("event=service_contract_sign_duplicate_rejected assignment_id={}", assignment.assignmentId());
+            throw new ConflictException("Você já assinou este contrato.");
+        }
 
         ServiceContractAssignment updated = assignment
                 .withStatus(ServiceContractAssignmentStatus.SIGNED)

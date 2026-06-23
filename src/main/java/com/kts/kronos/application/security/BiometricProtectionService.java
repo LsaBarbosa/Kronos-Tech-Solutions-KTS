@@ -118,6 +118,15 @@ public class BiometricProtectionService {
     public void protectTimesheetSigning(UUID employeeId, String faceImageBase64) {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.TIMESHEET_SIGNING, employeeId);
+        // Hard limit: por colaborador — impede abuso independentemente de rotação de IP
+        consume(
+                RedisRateLimitNames.BIOMETRIC_TIMESHEET_SIGN_EMPLOYEE,
+                employeeId.toString(),
+                timesheetSignLimit,
+                Duration.ofSeconds(timesheetSignWindowSeconds),
+                TIMESHEET_SIGN_RATE_LIMIT
+        );
+        // Soft limit: por colaborador+IP — complementar para mitigar botnets
         consume(
                 RedisRateLimitNames.BIOMETRIC_TIMESHEET_SIGN,
                 employeeId + "|" + clientIp(),
@@ -130,6 +139,15 @@ public class BiometricProtectionService {
     public void protectContractSigning(UUID employeeId, String faceImageBase64) {
         ensurePayloadSize(faceImageBase64);
         ensureServerSideLiveness(faceImageBase64, LivenessOperation.CONTRACT_SIGNING, employeeId);
+        // Hard limit: por colaborador — impede abuso independentemente de rotação de IP
+        consume(
+                RedisRateLimitNames.BIOMETRIC_CONTRACT_SIGN_EMPLOYEE,
+                employeeId.toString(),
+                contractSignLimit,
+                Duration.ofSeconds(contractSignWindowSeconds),
+                CONTRACT_SIGN_RATE_LIMIT
+        );
+        // Soft limit: por colaborador+IP — complementar para mitigar botnets
         consume(
                 RedisRateLimitNames.BIOMETRIC_CONTRACT_SIGN,
                 employeeId + "|" + clientIp(),
