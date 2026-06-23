@@ -44,6 +44,23 @@ public class EmployeeController {
         return ResponseEntity.ok(useCase.listEmployeesResponse(active));
     }
 
+    @GetMapping(FIND_BY_CPF)
+    @PreAuthorize(ADMINISTRATOR)
+    public ResponseEntity<EmployeeDetailResponse> findByCpfGlobal(@RequestParam String cpf) {
+        return useCase.findByCpfGlobal(cpf)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping(EMPLOYEES_BY_COMPANY)
+    @PreAuthorize(KRONOS)
+    public ResponseEntity<EmployeeListResponse> employeesByCompany(
+            @PathVariable UUID companyId,
+            @RequestParam(value = "active", required = false) Boolean active
+    ) {
+        return ResponseEntity.ok(useCase.listEmployeesByCompany(companyId, active));
+    }
+
     @PreAuthorize(MANAGER)
     @GetMapping(EMPLOYEE_ID)
     public ResponseEntity<EmployeeDetailResponse> getEmployee(@PathVariable UUID employeeId) {
@@ -98,11 +115,13 @@ public class EmployeeController {
 
     @GetMapping(CHECK_CPF)
     @PreAuthorize(ADMINISTRATOR)
-    public ResponseEntity<Void> checkCpfAvailability(@RequestParam String cpf) {
-        if (useCase.cpfExists(cpf)) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<Void> checkCpfAvailability(
+            @RequestParam String cpf,
+            @RequestParam(value = "companyId", required = false) UUID companyId
+    ) {
+        boolean exists = companyId != null
+                ? useCase.cpfExistsInCompany(companyId, cpf)
+                : useCase.cpfExistsInActiveCompany(cpf);
+        return exists ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
 }

@@ -1,151 +1,71 @@
-# Kronos Back-end
+# Kronos — Pacote Claude Code para correção multiempresa por CPF
 
-API corporativa da plataforma Kronos, responsável por autenticação, regras de negócio, persistência, integrações externas, observabilidade e serviços críticos de jornada e conformidade.
+## Objetivo
 
-## Visão Geral
+Implementar de forma segura o cenário em que uma mesma pessoa física, identificada por um CPF, pode atuar como gestor em mais de uma empresa no Kronos, sem quebrar isolamento por tenant, autenticação, autorização, LGPD, auditoria e fluxos existentes.
 
-Este repositório implementa o núcleo transacional da plataforma Kronos. A aplicação expõe contratos HTTP consumidos pelo front-end, executa regras de domínio sensíveis e centraliza integrações com banco de dados, Redis, serviços de e-mail, geolocalização, armazenamento documental e biometria.
+## Decisão técnica central
 
-O objetivo desta base é manter consistência operacional, segurança e rastreabilidade em fluxos que afetam jornada, documentos, perfis, autenticação e requisitos regulatórios.
+Não remover validação de CPF.
 
-## Responsabilidades do Repositório
+Ajustar a modelagem para diferenciar:
 
-- autenticação e autorização;
-- emissão, validação e revogação de sessão/token;
-- registro de ponto e fluxos associados;
-- dashboard e consultas operacionais;
-- gestão de usuários, colaboradores e empresas;
-- documentos, assinatura e trilhas de auditoria;
-- políticas de privacidade e fluxos LGPD;
-- rate limiting, cache e infraestrutura Redis;
-- observabilidade, métricas e saúde da plataforma.
+1. CPF como identidade da pessoa física.
+2. `company_id` como escopo/tenant.
+3. Acesso do usuário como relação entre usuário, empresa e papel.
+4. Colaborador como vínculo operacional/trabalhista dentro de uma empresa.
 
-## Stack Principal
+## Entrega esperada
 
-| Camada | Tecnologia |
-|---|---|
-| Runtime | Java 21 |
-| Framework | Spring Boot 3.5 |
-| Build | Gradle |
-| API | Spring Web MVC |
-| Segurança | Spring Security + JWT + cookie HttpOnly + CSRF |
-| Persistência | Spring Data JPA + PostgreSQL + Flyway |
-| Cache e suporte distribuído | Spring Cache + Spring Data Redis |
-| Observabilidade | Actuator + Micrometer + Prometheus + OpenTelemetry |
-| Testes | JUnit 5 + Spring Test + Mockito + Testcontainers |
+Este pacote contém:
 
-## Arquitetura da Aplicação
+- regras permanentes para Claude Code;
+- skill de implementação;
+- agentes e subagentes especializados;
+- plano de ação por fases;
+- critérios de aceite;
+- plano de rollback;
+- prompt mestre para execução no Claude Code;
+- prompt compatível caso o executor seja Codex.
 
-A estrutura principal segue separação por camadas e responsabilidades:
+## Estrutura
 
 ```text
-src/main/java/com/kts/kronos/
-  adapter/         entrada e saída da aplicação
-  application/     serviços, casos de uso e portas
-  config/          configuração técnica
-  constants/       constantes e caminhos compartilhados
-  domain/          regras e modelos de domínio
-  infrastructure/  integrações e suporte técnico
-  observability/   métricas, tracing e saúde
+.claude/
+  rules/
+  skills/
+  agents/
+  subagents/
+  commands/
+plan/
+prompts/
+docs_index/
 ```
 
-## Integrações Relevantes
+## Como usar
 
-- PostgreSQL como fonte primária de dados;
-- Redis para cache, TTL, blacklist, rate limit e suporte distribuído;
-- AWS S3 para armazenamento documental;
-- AWS Rekognition para fluxos biométricos;
-- SMTP para notificações e recuperação de acesso;
-- HERE para geolocalização, quando habilitado.
+1. Copie o conteúdo deste pacote para a raiz do repositório backend Kronos.
+2. Garanta que a branch atual seja `homolog`.
+3. Garanta que os documentos técnicos estejam disponíveis no repositório ou no diretório de documentação do projeto.
+4. Abra o Claude Code na raiz do repositório.
+5. Execute o prompt de `prompts/CLAUDE_CODE_MASTER_PROMPT.md`.
 
-## Execução Local
+## Escopo seguro para homolog
 
-### Pré-requisitos
+A implementação deve seguir uma estratégia incremental:
 
-- Java 21;
-- Docker e Docker Compose;
-- variáveis de ambiente configuradas a partir de [`.env.example`](/home/kronos/Documentos/Codigin/kronos/Kronos-Tech-Solutions-KTS/.env.example).
+1. Corrigir unicidade de CPF por empresa: `UNIQUE(company_id, cpf)`.
+2. Criar relação explícita de acesso usuário-empresa: `tb_user_company_access`.
+3. Adicionar contexto de empresa ativa no JWT.
+4. Adicionar endpoints para listar empresas acessíveis e trocar empresa ativa.
+5. Ajustar validações de cadastro, login, autorização e testes.
+6. Ajustar front-end somente depois do backend estabilizado.
 
-### Infraestrutura local
+## O que não fazer
 
-O repositório já possui `docker-compose.yml` para PostgreSQL e Redis.
-
-```bash
-docker compose up -d
-```
-
-### Subida da aplicação
-
-```bash
-./gradlew bootRun
-```
-
-A aplicação usa `SERVER_PORT=8080` no exemplo de ambiente padrão.
-
-## Qualidade e Validação
-
-Comandos principais:
-
-```bash
-./gradlew test
-./gradlew build
-./gradlew jacocoTestReport
-```
-
-Comandos auxiliares:
-
-```bash
-./gradlew unitTest
-./gradlew dataJpaTest
-./gradlew jacocoTestCoverageVerification
-```
-
-## Segurança e Conformidade
-
-Diretrizes operacionais desta base:
-
-- não expor segredos reais em arquivos versionados;
-- não registrar tokens, payloads sensíveis ou dados biométricos em texto puro;
-- não usar Redis como fonte primária para dados regulatórios ou permanentes;
-- preservar trilhas de auditoria e consistência dos contratos expostos;
-- validar impactos de LGPD, autenticação e retenção em qualquer mudança sensível.
-
-## Observabilidade
-
-O projeto já inclui componentes para:
-
-- health checks;
-- métricas Prometheus;
-- tracing com OpenTelemetry;
-- artefatos locais de observabilidade em `infra/`, `prometheus/`, `loki/` e `tempo/`.
-
-## Estrutura do Repositório
-
-```text
-src/          código-fonte e testes
-deploy/       artefatos de entrega e apoio operacional
-docs/         documentação complementar
-infra/        configuração de observabilidade e suporte
-storage/      área local de documentos quando aplicável
-```
-
-## Dependências de Ecossistema
-
-Este repositório trabalha em conjunto com:
-
-- `../Kronos-Tech-Solution-User-Plataform`: front-end web da plataforma;
-- `../kronos-business`: documentação funcional, técnica e arquitetural.
-
-Mudanças de contrato devem ser refletidas de forma coordenada entre esses repositórios.
-
-## Fluxo de Colaboração
-
-1. validar impacto de domínio e contrato;
-2. implementar mantendo compatibilidade externa quando exigido;
-3. executar testes adequados ao escopo;
-4. revisar segurança, observabilidade e conformidade;
-5. atualizar documentação correlata quando a mudança alterar comportamento público ou operacional.
-
-## Licença e Uso
-
-Uso interno do ecossistema Kronos. Qualquer distribuição externa deve seguir aprovação formal e política de governança da organização.
+- Não remover a validação de CPF.
+- Não permitir CPF duplicado dentro da mesma empresa.
+- Não confiar em `companyId` vindo do front quando o usuário autenticado é MANAGER.
+- Não colocar regra de negócio em controller.
+- Não quebrar fluxos de PARTNER, CTO, login facial, termos, LGPD e ponto.
+- Não emitir JWT sem empresa ativa para usuário MANAGER/PARTNER em fluxos autenticados normais.

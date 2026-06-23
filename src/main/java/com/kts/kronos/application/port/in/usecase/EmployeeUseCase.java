@@ -19,6 +19,8 @@ public interface EmployeeUseCase {
 
     EmployeeListResponse listEmployeesResponse(Boolean active);
 
+    EmployeeListResponse listEmployeesByCompany(UUID companyId, Boolean active);
+
     List<Employee> listEmployees(Boolean active);
 
     Employee getEmployee(UUID employeeId);
@@ -34,6 +36,12 @@ public interface EmployeeUseCase {
 
     // PARTNER
     boolean cpfExists(String cpf);
+
+    boolean cpfExistsInActiveCompany(String cpf);
+
+    boolean cpfExistsInCompany(UUID companyId, String cpf);
+
+    java.util.Optional<EmployeeDetailResponse> findByCpfGlobal(String cpf);
 
     EmployeeDetailResponse getOwnProfileResponse();
 
