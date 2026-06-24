@@ -31,7 +31,6 @@ public class DemoSandboxPurgeService {
     private final TimeRecordApprovalRepository   approvalRepo;
     private final DocumentRepository             documentRepo;
     private final LegalConsentRepository         consentRepo;
-    private final DemoSandboxSessionInvalidationService sessionInvalidation;
     private final DemoSandboxProperties          props;
     private final FaceRecognitionProvider        faceRecognitionProvider;
     private final FaceStorageProvider            faceStorageProvider;
@@ -49,15 +48,13 @@ public class DemoSandboxPurgeService {
      */
     @Transactional
     public PurgeCounters purgeAll() {
-        int sessions  = sessionInvalidation.invalidateSandboxUserSession(props.getUsername());
-        int companies = 0, users = 0, employees = 0;
+        int sessions = 0, companies = 0, users = 0, employees = 0;
         int pointRecords = 0, approvals = 0, documents = 0, consents = 0, accesses = 0;
 
         var companyOpt = companyRepo.findBySandboxKey(props.getSandboxKey());
-        UUID companyId = null;
 
         if (companyOpt.isPresent()) {
-            companyId = companyOpt.get().getId();
+            UUID companyId = companyOpt.get().getId();
             List<EmployeeEntity> empList = employeeRepo.findByCompanyId(companyId);
 
             for (EmployeeEntity emp : empList) {
@@ -70,19 +67,27 @@ public class DemoSandboxPurgeService {
             }
 
             accesses += accessRepo.deleteByCompanyId(companyId);
+
+            // User must be deleted before employee: user.employee_id FK → employee
+            var userOpt = userRepo.findByUsernameIgnoreCase(props.getUsername());
+            if (userOpt.isPresent()) {
+                userRepo.delete(userOpt.get());
+                users = 1;
+                sessions = 1;
+            }
+
             employees += empList.size();
             employeeRepo.deleteAll(empList);
-        }
-
-        var userOpt = userRepo.findByUsernameIgnoreCase(props.getUsername());
-        if (userOpt.isPresent()) {
-            userRepo.delete(userOpt.get());
-            users = 1;
-        }
-
-        if (companyOpt.isPresent()) {
             companyRepo.delete(companyOpt.get());
             companies = 1;
+        } else {
+            // Sandbox company gone but orphan user may still exist
+            var userOpt = userRepo.findByUsernameIgnoreCase(props.getUsername());
+            if (userOpt.isPresent()) {
+                userRepo.delete(userOpt.get());
+                users = 1;
+                sessions = 1;
+            }
         }
 
         int files = deleteSandboxFiles();
