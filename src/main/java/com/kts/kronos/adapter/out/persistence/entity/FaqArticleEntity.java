@@ -70,6 +70,14 @@ public class FaqArticleEntity {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    @Column(name = "helpful_count", nullable = false)
+    @Builder.Default
+    private int helpfulCount = 0;
+
+    @Column(name = "not_helpful_count", nullable = false)
+    @Builder.Default
+    private int notHelpfulCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,6 +87,10 @@ public class FaqArticleEntity {
     private LocalDateTime updatedAt;
 
     public FaqArticle toDomain() {
+        return toDomainWithScore(null);
+    }
+
+    public FaqArticle toDomainWithScore(Double relevanceScore) {
         return new FaqArticle(
                 id,
                 title,
@@ -91,7 +103,8 @@ public class FaqArticleEntity {
                 screenKeys != null ? List.copyOf(screenKeys) : List.of(),
                 tags != null ? List.copyOf(tags) : List.of(),
                 createdAt,
-                updatedAt
+                updatedAt,
+                relevanceScore
         );
     }
 }

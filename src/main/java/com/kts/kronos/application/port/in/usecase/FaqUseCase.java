@@ -1,9 +1,11 @@
 package com.kts.kronos.application.port.in.usecase;
 
 import com.kts.kronos.adapter.in.web.dto.faq.FaqArticleResponse;
+import com.kts.kronos.adapter.in.web.dto.faq.FaqCategoryWithCountResponse;
 import com.kts.kronos.adapter.in.web.dto.faq.FaqContextualResponse;
 import com.kts.kronos.adapter.in.web.dto.faq.FaqSearchResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface FaqUseCase {
@@ -26,4 +28,19 @@ public interface FaqUseCase {
      * has permission to view it.
      */
     FaqArticleResponse getById(UUID faqId);
+
+    /**
+     * Returns categories that contain at least one active FAQ accessible to the authenticated user's role.
+     * Role is NEVER accepted as a parameter; it is extracted from the security context.
+     */
+    List<FaqCategoryWithCountResponse> getCategories();
+
+    /**
+     * Records whether the authenticated user found the given article helpful.
+     * Validates: article exists, is ACTIVE, and the user's role has permission.
+     *
+     * @param faqId   the article ID
+     * @param helpful true if helpful, false if not helpful
+     */
+    void markHelpful(UUID faqId, boolean helpful);
 }

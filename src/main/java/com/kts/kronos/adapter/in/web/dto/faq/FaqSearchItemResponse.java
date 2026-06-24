@@ -15,7 +15,12 @@ public record FaqSearchItemResponse(
         List<String> tags,
         List<String> relatedScreens,
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        /**
+         * Relevance score from pg_trgm / ts_rank. Present only in search results;
+         * null for contextual and detail responses.
+         */
+        Double relevanceScore
 ) {
     public static FaqSearchItemResponse fromDomain(FaqArticle article) {
         return new FaqSearchItemResponse(
@@ -25,7 +30,8 @@ public record FaqSearchItemResponse(
                 article.category() != null ? FaqCategoryResponse.fromDomain(article.category()) : null,
                 article.tags(),
                 article.screenKeys(),
-                article.updatedAt()
+                article.updatedAt(),
+                article.relevanceScore()
         );
     }
 }
