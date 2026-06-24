@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.faq.FaqCategoryWithCountResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -201,6 +203,75 @@ class FaqServiceTest {
     }
 
     // -----------------------------------------------------------------------
+    // getCategories
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("getCategories: retorna categorias com FAQs ativos para a role do usuário autenticado")
+    void getCategories_returnsCategoriesForAuthenticatedRole() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        var catId = UUID.randomUUID();
+        when(faqProvider.findActiveCategories(Role.PARTNER))
+                .thenReturn(List.of(new FaqCategoryWithCountResponse(catId, "Geral", 2L)));
+
+        var result = service.getCategories();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).name()).isEqualTo("Geral");
+        assertThat(result.get(0).faqCount()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("getCategories: retorna lista vazia quando não há categorias para a role")
+    void getCategories_returnsEmptyWhenNoCategories() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(faqProvider.findActiveCategories(Role.PARTNER)).thenReturn(List.of());
+
+        var result = service.getCategories();
+
+        assertThat(result).isEmpty();
+    }
+
+    // -----------------------------------------------------------------------
+    // markHelpful
+    // -----------------------------------------------------------------------
+
+    @Test
+    @DisplayName("markHelpful: registra feedback quando article existe, está ativo e role tem permissão")
+    void markHelpful_succeedsWhenActiveAndRoleAllowed() {
+        var id = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(faqProvider.findActiveById(id))
+                .thenReturn(Optional.of(activeArticle(id, List.of(Role.PARTNER))));
+        doNothing().when(faqProvider).markHelpful(id, true);
+
+        service.markHelpful(id, true);
+
+        verify(faqProvider).markHelpful(id, true);
+    }
+
+    @Test
+    @DisplayName("markHelpful: lança 404 quando FAQ não existe ou está inativo")
+    void markHelpful_throws404ForMissingFaq() {
+        var id = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(faqProvider.findActiveById(id)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> service.markHelpful(id, true));
+    }
+
+    @Test
+    @DisplayName("markHelpful: lança 403 quando role não tem permissão")
+    void markHelpful_throws403WhenRoleNotAllowed() {
+        var id = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(faqProvider.findActiveById(id))
+                .thenReturn(Optional.of(activeArticle(id, List.of(Role.CTO))));
+
+        assertThrows(ForbiddenException.class, () -> service.markHelpful(id, true));
+    }
+
+    // -----------------------------------------------------------------------
     // helpers
     // -----------------------------------------------------------------------
 
@@ -222,7 +293,8 @@ class FaqServiceTest {
                 List.of("DASHBOARD"),
                 List.of("ajuda", "teste"),
                 LocalDateTime.now().minusDays(1),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                null
         );
     }
 }

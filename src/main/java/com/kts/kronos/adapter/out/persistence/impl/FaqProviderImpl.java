@@ -1,7 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
+import com.kts.kronos.adapter.in.web.dto.faq.FaqCategoryWithCountResponse;
 import com.kts.kronos.adapter.out.persistence.FaqArticleRepository;
-import com.kts.kronos.adapter.out.persistence.entity.FaqArticleEntity;
 import com.kts.kronos.application.port.out.provider.FaqProvider;
 import com.kts.kronos.domain.model.FaqArticle;
 import com.kts.kronos.domain.model.enuns.FaqStatus;
@@ -12,8 +12,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,29 +24,31 @@ public class FaqProviderImpl implements FaqProvider {
 
     private final FaqArticleRepository repository;
 
+    /**
+     * Full-text search using PostgreSQL pg_trgm + tsvector.
+     * Screen-aware ranking is handled inside the native SQL query — no in-memory re-sort needed.
+     * Each result is enriched with its relevanceScore computed by the DB engine.
+     */
     @Override
     public Page<FaqArticle> search(String query, String screen, Role role, Pageable pageable) {
-        var resultPage = repository.searchActive(query, role, FaqStatus.ACTIVE, pageable);
+        var safeScreen = (screen != null && !screen.isBlank()) ? screen : "";
 
-        // When screen is provided, re-sort within the page to put screen-matched articles first.
-        // The DB already orders by priority/updatedAt; this is a stable secondary sort in memory.
-        if (screen != null && !screen.isBlank()) {
-            final String screenKey = screen;
-            var reordered = resultPage.getContent().stream()
-                    .sorted(Comparator
-                            .<FaqArticleEntity, Integer>comparing(
-                                    a -> a.getScreenKeys() != null && a.getScreenKeys().contains(screenKey) ? 0 : 1)
-                            .thenComparingInt(FaqArticleEntity::getPriority)
-                            .thenComparing(Comparator.comparing(
-                                    a -> a.getUpdatedAt() != null ? a.getUpdatedAt() : java.time.LocalDateTime.MIN,
-                                    Comparator.reverseOrder()))
-                    )
-                    .map(FaqArticleEntity::toDomain)
-                    .toList();
-            return new PageImpl<>(reordered, pageable, resultPage.getTotalElements());
-        }
+        var resultPage = repository.searchActiveFullText(
+                query,
+                safeScreen,
+                role.name(),
+                FaqStatus.ACTIVE.name(),
+                pageable
+        );
 
-        return resultPage.map(FaqArticleEntity::toDomain);
+        var items = resultPage.getContent().stream()
+                .map(entity -> {
+                    Double score = repository.computeRelevanceScore(entity.getId(), query);
+                    return entity.toDomainWithScore(score);
+                })
+                .toList();
+
+        return new PageImpl<>(items, pageable, resultPage.getTotalElements());
     }
 
     @Override
@@ -64,5 +66,20 @@ public class FaqProviderImpl implements FaqProvider {
         return repository
                 .findByIdAndStatus(id, FaqStatus.ACTIVE)
                 .map(e -> e.toDomain());
+    }
+
+    @Override
+    public List<FaqCategoryWithCountResponse> findActiveCategories(Role role) {
+        return repository.findActiveCategoriesForRole(role, FaqStatus.ACTIVE);
+    }
+
+    @Override
+    @Transactional
+    public void markHelpful(UUID faqId, boolean helpful) {
+        if (helpful) {
+            repository.incrementHelpfulCount(faqId);
+        } else {
+            repository.incrementNotHelpfulCount(faqId);
+        }
     }
 }

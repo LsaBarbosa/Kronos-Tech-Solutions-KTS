@@ -19,6 +19,11 @@ public record FaqArticle(
         List<String> screenKeys,
         List<String> tags,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        /**
+         * Relevance score returned by the full-text search engine (ts_rank / pg_trgm similarity).
+         * Null when the article was not retrieved via a search query (e.g. contextual or by-id).
+         */
+        Double relevanceScore
 ) {
 }

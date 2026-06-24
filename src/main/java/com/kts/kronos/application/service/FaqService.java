@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.faq.FaqArticleResponse;
+import com.kts.kronos.adapter.in.web.dto.faq.FaqCategoryWithCountResponse;
 import com.kts.kronos.adapter.in.web.dto.faq.FaqContextualResponse;
 import com.kts.kronos.adapter.in.web.dto.faq.FaqSearchItemResponse;
 import com.kts.kronos.adapter.in.web.dto.faq.FaqSearchResponse;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -74,5 +76,29 @@ public class FaqService implements FaqUseCase {
         }
 
         return FaqArticleResponse.fromDomain(article);
+    }
+
+    @Override
+    public List<FaqCategoryWithCountResponse> getCategories() {
+        // Role is ALWAYS extracted from the authenticated context — never from the caller.
+        var role = jwtAuthenticatedUser.getCurrentRole();
+        return faqProvider.findActiveCategories(role);
+    }
+
+    @Override
+    @Transactional
+    public void markHelpful(UUID faqId, boolean helpful) {
+        // Role is ALWAYS extracted from the authenticated context — never from the caller.
+        var role = jwtAuthenticatedUser.getCurrentRole();
+
+        // Validate: article must exist and be ACTIVE, and role must have permission.
+        var article = faqProvider.findActiveById(faqId)
+                .orElseThrow(() -> new ResourceNotFoundException(FAQ_NOT_FOUND));
+
+        if (!article.allowedRoles().contains(role)) {
+            throw new ForbiddenException(FAQ_ACCESS_DENIED);
+        }
+
+        faqProvider.markHelpful(faqId, helpful);
     }
 }

@@ -133,7 +133,9 @@ public class ApiPaths {
     public static final String FAQS = "/faqs";
     public static final String FAQ_SEARCH = "/search";
     public static final String FAQ_CONTEXTUAL = "/contextual";
+    public static final String FAQ_CATEGORIES = "/categories";
     public static final String FAQ_BY_ID = "/{faqId}";
+    public static final String FAQ_HELPFUL = "/{faqId}/helpful";
 
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
