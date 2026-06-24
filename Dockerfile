@@ -8,6 +8,7 @@ RUN ./gradlew bootJar --no-daemon -x test
 
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 1001 kronos && \
     useradd --system --uid 1001 --gid kronos --no-create-home kronos
 COPY --from=build /app/build/libs/kronos-0.0.1-SNAPSHOT.jar ./app.jar
