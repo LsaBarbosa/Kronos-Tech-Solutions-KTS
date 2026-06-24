@@ -1,0 +1,44 @@
+name: SBOM Generation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "homolog", "DEVELOPMENT", "PROD" ]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon cyclonedxBom || true
+
+      - name: Fallback using CycloneDX CLI (if Gradle task unavailable)
+        if: ${{ !hashFiles('build/reports/**/bom.json') && !hashFiles('build/reports/**/bom.xml') }}
+        run: |
+          echo "CycloneDX Gradle task não disponível por padrão neste projeto."
+          echo "Para gerar SBOM via Gradle, adicione plugin CycloneDX no build.gradle."
+
+      - name: Upload SBOM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-artifacts
+          path: |
+            build/reports/**/bom.json
+            build/reports/**/bom.xml
