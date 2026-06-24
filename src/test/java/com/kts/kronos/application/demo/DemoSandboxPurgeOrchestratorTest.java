@@ -97,6 +97,17 @@ class DemoSandboxPurgeOrchestratorTest {
     }
 
     @Test
+    void shouldHandleExceptionWithNullMessage() {
+        when(purgeService.purgeAll()).thenThrow(new RuntimeException((String) null));
+
+        assertThatThrownBy(() -> orchestrator.purge(ACTOR_ID, "CTO"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(auditService).failAudit(eq(AUDIT_ID), eq("Unknown error"));
+        verify(lockService).releaseLock();
+    }
+
+    @Test
     void shouldReturnPartialWhenValidationHasIssues() {
         when(validationService.validateAfterPurge()).thenReturn(
                 new DemoValidationResult(false, List.of(
