@@ -34,7 +34,7 @@ public class CtoDemoController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping
+    @DeleteMapping(ApiPaths.CTO_DEMO_PURGE)
     @PreAuthorize(Messages.KRONOS)
     public ResponseEntity<DemoPurgeResponse> deleteDemo() {
         UUID actorId   = currentUser.getuserId();

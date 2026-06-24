@@ -128,6 +128,7 @@ public class ApiPaths {
     public static final String CTO_DEMO_CREATE   = "/create";
     public static final String CTO_DEMO_STATUS   = "/status";
     public static final String CTO_DEMO_VALIDATE = "/validate";
+    public static final String CTO_DEMO_PURGE    = "/purge";
 
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
