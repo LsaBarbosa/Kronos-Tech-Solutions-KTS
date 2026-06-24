@@ -95,4 +95,20 @@ class DemoSandboxCreateServiceTest {
         verify(lockService).releaseLock();
         verify(auditService).failAudit(eq(auditId), any());
     }
+
+    @Test
+    void shouldSanitizeNullExceptionMessage() {
+        UUID jobId   = UUID.randomUUID();
+        UUID auditId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+
+        when(lockService.acquireLock(actorId)).thenReturn(jobId);
+        when(auditService.startAudit(any(), any(), any(), any())).thenReturn(auditId);
+        when(purgeService.purgeAll()).thenThrow(new RuntimeException((String) null));
+
+        assertThatThrownBy(() -> service.create(actorId, "CTO"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(auditService).failAudit(eq(auditId), eq("Unknown error"));
+    }
 }
