@@ -34,6 +34,7 @@ public class DemoSandboxService {
     }
 
     public DemoStatusResponse status() {
+        log.warn("[DemoSandbox] status() called: enabled={} killSwitch={}", props.isEnabled(), props.isKillSwitch());
         boolean exists = validationService.sandboxExists();
         DemoValidationResult validation = exists
                 ? validationService.validateSandboxHealth()
