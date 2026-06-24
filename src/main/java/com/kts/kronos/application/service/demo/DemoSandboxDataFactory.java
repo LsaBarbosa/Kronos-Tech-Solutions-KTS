@@ -219,7 +219,7 @@ public class DemoSandboxDataFactory {
                     .employeeId(employeeId)
                     .fileName("sandbox-" + type.name().toLowerCase() + ".pdf")
                     .contentType("application/pdf")
-                    .storagePath(fullPath.toString())
+                    .storagePath(relativePath)
                     .checksumSha256("SANDBOX_SYNTHETIC")
                     .type(type)
                     .build());
