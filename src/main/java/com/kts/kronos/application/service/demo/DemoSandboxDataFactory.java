@@ -25,7 +25,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DemoSandboxDataFactory {
 
-    private static final String SANDBOX_CNPJ       = "00.000.000/0001-91";
+    private static final String SANDBOX_CNPJ       = "00000000000191";
     private static final String SANDBOX_EMAIL       = "demo@kronos-sandbox.local";
     private static final String SANDBOX_CPF         = "000.000.000-00";
     private static final String SANDBOX_PIS         = "00000000000";
@@ -67,7 +67,7 @@ public class DemoSandboxDataFactory {
         int files        = createSandboxDirectory(companyId);
         int documents    = createDocuments(companyId, employeeId);
         createBiometricConsent(employeeId, userId);
-        int requests     = createPendingRequests(companyId, employeeId);
+        int requests     = createPendingRequests(companyId, employeeId, userId);
 
         log.info("[DemoSandbox] Seed complete: company={} user={} employee={} " +
                         "pointRecords={} docs={} requests={}",
@@ -246,7 +246,7 @@ public class DemoSandboxDataFactory {
         consentRepo.save(consent);
     }
 
-    private int createPendingRequests(UUID companyId, UUID employeeId) {
+    private int createPendingRequests(UUID companyId, UUID employeeId, UUID userId) {
         LocalDate today = LocalDate.now();
 
         // Férias pendente (próxima semana)
@@ -282,7 +282,7 @@ public class DemoSandboxDataFactory {
         List<TimeRecordEntity> saved = timeRecordRepo.saveAll(List.of(vacation, timeOff, adjustment));
 
         // Cria aprovação para o ajuste de registro
-        UUID managerId = employeeId; // Sandbox: self-approval placeholder
+        UUID managerId = userId;
         TimeRecordApprovalEntity approvalEntry = TimeRecordApprovalEntity.builder()
                 .timeRecordId(saved.get(2).getTimeRecordId())
                 .requestingEmployeeId(employeeId)

@@ -2,6 +2,9 @@ package com.kts.kronos.application.service.demo;
 
 import com.kts.kronos.adapter.out.persistence.*;
 import com.kts.kronos.adapter.out.persistence.entity.*;
+import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
+import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import com.kts.kronos.config.demo.DemoSandboxProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,9 @@ public class DemoSandboxPurgeService {
     private final LegalConsentRepository         consentRepo;
     private final DemoSandboxSessionInvalidationService sessionInvalidation;
     private final DemoSandboxProperties          props;
+    private final FaceRecognitionProvider        faceRecognitionProvider;
+    private final FaceStorageProvider            faceStorageProvider;
+    private final BucketStorageProvider          bucketStorageProvider;
 
     public record PurgeCounters(
             int companies, int users, int employees,
@@ -60,6 +66,7 @@ public class DemoSandboxPurgeService {
                 documents    += deleteDocumentsForEmployee(empId);
                 approvals    += deleteApprovalsForEmployee(empId);
                 pointRecords += deletePointRecordsForEmployee(empId);
+                purgeSandboxArtifacts(emp);
             }
 
             accesses += accessRepo.deleteByCompanyId(companyId);
@@ -90,8 +97,35 @@ public class DemoSandboxPurgeService {
 
     private int deleteDocumentsForEmployee(UUID employeeId) {
         var docs = documentRepo.findByEmployeeIdOrderByUploadedAtDesc(employeeId);
+        for (var doc : docs) {
+            String path = doc.getStoragePath();
+            if (path != null && !path.startsWith("/")) {
+                try {
+                    bucketStorageProvider.deleteFile(doc.getType(), path);
+                } catch (Exception e) {
+                    log.warn("[DemoSandbox] Could not delete S3 document: path={} reason={}", path, e.getMessage());
+                }
+            }
+        }
         documentRepo.deleteAll(docs);
         return docs.size();
+    }
+
+    private void purgeSandboxArtifacts(EmployeeEntity emp) {
+        UUID empId = emp.getEmployeeId();
+        try {
+            faceRecognitionProvider.deleteFacesByExternalImageId(empId);
+        } catch (Exception e) {
+            log.warn("[DemoSandbox] Could not delete Rekognition face: employeeId={} reason={}", empId, e.getMessage());
+        }
+        String faceKey = emp.getFaceS3ObjectKey();
+        if (faceKey != null && !faceKey.isBlank()) {
+            try {
+                faceStorageProvider.deleteFaceImage(faceKey);
+            } catch (Exception e) {
+                log.warn("[DemoSandbox] Could not delete face S3 image: key={} reason={}", faceKey, e.getMessage());
+            }
+        }
     }
 
     private int deleteApprovalsForEmployee(UUID employeeId) {

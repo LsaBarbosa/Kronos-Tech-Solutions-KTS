@@ -1,10 +1,13 @@
 package com.kts.kronos.config.demo;
 
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
+@Slf4j
 @Component
 @ConfigurationProperties(prefix = "kronos.demo")
 public class DemoSandboxProperties {
@@ -17,6 +20,11 @@ public class DemoSandboxProperties {
     private String initialPassword = "kronos_teste#";
     private String localStorageRoot = "/opt/kronos/sandbox/kronos-teste";
     private Duration lockTimeout = Duration.ofMinutes(5);
+
+    @PostConstruct
+    void logConfig() {
+        log.warn("[DemoSandbox] Config: enabled={} killSwitch={} sandboxKey={}", enabled, killSwitch, sandboxKey);
+    }
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
