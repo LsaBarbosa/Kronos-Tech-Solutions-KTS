@@ -102,14 +102,20 @@ public class DemoSandboxPurgeService {
 
     private int deleteDocumentsForEmployee(UUID employeeId) {
         var docs = documentRepo.findByEmployeeIdOrderByUploadedAtDesc(employeeId);
+        Path sandboxRoot = Path.of(props.getLocalStorageRoot());
         for (var doc : docs) {
             String path = doc.getStoragePath();
-            if (path != null && !path.startsWith("/")) {
-                try {
-                    bucketStorageProvider.deleteFile(doc.getType(), path);
-                } catch (Exception e) {
-                    log.warn("[DemoSandbox] Could not delete S3 document: path={} reason={}", path, e.getMessage());
-                }
+            if (path == null || path.isBlank() || path.startsWith("/")) continue;
+            // Relative path: check if it resolves to a local sandbox file.
+            // Local files are cleaned by deleteSandboxFiles(); only call S3 for remote keys.
+            try {
+                Path candidate = sandboxRoot.resolve(path).normalize();
+                if (candidate.startsWith(sandboxRoot) && Files.exists(candidate)) continue;
+            } catch (Exception ignored) { /* malformed path — fall through to S3 attempt */ }
+            try {
+                bucketStorageProvider.deleteFile(doc.getType(), path);
+            } catch (Exception e) {
+                log.warn("[DemoSandbox] Could not delete S3 document: reason={}", e.getMessage());
             }
         }
         documentRepo.deleteAll(docs);
