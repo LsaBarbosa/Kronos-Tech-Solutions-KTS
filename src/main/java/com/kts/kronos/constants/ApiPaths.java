@@ -129,6 +129,12 @@ public class ApiPaths {
     public static final String CTO_DEMO_STATUS   = "/status";
     public static final String CTO_DEMO_VALIDATE = "/validate";
 
+    // FAQ
+    public static final String FAQS = "/faqs";
+    public static final String FAQ_SEARCH = "/search";
+    public static final String FAQ_CONTEXTUAL = "/contextual";
+    public static final String FAQ_BY_ID = "/{faqId}";
+
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
     public static final String SERVICE_CONTRACT_ADMIN = "/admin";
