@@ -37,10 +37,8 @@ target/
 build/
 out/
 .gradle/
-gradle/
-gradlew
-gradlew.bat
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.class
 
 # Logs
