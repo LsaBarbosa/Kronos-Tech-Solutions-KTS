@@ -20,6 +20,8 @@ public class DemoSandboxPurgeOrchestrator {
     private final DemoSandboxValidationService validationService;
 
     public DemoPurgeResponse purge(UUID actorUserId, String actorRole) {
+        // Intentionally does NOT check props.isEnabled(): purge must work even when
+        // demo creation is disabled, so leftover data can always be cleaned up.
         if (props.isKillSwitch()) {
             throw new IllegalStateException("Demo sandbox kill switch is active.");
         }

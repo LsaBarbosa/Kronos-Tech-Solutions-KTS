@@ -44,18 +44,45 @@ public class DemoSandboxValidationService {
     public DemoValidationResult validateAfterPurge() {
         List<DemoValidationIssue> issues = new ArrayList<>();
 
-        companyRepo.findBySandboxKey(props.getSandboxKey()).ifPresent(c ->
-                issues.add(new DemoValidationIssue("COMPANY_RESIDUE",
-                        "Company with sandbox_key still exists: " + c.getId())));
+        var companyOpt = companyRepo.findBySandboxKey(props.getSandboxKey());
+        if (companyOpt.isPresent()) {
+            issues.add(new DemoValidationIssue("COMPANY_RESIDUE",
+                    "Company with sandbox_key still exists"));
+
+            var companyId = companyOpt.get().getId();
+            var employees = employeeRepo.findByCompanyId(companyId);
+            if (!employees.isEmpty()) {
+                issues.add(new DemoValidationIssue("EMPLOYEE_RESIDUE",
+                        employees.size() + " employee(s) remain"));
+
+                for (var emp : employees) {
+                    int docCount = documentRepo.findByEmployeeIdOrderByUploadedAtDesc(emp.getEmployeeId()).size();
+                    if (docCount > 0) {
+                        issues.add(new DemoValidationIssue("DOCUMENT_RESIDUE",
+                                docCount + " document(s) remain"));
+                    }
+                    int recCount = timeRecordRepo.findByEmployeeId(emp.getEmployeeId()).size();
+                    if (recCount > 0) {
+                        issues.add(new DemoValidationIssue("TIME_RECORD_RESIDUE",
+                                recCount + " time record(s) remain"));
+                    }
+                }
+            }
+
+            int accessCount = accessRepo.findByCompanyId(companyId).size();
+            if (accessCount > 0) {
+                issues.add(new DemoValidationIssue("ACCESS_RESIDUE",
+                        accessCount + " access record(s) remain"));
+            }
+        }
 
         userRepo.findByUsernameIgnoreCase(props.getUsername()).ifPresent(u ->
                 issues.add(new DemoValidationIssue("USER_RESIDUE",
-                        "User '" + props.getUsername() + "' still exists")));
+                        "Sandbox user still exists")));
 
-        Path sandboxDir = Path.of(props.getLocalStorageRoot());
-        if (Files.exists(sandboxDir)) {
+        if (Files.exists(Path.of(props.getLocalStorageRoot()))) {
             issues.add(new DemoValidationIssue("FILES_RESIDUE",
-                    "Sandbox directory still exists: " + sandboxDir));
+                    "Sandbox directory still exists"));
         }
 
         if (!issues.isEmpty()) {

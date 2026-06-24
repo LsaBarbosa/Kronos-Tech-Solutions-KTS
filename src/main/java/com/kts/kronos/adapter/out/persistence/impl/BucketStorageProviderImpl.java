@@ -19,7 +19,7 @@ import java.util.UUID;
 @ConditionalOnProperty(
     name = "kronos.storage.provider",
     havingValue = "local",
-    matchIfMissing = true
+    matchIfMissing = false
 )
 public class BucketStorageProviderImpl implements BucketStorageProvider {
     private static final String INVALID_STORAGE_PATH = "Caminho de storage inválido.";
@@ -38,7 +38,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
             // Escreve o arquivo no disco persistente
             Files.write(filePath, fileData);
 
-            log.info("Upload para disco local concluído: {}", filePath);
+            log.debug("Upload para disco local concluído.");
             return originalFileName;
         } catch (IOException e) {
             log.error("Erro no upload do arquivo para o disco local: {}", e.getMessage(), e);
@@ -70,7 +70,7 @@ public class BucketStorageProviderImpl implements BucketStorageProvider {
         try {
             Path filePath = resolveWithinRoot(objectName);
             Files.deleteIfExists(filePath);
-            log.info("Exclusão de arquivo local concluída: {}", objectName);
+            log.debug("Exclusão de arquivo local concluída.");
         } catch (IOException e) {
             log.error("Erro na exclusão do arquivo {}: {}", objectName, e.getMessage());
             throw new RuntimeException("Falha ao excluir o arquivo do disco.", e);
