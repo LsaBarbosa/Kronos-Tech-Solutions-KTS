@@ -200,6 +200,68 @@ class DemoSandboxValidationServiceTest {
         });
     }
 
+    // ─────────────────────────── validateSandboxHealth ───────────────────────
+
+    @Test
+    void validateSandboxHealth_shouldBeCleanWhenCompanyNotFound() {
+        when(companyRepo.findBySandboxKey("KRONOS_TESTE")).thenReturn(Optional.empty());
+
+        var result = service.validateSandboxHealth();
+
+        assertThat(result.clean()).isTrue();
+        assertThat(result.issues()).isEmpty();
+    }
+
+    @Test
+    void validateSandboxHealth_shouldReportNoEmployeesWhenListEmpty() {
+        UUID companyId = UUID.randomUUID();
+        CompanyEntity company = CompanyEntity.builder().id(companyId).build();
+        when(companyRepo.findBySandboxKey("KRONOS_TESTE")).thenReturn(Optional.of(company));
+        when(employeeRepo.findByCompanyId(companyId)).thenReturn(List.of());
+        when(userRepo.findByUsernameIgnoreCase("kronos_teste")).thenReturn(Optional.of(
+                UserEntity.builder().userId(UUID.randomUUID()).username("kronos_teste").build()));
+
+        var result = service.validateSandboxHealth();
+
+        assertThat(result.clean()).isFalse();
+        assertThat(result.issues()).anyMatch(i -> i.type().equals("NO_EMPLOYEES"));
+    }
+
+    @Test
+    void validateSandboxHealth_shouldReportNoUserWhenUserMissing() {
+        UUID companyId  = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        CompanyEntity company   = CompanyEntity.builder().id(companyId).build();
+        EmployeeEntity employee = EmployeeEntity.builder().employeeId(employeeId).companyId(companyId).build();
+
+        when(companyRepo.findBySandboxKey("KRONOS_TESTE")).thenReturn(Optional.of(company));
+        when(employeeRepo.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        when(userRepo.findByUsernameIgnoreCase("kronos_teste")).thenReturn(Optional.empty());
+
+        var result = service.validateSandboxHealth();
+
+        assertThat(result.clean()).isFalse();
+        assertThat(result.issues()).anyMatch(i -> i.type().equals("NO_USER"));
+    }
+
+    @Test
+    void validateSandboxHealth_shouldBeCleanWhenSandboxIsHealthy() {
+        UUID companyId  = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        CompanyEntity company   = CompanyEntity.builder().id(companyId).build();
+        EmployeeEntity employee = EmployeeEntity.builder().employeeId(employeeId).companyId(companyId).build();
+        UserEntity user         = UserEntity.builder().userId(UUID.randomUUID()).username("kronos_teste").build();
+
+        when(companyRepo.findBySandboxKey("KRONOS_TESTE")).thenReturn(Optional.of(company));
+        when(employeeRepo.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        when(userRepo.findByUsernameIgnoreCase("kronos_teste")).thenReturn(Optional.of(user));
+
+        var result = service.validateSandboxHealth();
+
+        assertThat(result.clean()).isTrue();
+        assertThat(result.issues()).isEmpty();
+    }
+
     // ─────────────────────────── sandboxExists ────────────────────────────────
 
     @Test

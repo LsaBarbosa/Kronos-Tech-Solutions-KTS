@@ -17,6 +17,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
@@ -102,6 +104,16 @@ class DemoSandboxDataFactoryStoragePathTest {
             assertThat(fullPath).exists()
                     .as("Relative path must resolve to a real file under localStorageRoot");
         });
+    }
+
+    @Test
+    void createAll_shouldHandleIOExceptionFromDirectoryCreation() throws IOException {
+        // Place a FILE at the "company" path so Files.createDirectories() fails with IOException
+        Path companyAsFile = tempDir.resolve("company");
+        Files.writeString(companyAsFile, "block");
+
+        // createAll() must not propagate the IOException — caught internally
+        assertThatCode(() -> factory.createAll()).doesNotThrowAnyException();
     }
 
     @Test
