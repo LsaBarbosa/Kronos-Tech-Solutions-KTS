@@ -171,7 +171,7 @@ public class SecurityConfig {
             ).permitAll();
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
-                    "/support/chat/webhook"
+                    "/support/chat/tawk/webhook"
             ).permitAll();
 
             if (publicDocsEnabled) {

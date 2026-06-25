@@ -142,7 +142,7 @@ public class ApiPaths {
     public static final String SUPPORT_CHAT = "/support/chat";
     public static final String SUPPORT_CHAT_CONFIG = "/config";
     public static final String SUPPORT_CHAT_IDENTITY = "/identity";
-    public static final String SUPPORT_CHAT_WEBHOOK = "/webhook";
+    public static final String SUPPORT_CHAT_WEBHOOK = "/tawk/webhook";
 
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
