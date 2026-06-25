@@ -147,6 +147,12 @@ public class Messages {
     public static final String CHOOSE_EMPLOYEE = "Necessário escolher os colaboradores que receberão o aviso";
     public static final String INVALID_EMPLOYEE = "Nenhum destinatário válido encontrado na sua empresa.";
 
+    // FAQ
+    public static final String FAQ_NOT_FOUND = "FAQ não encontrado.";
+    public static final String FAQ_ACCESS_DENIED = "Você não tem permissão para acessar este FAQ.";
+    public static final String FAQ_QUERY_REQUIRED = "O parâmetro 'query' é obrigatório.";
+    public static final String FAQ_SCREEN_REQUIRED = "O parâmetro 'screen' é obrigatório.";
+
     // Validation Constraints (NotBlank, etc) - Mantidos
     public static final String ID_NOT_BLANK = "ID é obrigatório";
     public static final String CPF_NOT_BLANK = "O CPF é obrigatório";
