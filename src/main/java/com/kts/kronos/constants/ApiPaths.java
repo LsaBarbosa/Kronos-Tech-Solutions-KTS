@@ -138,6 +138,12 @@ public class ApiPaths {
     public static final String FAQ_BY_ID = "/{faqId}";
     public static final String FAQ_HELPFUL = "/{faqId}/helpful";
 
+    // Support Chat
+    public static final String SUPPORT_CHAT = "/support/chat";
+    public static final String SUPPORT_CHAT_CONFIG = "/config";
+    public static final String SUPPORT_CHAT_IDENTITY = "/identity";
+    public static final String SUPPORT_CHAT_WEBHOOK = "/webhook";
+
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";
     public static final String SERVICE_CONTRACT_ADMIN = "/admin";
