@@ -18,70 +18,69 @@ import java.util.UUID;
 public interface FaqArticleRepository extends JpaRepository<FaqArticleEntity, UUID> {
 
     // -----------------------------------------------------------------------
-    // Full-text search (PostgreSQL: pg_trgm + tsvector)
+    // Search strategy:
+    //   Primary  — ILIKE on title, short_answer, full_answer, category name, tags
+    //   Enhanced — tsvector @@ plainto_tsquery('portuguese') when search_vector is populated
+    //   Ranking  — screen match bonus DESC, ts_rank DESC, priority ASC, updatedAt DESC
     //
-    // Ranking strategy:
-    //   1. ts_rank on search_vector (weighted A=title, B=short_answer, C=full_answer)
-    //   2. + similarity(title, :query) * 0.3  — trigram bonus for title fuzzy match
-    //   3. priority ascending (1 = highest)
-    //
-    // The native query also handles screen-aware re-ranking: when :screen is non-empty,
-    // articles linked to that screen receive a +1.0 bonus so they float to the top.
-    //
-    // The count query is kept separate to avoid HHH-90003001 warnings.
+    // Design decisions:
+    //   - No SELECT DISTINCT: role is filtered in the JOIN condition (one row per article).
+    //     Tags/screens are matched via EXISTS subqueries, avoiding fan-out duplicates.
+    //   - PostgreSQL rule: ORDER BY expressions must appear in SELECT list when using DISTINCT.
+    //     Removing DISTINCT eliminates this constraint entirely.
+    //   - ILIKE is the reliable fallback; tsvector enhances ranking when available.
     // -----------------------------------------------------------------------
 
     /**
-     * Full-text search using PostgreSQL pg_trgm + tsvector.
-     * Ranks by: screen match bonus DESC, ts_rank + trigram similarity DESC, priority ASC, updatedAt DESC.
+     * Full-text search: ILIKE + optional tsvector ranking.
+     * Role is applied as a JOIN condition — one row per article, no DISTINCT needed.
      */
     @Query(
         value = """
-            SELECT DISTINCT a.*
+            SELECT a.*
             FROM tb_faq_article a
-            JOIN tb_faq_article_role ar ON ar.faq_id = a.id
-            LEFT JOIN tb_faq_article_tag t ON t.faq_id = a.id
-            LEFT JOIN tb_faq_article_screen sk ON sk.faq_id = a.id
+            JOIN tb_faq_article_role ar ON ar.faq_id = a.id AND ar.role = :role
             LEFT JOIN tb_faq_category cat ON cat.id = a.category_id
             WHERE a.status = :status
-              AND ar.role = :role
               AND (
-                    a.search_vector @@ plainto_tsquery('portuguese', :query)
-                 OR similarity(a.title, :query) > 0.1
-                 OR similarity(a.short_answer, :query) > 0.05
-                 OR similarity(coalesce(cat.name, ''), :query) > 0.1
+                    (a.search_vector IS NOT NULL
+                        AND a.search_vector @@ plainto_tsquery('portuguese', :query))
+                 OR a.title        ILIKE '%' || :query || '%'
+                 OR a.short_answer ILIKE '%' || :query || '%'
+                 OR a.full_answer  ILIKE '%' || :query || '%'
+                 OR coalesce(cat.name, '') ILIKE '%' || :query || '%'
                  OR EXISTS (
-                        SELECT 1 FROM tb_faq_article_tag t2
-                        WHERE t2.faq_id = a.id
-                          AND similarity(t2.tag, :query) > 0.1
+                        SELECT 1 FROM tb_faq_article_tag t
+                        WHERE t.faq_id = a.id
+                          AND t.tag ILIKE '%' || :query || '%'
                     )
               )
             ORDER BY
               (CASE WHEN :screen IS NOT NULL AND :screen <> ''
-                    AND EXISTS (SELECT 1 FROM tb_faq_article_screen sk2
-                                WHERE sk2.faq_id = a.id AND sk2.screen_key = :screen)
-                    THEN 1.0 ELSE 0.0 END) DESC,
-              (ts_rank(a.search_vector, plainto_tsquery('portuguese', :query))
-                + similarity(a.title, :query) * 0.3) DESC,
+                    AND EXISTS (SELECT 1 FROM tb_faq_article_screen sk
+                                WHERE sk.faq_id = a.id AND sk.screen_key = :screen)
+                    THEN 1 ELSE 0 END) DESC,
+              COALESCE(ts_rank(a.search_vector, plainto_tsquery('portuguese', :query)), 0) DESC,
               a.priority ASC,
               a.updated_at DESC
             """,
         countQuery = """
-            SELECT COUNT(DISTINCT a.id)
+            SELECT COUNT(a.id)
             FROM tb_faq_article a
-            JOIN tb_faq_article_role ar ON ar.faq_id = a.id
+            JOIN tb_faq_article_role ar ON ar.faq_id = a.id AND ar.role = :role
             LEFT JOIN tb_faq_category cat ON cat.id = a.category_id
             WHERE a.status = :status
-              AND ar.role = :role
               AND (
-                    a.search_vector @@ plainto_tsquery('portuguese', :query)
-                 OR similarity(a.title, :query) > 0.1
-                 OR similarity(a.short_answer, :query) > 0.05
-                 OR similarity(coalesce(cat.name, ''), :query) > 0.1
+                    (a.search_vector IS NOT NULL
+                        AND a.search_vector @@ plainto_tsquery('portuguese', :query))
+                 OR a.title        ILIKE '%' || :query || '%'
+                 OR a.short_answer ILIKE '%' || :query || '%'
+                 OR a.full_answer  ILIKE '%' || :query || '%'
+                 OR coalesce(cat.name, '') ILIKE '%' || :query || '%'
                  OR EXISTS (
-                        SELECT 1 FROM tb_faq_article_tag t2
-                        WHERE t2.faq_id = a.id
-                          AND similarity(t2.tag, :query) > 0.1
+                        SELECT 1 FROM tb_faq_article_tag t
+                        WHERE t.faq_id = a.id
+                          AND t.tag ILIKE '%' || :query || '%'
                     )
               )
             """,
@@ -96,13 +95,11 @@ public interface FaqArticleRepository extends JpaRepository<FaqArticleEntity, UU
     );
 
     /**
-     * Returns the ts_rank + similarity score for a specific article and query.
-     * Used by FaqProviderImpl to populate the relevanceScore field on domain objects.
+     * ts_rank score for a specific article. Returns 0 when search_vector is NULL.
      */
     @Query(
         value = """
-            SELECT (ts_rank(a.search_vector, plainto_tsquery('portuguese', :query))
-                   + similarity(a.title, :query) * 0.3)
+            SELECT COALESCE(ts_rank(a.search_vector, plainto_tsquery('portuguese', :query)), 0)
             FROM tb_faq_article a
             WHERE a.id = :faqId
             """,
