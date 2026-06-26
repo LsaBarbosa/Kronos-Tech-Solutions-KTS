@@ -5,6 +5,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.port.in.usecase.GeolocationUseCase;
+import com.kts.kronos.application.port.in.usecase.PasswordlessCheckinUseCase;
 import com.kts.kronos.application.port.out.provider.TokenBlacklistProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.observability.application.ObservabilityStatusUseCase;
@@ -57,6 +58,9 @@ class SecurityConfigPublicDocsIntegrationTest {
 
     @MockitoBean
     private ObservabilityStatusUseCase observabilityStatusUseCase;
+
+    @MockitoBean
+    private PasswordlessCheckinUseCase passwordlessCheckinUseCase;
 
     @Test
     void shouldPermitPublicDocsWhenExplicitlyEnabled() throws Exception {

@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.application.port.in.usecase.PasswordlessCheckinUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,12 +28,14 @@ class AuthControllerTest {
     private AuthUseCase authUseCase;
     @Mock
     private JwtUtils jwtUtils;
+    @Mock
+    private PasswordlessCheckinUseCase passwordlessCheckinUseCase;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        var controller = new AuthController(authUseCase, authCookieService(), jwtUtils);
+        var controller = new AuthController(authUseCase, passwordlessCheckinUseCase, authCookieService(), jwtUtils);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
