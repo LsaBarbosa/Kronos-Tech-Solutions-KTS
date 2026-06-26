@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import com.kts.kronos.adapter.in.web.dto.security.FaceCheckinRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.GeolocationRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.ListReportRequest;
 import com.kts.kronos.adapter.in.web.dto.timerecord.UpdateTimeRecordRequest;
@@ -32,6 +33,7 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.*;
 
 import static com.kts.kronos.constants.Messages.SAO_PAULO;
@@ -147,6 +149,29 @@ class TimeRecordServiceTest {
 
         verify(ntpTimeService).validateSystemTime(10);
         verify(adfUseCase).logMarking(eq(company), eq(employee), any(LocalDateTime.class), eq(100L));
+        verify(documentService).uploadGeneratedDocument(any(), eq(employeeId), eq(1L), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("Deve registrar ponto para colaborador identificado sem refazer reconhecimento facial")
+    void shouldRegisterTimeForExplicitEmployeeWithoutRevalidatingFace() {
+        FaceCheckinRequest request = new FaceCheckinRequest(validBase64, -22.0001, -43.0001, 18.5, true);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(recordRepository.findByRange(any(), any(), any())).thenReturn(Collections.emptyList());
+        when(recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employeeId)).thenReturn(Optional.empty());
+        when(nsrProvider.generateNextNsr(companyId)).thenReturn(100L);
+
+        var response = service.registerTimeForEmployee(employeeId, request);
+
+        assertEquals("CHECKIN", response.actionType());
+        assertTrue(response.message().contains("Entrada às"));
+        assertTrue(response.recordedAt().isBefore(OffsetDateTime.now().plusSeconds(1)));
+
+        verify(faceRecognitionProvider, never()).searchFaceByImage(any(InputStream.class));
+        verify(biometricProtectionService, never()).protectCheckIn(any(), any(), any());
         verify(documentService).uploadGeneratedDocument(any(), eq(employeeId), eq(1L), any(), anyString());
     }
 
