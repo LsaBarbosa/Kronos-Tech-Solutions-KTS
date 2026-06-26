@@ -4,10 +4,15 @@ import com.kts.kronos.adapter.in.web.dto.message.CreateMessageRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.MessageDeliveryProvider;
 import com.kts.kronos.application.port.out.provider.MessageProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.Message;
+import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
+import com.kts.kronos.domain.model.enuns.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,9 +42,18 @@ class MessageServiceFeature44PaginationTest {
     @Mock
     private MessageProvider messageProvider;
     @Mock
+    private MessageDeliveryProvider messageDeliveryProvider;
+    @Mock
     private EmployeeProvider employeeProvider;
     @Mock
+    private UserProvider userProvider;
+    @Mock
     private JwtAuthenticatedUser jwtAuthenticatedUser;
+
+    @BeforeEach
+    void setUp() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+    }
 
     @Test
     @DisplayName("listMessagesForMyCompany: sem page/size mantém contrato legado")
@@ -218,6 +232,7 @@ class MessageServiceFeature44PaginationTest {
         when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
         when(employeeProvider.findById(validRecipient)).thenReturn(Optional.of(validEmployee));
         when(employeeProvider.findById(invalidRecipient)).thenReturn(Optional.of(invalidEmployee));
+        when(userProvider.findByEmployeeId(validRecipient)).thenReturn(Optional.of(activeUser(validRecipient)));
 
         service.postMessage(request);
 
@@ -244,6 +259,7 @@ class MessageServiceFeature44PaginationTest {
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(anotherEmployee);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
 
         assertThrows(BadRequestException.class, () -> service.deleteMessage(messageId));
@@ -269,6 +285,7 @@ class MessageServiceFeature44PaginationTest {
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
 
         service.deleteMessage(messageId);
@@ -302,5 +319,9 @@ class MessageServiceFeature44PaginationTest {
                 null,
                 null
         );
+    }
+
+    private User activeUser(UUID employeeId) {
+        return new User(UUID.randomUUID(), "user-" + employeeId, "hash", Role.PARTNER, true, employeeId);
     }
 }

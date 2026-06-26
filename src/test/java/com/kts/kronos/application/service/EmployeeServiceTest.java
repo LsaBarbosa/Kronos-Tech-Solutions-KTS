@@ -84,6 +84,8 @@ class EmployeeServiceTest {
     private com.kts.kronos.application.port.out.provider.LegalConsentProvider legalConsentProvider;
     @Mock
     private AuditService auditService;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.MessageDeliveryProvider messageDeliveryProvider;
 
     private UUID loggedEmployeeId;
     private UUID companyId;
@@ -664,6 +666,7 @@ class EmployeeServiceTest {
         ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
         verify(employeeProvider).save(captor.capture());
         assertNotNull(captor.getValue().lastSeenMessageTimestamp());
+        verify(messageDeliveryProvider).markSeenByRecipientEmployeeId(eq(loggedEmployeeId), any(LocalDateTime.class));
     }
 
     @Test

@@ -5,11 +5,17 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
+import com.kts.kronos.application.port.out.provider.MessageDeliveryProvider;
 import com.kts.kronos.application.port.out.provider.MessageProvider;
+import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.domain.model.Address;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.Message;
+import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.MessagePriority;
+import com.kts.kronos.domain.model.enuns.MessageScope;
+import com.kts.kronos.domain.model.enuns.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class MessageServiceTest {
@@ -41,9 +48,18 @@ class MessageServiceTest {
     @Mock
     private MessageProvider messageProvider;
     @Mock
+    private MessageDeliveryProvider messageDeliveryProvider;
+    @Mock
     private EmployeeProvider employeeProvider;
     @Mock
+    private UserProvider userProvider;
+    @Mock
     private JwtAuthenticatedUser jwtAuthenticatedUser;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+    }
 
     @Test
     @DisplayName("postMessage: falha quando colaborador autenticado não existe")
@@ -99,6 +115,7 @@ class MessageServiceTest {
         when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
         when(employeeProvider.findById(validRecipientId)).thenReturn(Optional.of(validRecipient));
         when(employeeProvider.findById(missingRecipientId)).thenReturn(Optional.empty());
+        when(userProvider.findByEmployeeId(validRecipientId)).thenReturn(Optional.of(activeUser(validRecipientId, Role.PARTNER)));
 
         service.postMessage(request(List.of(validRecipientId, missingRecipientId)));
 
@@ -168,6 +185,73 @@ class MessageServiceTest {
         assertThrows(BadRequestException.class, () -> service.deleteMessage(messageId));
     }
 
+    @Test
+    @DisplayName("postMessage: CTO envia global ignorando destinatários manipulados")
+    void shouldCreateGlobalMessageForCtoIgnoringPayloadRecipients() {
+        UUID senderId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID activeRecipientId = UUID.randomUUID();
+        UUID inactiveRecipientId = UUID.randomUUID();
+        Employee sender = employee(senderId, companyId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(userProvider.findByActive(true)).thenReturn(List.of(
+                activeUser(activeRecipientId, Role.PARTNER),
+                new User(UUID.randomUUID(), "cto-no-employee", "hash", Role.CTO, true, null),
+                new User(UUID.randomUUID(), "same-employee", "hash", Role.PARTNER, true, activeRecipientId)
+        ));
+
+        var response = service.postMessage(request(List.of(inactiveRecipientId)));
+
+        assertEquals(MessageScope.GLOBAL, response.scope());
+        assertEquals(1, response.deliveredCount());
+        verify(messageProvider).save(any(Message.class));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: CTO pode excluir aviso global")
+    void shouldAllowCtoToDeleteGlobalMessage() {
+        UUID senderId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        Message message = new Message(
+                messageId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Aviso global",
+                "Texto",
+                MessagePriority.CRITICAL,
+                MessageScope.GLOBAL,
+                LocalDateTime.now(),
+                null,
+                null
+        );
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
+
+        service.deleteMessage(messageId);
+
+        verify(messageProvider).deleteByMessageId(messageId);
+    }
+
+    @Test
+    @DisplayName("postMessage: PARTNER não pode publicar")
+    void shouldRejectPartnerPublishingMessages() {
+        UUID senderId = UUID.randomUUID();
+        Employee sender = employee(senderId, UUID.randomUUID());
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+
+        assertThrows(com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.postMessage(request(List.of(UUID.randomUUID()))));
+        verify(messageProvider, never()).save(any());
+    }
+
     private CreateMessageRequest request(List<UUID> recipients) {
         return new CreateMessageRequest("Texto", "Aviso", MessagePriority.NORMAL, recipients);
     }
@@ -198,5 +282,9 @@ class MessageServiceTest {
                 null,
                 null
         );
+    }
+
+    private User activeUser(UUID employeeId, Role role) {
+        return new User(UUID.randomUUID(), "user-" + employeeId, "hash", role, true, employeeId);
     }
 }
