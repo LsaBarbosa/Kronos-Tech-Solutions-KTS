@@ -62,6 +62,7 @@ public class EmployeeService implements EmployeeUseCase {
     private final AuditService auditService;
     private final CompanyProvider companyProvider;
     private final CacheProvider cacheProvider;
+    private final MessageDeliveryProvider messageDeliveryProvider;
 
     // MANAGER
     @Override
@@ -306,7 +307,11 @@ public class EmployeeService implements EmployeeUseCase {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
         var employee = employeeProvider.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
-        var updatedEmployee = employee.withLastSeenMessageTimestamp(LocalDateTime.now());
+        var seenAt = LocalDateTime.now();
+        if (messageDeliveryProvider != null) {
+            messageDeliveryProvider.markSeenByRecipientEmployeeId(employeeId, seenAt);
+        }
+        var updatedEmployee = employee.withLastSeenMessageTimestamp(seenAt);
         employeeProvider.save(updatedEmployee);
         invalidateEmployeeCaches();
     }

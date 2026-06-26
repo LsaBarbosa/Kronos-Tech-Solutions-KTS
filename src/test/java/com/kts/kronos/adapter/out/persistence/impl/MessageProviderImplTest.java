@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +54,8 @@ class MessageProviderImplTest {
     @DisplayName("findById: deve mapear entity encontrada")
     void shouldFindById() {
         Message message = buildMessage();
-        when(repository.findById(message.messageId())).thenReturn(Optional.of(MessageEntity.fromDomain(message)));
+        when(repository.findByMessageIdAndDeletedAtIsNull(message.messageId()))
+                .thenReturn(Optional.of(MessageEntity.fromDomain(message)));
 
         Optional<Message> result = provider.findById(message.messageId());
 
@@ -102,7 +104,9 @@ class MessageProviderImplTest {
 
         provider.deleteByMessageIdAndEmployeeId(messageId, employeeId);
 
-        verify(repository).deleteByMessageIdAndEmployeeId(messageId, employeeId);
+        verify(repository).softDeleteByMessageIdAndEmployeeId(org.mockito.ArgumentMatchers.eq(messageId),
+                org.mockito.ArgumentMatchers.eq(employeeId),
+                any(LocalDateTime.class));
     }
 
     @Test
