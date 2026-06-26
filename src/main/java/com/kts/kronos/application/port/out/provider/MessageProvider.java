@@ -10,9 +10,11 @@ import java.util.UUID;
 public interface MessageProvider {
     void save(Message message);
     Optional<Message> findById(UUID messageId);
-   // List<Message> findByCompanyId(UUID companyId);
     List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId);
     List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId, Pageable pageable);
+    List<Message> findVisibleMessagesByEmployeeId(UUID employeeId);
+    List<Message> findVisibleMessagesByEmployeeId(UUID employeeId, Pageable pageable);
     void deleteByMessageIdAndEmployeeId(UUID messageId, UUID employeeId);
+    void deleteByMessageId(UUID messageId);
     void deleteByCreationDateBefore(LocalDateTime threshold);
 }
