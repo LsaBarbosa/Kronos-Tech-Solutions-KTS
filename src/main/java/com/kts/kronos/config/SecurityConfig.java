@@ -167,6 +167,14 @@ public class SecurityConfig {
                     org.springframework.http.HttpMethod.POST,
                     "/public/commercial-leads"
             ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/support/chat/config"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.POST,
+                    "/support/chat/tawk/webhook"
+            ).permitAll();
 
             if (publicDocsEnabled) {
                 auth.requestMatchers(
