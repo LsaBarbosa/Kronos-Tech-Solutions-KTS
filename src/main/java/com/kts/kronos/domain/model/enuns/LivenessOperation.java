@@ -5,7 +5,8 @@ public enum LivenessOperation {
     FACE_LOGIN("Login por rosto"),
     CHECKIN("Registro de ponto"),
     CONTRACT_SIGNING("Assinatura de contrato"),
-    TIMESHEET_SIGNING("Assinatura de espelho de ponto");
+    TIMESHEET_SIGNING("Assinatura de espelho de ponto"),
+    TERMINAL_CHECKIN("Terminal de registro de ponto");
 
     private final String description;
 
