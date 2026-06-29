@@ -28,6 +28,7 @@ public class BiometricProtectionService {
     private static final String ENROLLMENT_RATE_LIMIT = "Muitas tentativas de cadastro/atualização biométrica. Tente novamente em instantes.";
     private static final String CONTRACT_SIGN_RATE_LIMIT = "Muitas tentativas de assinatura biométrica. Tente novamente em instantes.";
     private static final String TIMESHEET_SIGN_RATE_LIMIT = "Muitas tentativas de assinatura de espelho de ponto. Tente novamente em instantes.";
+    private static final String TERMINAL_CHECKIN_RATE_LIMIT = "Muitas tentativas no terminal de ponto. Tente novamente em instantes.";
 
     private final HttpServletRequest request;
     private final ClientIpResolver clientIpResolver;
@@ -83,6 +84,12 @@ public class BiometricProtectionService {
 
     @Value("${app.biometric.timesheet-sign.window-seconds:${biometric.timesheet-sign.window-seconds:300}}")
     private int timesheetSignWindowSeconds;
+
+    @Value("${app.biometric.terminal.limit:${biometric.terminal.limit:5}}")
+    private int terminalCheckinLimit;
+
+    @Value("${app.biometric.terminal.window-seconds:${biometric.terminal.window-seconds:60}}")
+    private int terminalCheckinWindowSeconds;
 
     public void protectPublicLogin(String faceImageBase64, Boolean livenessPassed) {
         ensurePayloadSize(faceImageBase64);
@@ -147,6 +154,18 @@ public class BiometricProtectionService {
                 contractSignLimit,
                 Duration.ofSeconds(contractSignWindowSeconds),
                 CONTRACT_SIGN_RATE_LIMIT
+        );
+    }
+
+    public void protectTerminalCheckin(String faceImageBase64, Boolean livenessPassed) {
+        ensurePayloadSize(faceImageBase64);
+        ensureServerSideLiveness(faceImageBase64, LivenessOperation.TERMINAL_CHECKIN, null);
+        consume(
+                RedisRateLimitNames.BIOMETRIC_TERMINAL_CHECKIN,
+                clientIp(),
+                terminalCheckinLimit,
+                Duration.ofSeconds(terminalCheckinWindowSeconds),
+                TERMINAL_CHECKIN_RATE_LIMIT
         );
     }
 

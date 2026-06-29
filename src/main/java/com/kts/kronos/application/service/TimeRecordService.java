@@ -86,6 +86,10 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
+        return registerTimeForEmployee(jwtAuthenticatedUser.getEmployeeId(), request);
+    }
+
+    public ActionResponse registerTimeForEmployee(UUID employeeId, GeolocationRequest request) {
         long startedAt = System.nanoTime();
         final StatusRecord[] convertedFromStatus = new StatusRecord[1];
         final boolean[] implicitBreakCreated = {false};
@@ -94,7 +98,6 @@ public class TimeRecordService implements TimeRecordUseCase {
             ActionResponse response = tracing().observe("kronos.time_record.checkin", () -> {
                 ntpTimeService.validateSystemTime(10);
 
-                var employeeId = jwtAuthenticatedUser.getEmployeeId();
                 var employee = getEmployee(employeeId);
 
                 // LGPD-102: Validate biometric consent before allowing facial checkin
