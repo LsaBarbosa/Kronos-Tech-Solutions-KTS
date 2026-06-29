@@ -7,6 +7,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
@@ -59,6 +60,7 @@ public class DocumentService implements DocumentUseCase {
     private final JwtAuthenticatedUser jwtAuthenticatedUser;
     private final BucketStorageProvider bucketStorageProvider;
     private final DomainAuthorizationService domainAuthorizationService;
+    private final EmployeeProvider employeeProvider;
     private final FileScanningProvider fileScanningProvider;
     private final AuditService auditService;
     private final AuditRequestContextService auditRequestContextService;
@@ -297,7 +299,9 @@ public class DocumentService implements DocumentUseCase {
             var contentType = "application/pdf";
             var safeFileName = sanitizeFileName(fileName);
 
-            var employee = getAuthorizedEmployee(employeeId);
+            // Busca direta sem autorização: chamada interna (ex: terminal checkin sem JWT)
+            var employee = employeeProvider.findById(employeeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Colaborador não encontrado"));
             // Define o caminho no Bucket
             var uniqueObjectName = buildStorageKey(employee, type, safeFileName);
 
