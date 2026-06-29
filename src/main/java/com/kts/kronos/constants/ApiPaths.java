@@ -80,6 +80,7 @@ public class ApiPaths {
     //Auth
     public static final String AUTH = "/auth";
     public static final String LOGIN = "/login";
+    public static final String TERMINAL_CHECKIN = "/terminal-checkin";
     public static final String RECOVER_PASSWORD = "/recover-password"; // Novo
     public static final String RESET_PASSWORD = "/reset-password";
     public static final String REFRESH = "/refresh";
