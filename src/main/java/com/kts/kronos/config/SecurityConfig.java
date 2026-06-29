@@ -113,6 +113,7 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 post("/auth/login"),
                                 post("/auth/login-face"),
+                                post("/auth/terminal-checkin"),
                                 post("/auth/recover-password"),
                                 post("/auth/reset-password"),
                                 post("/public/commercial-leads")
@@ -137,6 +138,7 @@ public class SecurityConfig {
                     org.springframework.http.HttpMethod.POST,
                     "/auth/login",
                     "/auth/login-face",
+                    "/auth/terminal-checkin",
                     "/auth/recover-password",
                     "/auth/reset-password",
                     "/auth/logout",
