@@ -72,12 +72,10 @@ storage/**
 /storage/
 **/storage/documents/
 
-# Claude Code - Local Configuration
+# Claude Code
+CLAUDE.md
 CLAUDE.local.md
-CLAUDE.local.example.md.bak
-.claude/settings.local.json
-.claude/memory/
-.claude/worktrees/
+.claude/
 
 # Reports & Diagnostics
 *-report.txt
