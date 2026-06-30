@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import static com.kts.kronos.constants.ApiPaths.*;
 import static com.kts.kronos.constants.Messages.KRONOS;
 
+
 @RestController
 @RequestMapping(COMPANIES)
 @RequiredArgsConstructor
@@ -60,6 +61,13 @@ public class CompanyController {
     @PatchMapping(TOGGLE_ACTIVATE)
     public ResponseEntity<Void> deactivateCompany(@PathVariable String cnpj) {
         useCase.toggleActivate(cnpj);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(KRONOS)
+    @PatchMapping(TOGGLE_TERMINAL)
+    public ResponseEntity<Void> toggleTerminalFlag(@PathVariable String cnpj) {
+        useCase.toggleTerminalFlag(cnpj);
         return ResponseEntity.noContent().build();
     }
 

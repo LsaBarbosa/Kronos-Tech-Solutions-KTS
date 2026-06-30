@@ -13,7 +13,8 @@ public record CompanyResponse(
     boolean active,
     AddressResponse address,
     long activeEmployees,
-    long inactiveEmployees
+    long inactiveEmployees,
+    boolean terminalFlag
 ) {
         public static CompanyResponse fromDomain(Company company) {
             return new CompanyResponse(
@@ -24,7 +25,8 @@ public record CompanyResponse(
                     company.active(),
                     AddressResponse.fromDomain(company.address()),
                     company.activeEmployees(),
-                    company.inactiveEmployees()
+                    company.inactiveEmployees(),
+                    company.terminalFlag()
             );
         }
     }
