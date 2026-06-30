@@ -8,6 +8,7 @@ public class ApiPaths {
     public static final String COMPANIES = "/companies";
     public static final String BY_CNPJ = "/{cnpj}";
     public static final String TOGGLE_ACTIVATE = "/{cnpj}/toggle-activate";
+    public static final String TOGGLE_TERMINAL = "/{cnpj}/toggle-terminal";
     public static final String CHECK_CNPJ = "/check-cnpj";
 
 

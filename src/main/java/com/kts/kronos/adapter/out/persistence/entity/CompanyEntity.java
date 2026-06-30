@@ -61,6 +61,10 @@ public class CompanyEntity {
     @Column(name = "sandbox_key", length = 50)
     private String sandboxKey;
 
+    @Builder.Default
+    @Column(name = "terminal_flag", nullable = false)
+    private boolean terminalFlag = false;
+
     public Company toDomain(){
         return new Company(
                 id,
@@ -74,7 +78,8 @@ public class CompanyEntity {
                 0L,
                 deletedAt,
                 deletedBy,
-                deactivationReason
+                deactivationReason,
+                terminalFlag
         );
     }
     public static CompanyEntity fromDomain(Company company) {
@@ -90,6 +95,7 @@ public class CompanyEntity {
                 .deletedAt(company.deletedAt())
                 .deletedBy(company.deletedBy())
                 .deactivationReason(company.deactivationReason())
+                .terminalFlag(company.terminalFlag())
                 .build();
     }
 }

@@ -48,6 +48,7 @@ public class Messages {
 
     // Employee / Company
     public static final String EMPLOYEE_NOT_FOUND = "Colaborador não encontrado";
+    public static final String TERMINAL_ONLY_CHECKIN = "Registro de ponto disponível apenas no terminal exclusivo da empresa.";
     public static final String COMPANY_NOT_FOUND = "Empresa não encontrada: ";
     public static final String LGPD_REQUEST_NOT_FOUND = "Solicitação LGPD não encontrada.";
     public static final String COMPANY_ALREADY_EXIST = "Empresa já cadastrada";

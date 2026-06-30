@@ -12,6 +12,7 @@ public interface CompanyUseCase {
     void createCompany(CreateCompanyRequest companyRequest);
     void updateCompany(String cnpj, UpdateCompanyRequest request);
     void toggleActivate(String cnpj);
+    void toggleTerminalFlag(String cnpj);
     void deleteByCnpj(String cnpj);
     CompanyResponse getCompanyResponse(String cnpj);
     Company getCompany(String cnpj);

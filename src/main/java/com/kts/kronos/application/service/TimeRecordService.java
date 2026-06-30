@@ -129,6 +129,10 @@ public class TimeRecordService implements TimeRecordUseCase {
                 var company = companyProvider.findById(employee.companyId())
                         .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
+                if (company.terminalFlag()) {
+                    throw new ForbiddenException(TERMINAL_ONLY_CHECKIN);
+                }
+
                 if (openRecordOpt.isPresent()) {
                     var open = openRecordOpt.get();
                     var openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
