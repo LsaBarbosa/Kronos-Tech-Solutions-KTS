@@ -193,6 +193,23 @@ class TerminalCheckinServiceTest {
     }
 
     @Test
+    @DisplayName("[terminalFlag] Cenário 4 — terminalFlag=true não afeta terminal (registerTimeForEmployee chamado normalmente)")
+    void checkinByFace_terminalFlagActiveOnCompany_doesNotBlockTerminal() {
+        // terminalFlag não é verificado em registerTimeForEmployee(); o terminal nunca passa por registerTime()
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(EMPLOYEE_ID);
+        when(userProvider.findByEmployeeId(EMPLOYEE_ID)).thenReturn(Optional.of(activeUser));
+        when(acceptTermsUseCase.getBiometricConsentStatus(EMPLOYEE_ID)).thenReturn(acceptedConsent);
+        when(timeRecordService.registerTimeForEmployee(any(UUID.class), any()))
+                .thenReturn(new ActionResponse("Entrada às 08:00!", "CHECKIN"));
+
+        var result = service.checkinByFace(validRequest);
+
+        assertEquals("CHECKIN", result.checkinResponse().actionType());
+        verify(timeRecordService).registerTimeForEmployee(any(UUID.class), any());
+        verify(timeRecordService, never()).registerTime(any());
+    }
+
+    @Test
     @DisplayName("Rekognition chamado exatamente 1 vez — não duplica chamada")
     void checkinByFace_rekognitionCalledOnce() {
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(EMPLOYEE_ID);

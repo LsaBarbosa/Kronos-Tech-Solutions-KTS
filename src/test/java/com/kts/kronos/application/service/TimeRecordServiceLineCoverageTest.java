@@ -166,7 +166,8 @@ class TimeRecordServiceLineCoverageTest {
         when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> service.registerTime(request));
 
-        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company), Optional.empty());
+        // registerTime() consome o 1º stub; registerTimeForEmployee() consome o 2º; generateAndSaveReceipt() consome o 3º (swallowed)
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company), Optional.of(company), Optional.empty());
         var response = service.registerTime(request);
 
         assertEquals("CHECKIN", response.actionType());
@@ -215,6 +216,7 @@ class TimeRecordServiceLineCoverageTest {
     void registerTimeShouldHandleFaceNotRecognizedAndInvalidBase64() {
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(null);
 
         assertThrows(BadRequestException.class, () ->
