@@ -157,6 +157,7 @@ class TimeRecordServiceTest {
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
 
         // Retorna um ID diferente para simular falha de reconhecimento (Biometria de outra pessoa)
         when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(UUID.randomUUID());
@@ -166,6 +167,20 @@ class TimeRecordServiceTest {
         assertEquals("Falha na validação facial: A face não corresponde ao colaborador autenticado.", ex.getMessage());
 
         // Garante que o save nunca foi chamado
+        verify(recordRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("[terminalFlag] Cenário 3 — terminalFlag=true + plataforma → BLOQUEADO (ForbiddenException)")
+    void shouldBlockPlatformCheckinWhenTerminalFlagIsActive() {
+        var terminalCompany = company.withTerminalFlag(true);
+        GeolocationRequest request = new GeolocationRequest(-22.0, -43.0, validBase64, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(terminalCompany));
+
+        assertThrows(ForbiddenException.class, () -> service.registerTime(request));
         verify(recordRepository, never()).save(any());
     }
 
