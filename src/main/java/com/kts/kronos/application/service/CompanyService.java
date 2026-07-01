@@ -149,6 +149,14 @@ public class CompanyService implements CompanyUseCase {
     }
 
     @Override
+    public void toggleTerminalFlag(String cnpj) {
+        var company = companyProvider.findByCnpj(cnpj)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+        companyProvider.save(company.withTerminalFlag(!company.terminalFlag()));
+        invalidateCompanyCaches();
+    }
+
+    @Override
     public void toggleActivate(String cnpj) {
         var company = getCompany(cnpj);
         var newStatus = !company.active();

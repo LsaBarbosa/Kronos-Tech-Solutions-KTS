@@ -86,7 +86,14 @@ public class TimeRecordService implements TimeRecordUseCase {
 
     @Override
     public ActionResponse registerTime(GeolocationRequest request) {
-        return registerTimeForEmployee(jwtAuthenticatedUser.getEmployeeId(), request);
+        UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
+        var employee = getEmployee(employeeId);
+        var company = companyProvider.findById(employee.companyId())
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
+        if (company.terminalFlag()) {
+            throw new ForbiddenException(TERMINAL_ONLY_CHECKIN);
+        }
+        return registerTimeForEmployee(employeeId, request);
     }
 
     public ActionResponse registerTimeForEmployee(UUID employeeId, GeolocationRequest request) {
