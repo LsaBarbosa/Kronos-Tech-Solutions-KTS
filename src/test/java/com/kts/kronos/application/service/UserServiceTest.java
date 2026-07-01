@@ -75,6 +75,40 @@ class UserServiceTest {
     private KronosMetrics kronosMetrics;
 
     @Test
+    @DisplayName("createUser: CTO pode criar usuario com role PARTNER")
+    void shouldAllowCtoToCreatePartnerUser() {
+        UUID employeeId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(userProvider.existsByUsername("partner@kts.com")).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("hashed-random");
+
+        service.createUser(new CreateUserRequest("partner@kts.com", "PARTNER", employeeId));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userProvider).save(captor.capture());
+        assertEquals(Role.PARTNER, captor.getValue().role());
+        assertEquals(employeeId, captor.getValue().employeeId());
+    }
+
+    @Test
+    @DisplayName("createUser: nao-CTO nao pode criar usuario com role CTO")
+    void shouldBlockNonCtoFromCreatingCtoUser() {
+        UUID employeeId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(userProvider.existsByUsername("cto@kts.com")).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
+
+        assertThrows(
+                com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.createUser(new CreateUserRequest("cto@kts.com", "CTO", employeeId))
+        );
+        verify(userProvider, never()).save(any());
+    }
+
+    @Test
     @DisplayName("createUser: deve rejeitar username ja existente")
     void shouldRejectExistingUsernameOnCreate() {
         when(userProvider.existsByUsername("manager@kts.com")).thenReturn(true);
