@@ -7,6 +7,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
@@ -34,6 +35,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -60,6 +62,8 @@ class DocumentServiceSecurityTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private FileScanningProvider fileScanningProvider;
+    @Mock
+    private EmployeeProvider employeeProvider;
     @Mock
     private AuditService auditService;
     @Mock
@@ -686,7 +690,7 @@ class DocumentServiceSecurityTest {
         Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         String longBaseName = "a".repeat(120);
 
-        when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId)).thenReturn(employee);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
         when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("safe/storage/path");
 
@@ -706,7 +710,7 @@ class DocumentServiceSecurityTest {
     @Test
     @DisplayName("uploadGeneratedDocument: preserva excecoes de regra")
     void shouldRethrowBusinessExceptionOnGeneratedDocumentUpload() {
-        when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId))
+        when(employeeProvider.findById(loggedEmployeeId))
                 .thenThrow(new ForbiddenException("forbidden"));
 
         assertThrows(
@@ -721,7 +725,7 @@ class DocumentServiceSecurityTest {
         Employee employee = buildEmployee(loggedEmployeeId, companyAId);
         RuntimeException storageFailure = new RuntimeException("storage down");
 
-        when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId)).thenReturn(employee);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
         when(bucketStorageProvider.uploadFile(any(DocumentType.class), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenThrow(storageFailure);
 
