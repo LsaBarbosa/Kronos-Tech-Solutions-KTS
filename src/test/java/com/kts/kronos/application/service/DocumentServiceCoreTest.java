@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
+import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
@@ -29,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.HexFormat;
 
@@ -56,6 +58,8 @@ class DocumentServiceCoreTest {
     private DomainAuthorizationService domainAuthorizationService;
     @Mock
     private FileScanningProvider fileScanningProvider;
+    @Mock
+    private EmployeeProvider employeeProvider;
     @Mock
     private AuditService auditService;
     @Mock
@@ -113,7 +117,7 @@ class DocumentServiceCoreTest {
         byte[] pdf = "%PDF-1.7 test".getBytes();
         Employee employee = buildEmployee(employeeId);
 
-        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(bucketStorageProvider.uploadFile(eq(DocumentType.PAYSLIP), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("bucket/path/file.pdf");
 
@@ -372,7 +376,7 @@ class DocumentServiceCoreTest {
         byte[] pdf = "%PDF-1.7 test".getBytes();
         Employee employee = buildEmployeeWithCompany(employeeId, companyId);
 
-        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
         when(bucketStorageProvider.uploadFile(eq(DocumentType.PAYSLIP), anyString(), any(byte[].class), eq("application/pdf")))
                 .thenReturn("bucket/path/file.pdf");
         when(auditRequestContextService.extractContext()).thenReturn(createAuditContext());
