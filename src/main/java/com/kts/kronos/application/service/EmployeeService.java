@@ -26,6 +26,7 @@ import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.enuns.Role;
+import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +71,7 @@ public class EmployeeService implements EmployeeUseCase {
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
             throw new BadRequestException("BIOMETRIC_ENROLLMENT_REQUIRES_DATA_SUBJECT_ACTION");
         }
+        validateCustomDaysWorkDays(req.scheduleType(), req.fixedWorkDays());
 
         var userRole = jwtAuthenticatedUser.getCurrentRole();
         UUID companyId;
@@ -201,6 +203,7 @@ public class EmployeeService implements EmployeeUseCase {
         if (req.faceImageBase64() != null && !req.faceImageBase64().isBlank()) {
             throw new BadRequestException("BIOMETRIC_ENROLLMENT_REQUIRES_DATA_SUBJECT_ACTION");
         }
+        validateCustomDaysWorkDays(req.scheduleType(), req.fixedWorkDays());
 
         var existingEmployee = getEmployee(id);
 
@@ -398,6 +401,16 @@ public class EmployeeService implements EmployeeUseCase {
 
         kronosMetrics.employeeCreated();
         invalidateEmployeeCaches();
+    }
+
+    private void validateCustomDaysWorkDays(WorkScheduleType scheduleType, java.util.Set<java.time.DayOfWeek> fixedWorkDays) {
+        if (scheduleType != WorkScheduleType.CUSTOM_DAYS) return;
+        if (fixedWorkDays == null || fixedWorkDays.isEmpty()) {
+            throw new BadRequestException("Escala CUSTOM_DAYS requer ao menos um dia de trabalho em fixedWorkDays.");
+        }
+        if (fixedWorkDays.size() > 7) {
+            throw new BadRequestException("fixedWorkDays não pode conter mais de 7 dias.");
+        }
     }
 
     private void invalidateEmployeeCaches() {
