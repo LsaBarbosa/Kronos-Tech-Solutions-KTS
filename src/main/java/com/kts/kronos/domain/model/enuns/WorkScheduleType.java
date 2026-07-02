@@ -17,5 +17,10 @@ public enum WorkScheduleType {
     SIX_BY_ONE_TWO_WEEKENDS,
 
     // 6. 6x1 + 1 Final de Semana por mês (Índice fixo)
-    SIX_BY_ONE_ONE_WEEKEND
+    SIX_BY_ONE_ONE_WEEKEND,
+
+    // 7. Dias específicos da semana definidos individualmente por colaborador.
+    // Os dias de trabalho são armazenados em Employee.fixedWorkDays (coluna fixed_work_days).
+    // Todos os demais dias da semana são automaticamente considerados folga.
+    CUSTOM_DAYS
 }

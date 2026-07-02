@@ -130,12 +130,13 @@ public class DocumentService implements DocumentUseCase {
             throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
         } catch (RuntimeException e) {
             metrics().documentDownloadFailure(documentType, "storage_error");
+            String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
             log.error("event=document_download result=failure document_type={} reason=storage_error exception_type={} message={}",
                     documentType,
                     e.getClass().getSimpleName(),
-                    e.getMessage(),
+                    detail,
                     e);
-            throw new BadRequestException(ERROR_GET_FILE);
+            throw new BadRequestException(ERROR_GET_FILE + detail);
         }
     }
 

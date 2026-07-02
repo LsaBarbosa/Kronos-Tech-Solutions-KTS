@@ -310,6 +310,16 @@ public class DayOffScheduler {
             case SIX_BY_ONE_TWO_WEEKENDS -> calculateType5_TwoWeekends(emp, today);
             case SIX_BY_ONE_ONE_WEEKEND -> calculateType6_OneWeekend(emp, today);
 
+            // Dias específicos definidos individualmente: fixedWorkDays determina se hoje é trabalho
+            case CUSTOM_DAYS -> {
+                if (emp.fixedWorkDays() == null || emp.fixedWorkDays().isEmpty()) {
+                    log.warn("event=scheduler_custom_days result=fallback employee_id={} reason=empty_work_days",
+                            emp.employeeId());
+                    yield false;
+                }
+                yield emp.fixedWorkDays().contains(today.getDayOfWeek());
+            }
+
             default -> true;
         };
     }
