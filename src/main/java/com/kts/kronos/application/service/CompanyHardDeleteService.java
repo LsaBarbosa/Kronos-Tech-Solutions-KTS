@@ -2,7 +2,9 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.company.CompanyHardDeleteResultDTO;
 import com.kts.kronos.adapter.out.persistence.*;
+import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.adapter.out.persistence.entity.EmployeeEntity;
+import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,8 @@ public class CompanyHardDeleteService {
     private final CompanyRepository companyRepository;
     private final FaceStorageProvider faceStorageProvider;
     private final FaceRecognitionProvider faceRecognitionProvider;
+    private final DocumentRepository documentRepository;
+    private final BucketStorageProvider bucketStorageProvider;
 
     /**
      * Two-phase hard delete:
@@ -69,9 +73,23 @@ public class CompanyHardDeleteService {
                 try {
                     faceStorageProvider.deleteFaceImage(faceKey);
                 } catch (Exception e) {
-                    String msg = "S3 cleanup failed for employee " + employeeId + ": " + e.getClass().getSimpleName();
+                    String msg = "S3 face cleanup failed for employee " + employeeId + ": " + e.getClass().getSimpleName();
                     failures.add(msg);
-                    log.warn("event=company_hard_delete_s3_failure employeeRef={} reason={}", employeeId, e.getClass().getSimpleName());
+                    log.warn("event=company_hard_delete_s3_face_failure employeeRef={} reason={}", employeeId, e.getClass().getSimpleName());
+                }
+            }
+
+            // Delete all document files from S3 for this employee
+            List<DocumentEntity> documents = documentRepository.findByEmployeeIdOrderByUploadedAtDesc(employeeId);
+            for (DocumentEntity doc : documents) {
+                if (doc.getStoragePath() != null && !doc.getStoragePath().isBlank()) {
+                    try {
+                        bucketStorageProvider.deleteFile(doc.getType(), doc.getStoragePath());
+                    } catch (Exception e) {
+                        String msg = "S3 document cleanup failed for employee " + employeeId + ": " + e.getClass().getSimpleName();
+                        failures.add(msg);
+                        log.warn("event=company_hard_delete_s3_doc_failure employeeRef={} reason={}", employeeId, e.getClass().getSimpleName());
+                    }
                 }
             }
         }
