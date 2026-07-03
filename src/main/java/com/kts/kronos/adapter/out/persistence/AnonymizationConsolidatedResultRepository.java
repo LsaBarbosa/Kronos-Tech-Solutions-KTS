@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.AnonymizationConsolidatedResultEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,4 +26,8 @@ public interface AnonymizationConsolidatedResultRepository extends JpaRepository
             @Param("employeeId") UUID employeeId,
             @Param("companyId") UUID companyId
     );
+
+    @Modifying
+    @Query("DELETE FROM AnonymizationConsolidatedResultEntity acr WHERE acr.employeeId = :employeeId")
+    int deleteByEmployeeId(@Param("employeeId") UUID employeeId);
 }

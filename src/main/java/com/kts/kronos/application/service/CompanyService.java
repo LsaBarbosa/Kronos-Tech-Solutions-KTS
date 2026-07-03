@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.company.CompanyHardDeleteResultDTO;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
@@ -48,6 +49,7 @@ public class CompanyService implements CompanyUseCase {
     private final AuthenticationRateLimitService authenticationRateLimitService;
     private final KronosMetrics kronosMetrics;
     private final CacheProvider cacheProvider;
+    private final CompanyHardDeleteService companyHardDeleteService;
 
     @Override
     public void createCompany(CreateCompanyRequest request) {
@@ -206,6 +208,16 @@ public class CompanyService implements CompanyUseCase {
                 .map(user -> user.deactivate(deletedBy, "COMPANY_DELETE"))
                 .forEach(userProvider::save);
         invalidateCompanyCaches();
+    }
+
+    @Override
+    public CompanyHardDeleteResultDTO hardDeleteCompany(String cnpj) {
+        var company = companyProvider.findByCnpj(cnpj)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+        log.info("event=company_hard_delete_initiated companyRef={}", company.companyId());
+        var result = companyHardDeleteService.hardDelete(company.companyId(), company.cnpj(), company.name());
+        invalidateCompanyCaches();
+        return result;
     }
 
     public boolean cnpjExists(String cnpj) {
