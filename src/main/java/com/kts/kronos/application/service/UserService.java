@@ -286,8 +286,10 @@ public class UserService implements UserUseCase {
     public void toggleActivate(UUID userId) {
         var existing = getUserId(userId);
         boolean newActiveStatus = !existing.active();
-        var active = existing.withActive(newActiveStatus);
-        userProvider.save(active);
+        var updated = newActiveStatus
+                ? existing.withActive(true)
+                : existing.withActive(false).incrementSessionVersion();
+        userProvider.save(updated);
         employeeUseCase.toggleActivate(existing.employeeId());
 
         // Auditoria de alteração de ativação de usuário
