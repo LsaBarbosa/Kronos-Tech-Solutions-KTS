@@ -18,6 +18,10 @@ import java.util.UUID;
 public interface LgpdRequestRepository extends JpaRepository<LgpdRequestEntity, UUID> {
     List<LgpdRequestEntity> findByEmployeeIdOrderByCreatedAtDesc(UUID employeeId);
 
+    @Modifying
+    @Query("DELETE FROM LgpdRequestEntity r WHERE r.employeeId = :employeeId")
+    int deleteByEmployeeId(@Param("employeeId") UUID employeeId);
+
     List<LgpdRequestEntity> findByCompanyIdOrderByCreatedAtDesc(UUID companyId);
 
     List<LgpdRequestEntity> findAllByOrderByCreatedAtDesc();

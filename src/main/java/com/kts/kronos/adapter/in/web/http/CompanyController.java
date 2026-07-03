@@ -1,5 +1,6 @@
 package com.kts.kronos.adapter.in.web.http;
 
+import com.kts.kronos.adapter.in.web.dto.company.CompanyHardDeleteResultDTO;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyListResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
@@ -76,6 +77,12 @@ public class CompanyController {
     public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
         return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(KRONOS)
+    @DeleteMapping(HARD_DELETE_BY_CNPJ)
+    public ResponseEntity<CompanyHardDeleteResultDTO> hardDeleteCompany(@PathVariable String cnpj) {
+        return ResponseEntity.ok(useCase.hardDeleteCompany(cnpj));
     }
 
     @GetMapping(CHECK_CNPJ)
