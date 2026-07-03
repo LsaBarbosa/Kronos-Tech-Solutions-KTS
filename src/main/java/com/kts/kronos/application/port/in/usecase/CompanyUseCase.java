@@ -1,5 +1,6 @@
 package com.kts.kronos.application.port.in.usecase;
 
+import com.kts.kronos.adapter.in.web.dto.company.CompanyHardDeleteResultDTO;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.company.CreateCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.company.UpdateCompanyRequest;
@@ -19,4 +20,5 @@ public interface CompanyUseCase {
     List<Company> listCompanies(Boolean active);
     String getCompanyNameById(UUID companyId);
     boolean cnpjExists(String cnpj);
+    CompanyHardDeleteResultDTO hardDeleteCompany(String cnpj);
 }
