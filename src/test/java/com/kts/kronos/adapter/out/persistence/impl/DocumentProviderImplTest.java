@@ -212,6 +212,22 @@ class DocumentProviderImplTest {
         assertEquals(2, result.size());
     }
 
+    @Test
+    void deveBuscarTodosDocumentosDoEmployee() {
+        UUID employeeId = UUID.randomUUID();
+        var docs = List.of(
+                documentEntity(employeeId, "a.pdf"),
+                documentEntity(employeeId, "b.pdf")
+        );
+        when(documentRepository.findByEmployeeIdOrderByUploadedAtDesc(employeeId)).thenReturn(docs);
+
+        var result = provider.findAllByEmployeeId(employeeId);
+
+        assertEquals(2, result.size());
+        assertEquals("a.pdf", result.get(0).fileName());
+        assertEquals("b.pdf", result.get(1).fileName());
+    }
+
     private static EmployeeEntity employeeEntity(UUID employeeId) {
         return EmployeeEntity.builder()
                 .employeeId(employeeId)

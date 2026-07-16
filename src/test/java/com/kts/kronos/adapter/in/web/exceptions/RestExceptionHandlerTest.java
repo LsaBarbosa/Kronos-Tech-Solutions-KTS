@@ -1,6 +1,10 @@
 package com.kts.kronos.adapter.in.web.exceptions;
 
+import com.kts.kronos.application.exceptions.ConflictException;
+import com.kts.kronos.application.exceptions.DigitalSignatureException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -111,7 +115,78 @@ class RestExceptionHandlerTest {
         assertEquals("https://termo.kronossolutions.tech/", termsBody.getRedirectUrl());
     }
 
-    private ServletWebRequest request(String path) {
-        return new ServletWebRequest(new MockHttpServletRequest("POST", path));
+    @Test
+    void shouldHandleConflictException() {
+        var response = handler.handleConflictException(new ConflictException("Resource conflict"), request("/api/resource"));
+        assertEquals(409, response.getStatusCode().value());
+        assertEquals("CONFLICT", ((ProblemDetail) response.getBody()).getCode());
+    }
+
+    @Test
+    void shouldHandleDataIntegrityViolation() {
+        var response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("Duplicate entry"), request("/api/save"));
+        assertEquals(409, response.getStatusCode().value());
+        assertEquals("DATA_INTEGRITY_CONFLICT", ((ProblemDetail) response.getBody()).getCode());
+    }
+
+    @Test
+    void shouldHandleDigitalSignatureException() {
+        var response = handler.handleDigitalSignatureException(
+                new DigitalSignatureException("Keystore error"), request("/api/sign"));
+        assertEquals(503, response.getStatusCode().value());
+        assertEquals("DIGITAL_SIGNATURE_UNAVAILABLE", ((ProblemDetail) response.getBody()).getCode());
+    }
+
+    @Test
+    void shouldBuildResponseEntityWithProdProfile() {
+        ReflectionTestUtils.setField(handler, "activeProfile", "prod");
+        try {
+            var response = handler.handleUnexpectedException(new RuntimeException("some error"), request("/api/test"));
+            assertEquals(500, response.getStatusCode().value());
+        } finally {
+            ReflectionTestUtils.setField(handler, "activeProfile", "development");
+        }
+    }
+
+    @Test
+    void shouldHandleNullWebRequest() {
+        var response = handler.handleUnexpectedException(new RuntimeException("error"), null);
+        assertEquals(500, response.getStatusCode().value());
+    }
+
+    @Test
+    void shouldMaskSensitiveDetailInNonProdProfile() {
+        var response = handler.handleUnexpectedException(new RuntimeException("password=secret123"), request("/api/test"));
+        assertEquals(500, response.getStatusCode().value());
+    }
+
+
+    @Test
+    void shouldBuildResponseEntityWithProductionProfile() {
+        ReflectionTestUtils.setField(handler, "activeProfile", "production");
+        try {
+            var response = handler.handleUnexpectedException(new RuntimeException("err"), request("/api/test"));
+            assertEquals(500, response.getStatusCode().value());
+        } finally {
+            ReflectionTestUtils.setField(handler, "activeProfile", "development");
+        }
+    }
+
+    @Test
+    void shouldMaskDetailWhenItContainsSensitiveData() {
+        // TooManyRequestsException passes message as-is; "password=" remains after masking
+        // → containsSensitiveData returns TRUE → maskSensitiveData called again (covers L208-L209)
+        var response = handler.handleTooManyRequestsException(
+                new TooManyRequestsException("password=secret exceeds limit"),
+                request("/api/rate-limit")
+        );
+        assertEquals(429, response.getStatusCode().value());
+    }
+
+    private static ServletWebRequest request(String path) {
+        var mockRequest = new MockHttpServletRequest();
+        mockRequest.setRequestURI(path);
+        return new ServletWebRequest(mockRequest);
     }
 }

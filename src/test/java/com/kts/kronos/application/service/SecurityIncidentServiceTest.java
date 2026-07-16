@@ -1,5 +1,13 @@
 package com.kts.kronos.application.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentCorrectionPlanRequest;
+import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentRiskAssessmentRequest;
+import com.kts.kronos.adapter.out.persistence.SecurityIncidentReportRepository;
+import com.kts.kronos.application.exceptions.IncidentClosureValidationException;
+import com.kts.kronos.application.exceptions.IncidentCommunicationDeadlineException;
+import com.kts.kronos.application.security.PrivacyLogReferenceService;
+import com.kts.kronos.domain.model.enuns.SecurityImpactLevel;
 import com.kts.kronos.adapter.in.web.dto.security.CreateSecurityIncidentRequest;
 import com.kts.kronos.adapter.in.web.dto.security.UpdateSecurityIncidentRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
@@ -44,6 +52,15 @@ class SecurityIncidentServiceTest {
 
     @Mock
     private JwtAuthenticatedUser jwtAuthenticatedUser;
+
+    @Mock
+    private SecurityIncidentReportRepository reportRepository;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @Mock
+    private PrivacyLogReferenceService privacyLogReferenceService;
 
     @Test
     void shouldCreateIncidentSuccessfully() {
@@ -184,6 +201,145 @@ class SecurityIncidentServiceTest {
         );
     }
 
+    @Test
+    void shouldUpdateIncidentIgnoreClosureValidationWhenCommunicationNotRequired() {
+        var incidentId = UUID.randomUUID();
+        // communicationRequired = null → Boolean.TRUE.equals(null) is false → no validation
+        var incident = new SecurityIncident(
+                incidentId, "T", "D", Instant.now(), null,
+                SecurityIncidentSeverity.HIGH, true, false, 5,
+                SecurityIncidentStatus.CONFIRMED, null, null,
+                UUID.randomUUID(), Instant.now(), null,
+                false, null, null, null, null, null, null,
+                null, null, null, null, null, null);
+        var request = new UpdateSecurityIncidentRequest(SecurityIncidentStatus.CLOSED, null, null, null);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+        when(securityIncidentProvider.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var response = service.updateIncident(incidentId, request, "127.0.0.1", "JUnit");
+        assertEquals(SecurityIncidentStatus.CLOSED, response.status());
+    }
+
+    @Test
+    void shouldBlockIncidentClosureWhenCommunicationRequiredButMissingEvidence() {
+        var incidentId = UUID.randomUUID();
+        // communicationRequired = true, none of the evidence fields set
+        var incident = new SecurityIncident(
+                incidentId, "T", "D", Instant.now(), null,
+                SecurityIncidentSeverity.HIGH, true, false, 5,
+                SecurityIncidentStatus.CONFIRMED, null, null,
+                UUID.randomUUID(), Instant.now(), null,
+                true, null, null, null, null, null, null,
+                true, null, null, null, null, null);
+        var request = new UpdateSecurityIncidentRequest(SecurityIncidentStatus.CLOSED, null, null, null);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+
+        assertThrows(IncidentClosureValidationException.class,
+                () -> service.updateIncident(incidentId, request, "127.0.0.1", "JUnit"));
+    }
+
+    @Test
+    void shouldEvaluateRiskSuccessfully() {
+        var incidentId = UUID.randomUUID();
+        var incident = buildIncident(incidentId);
+        var request = new SecurityIncidentRiskAssessmentRequest(
+                "Personal", "Phishing", SecurityImpactLevel.MEDIUM,
+                SecurityImpactLevel.LOW, SecurityImpactLevel.LOW,
+                "Low risk", false, null, null);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+        when(securityIncidentProvider.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var response = service.evaluateRisk(incidentId, request, "127.0.0.1", "JUnit");
+        assertNotNull(response);
+    }
+
+    @Test
+    void shouldThrowWhenCommunicationRequiredButDeadlinesMissing() {
+        var incidentId = UUID.randomUUID();
+        var incident = buildIncident(incidentId);
+        var request = new SecurityIncidentRiskAssessmentRequest(
+                "Personal", "Phishing", SecurityImpactLevel.HIGH,
+                SecurityImpactLevel.HIGH, SecurityImpactLevel.HIGH,
+                "High risk", true, null, null);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+
+        assertThrows(IncidentCommunicationDeadlineException.class,
+                () -> service.evaluateRisk(incidentId, request, "127.0.0.1", "JUnit"));
+    }
+
+    @Test
+    void shouldThrowWhenSubmittingCorrectionPlanForUnconfirmedIncident() {
+        var incidentId = UUID.randomUUID();
+        var incident = buildIncident(incidentId); // incidentConfirmed = false
+        var request = new SecurityIncidentCorrectionPlanRequest("Isolate", "Patch", null);
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.submitCorrectionPlan(incidentId, request, "127.0.0.1", "JUnit"));
+    }
+
+    @Test
+    void shouldSubmitCorrectionPlanWithoutEvidenceLinks() {
+        var incidentId = UUID.randomUUID();
+        var confirmedIncident = buildConfirmedIncident(incidentId);
+        var request = new SecurityIncidentCorrectionPlanRequest("Isolate", "Patch", null);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(confirmedIncident));
+        when(securityIncidentProvider.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var response = service.submitCorrectionPlan(incidentId, request, "127.0.0.1", "JUnit");
+        assertNotNull(response);
+    }
+
+    @Test
+    void shouldSubmitCorrectionPlanWithEvidenceLinks() {
+        var incidentId = UUID.randomUUID();
+        var confirmedIncident = buildConfirmedIncident(incidentId);
+        var request = new SecurityIncidentCorrectionPlanRequest("Isolate", "Patch", "http://evidence.example");
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(confirmedIncident));
+        when(securityIncidentProvider.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var response = service.submitCorrectionPlan(incidentId, request, "127.0.0.1", "JUnit");
+        assertNotNull(response);
+    }
+
+    @Test
+    void shouldThrowWhenGeneratingReportForUnconfirmedIncident() {
+        var incidentId = UUID.randomUUID();
+        var incident = buildIncident(incidentId); // incidentConfirmed = false
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(incident));
+
+        assertThrows(IllegalStateException.class, () -> service.generateReport(incidentId));
+    }
+
+    @Test
+    void shouldWrapObjectMapperExceptionInRuntimeException() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var confirmedIncident = buildConfirmedIncident(incidentId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(confirmedIncident));
+        when(objectMapper.writeValueAsString(any())).thenThrow(new com.fasterxml.jackson.core.JsonProcessingException("fail") {});
+
+        assertThrows(RuntimeException.class, () -> service.generateReport(incidentId));
+    }
+
+    private SecurityIncident buildConfirmedIncident(UUID incidentId) {
+        var now = Instant.now();
+        return new SecurityIncident(
+                incidentId, "Test", "Desc", now, now,
+                SecurityIncidentSeverity.HIGH, true, false, 10,
+                SecurityIncidentStatus.CONFIRMED, null, null,
+                UUID.randomUUID(), now, null,
+                true, "PII", "Phishing", SecurityImpactLevel.HIGH,
+                SecurityImpactLevel.LOW, SecurityImpactLevel.LOW,
+                "Low", false, null, null, null, null, null);
+    }
+
     private SecurityIncident buildIncident(UUID incidentId) {
         var now = Instant.now();
         return new SecurityIncident(
@@ -205,4 +361,26 @@ class SecurityIncidentServiceTest {
                 false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
+
+    // ── BR L149 A=true/B=false: request.confirmedAt != null BUT incident.confirmedAt != null ──
+    @Test
+    void updateIncident_confirmedAtNotNull_incidentAlreadyConfirmed_skipsConfirmUpdate() {
+        var incidentId = UUID.randomUUID();
+        var confirmedIncident = buildConfirmedIncident(incidentId); // confirmedAt != null
+        var request = new UpdateSecurityIncidentRequest(
+                SecurityIncidentStatus.CONFIRMED,
+                java.time.Instant.now(), // request.confirmedAt() != null
+                null,
+                null
+        );
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(securityIncidentProvider.findById(incidentId)).thenReturn(Optional.of(confirmedIncident));
+        when(securityIncidentProvider.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var response = service.updateIncident(incidentId, request, "127.0.0.1", "JUnit");
+
+        assertNotNull(response);
+        assertEquals(SecurityIncidentStatus.CONFIRMED, response.status());
+    }
+
 }

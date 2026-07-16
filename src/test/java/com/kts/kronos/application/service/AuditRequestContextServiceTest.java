@@ -12,6 +12,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AuditRequestContextServiceTest {
 
@@ -158,6 +161,37 @@ class AuditRequestContextServiceTest {
         );
 
         assertEquals(context1, context2);
+    }
+
+
+    @Test
+    @DisplayName("Should return unknown context when extractFromRequest throws")
+    void extractContext_resolverThrows_returnsUnknown() {
+        ClientIpResolver throwingResolver = mock(ClientIpResolver.class);
+        when(throwingResolver.resolveWithDetails(any())).thenThrow(new RuntimeException("resolver failure"));
+        AuditRequestContextService svc = new AuditRequestContextService(throwingResolver);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/test");
+        request.setRemoteAddr("127.0.0.1");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        try {
+            var context = svc.extractContext();
+            assertEquals("unknown", context.ipAddress());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    @Test
+    @DisplayName("Should return 'Desconhecido' for blank User-Agent")
+    void extractContext_blankUserAgent_returnsFallback() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/test");
+        request.setRemoteAddr("127.0.0.1");
+        request.addHeader("User-Agent", "  ");
+        setRequestContext(request);
+
+        var context = service.extractContext();
+        assertEquals("Desconhecido", context.userAgent());
     }
 
     private void setRequestContext(MockHttpServletRequest request) {

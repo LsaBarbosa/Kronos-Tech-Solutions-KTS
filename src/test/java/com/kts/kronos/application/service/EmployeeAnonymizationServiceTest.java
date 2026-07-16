@@ -23,10 +23,13 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -109,6 +112,22 @@ class EmployeeAnonymizationServiceTest {
 
         verify(anonymizationPlanExecutor, never()).executePlan(any(), any());
         verify(auditService, never()).registerLgpd(any(AuditAction.class), any(UUID.class), any(UUID.class), any(UUID.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class), any(String.class));
+    }
+
+    @Test
+    void shouldCatchAndRethrowWhenExecutorFails() {
+        UUID employeeId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        Employee employee = employee(employeeId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        doThrow(new RuntimeException("executor-error"))
+                .when(anonymizationPlanExecutor).executePlan(any(), anyString());
+
+        var ex = assertThrows(RuntimeException.class,
+                () -> service.anonymize(employeeId, "127.0.0.1", "JUnit", actorUserId));
+        assertTrue(ex.getMessage().contains("Falha ao anonimizar"));
     }
 
     private Employee employee(UUID employeeId) {

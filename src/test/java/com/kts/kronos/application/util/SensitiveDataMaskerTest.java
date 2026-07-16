@@ -349,4 +349,105 @@ class SensitiveDataMaskerTest {
         String result = SensitiveDataMasker.sanitizeDetails("");
         assertEquals("", result);
     }
+
+    @Test
+    void maskPis_validPis_returnsFormatted() {
+        assertEquals("123.***.901", SensitiveDataMasker.maskPis("12345678901"));
+    }
+
+    @Test
+    void maskPis_formattedPis_returnsFormatted() {
+        assertEquals("123.***.901", SensitiveDataMasker.maskPis("123.45678.90-1"));
+    }
+
+    @Test
+    void maskPis_null_returnsNull() {
+        assertNull(SensitiveDataMasker.maskPis(null));
+    }
+
+    @Test
+    void maskPis_blank_returnsBlank() {
+        assertEquals("", SensitiveDataMasker.maskPis(""));
+    }
+
+    @Test
+    void maskPis_invalidLength_returnsMasked() {
+        assertEquals("***", SensitiveDataMasker.maskPis("123"));
+    }
+
+    @Test
+    void maskPhone_validPhone_returnsFormatted() {
+        String masked = SensitiveDataMasker.maskPhone("11999999999");
+        assertTrue(masked.startsWith("(11) "));
+        assertTrue(masked.contains("****"));
+    }
+
+    @Test
+    void maskPhone_null_returnsNull() {
+        assertNull(SensitiveDataMasker.maskPhone(null));
+    }
+
+    @Test
+    void maskPhone_blank_returnsBlank() {
+        assertEquals("", SensitiveDataMasker.maskPhone(""));
+    }
+
+    @Test
+    void maskPhone_shortPhone_returnsMasked() {
+        assertEquals("***", SensitiveDataMasker.maskPhone("123"));
+    }
+
+    @Test
+    void maskCoordinates_valid_returnsRedacted() {
+        assertEquals("[COORDINATES_REDACTED]", SensitiveDataMasker.maskCoordinates("-23.550520"));
+    }
+
+    @Test
+    void maskCoordinates_null_returnsNull() {
+        assertNull(SensitiveDataMasker.maskCoordinates(null));
+    }
+
+    @Test
+    void maskCoordinates_blank_returnsBlank() {
+        assertEquals("", SensitiveDataMasker.maskCoordinates(""));
+    }
+
+    @Test
+    void maskEmployeeId_null_returnsNone() {
+        assertEquals("none", SensitiveDataMasker.maskEmployeeId(null));
+    }
+
+    @Test
+    void maskEmployeeId_valid_returnsPartial() {
+        java.util.UUID id = java.util.UUID.fromString("11111111-2222-3333-4444-555555555555");
+        String masked = SensitiveDataMasker.maskEmployeeId(id);
+        assertTrue(masked.startsWith("11111111-"));
+        assertTrue(masked.endsWith("-****"));
+    }
+
+    @Test
+    void maskEmail_noAtSign_returnsMasked() {
+        assertEquals("***@***", SensitiveDataMasker.maskEmail("noemail"));
+    }
+
+    @Test
+    void sanitizeDetails_masksPisPattern() {
+        String details = "Employee PIS 12345678901 checked";
+        String result = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(result.contains("45678901"));
+    }
+
+    @Test
+    void sanitizeDetails_masksPhonePattern() {
+        String details = "Phone (11) 99999-9999 called";
+        String result = SensitiveDataMasker.sanitizeDetails(details);
+        assertFalse(result.contains("99999-9999"));
+    }
+
+    @Test
+    void sanitizeDetails_masksCoordinates() {
+        String details = "Location -23.550520 latitude";
+        String result = SensitiveDataMasker.sanitizeDetails(details);
+        assertTrue(result.contains("[COORDINATES_REDACTED]"));
+    }
 }

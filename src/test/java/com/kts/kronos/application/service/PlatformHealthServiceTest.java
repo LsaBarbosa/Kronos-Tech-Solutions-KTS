@@ -87,6 +87,21 @@ class PlatformHealthServiceTest {
         assertEquals("ERROR", response.signals().getFirst().state());
     }
 
+    @Test
+    @DisplayName("retorna ERROR quando status de saude e DOWN (nao UP, nao excecao)")
+    void shouldReturnErrorWhenStatusIsDown() {
+        when(observabilityStatusUseCase.getStatus()).thenReturn(
+                new ObservabilityStatus("kronos", "DOWN", "db error", OffsetDateTime.now())
+        );
+        when(companyRepository.findByActiveTrue()).thenReturn(List.of());
+        when(companyRepository.findByActiveFalse()).thenReturn(List.of());
+        when(lgpdRequestRepository.countByStatusIn(anyCollection())).thenReturn(0L);
+
+        var response = service.getPlatformHealth();
+
+        assertEquals("ERROR", response.state());
+    }
+
     private CompanyEntity company(boolean active) {
         var company = new CompanyEntity();
         company.setId(UUID.randomUUID());

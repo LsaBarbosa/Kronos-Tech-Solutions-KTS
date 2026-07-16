@@ -60,4 +60,20 @@ class RedisKeyFactoryTest {
         assertEquals(blacklistKey, factory.blacklistKey(rawToken));
         assertEquals(resetKey, factory.passwordResetTokenKey(rawToken));
     }
+    @Test
+    @DisplayName("normalize(null) deve retornar 'unknown' para manter segurança de chaves")
+    void nullValueInCheckinLockKeyShouldBeNormalized() {
+        KronosRedisProperties properties = new KronosRedisProperties();
+        properties.setNamespace("kronos-test");
+        properties.setKeyHmacSecret("unit-test-secret");
+        RedisKeyHasher hasher = new RedisKeyHasher(properties);
+        RedisKeyFactory factory = new RedisKeyFactory(properties, hasher);
+
+        // Passing null employeeId → normalize(null) → "unknown" (covers BR L56 null=TRUE)
+        String lockKey = factory.checkinLockKey(null, java.time.LocalDate.of(2026, 7, 1));
+        assertTrue(lockKey.startsWith("kronos-test:lock:checkin:"));
+        // Key should NOT contain "null" string literally
+        assertFalse(lockKey.contains(":null:"));
+    }
+
 }

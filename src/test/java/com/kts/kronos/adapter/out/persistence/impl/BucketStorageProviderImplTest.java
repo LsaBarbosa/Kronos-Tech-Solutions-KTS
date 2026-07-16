@@ -172,4 +172,21 @@ class BucketStorageProviderImplTest {
         assertEquals("Caminho de storage inválido.", blankDownload.getMessage());
         assertEquals("Caminho de storage inválido.", nullDelete.getMessage());
     }
+    @Test
+    @DisplayName("upload: strips leading slash from objectName (BR L89 while loop entry)")
+    void shouldStripLeadingSlashAndUploadNormally() throws Exception {
+        byte[] payload = "conteudo-slash".getBytes();
+        // objectName starting with "/" → while loop at L89 enters (covers L89 TRUE and L90)
+        // resolveWithinRoot strips "/" → stores at tempDir/slash-file.pdf
+        // uploadFile returns the original objectName (with slash)
+        String objectName = "/slash-file.pdf";
+        String result = provider.uploadFile(DocumentType.DOCUMENTS, objectName, payload, "application/pdf");
+        // result is the original objectName (leading slash kept in return value)
+        assertEquals(objectName, result);
+        // But the actual file was stored at tempDir/slash-file.pdf (without leading slash)
+        java.nio.file.Path storedPath = tempDir.resolve("slash-file.pdf");
+        assertTrue(java.nio.file.Files.exists(storedPath), "File should exist after stripping leading slash");
+        assertArrayEquals(payload, java.nio.file.Files.readAllBytes(storedPath));
+    }
+
 }

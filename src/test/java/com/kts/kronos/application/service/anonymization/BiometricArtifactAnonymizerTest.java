@@ -167,6 +167,44 @@ class BiometricArtifactAnonymizerTest {
         assertEquals(1, result.errorCount());
     }
 
+    @Test
+    void testExecuteApplyWithNoEmployee() {
+        when(employeeRepository.findById(any())).thenReturn(Optional.empty());
+
+        var result = anonymizer.execute(createPlan(), "APPLY");
+
+        assertEquals("APPLY", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0, result.affectedCount());
+        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
+        verify(faceRecognitionProvider, never()).deleteFacesByExternalImageId(any());
+    }
+
+    @Test
+    void testExecuteApplyWithEmployeeHavingNoS3Key() {
+        var employee = createEmployee();
+        when(employeeRepository.findById(any())).thenReturn(Optional.of(employee));
+
+        var result = anonymizer.execute(createPlan(), "APPLY");
+
+        assertEquals("APPLY", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0, result.affectedCount());
+        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
+    }
+
+    @Test
+    void testExecuteDryRunWithEmployeeHavingNoS3Key() {
+        var employee = createEmployee();
+        when(employeeRepository.findById(any())).thenReturn(Optional.of(employee));
+
+        var result = anonymizer.execute(createPlan(), "DRY_RUN");
+
+        assertEquals("DRY_RUN", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0, result.scannedCount());
+    }
+
     private AnonymizationPlan createPlan() {
         return new AnonymizationPlan(
                 UUID.randomUUID(),

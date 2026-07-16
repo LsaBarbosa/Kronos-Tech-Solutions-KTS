@@ -23,17 +23,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BiometricArtifactRetentionProcessorTest {
@@ -56,6 +51,16 @@ class BiometricArtifactRetentionProcessorTest {
     @Test
     void shouldReturnBiometricArtifactResourceType() {
         assertEquals(RetentionResourceType.BIOMETRIC_ARTIFACT, processor.supports());
+    }
+
+    @Test
+    void shouldReturnSupportsApply() {
+        assertTrue(processor.supportsApply());
+    }
+
+    @Test
+    void shouldReturnIsDestructive() {
+        assertTrue(processor.isDestructive());
     }
 
     @Test
@@ -242,6 +247,146 @@ class BiometricArtifactRetentionProcessorTest {
                 eq("v2"),
                 eq("hash-v2")
         );
+    }
+
+    @Test
+    void shouldThrowWhenNoActiveBiometricConsentTerm() {
+        var policy = createPolicy(RetentionExecutionMode.DRY_RUN);
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.empty());
+
+        var result = processor.execute(policy, "DRY_RUN");
+
+        assertEquals("ERROR", result.status());
+        assertNotNull(result.notes());
+        assertTrue(result.notes().contains("Active biometric consent term not found"));
+    }
+
+    @Test
+    void shouldThrowWhenTimeBasedPolicyHasNullRetentionDays() {
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(),
+                "RETENTION_BIOMETRIC_TIME",
+                "Time-based retention",
+                RetentionPolicyType.TIME_BASED,
+                "BIOMETRIC_ARTIFACT",
+                null,
+                RetentionExecutionMode.DRY_RUN,
+                true, false, false, null, Instant.now(), Instant.now()
+        );
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+
+        var result = processor.execute(policy, "DRY_RUN");
+
+        assertEquals("ERROR", result.status());
+        assertNotNull(result.notes());
+        assertTrue(result.notes().contains("retentionDays is required"));
+    }
+
+    @Test
+    void shouldCalculateCutoffWhenTimeBasedWithRetentionDays() {
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(),
+                "RETENTION_BIOMETRIC_TIME",
+                "Time-based retention",
+                RetentionPolicyType.TIME_BASED,
+                "BIOMETRIC_ARTIFACT",
+                30,
+                RetentionExecutionMode.DRY_RUN,
+                true, false, false, null, Instant.now(), Instant.now()
+        );
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(any(Instant.class), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        var result = processor.execute(policy, "DRY_RUN");
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals("DRY_RUN", result.executionMode());
+    }
+
+    @Test
+    void shouldSkipEmployeeWithNullS3KeyInApplyMode() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+        var employee = createEmployee(null);
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(anyString(), anyString()))
+                .thenReturn(List.of(employee));
+        when(employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(any(Instant.class), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0L, result.affectedCount());
+        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
+    }
+
+    @Test
+    void shouldSkipEmployeeWithBlankS3KeyInApplyMode() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+        var employee = createEmployee("   ");
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(anyString(), anyString()))
+                .thenReturn(List.of(employee));
+        when(employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(any(Instant.class), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0L, result.affectedCount());
+        verify(faceStorageProvider, never()).deleteFaceImage(anyString());
+    }
+
+    @Test
+    void shouldHandleUnexpectedExceptionInApplyLoop() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+        var badEmployee = mock(EmployeeEntity.class);
+        when(badEmployee.getFaceS3ObjectKey()).thenThrow(new RuntimeException("unexpected entity error"));
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(anyString(), anyString()))
+                .thenReturn(List.of(badEmployee));
+        when(employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(any(Instant.class), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertEquals("PARTIAL", result.status());
+        assertNotNull(result.notes());
+        assertTrue(result.notes().contains("Partial deletion"));
+    }
+
+    @Test
+    void shouldMergeEligibleRevokedConsentEmployees() {
+        var policy = createPolicy(RetentionExecutionMode.APPLY);
+        var employeeId = UUID.randomUUID();
+        var employee = createEmployee("s3-key-revoked", employeeId);
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(employeeRepository.findEligibleBiometricArtifactsWithoutValidCurrentConsent(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findEligibleBiometricArtifactsByRevokedConsent(any(Instant.class), anyString(), anyString()))
+                .thenReturn(List.of(employee));
+        when(employeeRepository.clearBiometricDataByEmployeeId(employeeId)).thenReturn(1);
+
+        var result = processor.execute(policy, "APPLY");
+
+        assertEquals("SUCCESS", result.status());
+        assertEquals(1L, result.affectedCount());
+        verify(faceStorageProvider, times(1)).deleteFaceImage("s3-key-revoked");
+        verify(faceRecognitionProvider, times(1)).deleteFacesByExternalImageId(employeeId);
     }
 
     private RetentionPolicy createPolicy(RetentionExecutionMode mode) {

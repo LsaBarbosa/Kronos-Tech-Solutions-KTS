@@ -334,4 +334,115 @@ public class ProductionSecurityPropertiesValidatorTest {
 
         assertDoesNotThrow(() -> validator.validateProductionConfiguration());
     }
+    // ── Tests that properly pass CORS to reach downstream validators ──────────
+
+    private ProductionSecurityPropertiesValidator buildProdValidatorWithValidCors() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        ProductionSecurityPropertiesValidator v = new ProductionSecurityPropertiesValidator(environment);
+        setField(v, "cookieSecure", true);
+        setField(v, "corsAllowedOrigins", "https://kronostechsolutions.com");
+        return v;
+    }
+
+    @Test
+    @DisplayName("25. Swagger enabled in prod fails (after CORS passes)")
+    void testSwaggerEnabledAfterCorsValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", true);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("26. JWT secret null in prod fails (after CORS passes)")
+    void testJwtSecretNullAfterCorsValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn(null);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("27. JWT secret too short in prod fails (after CORS passes)")
+    void testJwtSecretShortAfterCorsValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("tooshort");
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("28. AWS region null in prod fails (after CORS+JWT pass)")
+    void testAwsRegionNullAfterCorsAndJwtValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn(null);
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("29. AWS region empty in prod fails (after CORS+JWT pass)")
+    void testAwsRegionEmptyAfterCorsAndJwtValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn("");
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("30. AWS only secret key fails (after CORS+JWT+region pass)")
+    void testAwsOnlySecretKeyAfterCorsJwtRegionValidation() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("aws.access-key-id")).thenReturn(null);
+        when(environment.getProperty("aws.secret-access-key")).thenReturn("some-secret-key");
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("31. Actuator env endpoint exposed fails (after CORS+JWT+AWS pass)")
+    void testActuatorEnvExposedAfterFullChain() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("aws.access-key-id")).thenReturn(null);
+        when(environment.getProperty("aws.secret-access-key")).thenReturn(null);
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,env");
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("32. Antivirus disabled fails (after all prior validators pass)")
+    void testAntivirusDisabledAfterFullChain() throws Exception {
+        ProductionSecurityPropertiesValidator validator = buildProdValidatorWithValidCors();
+        setField(validator, "swaggerEnabled", false);
+        setField(validator, "antivirusEnabled", false);
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("aws.access-key-id")).thenReturn(null);
+        when(environment.getProperty("aws.secret-access-key")).thenReturn(null);
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
+        assertThrows(IllegalStateException.class, () -> validator.validateProductionConfiguration());
+    }
+
+    @Test
+    @DisplayName("33. CORS origin with trailing slash passes validateOriginFormat path='/' branch")
+    void testOriginWithTrailingSlashPasses() throws Exception {
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        when(environment.getProperty("jwt.secret")).thenReturn("this-is-a-very-secure-secret-32chars");
+        when(environment.getProperty("aws.region")).thenReturn("us-east-1");
+        when(environment.getProperty("aws.access-key-id")).thenReturn(null);
+        when(environment.getProperty("aws.secret-access-key")).thenReturn(null);
+        when(environment.getProperty("management.endpoints.web.exposure.include", "")).thenReturn("health,info");
+        ProductionSecurityPropertiesValidator validator = new ProductionSecurityPropertiesValidator(environment);
+        setField(validator, "cookieSecure", true);
+        setField(validator, "corsAllowedOrigins", "https://kronostechsolutions.com/");
+        setField(validator, "swaggerEnabled", false);
+        setField(validator, "antivirusEnabled", true);
+        assertDoesNotThrow(() -> validator.validateProductionConfiguration());
+    }
 }

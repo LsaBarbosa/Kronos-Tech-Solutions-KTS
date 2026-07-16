@@ -4,9 +4,12 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class KronosMetricsTest {
@@ -139,6 +142,24 @@ class KronosMetricsTest {
         );
     }
 
+    // ── recordDocumentOperationDuration / recordSecurityIncident / recordFrontendEvent ─
+    @Test
+    void shouldCoverUncalledMetricsMethods() {
+        var registry = new SimpleMeterRegistry();
+        var metrics = new KronosMetrics(registry);
+
+        metrics.recordDocumentOperationDuration("upload", "time_off", Duration.ofMillis(120), "success");
+        metrics.recordSecurityIncident("login_failure", "MEDIUM", "active", "failure");
+        metrics.recordFrontendEvent("page_load", "success", "none");
+
+        assertEquals(1L, registry.get("kronos_document_operation_duration_seconds")
+            .tag("operation", "upload").tag("document_type", "time_off").tag("result", "success").timer().count());
+        assertEquals(1.0d, registry.get("kronos_security_incident_total")
+            .tag("event_type", "login_failure").tag("severity", "medium").tag("status", "active").tag("result", "failure").counter().count());
+        assertEquals(1.0d, registry.get("kronos_frontend_event_total")
+            .tag("event_type", "page_load").tag("result", "success").tag("reason", "none").counter().count());
+    }
+
     @Test
     void shouldExposeOnlyGaugeBeforeCountersAreEmitted() {
         var registry = new SimpleMeterRegistry();
@@ -150,4 +171,16 @@ class KronosMetricsTest {
         assertEquals(0.0d, registry.get("kronos_vacation_requested_total").counter().count());
         assertEquals(0.0d, registry.get("kronos_time_off_approved_total").counter().count());
     }
+
+    @Test
+    void tags_oddNumberOfArgs_throwsIllegalArgumentException() throws Exception {
+        var registry = new SimpleMeterRegistry();
+        var metrics = new KronosMetrics(registry);
+        Method tagsMethod = KronosMetrics.class.getDeclaredMethod("tags", String[].class);
+        tagsMethod.setAccessible(true);
+        var ex = assertThrows(InvocationTargetException.class,
+                () -> tagsMethod.invoke(metrics, (Object) new String[]{"single_key"}));
+        assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+    }
+
 }

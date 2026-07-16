@@ -755,4 +755,278 @@ class TimeRecordServiceLineCoverageTest {
                 end
         );
     }
+
+    @Test
+    void shouldNormalizeLimitZeroToFive() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findRecentByEmployeeId(employeeId, 5)).thenReturn(List.of());
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(documentProvider.findByTimeRecordIds(any())).thenReturn(List.of());
+
+        var response = service.listMyRecentRecords(0);
+        assertEquals("PERSISTED", response.source());
+        verify(recordRepository).findRecentByEmployeeId(employeeId, 5);
+    }
+
+    @Test
+    void shouldNormalizeLimitNegativeToFive() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findRecentByEmployeeId(employeeId, 5)).thenReturn(List.of());
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(documentProvider.findByTimeRecordIds(any())).thenReturn(List.of());
+
+        var response = service.listMyRecentRecords(-5);
+        assertEquals("PERSISTED", response.source());
+        verify(recordRepository).findRecentByEmployeeId(employeeId, 5);
+    }
+
+    @Test
+    void shouldSkipRecordWithNullIdInTodayEvents() {
+        var nullIdRecord = new TimeRecord(null, null, null, StatusRecord.PENDING, false, true, employeeId,
+                null, null, null, null, null, null, null, null);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(legalConsentProvider.existsActive(eq(employeeId), any())).thenReturn(true);
+        when(recordRepository.findByRange(eq(employeeId), any(), any())).thenReturn(List.of(nullIdRecord));
+
+        var response = service.getTodayStatus();
+        assertTrue(response.records().isEmpty());
+    }
+
+    @Test
+    void shouldHandleRecentRecordWithNullTimeRecordId() {
+        var nullIdRecord = new TimeRecord(null, LocalDateTime.of(2026, 6, 1, 8, 0), null, StatusRecord.PENDING,
+                false, true, employeeId, null, null, null, null, null, null, null, null);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findRecentByEmployeeId(eq(employeeId), anyInt())).thenReturn(List.of(nullIdRecord));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(documentProvider.findByTimeRecordIds(any())).thenReturn(List.of());
+
+        var response = service.listMyRecentRecords(5);
+        assertEquals(0, response.items().size());
+    }
+
+    @Test
+    void shouldReturnEmptyRecentRecordsWhenEmployeeNotFound() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        var response = service.listMyRecentRecords(5);
+        assertEquals("PERSISTED", response.source());
+        assertTrue(response.items().isEmpty());
+    }
+
+    @Test
+    void shouldReturnEmptyRequestsWhenEmployeeNotFound() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        var response = service.listMyRequests(5);
+        assertEquals("PERSISTED", response.source());
+        assertTrue(response.items().isEmpty());
+    }
+
+    @Test
+    void shouldIncludeReceiptUrlWhenDocumentExists() {
+        var rec = new TimeRecord(10L, LocalDateTime.of(2026, 6, 1, 8, 0),
+                LocalDateTime.of(2026, 6, 1, 17, 0), StatusRecord.CREATED, false, true, employeeId,
+                null, null, null, null, null, null, null, null);
+        var docId = UUID.randomUUID();
+        var doc = new Document(docId, employeeId, com.kts.kronos.domain.model.enuns.DocumentType.POINT_RECORD_RECEIPT,
+                "receipt.pdf", "application/pdf", "hash", LocalDateTime.of(2026, 6, 1, 9, 0), 10L, false, false, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findRecentByEmployeeId(eq(employeeId), anyInt())).thenReturn(List.of(rec));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(documentProvider.findByTimeRecordIds(any())).thenReturn(List.of(doc));
+
+        var response = service.listMyRecentRecords(5);
+        assertFalse(response.items().isEmpty());
+        assertNotNull(response.items().getFirst().receiptUrl());
+    }
+
+    @Test
+    void shouldBuildVacationRejectedRequestItem() {
+        var vacationRejected = new TimeRecord(31L, LocalDateTime.of(2026, 7, 5, 0, 0),
+                LocalDateTime.of(2026, 7, 5, 0, 0), StatusRecord.VACATION_REJECTED, false, true, employeeId,
+                null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(vacationRejected));
+        when(approvalProvider.findByRequestingEmployeeId(employeeId, 5)).thenReturn(List.of());
+
+        var response = service.listMyRequests(5);
+        var item = response.items().stream().filter(i -> "VACATION".equals(i.type())).findFirst();
+        assertTrue(item.isPresent());
+        assertEquals("REJECTED", item.get().status());
+    }
+
+    @Test
+    void shouldSplitVacationGroupsWhenStatusChanges() {
+        var vac1 = new TimeRecord(41L, LocalDateTime.of(2026, 7, 1, 0, 0), null,
+                StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var vac2 = new TimeRecord(42L, LocalDateTime.of(2026, 7, 2, 0, 0), null,
+                StatusRecord.VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(vac1, vac2));
+        when(approvalProvider.findByRequestingEmployeeId(employeeId, 5)).thenReturn(List.of());
+
+        var response = service.listMyRequests(5);
+        long vacationItems = response.items().stream().filter(i -> "VACATION".equals(i.type())).count();
+        assertEquals(2, vacationItems);
+    }
+
+    @Test
+    void shouldSplitVacationGroupsWhenNonContiguous() {
+        var vac1 = new TimeRecord(51L, LocalDateTime.of(2026, 7, 1, 0, 0), null,
+                StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+        var vac2 = new TimeRecord(52L, LocalDateTime.of(2026, 7, 3, 0, 0), null,
+                StatusRecord.REQUEST_VACATION, false, true, employeeId, null, null, null, null, null, null, null, null);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(recordRepository.findByEmployeeId(employeeId)).thenReturn(List.of(vac1, vac2));
+        when(approvalProvider.findByRequestingEmployeeId(employeeId, 5)).thenReturn(List.of());
+
+        var response = service.listMyRequests(5);
+        long vacationItems = response.items().stream().filter(i -> "VACATION".equals(i.type())).count();
+        assertEquals(2, vacationItems);
+    }
+
+    @Test
+    void shouldThrowOnGetDurationInvalidFormat() throws Exception {
+        Method getDuration = TimeRecordService.class.getDeclaredMethod("getDuration", String.class);
+        getDuration.setAccessible(true);
+
+        try {
+            getDuration.invoke(service, "invalid-format-no-colon");
+            fail("Expected exception");
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            assertInstanceOf(com.kts.kronos.application.exceptions.BadRequestException.class, e.getCause());
+        }
+    }
+
+    @Test
+    void shouldThrowOnGetDurationNonNumeric() throws Exception {
+        Method getDuration = TimeRecordService.class.getDeclaredMethod("getDuration", String.class);
+        getDuration.setAccessible(true);
+
+        try {
+            getDuration.invoke(service, "abc:def");
+            fail("Expected exception");
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            assertInstanceOf(com.kts.kronos.application.exceptions.BadRequestException.class, e.getCause());
+        }
+    }
+
+    @Test
+    void shouldReturnNullFromAcquireCheckinLockWhenProviderIsNull() throws Exception {
+        Method acquire = TimeRecordService.class.getDeclaredMethod("acquireCheckinLock", UUID.class, LocalDate.class);
+        acquire.setAccessible(true);
+
+        Object result = acquire.invoke(service, employeeId, LocalDate.now());
+        assertNull(result);
+    }
+
+    @Test
+    void shouldReturnEarlyFromReleaseCheckinLockWhenTokenBlank() throws Exception {
+        Method release = TimeRecordService.class.getDeclaredMethod(
+                "releaseCheckinLock", UUID.class, LocalDate.class, String.class);
+        release.setAccessible(true);
+
+        assertDoesNotThrow(() -> release.invoke(service, employeeId, LocalDate.now(), ""));
+        assertDoesNotThrow(() -> release.invoke(service, employeeId, LocalDate.now(), null));
+    }
+
+    @Test
+    void shouldInvalidateCachesWhenProviderAvailable() throws Exception {
+        CacheProvider mockCache = mock(CacheProvider.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", mockCache);
+
+        Method invalidate = TimeRecordService.class.getDeclaredMethod("invalidateTimeRecordCaches");
+        invalidate.setAccessible(true);
+        invalidate.invoke(service);
+
+        verify(mockCache, atLeast(1)).evictNamespace(any());
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", null);
+    }
+
+    @Test
+    void shouldHandleCacheExceptionGracefully() throws Exception {
+        CacheProvider mockCache = mock(CacheProvider.class);
+        doThrow(new RuntimeException("redis down")).when(mockCache).evictNamespace(any());
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", mockCache);
+
+        Method invalidate = TimeRecordService.class.getDeclaredMethod("invalidateTimeRecordCaches");
+        invalidate.setAccessible(true);
+        assertDoesNotThrow(() -> invalidate.invoke(service));
+
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", null);
+    }
+
+    @Test
+    void shouldResolveGeolocationFailureReason() throws Exception {
+        Method resolve = TimeRecordService.class.getDeclaredMethod(
+                "resolveTimeRecordFailureReason", RuntimeException.class);
+        resolve.setAccessible(true);
+
+        String result = (String) resolve.invoke(service,
+                new com.kts.kronos.application.exceptions.BadRequestException("Você está fora da área de trabalho permitida."));
+        assertEquals("geolocation", result);
+    }
+
+    @Test
+    void shouldResolveStatusFailureReason() throws Exception {
+        Method resolve = TimeRecordService.class.getDeclaredMethod(
+                "resolveTimeRecordFailureReason", RuntimeException.class);
+        resolve.setAccessible(true);
+
+        String result = (String) resolve.invoke(service,
+                new com.kts.kronos.application.exceptions.BadRequestException(
+                        "Só é possível fazer checkout de um registro PENDING (atual=CREATED)"));
+        assertEquals("status", result);
+    }
+
+    @Test
+    void shouldResolveUnknownFailureReason() throws Exception {
+        Method resolve = TimeRecordService.class.getDeclaredMethod(
+                "resolveTimeRecordFailureReason", RuntimeException.class);
+        resolve.setAccessible(true);
+
+        String result = (String) resolve.invoke(service, new RuntimeException("some other error"));
+        assertEquals("unknown", result);
+    }
+
+    @Test
+    void shouldResolveNullMessageFailureReason() throws Exception {
+        Method resolve = TimeRecordService.class.getDeclaredMethod(
+                "resolveTimeRecordFailureReason", RuntimeException.class);
+        resolve.setAccessible(true);
+
+        String result = (String) resolve.invoke(service, new RuntimeException((String) null));
+        assertEquals("unknown", result);
+    }
+
+    @Test
+    void shouldUseCacheProviderInCacheMethod() throws Exception {
+        CacheProvider mockCache = mock(CacheProvider.class);
+        when(mockCache.getOrLoad(any(), any(), any(), any())).thenReturn(null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", mockCache);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+
+        service.listMyRecentRecords(5);
+        verify(mockCache).getOrLoad(any(), any(), any(), any());
+
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "cacheProvider", null);
+    }
+
 }

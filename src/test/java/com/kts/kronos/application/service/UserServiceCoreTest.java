@@ -116,7 +116,7 @@ class UserServiceCoreTest {
 
         service.toggleActivate(userId);
 
-        verify(userProvider).save(existingUser.withActive(false));
+        verify(userProvider).save(existingUser.withActive(false).incrementSessionVersion());
         verify(employeeUseCase).toggleActivate(employeeId);
     }
 

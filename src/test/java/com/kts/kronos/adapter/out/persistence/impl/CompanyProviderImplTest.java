@@ -137,6 +137,14 @@ class CompanyProviderImplTest {
         verify(repository).deleteByCnpj("12345678000199");
     }
 
+    @Test
+    void isSandbox_delegatesParaRepository() {
+        UUID companyId = UUID.randomUUID();
+        when(repository.existsByIdAndSandboxTrue(companyId)).thenReturn(true);
+        assertTrue(provider.isSandbox(companyId));
+        verify(repository).existsByIdAndSandboxTrue(companyId);
+    }
+
     private static CompanyEntity companyEntity(boolean active) {
         return CompanyEntity.builder()
                 .id(UUID.randomUUID())

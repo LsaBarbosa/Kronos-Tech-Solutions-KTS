@@ -3,6 +3,7 @@ package com.kts.kronos.application.service;
 import com.kts.kronos.adapter.in.web.dto.message.CreateMessageRequest;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.MessageDeliveryProvider;
@@ -252,6 +253,135 @@ class MessageServiceTest {
         verify(messageProvider, never()).save(any());
     }
 
+    @Test
+    @DisplayName("deleteMessage: PARTNER não pode excluir")
+    void shouldRejectDeleteByPartnerRole() {
+        UUID messageId = UUID.randomUUID();
+        UUID senderId = UUID.randomUUID();
+        Message message = new Message(messageId, UUID.randomUUID(), UUID.randomUUID(),
+                "T", "M", MessagePriority.NORMAL, MessageScope.DIRECT, LocalDateTime.now(), null, null);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
+        assertThrows(ForbiddenException.class, () -> service.deleteMessage(messageId));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: MANAGER não pode excluir mensagem GLOBAL")
+    void shouldRejectManagerDeletingGlobalMessage() {
+        UUID senderId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        Message message = new Message(messageId, UUID.randomUUID(), senderId,
+                "T", "M", MessagePriority.NORMAL, MessageScope.GLOBAL, LocalDateTime.now(), null, null);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
+        assertThrows(BadRequestException.class, () -> service.deleteMessage(messageId));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: MANAGER pode excluir mensagem DIRECT própria")
+    void shouldAllowManagerToDeleteOwnDirectMessage() {
+        UUID senderId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        // employeeId (2nd arg) must equal senderId for MANAGER to delete DIRECT message
+        Message message = new Message(messageId, senderId, UUID.randomUUID(),
+                "T", "M", MessagePriority.NORMAL, MessageScope.DIRECT, LocalDateTime.now(), null, null);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(messageProvider.findById(messageId)).thenReturn(Optional.of(message));
+        service.deleteMessage(messageId);
+        verify(messageProvider).deleteByMessageIdAndEmployeeId(messageId, senderId);
+    }
+
+    @Test
+    @DisplayName("listMessagesForMyCompany: no-arg chama sem paginação para MANAGER")
+    void shouldListMessagesWithoutPaginationForManager() {
+        UUID senderId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee sender = employee(senderId, companyId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, senderId))
+                .thenReturn(List.of());
+        var result = service.listMessagesForMyCompany();
+        verify(messageProvider).findVisibleMessagesByCompanyIdAndEmployeeId(companyId, senderId);
+    }
+
+    @Test
+    @DisplayName("listMessagesForMyCompany: no-arg chama sem paginação para CTO")
+    void shouldListMessagesWithoutPaginationForCto() {
+        UUID senderId = UUID.randomUUID();
+        Employee sender = employee(senderId, UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(messageProvider.findVisibleMessagesByEmployeeId(senderId)).thenReturn(List.of());
+        service.listMessagesForMyCompany();
+        verify(messageProvider).findVisibleMessagesByEmployeeId(senderId);
+    }
+
+    @Test
+    @DisplayName("listMessagesForMyCompany(null,null): usa caminho sem paginação")
+    void shouldListMessagesWithNullPageAndSizeWithoutPagination() {
+        UUID senderId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Employee sender = employee(senderId, companyId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(messageProvider.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, senderId))
+                .thenReturn(List.of());
+        service.listMessagesForMyCompany(null, null);
+        verify(messageProvider).findVisibleMessagesByCompanyIdAndEmployeeId(companyId, senderId);
+    }
+
+    @Test
+    @DisplayName("listMessagesForMyCompany: CTO com paginação usa findVisibleMessagesByEmployeeId com page")
+    void shouldListMessagesWithPaginationForCto() {
+        UUID senderId = UUID.randomUUID();
+        Employee sender = employee(senderId, UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(messageProvider.findVisibleMessagesByEmployeeId(senderId, PageRequest.of(0, 10)))
+                .thenReturn(List.of());
+        service.listMessagesForMyCompany(0, 10);
+        verify(messageProvider).findVisibleMessagesByEmployeeId(senderId, PageRequest.of(0, 10));
+    }
+
+    @Test
+    @DisplayName("postMessage: lista de destinatários null é tratada como vazia")
+    void shouldTreatNullRecipientsAsEmpty() {
+        UUID senderId = UUID.randomUUID();
+        Employee sender = employee(senderId, UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        assertThrows(BadRequestException.class, () -> service.postMessage(request(null)));
+    }
+
+    @Test
+    @DisplayName("resolveSenderCompanyId: usa employee.companyId() quando activeCompanyId é null")
+    void shouldUseEmployeeCompanyIdWhenActiveIsNull() {
+        UUID companyId = UUID.randomUUID();
+        UUID senderId = UUID.randomUUID();
+        UUID recipientId = UUID.randomUUID();
+        Employee sender = employee(senderId, companyId);
+        Employee recipient = employee(recipientId, companyId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(senderId);
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(null); // null → uses employee.companyId()
+        when(employeeProvider.findById(senderId)).thenReturn(Optional.of(sender));
+        when(employeeProvider.findById(recipientId)).thenReturn(Optional.of(recipient));
+        when(userProvider.findByEmployeeId(recipientId)).thenReturn(Optional.of(activeUser(recipientId, Role.PARTNER)));
+        service.postMessage(request(List.of(recipientId)));
+        verify(messageProvider).save(any(Message.class));
+    }
+
     private CreateMessageRequest request(List<UUID> recipients) {
         return new CreateMessageRequest("Texto", "Aviso", MessagePriority.NORMAL, recipients);
     }
@@ -282,6 +412,24 @@ class MessageServiceTest {
                 null,
                 null
         );
+    }
+
+    @Test
+    @DisplayName("listVisibleMessages: CTO com page não nulo e size nulo usa caminho sem paginação (BR L159 B_TRUE)")
+    void shouldListVisibleMessages_withNonNullPageNullSize_forCto() throws Exception {
+        // listMessagesForMyCompany() always normalizes size before calling listVisibleMessages,
+        // so the only way to hit L159 with page!=null && size==null is via reflection.
+        UUID senderId = UUID.randomUUID();
+        Employee sender = employee(senderId, UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(messageProvider.findVisibleMessagesByEmployeeId(senderId)).thenReturn(List.of());
+
+        var method = MessageService.class.getDeclaredMethod("listVisibleMessages",
+                com.kts.kronos.domain.model.Employee.class, Integer.class, Integer.class);
+        method.setAccessible(true);
+        method.invoke(service, sender, Integer.valueOf(0), (Integer) null); // page=0, size=null → B_TRUE
+
+        verify(messageProvider).findVisibleMessagesByEmployeeId(senderId);
     }
 
     private User activeUser(UUID employeeId, Role role) {

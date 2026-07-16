@@ -85,6 +85,24 @@ class LegalConsentProviderImplTest {
         assertEquals(consent.version(), history.getFirst().version());
     }
 
+    @Test
+    void shouldFindValidCurrentConsent() {
+        var consent = domain(null);
+        when(repository.findFirstByEmployeeIdAndConsentTypeAndVersionAndContentHashSha256AndRevokedAtIsNull(
+                any(), any(), any(), any()
+        )).thenReturn(Optional.of(entity(consent)));
+
+        var found = provider.findValidCurrentConsent(
+                consent.employeeId(),
+                ConsentType.BIOMETRIC_AUTHENTICATION,
+                "v1.0",
+                "sha256hash"
+        );
+
+        assertTrue(found.isPresent());
+        assertEquals(consent.consentId(), found.get().consentId());
+    }
+
     private static LegalConsent domain(Instant revokedAt) {
         return new LegalConsent(
                 UUID.randomUUID(),

@@ -17,16 +17,9 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(MockitoExtension.class)
@@ -179,6 +172,111 @@ class RedisCacheProviderTest {
         assertEquals(2, loaderCalls.get());
     }
 
-    private record SampleDto(String name, int count) {
+
+    @Test
+    @DisplayName("evict: remove chave do Redis e memória")
+    void shouldEvictSingleKeyFromRedisAndMemory() {
+        String cacheName = RedisCacheNames.USER_OWN_PROFILE;
+        String scope = "user-4";
+
+        assertDoesNotThrow(() -> provider.evict(cacheName, scope));
+        verify(redisTemplate).delete(keyFactory.cacheKey(cacheName, scope));
     }
+
+    @Test
+    @DisplayName("evict: silencia exceção do Redis e remove da memória")
+    void shouldNotFailWhenRedisThrowsOnEvict() {
+        org.mockito.Mockito.doThrow(new RuntimeException("redis down"))
+                .when(redisTemplate).delete(anyString());
+
+        assertDoesNotThrow(() -> provider.evict(RedisCacheNames.USER_OWN_PROFILE, "user-5"));
+    }
+
+    @Test
+    @DisplayName("evictNamespace: usa Redis scan e deleta chaves encontradas")
+    void shouldEvictNamespaceViaRedisScan() {
+        // Redis not enabled for this test - use memory-only provider
+        KronosRedisProperties disabledProps = new KronosRedisProperties();
+        disabledProps.setNamespace("kronos-test");
+        disabledProps.setKeyHmacSecret("redis-cache-secret");
+        disabledProps.setEnabled(false);
+        RedisCacheProvider memProvider = new RedisCacheProvider(
+                objectMapper, disabledProps,
+                new RedisKeyFactory(disabledProps, new RedisKeyHasher(disabledProps)),
+                kronosMetrics);
+
+        memProvider.getOrLoad(RedisCacheNames.RECORDS_ME_RECENT, "s1", SampleDto.class,
+                () -> new SampleDto("a", 1));
+        memProvider.evictNamespace(RedisCacheNames.RECORDS_ME_RECENT);
+
+        // After eviction, loader is called again
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        memProvider.getOrLoad(RedisCacheNames.RECORDS_ME_RECENT, "s1", SampleDto.class, () -> {
+            calls.incrementAndGet();
+            return new SampleDto("b", 2);
+        });
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    @DisplayName("evictNamespace: silencia exceção do Redis scan")
+    void shouldNotFailWhenRedisThrowsOnEvictNamespace() {
+        org.mockito.Mockito.doThrow(new RuntimeException("redis down"))
+                .when(redisTemplate).execute(any(org.springframework.data.redis.core.RedisCallback.class));
+
+        assertDoesNotThrow(() -> provider.evictNamespace(RedisCacheNames.RECORDS_ME_TODAY));
+    }
+
+    @Test
+    @DisplayName("resolveTtl: usa long TTL para PUBLIC_PROCESSING_CATALOG")
+    void shouldUseLongTtlForPublicCatalog() {
+        String key = keyFactory.cacheKey(RedisCacheNames.PUBLIC_PROCESSING_CATALOG, "s1");
+        when(valueOperations.get(key)).thenReturn(null);
+        SampleDto dto = new SampleDto("cat", 1);
+
+        provider.getOrLoad(RedisCacheNames.PUBLIC_PROCESSING_CATALOG, "s1", SampleDto.class, () -> dto);
+
+        org.mockito.ArgumentCaptor<java.time.Duration> ttl = org.mockito.ArgumentCaptor.forClass(java.time.Duration.class);
+        verify(valueOperations).set(eq(key), any(), ttl.capture());
+        assertEquals(properties.getCacheLongTtl(), ttl.getValue());
+    }
+
+    @Test
+    @DisplayName("resolveTtl: usa default TTL para cache desconhecido")
+    void shouldUseDefaultTtlForUnknownCacheName() {
+        String unknownCache = "unknown-cache-name";
+        String key = keyFactory.cacheKey(unknownCache, "s1");
+        when(valueOperations.get(key)).thenReturn(null);
+
+        provider.getOrLoad(unknownCache, "s1", SampleDto.class, () -> new SampleDto("x", 0));
+
+        org.mockito.ArgumentCaptor<java.time.Duration> ttl = org.mockito.ArgumentCaptor.forClass(java.time.Duration.class);
+        verify(valueOperations).set(eq(key), any(), ttl.capture());
+        assertEquals(properties.getCacheDefaultTtl(), ttl.getValue());
+    }
+
+    @Test
+    @DisplayName("getOrLoad: retorna null quando loader retorna null (sem gravar no Redis)")
+    void shouldReturnNullWhenLoaderReturnsNull() {
+        String key = keyFactory.cacheKey(RedisCacheNames.USER_LIST, "s1");
+        when(valueOperations.get(key)).thenReturn(null);
+
+        SampleDto result = provider.getOrLoad(RedisCacheNames.USER_LIST, "s1", SampleDto.class, () -> null);
+        assertNull(result);
+        verify(valueOperations, never()).set(any(), any(), any(java.time.Duration.class));
+    }
+
+    @Test
+    @DisplayName("getOrLoad: faz fallback ao loader quando JSON do Redis é inválido")
+    void shouldFallbackWhenRedisHasMalformedJson() {
+        String key = keyFactory.cacheKey(RedisCacheNames.COMPANY_GET, "s1");
+        when(valueOperations.get(key)).thenReturn("not-valid-json{{{");
+
+        SampleDto fallback = new SampleDto("fallback", 99);
+        SampleDto result = provider.getOrLoad(RedisCacheNames.COMPANY_GET, "s1", SampleDto.class, () -> fallback);
+        assertEquals(fallback, result);
+    }
+
+
+    private record SampleDto(String name, int count) {}
 }

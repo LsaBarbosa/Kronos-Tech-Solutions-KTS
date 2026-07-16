@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.http.CompanyController;
+import com.kts.kronos.adapter.in.web.dto.company.CompanyHardDeleteResultDTO;
 import com.kts.kronos.adapter.in.web.dto.company.CompanyResponse;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
 import com.kts.kronos.application.exceptions.BadRequestException;
@@ -261,6 +262,29 @@ class CompanyControllerWebMvcTest {
                         .param("cnpj", "11222333000181"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("toggleTerminalFlag: alterna flag de terminal da empresa")
+    void shouldToggleTerminalFlag() throws Exception {
+        mockMvc.perform(patch("/companies/{cnpj}/toggle-terminal", "11222333000181"))
+                .andExpect(status().isNoContent());
+        verify(useCase).toggleTerminalFlag("11222333000181");
+    }
+
+    @Test
+    @DisplayName("hardDeleteCompany: exclui empresa com hard delete e retorna resultado")
+    void shouldHardDeleteCompany() throws Exception {
+        var result = new CompanyHardDeleteResultDTO("11222333000181", "Kronos Tech", 2, 0, List.of());
+        when(useCase.hardDeleteCompany("11222333000181")).thenReturn(result);
+
+        mockMvc.perform(delete("/companies/{cnpj}/hard-delete", "11222333000181"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.companyCnpj").value("11222333000181"))
+                .andExpect(jsonPath("$.employeesDeleted").value(2));
+
+        verify(useCase).hardDeleteCompany("11222333000181");
+    }
+
 
     private static String validCreateCompanyJson() {
         return """

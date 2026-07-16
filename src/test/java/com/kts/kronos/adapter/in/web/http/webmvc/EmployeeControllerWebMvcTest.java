@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -447,6 +448,69 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(jsonPath("$.phone").value("21999999999"))
                 .andExpect(jsonPath("$.address").exists());
     }
+
+    @Test
+    @DisplayName("findByCpfGlobal: retorna 200 e detalhe quando CPF existe")
+    void shouldReturnOkWhenFindByCpfGlobalFinds() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        var detail = EmployeeDetailResponse.fromDomain(employee(employeeId, companyId), "Kronos Tech", null);
+
+        when(useCase.findByCpfGlobal("52998224725")).thenReturn(Optional.of(detail));
+
+        mockMvc.perform(get("/employee/find-by-cpf").param("cpf", "52998224725"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.employeeId").value(employeeId.toString()));
+    }
+
+    @Test
+    @DisplayName("findByCpfGlobal: retorna 404 quando CPF não existe")
+    void shouldReturnNotFoundWhenFindByCpfGlobalFindsNothing() throws Exception {
+        when(useCase.findByCpfGlobal("52998224725")).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/employee/find-by-cpf").param("cpf", "52998224725"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("employeesByCompany: retorna lista de colaboradores da empresa")
+    void shouldListEmployeesByCompany() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        var employee = employee(employeeId, companyId);
+        var listResponse = new EmployeeListResponse(List.of(EmployeeListItemResponse.fromDomain(employee, "Kronos Tech")));
+
+        when(useCase.listEmployeesByCompany(companyId, null)).thenReturn(listResponse);
+
+        mockMvc.perform(get("/employee/by-company/{companyId}", companyId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.employees[0].employeeId").value(employeeId.toString()));
+    }
+
+    @Test
+    @DisplayName("checkCpfAvailability: retorna 200 quando CPF existe na empresa especificada")
+    void shouldReturnOkWhenCpfExistsInGivenCompany() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        when(useCase.cpfExistsInCompany(companyId, "52998224725")).thenReturn(true);
+
+        mockMvc.perform(get("/employee/check-cpf")
+                        .param("cpf", "52998224725")
+                        .param("companyId", companyId.toString()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("checkCpfAvailability: retorna 404 quando CPF não existe na empresa especificada")
+    void shouldReturnNotFoundWhenCpfDoesNotExistInGivenCompany() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        when(useCase.cpfExistsInCompany(companyId, "52998224725")).thenReturn(false);
+
+        mockMvc.perform(get("/employee/check-cpf")
+                        .param("cpf", "52998224725")
+                        .param("companyId", companyId.toString()))
+                .andExpect(status().isNotFound());
+    }
+
 
     private Employee employee(UUID employeeId, UUID companyId) {
         return new Employee(

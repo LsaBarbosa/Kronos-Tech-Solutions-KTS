@@ -286,6 +286,65 @@ class BiometricProtectionServiceTest {
         verify(mockProvider).verify(eq("abc"), eq(LivenessOperation.ENROLLMENT), eq(employeeId));
     }
 
+
+    @Test
+    @DisplayName("protectTimesheetSigning: aceita assinatura dentro do limite")
+    void shouldAllowTimesheetSigningWithinLimit() {
+        ReflectionTestUtils.setField(service, "timesheetSignLimit", 5);
+        ReflectionTestUtils.setField(service, "timesheetSignWindowSeconds", 300);
+        UUID employeeId = UUID.randomUUID();
+        assertDoesNotThrow(() -> service.protectTimesheetSigning(employeeId, "abc"));
+    }
+
+    @Test
+    @DisplayName("protectTimesheetSigning: rejeita após exceder limite")
+    void shouldRateLimitTimesheetSigning() {
+        ReflectionTestUtils.setField(service, "timesheetSignLimit", 1);
+        ReflectionTestUtils.setField(service, "timesheetSignWindowSeconds", 300);
+        UUID employeeId = UUID.randomUUID();
+        service.protectTimesheetSigning(employeeId, "abc");
+        assertThrows(TooManyRequestsException.class,
+                () -> service.protectTimesheetSigning(employeeId, "abc"));
+    }
+
+    @Test
+    @DisplayName("protectContractSigning: aceita assinatura dentro do limite")
+    void shouldAllowContractSigningWithinLimit() {
+        ReflectionTestUtils.setField(service, "contractSignLimit", 5);
+        ReflectionTestUtils.setField(service, "contractSignWindowSeconds", 300);
+        UUID employeeId = UUID.randomUUID();
+        assertDoesNotThrow(() -> service.protectContractSigning(employeeId, "abc"));
+    }
+
+    @Test
+    @DisplayName("protectContractSigning: rejeita após exceder limite")
+    void shouldRateLimitContractSigning() {
+        ReflectionTestUtils.setField(service, "contractSignLimit", 1);
+        ReflectionTestUtils.setField(service, "contractSignWindowSeconds", 300);
+        UUID employeeId = UUID.randomUUID();
+        service.protectContractSigning(employeeId, "abc");
+        assertThrows(TooManyRequestsException.class,
+                () -> service.protectContractSigning(employeeId, "abc"));
+    }
+
+    @Test
+    @DisplayName("protectTerminalCheckin: aceita dentro do limite")
+    void shouldAllowTerminalCheckinWithinLimit() {
+        ReflectionTestUtils.setField(service, "terminalCheckinLimit", 5);
+        ReflectionTestUtils.setField(service, "terminalCheckinWindowSeconds", 60);
+        assertDoesNotThrow(() -> service.protectTerminalCheckin("abc", true));
+    }
+
+    @Test
+    @DisplayName("protectTerminalCheckin: rejeita após exceder limite")
+    void shouldRateLimitTerminalCheckin() {
+        ReflectionTestUtils.setField(service, "terminalCheckinLimit", 1);
+        ReflectionTestUtils.setField(service, "terminalCheckinWindowSeconds", 60);
+        service.protectTerminalCheckin("abc", true);
+        assertThrows(TooManyRequestsException.class,
+                () -> service.protectTerminalCheckin("abc", true));
+    }
+
     @SuppressWarnings("unchecked")
     private ObjectProvider<LivenessVerificationProvider> livenessProvider(LivenessVerificationProvider provider) {
         ObjectProvider<LivenessVerificationProvider> livenessProvider = mock(ObjectProvider.class);

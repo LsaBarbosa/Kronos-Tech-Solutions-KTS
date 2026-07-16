@@ -8,6 +8,7 @@ import com.kts.kronos.application.port.in.usecase.AuthUseCase;
 import com.kts.kronos.application.port.in.usecase.UserUseCase;
 import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserResponse;
+import com.kts.kronos.adapter.in.web.dto.user.AccessibleCompanyResponse;
 import com.kts.kronos.adapter.in.web.dto.user.UserSearchItemResponse;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -359,6 +360,43 @@ class UserControllerWebMvcTest {
                         .param("username", "john"))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("getMyCompanies: retorna lista de empresas acessíveis do usuário autenticado")
+    void shouldGetMyCompanies() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(authUseCase.getAccessibleCompanies(userId)).thenReturn(List.of(
+                new AccessibleCompanyResponse(companyId, "Kronos Tech", "12345678000195", "MANAGER", true, true)
+        ));
+
+        mockMvc.perform(get("/users/me/companies"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].companyName").value("Kronos Tech"))
+                .andExpect(jsonPath("$[0].role").value("MANAGER"));
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: cria acesso de empresa e retorna 201")
+    void shouldAddCompanyAccess() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+
+        mockMvc.perform(post("/users/{userId}/company-access", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\n"
+                                + "  \"companyId\": \"" + companyId + "\",\n"
+                                + "  \"employeeId\": \"" + employeeId + "\",\n"
+                                + "  \"role\": \"MANAGER\",\n"
+                                + "  \"defaultCompany\": true\n"
+                                + "}"))
+                .andExpect(status().isCreated());
+
+        verify(useCase).addCompanyAccess(eq(userId), any());
+    }
+
 
     private static User user(String username, boolean active) {
         return new User(

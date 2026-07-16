@@ -16,6 +16,9 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 class AuditServiceTest {
@@ -444,4 +447,85 @@ class AuditServiceTest {
         assertTrue(capturedLog.details().contains("123.***.901"), "CPF deve estar mascarado");
         assertTrue(capturedLog.details().contains("ipSource"), "Details deve conter ipSource");
     }
+    @Test
+    void registerSecurity_withNullDetailsAndClientIpResolution_usesEmptyDetailsMap() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        ClientIpResolution ipResolution = ClientIpResolution.of(
+            "10.0.0.1",
+            ClientIpResolution.IpSource.REMOTE_ADDR,
+            true
+        );
+        doReturn("{\"ipSource\":\"REMOTE_ADDR\",\"ipTrusted\":true}").when(objectMapper).writeValueAsString(any());
+
+        auditService.registerSecurity(
+            AuditAction.AUTH_LOGIN_SUCCESS,
+            employeeId,
+            null,
+            "HIGH",
+            "USER",
+            employeeId.toString(),
+            null,
+            ipResolution,
+            "Mozilla/5.0"
+        );
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogProvider).registerLog(captor.capture());
+        assertNotNull(captor.getValue());
+    }
+
+    @Test
+    void registerSecurity_withBlankDetailsAndClientIpResolution_usesEmptyDetailsMap() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        ClientIpResolution ipResolution = ClientIpResolution.of(
+            "10.0.0.2",
+            ClientIpResolution.IpSource.X_FORWARDED_FOR,
+            false
+        );
+        doReturn("{\"ipSource\":\"X_FORWARDED_FOR\",\"ipTrusted\":false}").when(objectMapper).writeValueAsString(any());
+
+        auditService.registerSecurity(
+            AuditAction.AUTH_LOGIN_SUCCESS,
+            employeeId,
+            null,
+            "MEDIUM",
+            "USER",
+            employeeId.toString(),
+            "   ",
+            ipResolution,
+            "Agent/1.0"
+        );
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogProvider).registerLog(captor.capture());
+        assertNotNull(captor.getValue());
+    }
+
+    @Test
+    void registerSecurity_withNullDetailsAndWriteValueThrows_usesFallback() throws Exception {
+        UUID employeeId = UUID.randomUUID();
+        ClientIpResolution ipResolution = ClientIpResolution.of(
+            "10.0.0.3",
+            ClientIpResolution.IpSource.REMOTE_ADDR,
+            false
+        );
+        doThrow(new RuntimeException("forced write failure")).when(objectMapper).writeValueAsString(any());
+
+        auditService.registerSecurity(
+            AuditAction.AUTH_LOGIN_FAILURE,
+            employeeId,
+            null,
+            "HIGH",
+            "USER",
+            employeeId.toString(),
+            null,
+            ipResolution,
+            "Agent/1.0"
+        );
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogProvider).registerLog(captor.capture());
+        assertNotNull(captor.getValue());
+    }
+
 }

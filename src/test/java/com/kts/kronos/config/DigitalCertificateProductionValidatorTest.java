@@ -59,4 +59,13 @@ class DigitalCertificateProductionValidatorTest {
 
         assertDoesNotThrow(() -> validator.run(arguments));
     }
+
+    @Test
+    void shouldFailStartupWhenProdCertificatePathIsNull() {
+        // Covers L50 A_TRUE: value == null → short-circuit → throw
+        when(environment.getActiveProfiles()).thenReturn(new String[]{"prod"});
+        var validator = new DigitalCertificateProductionValidator(environment, null, "strong-secret");
+
+        assertThrows(IllegalStateException.class, () -> validator.run(arguments));
+    }
 }

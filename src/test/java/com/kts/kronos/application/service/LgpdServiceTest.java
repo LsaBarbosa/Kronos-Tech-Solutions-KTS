@@ -66,6 +66,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import com.kts.kronos.domain.model.AnonymizationExecutionResult;
+import com.kts.kronos.domain.model.DryRunToken;
+import com.kts.kronos.domain.model.enuns.AnonymizationResourceType;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -1606,4 +1610,710 @@ class LgpdServiceTest {
 
         assertEquals("LGPD_INVALID_STATUS_TRANSITION", exception.getCode());
     }
+    // ==================== GET REQUEST ====================
+
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+    void shouldGetRequestByIdForAuthorizedEmployee() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+
+        LgpdRequest result = service.getRequest(requestId);
+
+        assertNotNull(result);
+        assertEquals(request, result);
+    }
+
+    // ==================== GET REQUEST HISTORY ====================
+
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+    void shouldGetRequestHistoryForAuthorizedEmployee() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(lgpdRequestHistoryProvider.findByRequestId(request.requestId())).thenReturn(List.of());
+
+        var history = service.getRequestHistory(requestId);
+
+        assertNotNull(history);
+    }
+
+    // ==================== ASSIGN REQUEST ====================
+
+    @Test
+    void shouldAssignRequestToUser() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID assignedToUserId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.assignRequest(requestId, assignedToUserId);
+
+        assertNotNull(result);
+        assertEquals(assignedToUserId, result.assignedToUserId());
+    }
+
+    // ==================== ADD NOTE ====================
+
+    @Test
+    void shouldAddNoteToRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.addNote(requestId, "nota publica", "nota interna");
+
+        assertNotNull(result);
+    }
+
+    @Test
+    void shouldAddNoteWithExistingInternalNotes() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        // Build request with existing internalNotes
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS, "desc", null,
+                java.time.Instant.now(), java.time.Instant.now(), null, null, null,
+                java.time.Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, "nota-existente"
+        );
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.addNote(requestId, null, "nova nota");
+
+        assertNotNull(result);
+    }
+
+    // ==================== COMPLETE REQUEST ====================
+
+    @Test
+    void shouldCompleteAccessRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.completeRequest(requestId, "Solicitação atendida.", "notas internas");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.COMPLETED, result.status());
+    }
+
+    // ==================== REJECT REQUEST ====================
+
+    @Test
+    void shouldRejectRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.rejectRequest(requestId, "motivo de rejeicao", "nota publica", "nota interna");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.REJECTED, result.status());
+    }
+
+    // ==================== CANCEL REQUEST ====================
+
+    @Test
+    void shouldCancelRequestAsCto() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.cancelRequest(requestId, "motivo de cancelamento");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.CANCELLED, result.status());
+    }
+
+    @Test
+    void shouldRejectCancelByNonCto() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.cancelRequest(requestId, "motivo"));
+    }
+
+    // ==================== REQUEST DATA SUBJECT COMPLEMENT ====================
+
+    @Test
+    void shouldRequestComplementForWaitingRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        // Request in WAITING_DATA_SUBJECT status
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_DATA_SUBJECT, "desc", null,
+                java.time.Instant.now(), java.time.Instant.now(), null, null, null,
+                java.time.Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null
+        );
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        LgpdRequest result = service.requestDataSubjectComplement(requestId, "Precisamos de mais dados");
+
+        assertNotNull(result);
+    }
+
+    @Test
+    void shouldThrowWhenComplementRequestedForNonWaitingRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.requestDataSubjectComplement(requestId, "mensagem"));
+    }
+
+    // ==================== DRY RUN ANONYMIZE EMPLOYEE ====================
+
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+    void shouldDryRunAnonymizeEmployee() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(anonymizationPlanExecutor.executePlanWithResults(any(), any())).thenReturn(List.of());
+
+        var result = service.dryRunAnonymizeEmployee(employeeId);
+
+        assertNotNull(result);
+    }
+
+    // ==================== VALIDATE PRECISE GEOLOCATION FOR ADMIN EXPORT ====================
+
+    @Test
+    void shouldBlockPreciseGeolocationForNonCto() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        assertThrows(com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.exportEmployeeDataForApprovedRequest(
+                        requestId, true, "LEGITIMATE_INTEREST", "reason", "reviewer notes", "127.0.0.1", "JUnit"));
+    }
+
+    @Test
+    void shouldBlockPreciseGeolocationWithoutReviewerNotes() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        assertThrows(com.kts.kronos.application.exceptions.ForbiddenException.class,
+                () -> service.exportEmployeeDataForApprovedRequest(
+                        requestId, true, "LEGITIMATE_INTEREST", "reason", null, "127.0.0.1", "JUnit"));
+    }
+
+    // ==================== TRANSITION STATUS: APPROVED_FOR_EXPORT ====================
+
+    @Test
+    void shouldTransitionToApprovedForExportAsManager() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.APPROVED_FOR_EXPORT, "notas publicas", null, null);
+
+        assertNotNull(result);
+    }
+
+
+    // ==================== TRANSITION STATUS: COMPLETED ====================
+
+    @Test
+    void shouldTransitionToCompletedAndAudit() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.COMPLETED, "Solicitação atendida.", "notas internas", null);
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.COMPLETED, result.status());
+        verify(notificationService).notifyCompletionRequest(any());
+    }
+
+    @Test
+    void shouldTransitionToRejectedAndAudit() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.REJECTED, null, null, "motivo de rejeicao");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.REJECTED, result.status());
+        verify(notificationService).notifyRejectionRequest(any());
+    }
+
+    @Test
+    void shouldTransitionToCancelledAndAudit() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.CANCELLED, null, null, "cancelamento");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.CANCELLED, result.status());
+    }
+
+    @Test
+    void shouldThrowWhenRejectedWithoutClosedReason() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.IN_ANALYSIS);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.transitionStatus(requestId, LgpdRequestStatus.REJECTED, null, null, null));
+    }
+
+    @Test
+    void shouldThrowWhenCompletedWithoutPublicNotes() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.transitionStatus(requestId, LgpdRequestStatus.COMPLETED, null, null, null));
+    }
+
+    @Test
+    void shouldHandleNullAuditContextInApprovedForExportTransition() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.WAITING_LEGAL_REVIEW);
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(auditRequestContextService.extractContext()).thenReturn(null);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.APPROVED_FOR_EXPORT, "notas publicas", null, null);
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.APPROVED_FOR_EXPORT, result.status());
+    }
+
+    // ==================== VALIDATE CONSENT REVOCATION BEFORE CONCLUSION ====================
+
+    @Test
+    void shouldThrowWhenCompletingConsentRevocationWithoutExecution() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        // CONSENT_REVOCATION request, no revocation executed yet
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.CONSENT_REVOCATION, LgpdRequestStatus.IN_ANALYSIS,
+                "desc", null, Instant.now(), Instant.now(), null, null, null,
+                Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null,
+                ConsentType.BIOMETRIC_AUTHENTICATION, null, false
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.completeRequest(requestId, "notas", "int"));
+    }
+
+    @Test
+    void shouldThrowWhenPartiallyCompletingConsentRevocationWithoutExecutionOrJustification() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.CONSENT_REVOCATION, LgpdRequestStatus.WAITING_LEGAL_REVIEW,
+                "desc", null, Instant.now(), Instant.now(), null, null, null,
+                Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null,
+                ConsentType.BIOMETRIC_AUTHENTICATION, null, false
+        );
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.transitionStatus(requestId, LgpdRequestStatus.PARTIALLY_COMPLETED, "pub", null, null));
+    }
+
+    @Test
+    void shouldAllowPartiallyCompleteConsentRevocationWithNoActiveConsentFlag() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        // consentRevocationNoActiveConsent = true → allowed
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.CONSENT_REVOCATION, LgpdRequestStatus.WAITING_LEGAL_REVIEW,
+                "desc", null, Instant.now(), Instant.now(), null, null, null,
+                Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null,
+                ConsentType.BIOMETRIC_AUTHENTICATION, null, true
+        );
+
+        mockAdminRequestFetch(requestId, employeeId, companyId, request);
+        mockAuditRequestContext();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.transitionStatus(
+                requestId, LgpdRequestStatus.PARTIALLY_COMPLETED, "pub notes", null, null);
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.PARTIALLY_COMPLETED, result.status());
+    }
+
+    // ==================== EXECUTE DRY RUN ANONYMIZATION FOR REQUEST ====================
+
+    @Test
+    void shouldExecuteDryRunAnonymizationForRequest() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.ANONYMIZATION, LgpdRequestStatus.APPROVED_FOR_EXPORT,
+                "desc", null, Instant.now(), Instant.now(), null, null, null,
+                Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null,
+                null, null, false
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(buildEmployee(employeeId, companyId)));
+
+        var execResult = AnonymizationExecutionResult.success(
+                UUID.randomUUID(), employeeId, companyId, actorUserId,
+                AnonymizationResourceType.TIME_RECORD, "DRY_RUN", 10, 5, 2
+        );
+        when(anonymizationPlanExecutor.executePlanWithResults(any(), any())).thenReturn(List.of(execResult));
+
+        DryRunToken token = new DryRunToken(
+                UUID.randomUUID(), requestId, UUID.randomUUID(), employeeId, companyId,
+                actorUserId, Instant.now(), Instant.now().plusSeconds(900), null,
+                DryRunToken.Status.PENDING
+        );
+        when(dryRunTokenService.generateToken(any(), any(), any(), any())).thenReturn(token);
+
+        var result = service.executeDryRunAnonymizationForRequest(requestId);
+
+        assertNotNull(result);
+        assertNotNull(result.dryRunToken());
+        assertNotNull(result.dryRunToken());
+    }
+
+    @Test
+    void shouldThrowWhenDryRunRequestTypeIsInvalid() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.APPROVED_FOR_EXPORT);
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.executeDryRunAnonymizationForRequest(requestId));
+    }
+
+    @Test
+    void shouldThrowWhenDryRunStatusIsInvalid() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.ANONYMIZATION, LgpdRequestStatus.OPEN,
+                "desc", null, Instant.now(), Instant.now(), null, null, null,
+                Instant.now().plusSeconds(86400 * 15), "NORMAL", null, null, null,
+                null, null, false
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.executeDryRunAnonymizationForRequest(requestId));
+    }
+
+    // ==================== DRY RUN ANONYMIZE EMPLOYEE WITH RESULTS ====================
+
+    @Test
+    void shouldDryRunAnonymizeEmployeeWithResults() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        var execResult = AnonymizationExecutionResult.success(
+                UUID.randomUUID(), employeeId, companyId, actorUserId,
+                AnonymizationResourceType.TIME_RECORD, "DRY_RUN", 5, 3, 1
+        );
+        when(anonymizationPlanExecutor.executePlanWithResults(any(), any())).thenReturn(List.of(execResult));
+
+        var result = service.dryRunAnonymizeEmployee(employeeId);
+
+        assertNotNull(result);
+        assertNotNull(result.summary());
+        assertEquals(1, result.domains().size());
+    }
+
+    // ==================== LIST REQUESTS ====================
+
+    @Test
+    void shouldListRequestsAsCtowithEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest r = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(lgpdRequestProvider.findByEmployeeId(employeeId)).thenReturn(List.of(r));
+
+        List<LgpdRequest> results = service.listRequests(employeeId, null, null);
+
+        assertEquals(1, results.size());
+    }
+
+    @Test
+    void shouldListRequestsAsManagerWithEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        LgpdRequest r = buildRequest(employeeId, companyId, LgpdRequestType.ACCESS, LgpdRequestStatus.OPEN);
+        Employee employee = buildEmployee(employeeId, companyId);
+
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(employee);
+        when(lgpdRequestProvider.findByEmployeeId(employeeId)).thenReturn(List.of(r));
+
+        List<LgpdRequest> results = service.listRequests(employeeId, null, null);
+
+        assertEquals(1, results.size());
+    }
+
+    // ==================== EXECUTE CONSENT REVOCATION (non-biometric path) ====================
+
+    @Test
+    void shouldExecuteConsentRevocationForNonBiometricConsent() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.CONSENT_REVOCATION, LgpdRequestStatus.IN_ANALYSIS,
+                "Revogar consentimento de dados", null, Instant.now(), Instant.now(),
+                null, null, null, Instant.now().plusSeconds(86400 * 15), "NORMAL",
+                null, null, null,
+                ConsentType.PRIVACY_POLICY, null, false
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        LegalConsent consent = buildLegalConsent(employeeId, actorUserId);
+        when(legalConsentProvider.findActive(employeeId, ConsentType.PRIVACY_POLICY))
+                .thenReturn(Optional.of(consent));
+        when(legalConsentProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.executeConsentRevocation(requestId,
+                ConsentType.PRIVACY_POLICY, "justificativa valida", "127.0.0.1", "JUnit");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.COMPLETED, result.status());
+        verify(legalConsentProvider).save(any());
+    }
+
+    @Test
+    void shouldExecuteConsentRevocationWhenNoActiveConsent() {
+        UUID requestId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorUserId = UUID.randomUUID();
+        LgpdRequest request = new LgpdRequest(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(), companyId,
+                LgpdRequestType.CONSENT_REVOCATION, LgpdRequestStatus.IN_ANALYSIS,
+                "Revogar consentimento", null, Instant.now(), Instant.now(),
+                null, null, null, Instant.now().plusSeconds(86400 * 15), "NORMAL",
+                null, null, null,
+                ConsentType.PRIVACY_POLICY, null, false
+        );
+
+        when(lgpdRequestProvider.findById(requestId)).thenReturn(Optional.of(request));
+        when(domainAuthorizationService.authorizeEmployeeAccess(employeeId)).thenReturn(buildEmployee(employeeId, companyId));
+        when(domainAuthorizationService.authorizeCompanyAccess(companyId)).thenReturn(companyId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(actorUserId);
+
+        when(legalConsentProvider.findActive(employeeId, ConsentType.PRIVACY_POLICY))
+                .thenReturn(Optional.empty());
+        when(lgpdRequestProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(lgpdRequestHistoryProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        LgpdRequest result = service.executeConsentRevocation(requestId,
+                ConsentType.PRIVACY_POLICY, "justificativa", "127.0.0.1", "JUnit");
+
+        assertNotNull(result);
+        assertEquals(LgpdRequestStatus.PARTIALLY_COMPLETED, result.status());
+        verify(legalConsentProvider, never()).save(any());
+    }
+
 }

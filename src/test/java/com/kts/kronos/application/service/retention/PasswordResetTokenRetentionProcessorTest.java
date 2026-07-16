@@ -34,6 +34,16 @@ class PasswordResetTokenRetentionProcessorTest {
     }
 
     @Test
+    void testSupportsApply() {
+        assertTrue(processor.supportsApply());
+    }
+
+    @Test
+    void testIsDestructive() {
+        assertTrue(processor.isDestructive());
+    }
+
+    @Test
     void testExecuteDryRunWithNoExpiredTokens() {
         when(passwordResetTokenRepository.countExpiredBefore(any())).thenReturn(0L);
 

@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -239,4 +240,28 @@ class DocumentControllerWebMvcTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Documento não encontrado"));
     }
+    @Test
+    void shouldDownloadDocumentWithInvalidContentType_fallsBackToOctetStream() throws Exception {
+        UUID documentId = UUID.randomUUID();
+
+        DocumentWithData document = new DocumentWithData(
+                documentId,
+                null,
+                DocumentType.PAYSLIP,
+                "file.bin",
+                "invalid!!content-type",
+                "data".getBytes(StandardCharsets.UTF_8),
+                LocalDateTime.of(2026, 4, 17, 10, 0)
+        );
+
+        when(documentUseCase.downloadDocument(null, documentId)).thenReturn(document);
+
+        mockMvc.perform(get("/documents/{documentId}", documentId))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM));
+
+        verify(documentUseCase).downloadDocument(null, documentId);
+    }
+
+
 }

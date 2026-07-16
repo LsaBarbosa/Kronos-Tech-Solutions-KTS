@@ -15,21 +15,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.kts.kronos.adapter.out.persistence.entity.BlacklistedTokenEntity;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(MockitoExtension.class)
@@ -92,4 +86,79 @@ class TokenBlacklistProviderImplRedisTest {
         verify(redisTemplate).hasKey(key);
         verifyNoInteractions(repository);
     }
+
+    @Test
+    @DisplayName("addToBlacklist: usa repositório quando Redis está desabilitado")
+    void shouldFallbackToRepositoryWhenRedisDisabled() {
+        properties.setEnabled(false);
+        TokenBlacklistProviderImpl localProvider = new TokenBlacklistProviderImpl(repository);
+        String rawToken = "jwt-fallback-token";
+        java.util.Date expiration = java.util.Date.from(java.time.Instant.now().plusSeconds(60));
+
+        localProvider.addToBlacklist(rawToken, expiration);
+
+        verify(repository).save(any());
+    }
+
+    @Test
+    @DisplayName("addToBlacklist: usa repositório quando TTL é negativo (token já expirado)")
+    void shouldFallbackToRepositoryWhenTtlIsNegative() {
+        java.util.Date expiredDate = java.util.Date.from(java.time.Instant.now().minusSeconds(10));
+
+        provider.addToBlacklist("jwt-expired", expiredDate);
+
+        verify(repository).save(any());
+    }
+
+    @Test
+    @DisplayName("addToBlacklist: usa repositório quando Redis lança exceção")
+    void shouldFallbackToRepositoryWhenRedisThrows() {
+        doThrow(new RuntimeException("redis down"))
+                .when(valueOperations).set(any(), any(), any(java.time.Duration.class));
+
+        java.util.Date expiration = java.util.Date.from(java.time.Instant.now().plusSeconds(60));
+        provider.addToBlacklist("jwt-redis-fail", expiration);
+
+        verify(repository).save(any());
+    }
+
+    @Test
+    @DisplayName("isBlacklisted: usa repositório quando Redis está desabilitado")
+    void shouldFallbackToRepositoryCheckWhenRedisDisabled() {
+        properties.setEnabled(false);
+        TokenBlacklistProviderImpl localProvider = new TokenBlacklistProviderImpl(repository);
+        when(repository.existsByTokenHash(any())).thenReturn(true);
+
+        assertTrue(localProvider.isBlacklisted("some-token"));
+        verify(repository).existsByTokenHash(any());
+    }
+
+    @Test
+    @DisplayName("isBlacklisted: usa repositório quando Redis lança exceção")
+    void shouldFallbackToRepositoryCheckWhenRedisThrows() {
+        when(redisTemplate.hasKey(any())).thenThrow(new RuntimeException("redis down"));
+        when(repository.existsByTokenHash(any())).thenReturn(false);
+
+        assertFalse(provider.isBlacklisted("some-token"));
+        verify(repository).existsByTokenHash(any());
+    }
+
+    @Test
+    @DisplayName("deleteExpiredTokens: delega ao repositório quando Redis desabilitado")
+    void shouldDeleteExpiredTokensViaRepository() {
+        properties.setEnabled(false);
+        TokenBlacklistProviderImpl localProvider = new TokenBlacklistProviderImpl(repository);
+
+        localProvider.deleteExpiredTokens();
+
+        verify(repository).deleteExpiredTokens(any());
+    }
+
+    @Test
+    @DisplayName("deleteExpiredTokens: retorna sem chamar repositório quando Redis habilitado")
+    void shouldSkipRepositoryDeleteWhenRedisEnabled() {
+        provider.deleteExpiredTokens();
+        verify(repository, never()).deleteExpiredTokens(any());
+    }
+
 }

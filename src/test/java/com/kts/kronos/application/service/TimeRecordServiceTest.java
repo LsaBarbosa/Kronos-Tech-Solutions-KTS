@@ -578,4 +578,85 @@ class TimeRecordServiceTest {
         assertTrue(response.items().stream().anyMatch(item -> "TIME_OFF".equals(item.type())));
         assertTrue(response.items().stream().anyMatch(item -> "MANUAL_ADJUSTMENT".equals(item.type())));
     }
+
+    // ── validateFaceRecognition branches ─────────────────────────────────────
+
+    @Test
+    @DisplayName("validateFaceRecognition: base64 malformado lanca BadRequestException (IllegalArgumentException catch)")
+    void registerTime_invalidBase64_throwsBadRequest() {
+        // Arrange: tudo válido exceto o base64
+        String badBase64 = "not-valid-base64!!!@@@";
+        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, badBase64, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.registerTime(request));
+        assertTrue(ex.getMessage().contains("Base64") || ex.getMessage().contains("nválida"));
+    }
+
+    @Test
+    @DisplayName("validateFaceRecognition: provider lanca RuntimeException e é convertido em BadRequestException")
+    void registerTime_faceProviderThrowsRuntimeException_throwsBadRequest() {
+        // Arrange
+        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, validBase64, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class)))
+                .thenThrow(new RuntimeException("Provider indisponível"));
+
+        // Act & Assert - RuntimeException convertido para BadRequestException
+        assertThrows(BadRequestException.class, () -> service.registerTime(request));
+    }
+
+    // ── resolveTimeRecordFailureReason: unknown reason ────────────────────────
+
+    @Test
+    @DisplayName("resolveTimeRecordFailureReason: mensagem desconhecida retorna reason=unknown (return 'unknown')")
+    void registerTime_companyNotFound_propagatesException() {
+        // Arrange: face ok, mas company não encontrada -> reason=unknown
+        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, validBase64, false);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        // company NOT found -> lança ResourceNotFoundException com mensagem que não corresponde a nenhum reason conhecido
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.empty());
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+
+        // Act & Assert - ResourceNotFoundException (Empresa não encontrada) propagada
+        assertThrows(RuntimeException.class, () -> service.registerTime(request));
+    }
+
+    // ── acquireCheckinLock / releaseCheckinLock ────────────────────────────────
+
+    @Test
+    @DisplayName("registerTime: checkout de registro com status nao-PENDING lanca BadRequestException (STATUS_CHECKOUT)")
+    void registerTime_openRecordNotPending_throwsBadRequest() {
+        // Arrange: há um registro aberto com status CREATED (não PENDING) no mesmo dia
+        GeolocationRequest request = new GeolocationRequest(-22.0001, -43.0001, validBase64, false);
+
+        LocalDateTime todayStart = LocalDateTime.now(SAO_PAULO).toLocalDate().atStartOfDay();
+        TimeRecord openNonPending = new TimeRecord(
+                50L, todayStart.plusHours(8), null, StatusRecord.CREATED,
+                false, true, employeeId, -22.0, -43.0, null, null, 99L, null, todayStart.plusHours(8), null
+        );
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(employeeId);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(faceRecognitionProvider.searchFaceByImage(any(InputStream.class))).thenReturn(employeeId);
+        when(recordRepository.findOpenByEmployeeId(employeeId)).thenReturn(Optional.of(openNonPending));
+
+        // Act & Assert
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> service.registerTime(request));
+        assertTrue(ex.getMessage().contains("PENDING"));
+    }
+
 }

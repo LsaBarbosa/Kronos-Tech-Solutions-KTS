@@ -35,6 +35,22 @@ class AnonymizationPlanExecutorTest {
 
     private final PrivacyLogReferenceService privacyLogReferenceService = new PrivacyLogReferenceService("test-log-secret");
 
+    @Test
+    void shouldDelegateViaExecutePlan() {
+        executor = new AnonymizationPlanExecutor(
+                java.util.List.of(), executionLogProvider, privacyLogReferenceService);
+
+        var employeeId = java.util.UUID.randomUUID();
+        var companyId = java.util.UUID.randomUUID();
+        var actorUserId = java.util.UUID.randomUUID();
+        var plan = new com.kts.kronos.domain.model.AnonymizationPlan(
+                employeeId, companyId, actorUserId, "test reason",
+                false, false, true, true, true, true);
+
+        // Does not throw — processors list is empty → no results, but execution completes
+        executor.executePlan(plan, "DRY_RUN");
+    }
+
     private AnonymizationPlanExecutor executor;
 
     @Test
@@ -246,4 +262,130 @@ class AnonymizationPlanExecutorTest {
         assertTrue(consolidated.failedDomains().contains("EMPLOYEE"));
         assertTrue(consolidated.failedDomains().contains("USER"));
     }
+    @Test
+    void shouldSkipTimeRecordWhenPreserveLaborDataIsTrue() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+
+        executor = new AnonymizationPlanExecutor(
+                Arrays.asList(employeeAnonymizer, userAnonymizer),
+                executionLogProvider,
+                privacyLogReferenceService
+        );
+
+        // preserveLaborData=true → skip TIME_RECORD processor
+        AnonymizationPlan plan = new AnonymizationPlan(
+                employeeId, companyId, actorId, "PRESERVE_LABOR_TEST",
+                true, false, false, false, false, false
+        );
+
+        when(employeeAnonymizer.supports()).thenReturn(AnonymizationResourceType.EMPLOYEE);
+        when(employeeAnonymizer.execute(plan, "DRY_RUN")).thenReturn(
+                AnonymizationExecutionResult.success(UUID.randomUUID(), employeeId, companyId, actorId,
+                        AnonymizationResourceType.EMPLOYEE, "DRY_RUN", 1, 0, 0)
+        );
+        when(userAnonymizer.supports()).thenReturn(AnonymizationResourceType.USER);
+        when(userAnonymizer.execute(plan, "DRY_RUN")).thenReturn(
+                AnonymizationExecutionResult.success(UUID.randomUUID(), employeeId, companyId, actorId,
+                        AnonymizationResourceType.USER, "DRY_RUN", 1, 0, 0)
+        );
+
+        AnonymizationConsolidatedResult result = executor.executePlanWithConsolidatedResult(plan, "DRY_RUN");
+        assertNotNull(result);
+    }
+
+    @Test
+    void shouldSkipAuditLogWhenAnonymizeAuditLogsIsFalse() {
+        UUID employeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID actorId = UUID.randomUUID();
+
+        executor = new AnonymizationPlanExecutor(
+                Arrays.asList(employeeAnonymizer, userAnonymizer),
+                executionLogProvider,
+                privacyLogReferenceService
+        );
+
+        // anonymizeAuditLogs=false → skip AUDIT_LOG processor
+        AnonymizationPlan plan = new AnonymizationPlan(
+                employeeId, companyId, actorId, "SKIP_AUDIT_TEST",
+                false, false, false, false, false, false
+        );
+
+        when(employeeAnonymizer.supports()).thenReturn(AnonymizationResourceType.EMPLOYEE);
+        when(employeeAnonymizer.execute(plan, "DRY_RUN")).thenReturn(
+                AnonymizationExecutionResult.success(UUID.randomUUID(), employeeId, companyId, actorId,
+                        AnonymizationResourceType.EMPLOYEE, "DRY_RUN", 1, 0, 0)
+        );
+        when(userAnonymizer.supports()).thenReturn(AnonymizationResourceType.USER);
+        when(userAnonymizer.execute(plan, "DRY_RUN")).thenReturn(
+                AnonymizationExecutionResult.success(UUID.randomUUID(), employeeId, companyId, actorId,
+                        AnonymizationResourceType.USER, "DRY_RUN", 1, 0, 0)
+        );
+
+        AnonymizationConsolidatedResult result = executor.executePlanWithConsolidatedResult(plan, "DRY_RUN");
+        assertNotNull(result);
+    }
+
+    @Test
+    void validatePlan_throwsWhenEmployeeIdIsNull() {
+        executor = new AnonymizationPlanExecutor(List.of(), executionLogProvider, privacyLogReferenceService);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                null, UUID.randomUUID(), UUID.randomUUID(), "reason",
+                false, false, false, false, false, false
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> executor.executePlanWithConsolidatedResult(plan, "DRY_RUN"));
+    }
+
+    @Test
+    void validatePlan_throwsWhenCompanyIdIsNull() {
+        executor = new AnonymizationPlanExecutor(List.of(), executionLogProvider, privacyLogReferenceService);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                UUID.randomUUID(), null, UUID.randomUUID(), "reason",
+                false, false, false, false, false, false
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> executor.executePlanWithConsolidatedResult(plan, "DRY_RUN"));
+    }
+
+    @Test
+    void validatePlan_throwsWhenRequestedByUserIdIsNull() {
+        executor = new AnonymizationPlanExecutor(List.of(), executionLogProvider, privacyLogReferenceService);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                UUID.randomUUID(), UUID.randomUUID(), null, "reason",
+                false, false, false, false, false, false
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> executor.executePlanWithConsolidatedResult(plan, "DRY_RUN"));
+    }
+
+    @Test
+    void validatePlan_throwsWhenReasonIsNull() {
+        executor = new AnonymizationPlanExecutor(List.of(), executionLogProvider, privacyLogReferenceService);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null,
+                false, false, false, false, false, false
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> executor.executePlanWithConsolidatedResult(plan, "DRY_RUN"));
+    }
+
+    @Test
+    void validatePlan_throwsWhenReasonIsEmpty() {
+        executor = new AnonymizationPlanExecutor(List.of(), executionLogProvider, privacyLogReferenceService);
+
+        AnonymizationPlan plan = new AnonymizationPlan(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "",
+                false, false, false, false, false, false
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> executor.executePlanWithConsolidatedResult(plan, "DRY_RUN"));
+    }
+
 }

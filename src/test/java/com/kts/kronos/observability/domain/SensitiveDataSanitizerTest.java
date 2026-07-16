@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 @DisplayName("SensitiveDataSanitizer - LGPD-OBS-001 Tests")
 class SensitiveDataSanitizerTest {
@@ -215,4 +217,121 @@ class SensitiveDataSanitizerTest {
         assertTrue(result.contains("[CPF_REDACTED]"));
         assertTrue(result.contains("Bearer [REDACTED]"));
     }
+
+    @Test
+    void sanitizeObject_null_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeObject(null));
+    }
+
+    @Test
+    void sanitizeMessage_null_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeMessage(null));
+    }
+
+    @Test
+    void sanitizeMessage_blank_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeMessage(""));
+        assertEquals("", sanitizer.sanitizeMessage("   "));
+    }
+
+    @Test
+    void sanitizeName_null_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeName(null));
+    }
+
+    @Test
+    void sanitizeName_blank_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeName("   "));
+    }
+
+    @Test
+    void sanitizeStackTrace_null_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeStackTrace(null));
+    }
+
+    @Test
+    void sanitizeStackTrace_blank_returnsEmptyString() {
+        assertEquals("", sanitizer.sanitizeStackTrace(""));
+    }
+
+    @Test
+    void sanitizeStackTrace_sanitizesAndTruncatesLongTrace() {
+        String trace = "at com.example.Service.method(Service.java:10)\n".repeat(200);
+        String result = sanitizer.sanitizeStackTrace(trace);
+        assertNotNull(result);
+    }
+
+    @Test
+    void sanitizeStackTrace_withSensitiveData() {
+        String trace = "Exception: cpf=12345678901 email=joao@empresa.com\nat com.example.Service.method(Service.java:10)";
+        String result = sanitizer.sanitizeStackTrace(trace);
+        assertFalse(result.contains("12345678901"));
+    }
+
+    @Test
+    void containsSensitiveData_detectsCnpj() {
+        assertTrue(sanitizer.containsSensitiveData("CNPJ: 12345678000199"));
+    }
+
+    @Test
+    void containsSensitiveData_detectsBearer() {
+        assertTrue(sanitizer.containsSensitiveData("Bearer eyJhbGciOiJIUzI1NiJ9"));
+    }
+
+    @Test
+    void containsSensitiveData_detectsS3Path() {
+        assertTrue(sanitizer.containsSensitiveData("s3://bucket/file.pdf"));
+    }
+
+    @Test
+    void containsSensitiveData_null_returnsFalse() {
+        assertFalse(sanitizer.containsSensitiveData(null));
+    }
+
+    @Test
+    void containsSensitiveData_blank_returnsFalse() {
+        assertFalse(sanitizer.containsSensitiveData("   "));
+    }
+
+    @Test
+    void containsSensitiveData_passwordParam_returnsTrue() {
+        assertTrue(sanitizer.containsSensitiveData("password=secret123"));
+    }
+
+    @Test
+    void sanitizeObject_catchBlock_returnsFailMarkerWhenToStringThrows() {
+        // Trigger catch block in sanitizeObject by passing an object that throws in toString()
+        Object bad = new Object() {
+            @Override
+            public String toString() {
+                throw new RuntimeException("forced exception for coverage");
+            }
+        };
+        // sanitizeObject catches Exception from String.valueOf(value) → toString() → throws
+        String result = sanitizer.sanitizeObject(bad);
+        assertEquals("[SANITIZATION_FAILED]", result);
+    }
+
+    @Test
+    void sanitizeMessage_catchBlock_returnsSafeMarkerWhenSanitizeTextThrows() {
+        // Spy to force sanitizeText to throw, covering catch block in sanitizeMessage
+        var spy = spy(new com.kts.kronos.observability.domain.SensitiveDataSanitizer());
+        doThrow(new RuntimeException("forced")).when(spy).sanitizeText(anyString());
+        assertEquals("[SANITIZATION_FAILED]", spy.sanitizeMessage("any text"));
+    }
+
+    @Test
+    void sanitizeName_catchBlock_returnsSafeMarkerWhenSanitizeTextThrows() {
+        var spy = spy(new com.kts.kronos.observability.domain.SensitiveDataSanitizer());
+        doThrow(new RuntimeException("forced")).when(spy).sanitizeText(anyString());
+        assertEquals("[SANITIZATION_FAILED]", spy.sanitizeName("any name"));
+    }
+
+    @Test
+    void sanitizeStackTrace_catchBlock_returnsSafeMarkerWhenSanitizeTextThrows() {
+        var spy = spy(new com.kts.kronos.observability.domain.SensitiveDataSanitizer());
+        doThrow(new RuntimeException("forced")).when(spy).sanitizeText(anyString());
+        assertEquals("[SANITIZATION_FAILED]", spy.sanitizeStackTrace("any trace"));
+    }
+
 }

@@ -416,4 +416,150 @@ class RetentionPolicyExecutorTest {
                 Instant.now()
         );
     }
+
+    @Test
+    void validatePolicy_policyCodeNullIsNotValidated() {
+        // validatePolicy does not enforce policyCode - only policyType, resourceType, retentionDays
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        when(mockProcessor.execute(any(), any())).thenReturn(
+                com.kts.kronos.domain.model.RetentionExecutionResult.success(
+                        java.util.UUID.randomUUID(), null, RetentionResourceType.MESSAGE,
+                        "DRY_RUN", 5, 3, 2));
+        var policy = createPolicy(null, "MESSAGE", RetentionExecutionMode.DRY_RUN);
+        var result = executor.executePolicy(policy);
+        assertNotNull(result);
+    }
+
+    @Test
+    void validatePolicy_throwsWhenPolicyTypeIsNull() {
+        // Use canonical 13-arg constructor to pass null for policyType
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                (RetentionPolicyType) null,
+                "MESSAGE", 30, RetentionExecutionMode.DRY_RUN, true, true, true,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+    }
+
+    @Test
+    void validatePolicy_throwsWhenResourceTypeIsNull() {
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                RetentionPolicyType.TIME_BASED,
+                (String) null, 30, RetentionExecutionMode.DRY_RUN, true, true, false,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+    }
+
+    @Test
+    void validatePolicy_throwsForTimeBasedWithNullRetentionDays() {
+        // TIME_BASED (default via 12-arg convenience) with null retentionDays
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                RetentionPolicyType.TIME_BASED,
+                "MESSAGE", (Integer) null, RetentionExecutionMode.DRY_RUN, true, true, false,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+    }
+
+    @Test
+    void validatePolicy_throwsForTimeBasedWithZeroRetentionDays() {
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                "MESSAGE", 0, RetentionExecutionMode.DRY_RUN, true, true, false,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        assertThrows(IllegalArgumentException.class, () -> executor.executePolicy(policy));
+    }
+
+    @Test
+    void findProcessor_returnsErrorForResourceTypeWithNoProcessor() {
+        // DOCUMENT is a valid RetentionResourceType but no processor is registered for it
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                "DOCUMENT", 30, RetentionExecutionMode.DRY_RUN, true, true, false,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        var result = executor.executePolicy(policy);
+        assertEquals("ERROR", result.status());
+        assertTrue(result.notes().contains("No processor found"));
+    }
+
+    @Test
+    void getAvailableProcessors_returnsMap() {
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        var map = executor.getAvailableProcessors();
+        assertFalse(map.isEmpty());
+        assertTrue(map.containsKey("MESSAGE"));
+    }
+
+    @Test
+    void executePolicy_withApplyAndAllowApplyTrue() {
+        ReflectionTestUtils.setField(executor, "allowApply", true);
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        when(mockProcessor.supportsApply()).thenReturn(true);
+        when(mockProcessor.execute(any(), eq("APPLY"))).thenReturn(
+            com.kts.kronos.domain.model.RetentionExecutionResult.success(
+                UUID.randomUUID(), "CODE", RetentionResourceType.MESSAGE, "APPLY", 5L, 3L, 2L)
+        );
+
+        var policy = createPolicy("CODE", "MESSAGE", RetentionExecutionMode.APPLY);
+        var result = executor.executePolicy(policy);
+
+        assertEquals("SUCCESS", result.status());
+    }
+
+    @Test
+    void executePolicy_blockedWhenApplyNotSupported() {
+        ReflectionTestUtils.setField(executor, "allowApply", true);
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        when(mockProcessor.supportsApply()).thenReturn(false);
+
+        var policy = createPolicy("CODE", "MESSAGE", RetentionExecutionMode.APPLY);
+        var result = executor.executePolicy(policy);
+
+        assertEquals("BLOCKED", result.status());
+    }
+
+    @Test
+    void executePolicy_errorWhenNoProcessorForType() {
+        // Use DRY_RUN so allowApply check is skipped; processor list is empty (empty list would give error)
+        // But setUp adds mockProcessor, so use a different resource type
+        var policy = createPolicy("CODE", "LEGAL_CONSENT", RetentionExecutionMode.DRY_RUN);
+        // mockProcessor.supports() = MESSAGE, not LEGAL_CONSENT, so findProcessor returns empty
+        when(mockProcessor.supports()).thenReturn(RetentionResourceType.MESSAGE);
+        var result = executor.executePolicy(policy);
+        assertEquals("ERROR", result.status());
+    }
+    @Test
+    void validatePolicy_applyWithPreserveLaborData_skipsNoPreservationWarning() {
+        // BR L149 A=false: preserveLaborData=true → !preserveLaborData=false → short-circuit, no warn
+        // allowApply defaults to false → BLOCKED, but validatePolicy (incl. L149) still runs first
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                RetentionPolicyType.TIME_BASED,
+                "MESSAGE", 30, RetentionExecutionMode.APPLY,
+                true,
+                true,   // preserveLaborData=true → A=false at L149
+                false,
+                null, java.time.Instant.now(), java.time.Instant.now());
+        var result = executor.executePolicy(policy);
+        // allowApply=false → BLOCKED result; validatePolicy already ran and reached L149 A=false
+        assertEquals("BLOCKED", result.status());
+    }
+
+    @Test
+    void validatePolicy_applyWithPreserveFiscalDataOnly_coversL149BFalseBranch() {
+        // BR L149 B=false: preserveLaborData=false (→ A=true, evaluate B),
+        // preserveFiscalData=true (→ !preserveFiscalData=false → B=false → no log.warn)
+        var policy = new RetentionPolicy(
+                UUID.randomUUID(), "CODE", "desc",
+                RetentionPolicyType.TIME_BASED,
+                "MESSAGE", 30, RetentionExecutionMode.APPLY,
+                true,
+                false,  // preserveLaborData=false → !preserveLaborData=true (A=true)
+                true,   // preserveFiscalData=true → !preserveFiscalData=false (B=false)
+                null, java.time.Instant.now(), java.time.Instant.now());
+        var result = executor.executePolicy(policy);
+        assertEquals("BLOCKED", result.status());
+    }
+
 }
