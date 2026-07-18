@@ -111,4 +111,22 @@ class ClientIpResolverCoverageTest {
         assertEquals("X_REAL_IP", resolution.source());
     }
 
+
+    // L70: isValidForwardedFor loop — a non-first hop is an invalid IP → return false
+    @Test
+    void resolve_xForwardedFor_invalidSecondHop_returnsFalseAndFallsBack() {
+        // First hop is valid IP; second hop is not a valid IP → loop finds invalid hop → L70 return false
+        properties.setTrustForwardedHeaders(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("127.0.0.1/32"));
+
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.1, not-a-valid-ip");
+        when(request.getHeader("X-Real-IP")).thenReturn("10.0.0.5");
+
+        var resolution = resolver.resolveWithDetails(request);
+
+        // isValidForwardedFor returns false (invalid 2nd hop) → falls back to X-Real-IP
+        assertEquals("10.0.0.5", resolution.ipAddress());
+        assertEquals("X_REAL_IP", resolution.source());
+    }
 }

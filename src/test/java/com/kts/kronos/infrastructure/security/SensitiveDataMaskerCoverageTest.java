@@ -4,6 +4,12 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import static org.mockito.Mockito.mockStatic;
+
 /**
  * Supplemental coverage for SensitiveDataMasker:
  * - Constructor instantiation (L9)
@@ -95,4 +101,5 @@ class SensitiveDataMaskerCoverageTest {
     void maskJwt_null_returnsInvalidJwt() {
         assertEquals("[INVALID_JWT]", SensitiveDataMasker.maskJwt(null));
     }
+
 }

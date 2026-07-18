@@ -358,4 +358,18 @@ class DigitalSignatureServiceTest {
         }
         return baos.toByteArray();
     }
+    @Test
+    @DisplayName("signPdf: arquivo corrompido (nao PKCS12) gera DSE com mensagem de falha de leitura")
+    void shouldWrapNonPasswordIoExceptionInSignPdf() throws Exception {
+        java.nio.file.Path corrupt = tempDir.resolve("corrupt-pdf.p12");
+        java.nio.file.Files.write(corrupt, "not-a-pkcs12-file-xxxxxxxxxxxxxxxx".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        DigitalSignatureService svc = service(corrupt, "whatever");
+        byte[] pdf = createMinimalPdf();
+        // IOException is thrown with message NOT containing "password" → FALSE branch → "Falha ao ler o certificado digital ou o PDF."
+        assertThatThrownBy(() -> svc.signPdf(pdf, "reason", "loc"))
+                .isInstanceOf(DigitalSignatureException.class)
+                .hasMessageContaining("Falha ao ler o certificado digital ou o PDF.");
+    }
+
+
 }

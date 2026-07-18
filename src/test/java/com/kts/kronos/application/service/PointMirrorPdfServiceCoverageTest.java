@@ -32,6 +32,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import com.itextpdf.layout.Document;
+import org.mockito.MockedConstruction;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mockConstruction;
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PointMirrorPdfServiceCoverageTest {
@@ -188,5 +194,57 @@ class PointMirrorPdfServiceCoverageTest {
             0,
             0
         );
+    }
+    // ── L186/L187 FALSE: hash != null but length < 16 → "—" (short hash) ────────
+
+    @Test
+    void generateMirrorWithSignatureStamp_withShortHash_usesDash() {
+        Employee employee = buildEmployee(EMPLOYEE_ID, COMPANY_ID, LocalTime.of(9,0), LocalTime.of(18,0));
+        when(domainAuthorizationService.authorizeEmployeeAccess(EMPLOYEE_ID)).thenReturn(employee);
+        when(recordRepository.findByRange(eq(EMPLOYEE_ID), any(), any())).thenReturn(List.of());
+
+        // hash has 8 characters → length < 16 → condition FALSE → uses "—"
+        PointMirrorPdfUseCase.SignatureStamp stamp = new PointMirrorPdfUseCase.SignatureStamp(
+            "Carlos Lima",
+            Instant.now(),
+            "1.1",
+            "AABBCCDD"  // length=8, less than 16
+        );
+
+        byte[] pdf = service.generateMirrorWithSignatureStamp(EMPLOYEE_ID, WEEKDAY, WEEKDAY, stamp);
+        assertTrue(pdf.length > 0);
+    }
+
+    // ── L265 TRUE: r.startWork() != null → treatedSb.append startWork ───────────
+
+    @Test
+    void generateMirror_withNonNullStartWorkRecord_coversStartWorkTrueBranch() {
+        Employee employee = buildEmployee(EMPLOYEE_ID, COMPANY_ID, LocalTime.of(9,0), LocalTime.of(18,0));
+        when(domainAuthorizationService.authorizeEmployeeAccess(EMPLOYEE_ID)).thenReturn(employee);
+
+        // startWork != null → L265 TRUE → treatedSb.append(startWork.format(...) + "E ")
+        TimeRecord recordWithStart = new TimeRecord(EMPLOYEE_ID)
+                .withCheckin(java.time.LocalDateTime.of(2026, 7, 1, 9, 0));
+        when(recordRepository.findByRange(eq(EMPLOYEE_ID), any(), any())).thenReturn(List.of(recordWithStart));
+
+        byte[] pdf = service.generateMirror(EMPLOYEE_ID, WEEKDAY, WEEKDAY);
+        assertTrue(pdf.length > 0);
+    }
+
+
+
+    // L152-153: IOException catch inside generateMirror lambda — document.close() throws
+    @Test
+    void generateMirror_ioExceptionInLambda_throwsRuntimeException() {
+        Employee employee = buildEmployee(EMPLOYEE_ID, COMPANY_ID, LocalTime.of(9, 0), LocalTime.of(18, 0));
+        when(domainAuthorizationService.authorizeEmployeeAccess(EMPLOYEE_ID)).thenReturn(employee);
+        when(recordRepository.findByRange(eq(EMPLOYEE_ID), any(), any())).thenReturn(List.of());
+
+        try (MockedConstruction<Document> mockDoc = mockConstruction(Document.class, (mock, ctx) ->
+                doThrow(new java.io.IOException("forced close failure")).when(mock).close())) {
+
+            assertThrows(RuntimeException.class,
+                    () -> service.generateMirror(EMPLOYEE_ID, WEEKDAY, WEEKDAY));
+        }
     }
 }

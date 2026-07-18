@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import java.net.InetAddress;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * Supplemental coverage for IpAddressValidator:
@@ -36,5 +40,21 @@ class IpAddressValidatorCoverageTest {
     void isTrustedProxy_cidrWithTwoSlashes_returnsFalse() {
         // "10.0.0.0/8/extra" → split → 3 parts → length=3 ≠ 2 → return false (L44/45)
         assertFalse(IpAddressValidator.isTrustedProxy("10.0.0.1", List.of("10.0.0.0/8/extra")));
+    }
+
+    // L34-35: catch (Exception e) in isTrustedProxy — InetAddress.getByName throws on second call
+    @Test
+    void isTrustedProxy_inetAddressThrows_returnsFalse() throws Exception {
+        InetAddress realAddr = InetAddress.getByName("192.168.1.1");
+        try (MockedStatic<InetAddress> mockInet = mockStatic(InetAddress.class, Answers.CALLS_REAL_METHODS)) {
+            // First call (in isValidIpAddress) → real result so it returns true
+            // Second call (in isTrustedProxy try block) → throws exception → L34-35
+            mockInet.when(() -> InetAddress.getByName("192.168.1.1"))
+                    .thenReturn(realAddr)
+                    .thenThrow(new java.net.UnknownHostException("simulated"));
+
+            boolean result = IpAddressValidator.isTrustedProxy("192.168.1.1", List.of("10.0.0.0/8"));
+            assertFalse(result);
+        }
     }
 }

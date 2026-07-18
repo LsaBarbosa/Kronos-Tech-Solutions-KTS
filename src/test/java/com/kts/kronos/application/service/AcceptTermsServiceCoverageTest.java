@@ -27,6 +27,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import java.lang.reflect.InvocationTargetException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -189,5 +196,25 @@ class AcceptTermsServiceCoverageTest {
                 "Parágrafo inicial.", hash,
                 true, Instant.parse("2026-05-21T09:00:00Z"), Instant.parse("2026-05-21T09:05:00Z")
         );
+    }
+
+    // L296-297: NoSuchAlgorithmException catch in private calculateSha256
+    @Test
+    void calculateSha256_throwsRuntimeException_whenMessageDigestUnavailable() throws Exception {
+        var method = AcceptTermsService.class.getDeclaredMethod("calculateSha256", byte[].class);
+        method.setAccessible(true);
+
+        try (MockedStatic<MessageDigest> mockMd = mockStatic(MessageDigest.class, Answers.CALLS_REAL_METHODS)) {
+            mockMd.when(() -> MessageDigest.getInstance("SHA-256"))
+                  .thenThrow(new NoSuchAlgorithmException("SHA-256 unavailable"));
+
+            assertThatThrownBy(() -> {
+                try {
+                    method.invoke(service, new byte[]{1, 2, 3});
+                } catch (InvocationTargetException e) {
+                    throw e.getCause();
+                }
+            }).isInstanceOf(RuntimeException.class);
+        }
     }
 }

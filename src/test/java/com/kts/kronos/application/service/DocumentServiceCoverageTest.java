@@ -41,6 +41,14 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import java.lang.reflect.InvocationTargetException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mockStatic;
+
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -419,5 +427,73 @@ class DocumentServiceCoverageTest {
             zos.closeEntry();
         }
         return baos.toByteArray();
+    }
+    // ── isDocx — ZIP with 201 entries → entriesRead reaches 200 → loop exits (BR L458 FALSE) ─
+
+    @Test
+    @DisplayName("isDocx: ZIP com 201 entradas sem marcadores DOCX → entriesRead>=200 → return false (BR L458 FALSE)")
+    void uploadDocument_zipWith201Entries_entriesReadExceedsLimit_returnsFalse() throws Exception {
+        UUID empId = UUID.randomUUID();
+        Employee employee = buildEmployee(empId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(empId)).thenReturn(employee);
+
+        byte[] manyEntriesZip = buildZipWithEntries(201);
+        MockMultipartFile file = new MockMultipartFile("file", "file.pdf", "application/pdf", manyEntriesZip);
+
+        // ZIP has 201 entries, none with DOCX markers → loop exits when entriesRead=200 (L458 FALSE)
+        // → isDocx returns false → detectRealMimeType returns "" → MIME not allowed → BadRequestException
+        assertThrows(BadRequestException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, empId, file));
+    }
+
+    private static byte[] buildZipWithEntries(int count) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            for (int i = 0; i < count; i++) {
+                zos.putNextEntry(new ZipEntry("entry-" + i + ".txt"));
+                zos.write(("content-" + i).getBytes());
+                zos.closeEntry();
+            }
+        }
+        return baos.toByteArray();
+    }
+
+
+
+    // L410: sanitizeFileName — all-dots filename → baseName blank after stripping leading dots
+    @Test
+    @DisplayName("uploadDocument: filename com apenas pontos → baseName vazio após strip → BadRequestException (L410)")
+    void uploadDocument_allDotsFilename_throwsBadRequest() {
+        UUID empId = UUID.randomUUID();
+        Employee employee = buildEmployee(empId);
+        when(domainAuthorizationService.authorizeEmployeeAccess(empId)).thenReturn(employee);
+
+        // "....." → after replaceAll("^\\.", "") → "" → isBlank() = true → L410
+        MockMultipartFile file = new MockMultipartFile("file", ".....", "application/pdf",
+                "%PDF-1.4 content".getBytes());
+
+        assertThrows(BadRequestException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, empId, file));
+    }
+
+    // L510-511: calculateSha256 private — NoSuchAlgorithmException catch via reflection
+    @Test
+    @DisplayName("calculateSha256: NoSuchAlgorithmException → RuntimeException (L510-511)")
+    void calculateSha256_throwsRuntimeException_whenMessageDigestUnavailable() throws Exception {
+        var method = DocumentService.class.getDeclaredMethod("calculateSha256", byte[].class);
+        method.setAccessible(true);
+
+        try (MockedStatic<MessageDigest> mockMd = mockStatic(MessageDigest.class, Answers.CALLS_REAL_METHODS)) {
+            mockMd.when(() -> MessageDigest.getInstance("SHA-256"))
+                  .thenThrow(new NoSuchAlgorithmException("SHA-256 unavailable"));
+
+            assertThatThrownBy(() -> {
+                try {
+                    method.invoke(service, new byte[]{1, 2, 3});
+                } catch (InvocationTargetException e) {
+                    throw e.getCause();
+                }
+            }).isInstanceOf(RuntimeException.class);
+        }
     }
 }
