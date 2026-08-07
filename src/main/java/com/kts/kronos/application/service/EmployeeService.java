@@ -20,7 +20,9 @@ import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.adapter.in.web.dto.employee.PartnerHardDeleteRequest;
 import com.kts.kronos.application.service.AuditService;
+import com.kts.kronos.application.service.PartnerHardDeleteService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.AuditAction;
@@ -30,9 +32,11 @@ import com.kts.kronos.observability.application.KronosMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.kts.kronos.application.util.FaceImageValidator;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -63,6 +67,8 @@ public class EmployeeService implements EmployeeUseCase {
     private final CompanyProvider companyProvider;
     private final CacheProvider cacheProvider;
     private final MessageDeliveryProvider messageDeliveryProvider;
+    private final PartnerHardDeleteService partnerHardDeleteService;
+    private final PasswordEncoder passwordEncoder;
 
     // MANAGER
     @Override
@@ -162,7 +168,7 @@ public class EmployeeService implements EmployeeUseCase {
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
         var items = employees.stream()
-                .map(e -> EmployeeListItemResponse.fromDomain(e, companyName))
+                .map(e -> EmployeeDetailResponse.fromDomain(e, companyName, null))
                 .toList();
         return new EmployeeListResponse(items);
     }
@@ -244,6 +250,63 @@ public class EmployeeService implements EmployeeUseCase {
 
 
     @Override
+    public void hardDeletePartner(UUID employeeId, PartnerHardDeleteRequest req) {
+        // 1. Authorization: loads employee and validates same-company (throws 404 for cross-company)
+        var targetEmployee = getEmployee(employeeId);
+
+        // 2. Role enforcement: only PARTNER employees can be deleted via this path
+        var targetUser = userProvider.findByEmployeeId(employeeId)
+                .orElseThrow(() -> new com.kts.kronos.application.exceptions.ResourceNotFoundException(USER_NOT_FOUND));
+        if (targetUser.role() != Role.PARTNER) {
+            throw new ForbiddenException("Apenas colaboradores com perfil PARTNER podem ser excluídos por esta operação.");
+        }
+
+        // 3. Face verification: must match the authenticated manager's face
+        var managerEmployeeId = jwtAuthenticatedUser.getEmployeeId();
+        biometricProtectionService.protectPartnerHardDelete(managerEmployeeId, req.faceImageBase64());
+        try {
+            byte[] imageBytes = Base64.getDecoder().decode(req.faceImageBase64());
+            FaceImageValidator.validateMagicBytes(imageBytes);
+            var recognizedId = faceRecognitionProvider.searchFaceByImage(new ByteArrayInputStream(imageBytes));
+            if (!recognizedId.equals(managerEmployeeId)) {
+                log.warn("event=partner_hard_delete_face_mismatch managerRef={} recognizedRef={}",
+                        managerEmployeeId, recognizedId);
+                throw new ForbiddenException("Verificação biométrica falhou. O rosto capturado não corresponde ao seu cadastro.");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Imagem biométrica inválida: formato Base64 incorreto.");
+        }
+
+        // 4. Password verification: must match the authenticated manager's password
+        var managerUser = userProvider.findById(jwtAuthenticatedUser.getuserId())
+                .orElseThrow(() -> new com.kts.kronos.application.exceptions.ResourceNotFoundException(USER_NOT_FOUND));
+        if (!passwordEncoder.matches(req.password(), managerUser.password())) {
+            log.warn("event=partner_hard_delete_password_invalid managerRef={}", managerEmployeeId);
+            throw new ForbiddenException("Senha incorreta. A exclusão não foi autorizada.");
+        }
+
+        // 5. Two-phase hard delete (external systems then DB)
+        var failures = partnerHardDeleteService.hardDelete(employeeId);
+
+        // 6. Audit
+        auditService.register(
+                AuditAction.PARTNER_HARD_DELETE_BY_MANAGER,
+                jwtAuthenticatedUser.getuserId(),
+                employeeId,
+                targetEmployee.companyId(),
+                "EMPLOYEE",
+                employeeId.toString(),
+                "CRITICAL",
+                null, null,
+                "Hard delete de PARTNER por manager. Nome: " + targetEmployee.fullName() +
+                        (failures.isEmpty() ? "" : " | externalFailures:" + failures.size())
+        );
+
+        invalidateEmployeeCaches();
+        log.info("event=partner_hard_delete_success managerRef={} targetRef={}", managerEmployeeId, employeeId);
+    }
+
+    @Override
     public void deleteEmployee(UUID id) {
         var employee = getEmployee(id);
 
@@ -258,10 +321,8 @@ public class EmployeeService implements EmployeeUseCase {
     @Override
     public EmployeeProfile getOwnProfile() {
         UUID employeeId = jwtAuthenticatedUser.getEmployeeId();
-        var employee = getEmployee(employeeId);
-        // Role comes from the JWT (Spring Security context) — covers both single-company
-        // (User.employee_id) and multi-company (tb_user_company_access.employee_id) users
-        // without querying User.employee_id which only exists for the primary company.
+        var employee = employeeProvider.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
         var role = jwtAuthenticatedUser.getCurrentRole().name();
         return new EmployeeProfile(employee, role);
     }
@@ -342,6 +403,12 @@ public class EmployeeService implements EmployeeUseCase {
                     String companyName = companyProvider.findById(employee.companyId())
                             .map(Company::name)
                             .orElse("");
+                    var role = jwtAuthenticatedUser.getCurrentRole();
+                    boolean isCrossCompany = role != Role.CTO
+                            && !employee.companyId().equals(getCompanyIdFromLoggedUser());
+                    if (isCrossCompany) {
+                        return EmployeeDetailResponse.forCrossCompanyOnboarding(employee, companyName);
+                    }
                     return EmployeeDetailResponse.fromDomain(employee, companyName, null);
                 });
     }
@@ -422,7 +489,7 @@ public class EmployeeService implements EmployeeUseCase {
                     .map(Company::name)
                     .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND));
 
-            return EmployeeListItemResponse.fromDomain(employee, companyName);
+            return EmployeeDetailResponse.fromDomain(employee, companyName, null);
         }).toList();
         return new EmployeeListResponse(employeeResponses);
     }
@@ -439,6 +506,7 @@ public class EmployeeService implements EmployeeUseCase {
         try {
             // 1. Decodifica e cria Stream da Imagem
             byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
+            FaceImageValidator.validateMagicBytes(imageBytes);
             ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes);
 
             // 2. Upload para o S3 (cria um novo arquivo)
