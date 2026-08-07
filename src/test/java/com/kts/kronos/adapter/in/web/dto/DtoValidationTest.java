@@ -69,6 +69,10 @@ class DtoValidationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -104,6 +108,10 @@ class DtoValidationTest {
                         new AddressRequest("12345678", "10"),
                         null,
                         false,
+                        null,
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         null,

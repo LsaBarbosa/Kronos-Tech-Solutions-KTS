@@ -53,14 +53,18 @@ public record CreateEmployeeRequest(
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakEndTime,
         WorkScheduleType scheduleType,       // Ex: SIX_BY_ONE_TWO_WEEKENDS
 
         @JsonFormat(pattern = "yyyy-MM-dd")
-        LocalDate scaleStartDate,            // Data início (para cálculo de 6x1 ou 12x36)
+        LocalDate scaleStartDate,            // Data inicio (para calculo de 6x1 ou 12x36)
 
         DayOfWeek preferredDayOff,           // Dia fixo da folga (Ex: THURSDAY)
 
-        Integer weekendOffIndex,             // Índice do fim de semana (1, 2, 3...)
+        Integer weekendOffIndex,             // Indice do fim de semana (1, 2, 3...)
 
         Set<DayOfWeek> fixedWorkDays         // Lista de dias fixos (Para escala tradicional)
 ) {

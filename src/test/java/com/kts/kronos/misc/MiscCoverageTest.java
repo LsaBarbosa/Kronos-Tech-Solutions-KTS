@@ -414,7 +414,7 @@ class MiscCoverageTest {
         var req = new com.kts.kronos.adapter.in.web.dto.employee.CreateEmployeeRequest(
                 "Ana Lima", "12345678901", null, "Analista", "ana@kts.com",
                 3000.0, null, null, UUID.randomUUID(), false,
-                "base64FaceData", null, null, null, null, null, null, null, null, null
+                "base64FaceData", null, null, null, null, null, null, null, null, null, null, null, null, null
         );
         String str = req.toString();
         assertTrue(str.contains("Ana Lima"));
@@ -429,7 +429,7 @@ class MiscCoverageTest {
         var req = new com.kts.kronos.adapter.in.web.dto.employee.UpdateEmployeeManagerRequest(
                 "Carlos", "12345678901", null, "Dev", "carlos@kts.com",
                 4000.0, null, null, null, "faceBase64Data",
-                null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null, null, null, null
         );
         String str = req.toString();
         assertTrue(str.contains("Carlos"));

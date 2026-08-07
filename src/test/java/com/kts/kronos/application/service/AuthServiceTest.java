@@ -642,6 +642,10 @@ class AuthServiceTest {
                 null,  // workEndTime
                 null,  // breakStartTime
                 null,  // breakEndTime
+                null,  // weekendWorkStartTime
+                null,  // weekendWorkEndTime
+                null,  // weekendBreakStartTime
+                null,  // weekendBreakEndTime
                 null,  // scheduleType
                 null,  // scaleStartDate
                 null,  // preferredDayOff
@@ -747,7 +751,7 @@ class AuthServiceTest {
         UUID rUserId = UUID.randomUUID();
         UUID rEmpId = UUID.randomUUID();
         Employee rEmp = new Employee(rEmpId, "N", "cpf", "rg", "t", "e@k.com", 0.0, "p", true, null,
-                UUID.randomUUID(), null, false, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                UUID.randomUUID(), null, false, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         User rUser = new User(rUserId, "u@k.com", "hash", Role.PARTNER, true, rEmpId, 0L, null, null, null);
 
         io.jsonwebtoken.Claims rClaims = mock(io.jsonwebtoken.Claims.class);

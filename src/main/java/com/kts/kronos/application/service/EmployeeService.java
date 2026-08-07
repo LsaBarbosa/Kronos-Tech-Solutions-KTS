@@ -120,12 +120,19 @@ public class EmployeeService implements EmployeeUseCase {
                 end,
                 breakStart,
                 breakEnd,
+                req.weekendWorkStartTime(),
+                req.weekendWorkEndTime(),
+                req.weekendBreakStartTime(),
+                req.weekendBreakEndTime(),
                 // Novos Campos de Escala
                 req.scheduleType(),
                 req.scaleStartDate(),
                 req.preferredDayOff(),
                 req.weekendOffIndex(),
-                req.fixedWorkDays()
+                req.fixedWorkDays(),
+                null,
+                null,
+                null
         );
 
         Employee savedEmployee;
@@ -223,12 +230,18 @@ public class EmployeeService implements EmployeeUseCase {
                 req.workEndTime() != null ? req.workEndTime() : existingEmployee.workEndTime(),
                 req.breakStartTime() != null ? req.breakStartTime() : existingEmployee.breakStartTime(),
                 req.breakEndTime() != null ? req.breakEndTime() : existingEmployee.breakEndTime(),
+                req.weekendWorkStartTime() != null ? req.weekendWorkStartTime() : existingEmployee.weekendWorkStartTime(),
+                req.weekendWorkEndTime() != null ? req.weekendWorkEndTime() : existingEmployee.weekendWorkEndTime(),
+                req.weekendBreakStartTime() != null ? req.weekendBreakStartTime() : existingEmployee.weekendBreakStartTime(),
+                req.weekendBreakEndTime() != null ? req.weekendBreakEndTime() : existingEmployee.weekendBreakEndTime(),
                 req.scheduleType() != null ? req.scheduleType() : existingEmployee.scheduleType(),
                 req.scaleStartDate() != null ? req.scaleStartDate() : existingEmployee.scaleStartDate(),
                 req.preferredDayOff() != null ? req.preferredDayOff() : existingEmployee.preferredDayOff(),
                 req.weekendOffIndex() != null ? req.weekendOffIndex() : existingEmployee.weekendOffIndex(),
-                req.fixedWorkDays() != null ? req.fixedWorkDays() : existingEmployee.fixedWorkDays()
-
+                req.fixedWorkDays() != null ? req.fixedWorkDays() : existingEmployee.fixedWorkDays(),
+                existingEmployee.deletedAt(),
+                existingEmployee.deletedBy(),
+                existingEmployee.deactivationReason()
         );
 
         if (req.address() != null) {
@@ -523,11 +536,18 @@ public class EmployeeService implements EmployeeUseCase {
                 existing.workEndTime(),
                 existing.breakStartTime(),
                 existing.breakEndTime(),
+                req.weekendWorkStartTime(),
+                req.weekendWorkEndTime(),
+                req.weekendBreakStartTime(),
+                req.weekendBreakEndTime(),
                 req.scheduleType(),
                 req.scaleStartDate(),
                 req.preferredDayOff(),
                 req.weekendOffIndex(),
-                req.fixedWorkDays()
+                req.fixedWorkDays(),
+                null,
+                null,
+                null
                 // Mantém a chave antiga temporariamente
         );
 

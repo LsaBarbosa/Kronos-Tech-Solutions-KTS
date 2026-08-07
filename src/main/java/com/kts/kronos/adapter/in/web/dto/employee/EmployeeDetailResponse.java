@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /**
  * SPEC-002: DTO detalhado para consulta individual e detalhe gerencial.
- * Inclui dados administrativos necessários para gestor autorizado.
+ * Inclui dados administrativos necessarios para gestor autorizado.
  */
 public record EmployeeDetailResponse(
         UUID employeeId,
@@ -39,6 +39,10 @@ public record EmployeeDetailResponse(
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakEndTime,
         WorkScheduleType scheduleType,
 
         @JsonFormat(pattern = "yyyy-MM-dd")
@@ -76,6 +80,10 @@ public record EmployeeDetailResponse(
                 employee.workEndTime(),
                 employee.breakStartTime(),
                 employee.breakEndTime(),
+                employee.weekendWorkStartTime(),
+                employee.weekendWorkEndTime(),
+                employee.weekendBreakStartTime(),
+                employee.weekendBreakEndTime(),
                 employee.scheduleType(),
                 employee.scaleStartDate(),
                 employee.preferredDayOff(),

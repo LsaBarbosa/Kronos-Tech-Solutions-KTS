@@ -135,6 +135,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY)
         );
 
@@ -182,6 +186,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 null,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -250,6 +258,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -298,6 +310,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 DayOfWeek.FRIDAY,
                 2,
                 Set.of(DayOfWeek.MONDAY)
@@ -325,6 +341,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 outraEmpresaId,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -372,6 +392,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -396,6 +420,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 companyId,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -435,6 +463,10 @@ class EmployeeServiceTest {
                 companyId,
                 false,
                 "%%%invalid%%%",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -555,6 +587,10 @@ class EmployeeServiceTest {
                 LocalTime.of(16, 0),
                 LocalTime.of(11, 30),
                 LocalTime.of(12, 30),
+                null,
+                null,
+                null,
+                null,
                 WorkScheduleType.TRADITIONAL_5X2,
                 LocalDate.of(2026, 4, 1),
                 DayOfWeek.FRIDAY,
@@ -590,7 +626,8 @@ class EmployeeServiceTest {
         Employee target = buildEmployee(targetId, companyId);
         UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null,
+                null, null, null, null, null
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
@@ -802,6 +839,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 DayOfWeek.FRIDAY,
                 2,
                 Set.of(DayOfWeek.MONDAY)
@@ -834,6 +875,10 @@ class EmployeeServiceTest {
                 LocalTime.of(17, 0),
                 LocalTime.of(12, 0),
                 LocalTime.of(13, 0),
+                null,
+                null,
+                null,
+                null,
                 WorkScheduleType.TRADITIONAL_5X2,
                 null,
                 DayOfWeek.FRIDAY,
@@ -895,6 +940,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -924,6 +973,10 @@ class EmployeeServiceTest {
                 LocalTime.of(17, 0),
                 LocalTime.of(12, 0),
                 LocalTime.of(13, 0),
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

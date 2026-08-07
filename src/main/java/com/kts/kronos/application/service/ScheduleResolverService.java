@@ -29,11 +29,17 @@ public class ScheduleResolverService {
             return DailySchedule.workDay(ex.workStartTime(), ex.workEndTime(), ex.breakStartTime(), ex.breakEndTime());
         }
 
-        // 2. Legacy schedule logic
+        // 2. Weekend schedule override
+        DayOfWeek dow = date.getDayOfWeek();
+        if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && emp.weekendWorkStartTime() != null) {
+            return DailySchedule.workDay(emp.weekendWorkStartTime(), emp.weekendWorkEndTime(), emp.weekendBreakStartTime(), emp.weekendBreakEndTime());
+        }
+
+        // 3. Legacy schedule logic
         boolean isWorkDay = resolveIsWorkDay(emp, date);
         if (!isWorkDay) return DailySchedule.dayOff();
 
-        // 3. Return employee default schedule
+        // 4. Return employee default schedule
         return DailySchedule.workDay(
                 emp.workStartTime(),
                 emp.workEndTime(),

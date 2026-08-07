@@ -97,6 +97,7 @@ class EmployeeServiceCoverageTest {
                 UUID.randomUUID(), false,
                 "   ", // blank → !isBlank() = false → condition at L70 is FALSE
                 null, null, null, null,
+                null, null, null, null,
                 null, null, null, null, Set.of(DayOfWeek.MONDAY)
         );
 
@@ -134,6 +135,7 @@ class EmployeeServiceCoverageTest {
         var req = new UpdateEmployeeManagerRequest(
                 null, null, null, null, null, null, null, null, null,
                 "   ", // blank faceImageBase64 → !isBlank() = false → condition FALSE
+                null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null
         );
