@@ -15,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.DailySchedule;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
@@ -54,6 +55,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final DomainAuthorizationService domainAuthorizationService;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+    private final ScheduleResolverService scheduleResolver;
 
 
 
@@ -245,13 +247,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         var worked = Duration.ZERO;
 
         // 1. Determina a expectativa de trabalho para este dia específico
-        long expectedMinutes = employee.getDailyWorkMinutes(); // Método real do Employee
-        boolean isWeekend = (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY);
-
-        // Em produção, se for FDS, a expectativa padrão é zero (hora extra 100% se trabalhar)
-        if (isWeekend) {
-            expectedMinutes = 0;
-        }
+        DailySchedule dailySchedule = scheduleResolver.resolveForDate(employee, date);
+        long expectedMinutes = dailySchedule.expectedWorkMinutes();
 
         var expected = Duration.ofMinutes(expectedMinutes);
 
@@ -280,8 +277,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         String jornadaDisplay;
         if (expectedMinutes > 0) {
             // Exibe horário contratual (Ex: 08:00 - 17:00)
-            var start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
-            var end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
+            var start = dailySchedule.workStart() != null ? dailySchedule.workStart() : LocalTime.of(8,0);
+            var end = dailySchedule.workEnd() != null ? dailySchedule.workEnd() : LocalTime.of(17,0);
             jornadaDisplay = start.format(TIME_FORMATTER) + " - " + end.format(TIME_FORMATTER);
         } else {
             jornadaDisplay = "FOLGA / DSR";

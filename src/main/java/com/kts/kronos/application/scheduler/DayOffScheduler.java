@@ -3,6 +3,7 @@ package com.kts.kronos.application.scheduler;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.application.service.ScheduleResolverService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
@@ -39,6 +40,7 @@ public class DayOffScheduler {
     private final CompanyProvider companyProvider;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+    private final ScheduleResolverService scheduleResolver;
 
     @Autowired
     public DayOffScheduler(
@@ -46,22 +48,25 @@ public class DayOffScheduler {
             TimeRecordProvider trRepo,
             CompanyProvider companyProvider,
             KronosMetrics kronosMetrics,
-            KronosTracing kronosTracing
+            KronosTracing kronosTracing,
+            ScheduleResolverService scheduleResolver
     ) {
         this.empRepo = empRepo;
         this.trRepo = trRepo;
         this.companyProvider = companyProvider;
         this.kronosMetrics = kronosMetrics;
         this.kronosTracing = kronosTracing;
+        this.scheduleResolver = scheduleResolver;
     }
 
     public DayOffScheduler(
             EmployeeProvider empRepo,
             TimeRecordProvider trRepo,
             CompanyProvider companyProvider,
-            KronosMetrics kronosMetrics
+            KronosMetrics kronosMetrics,
+            ScheduleResolverService scheduleResolver
     ) {
-        this(empRepo, trRepo, companyProvider, kronosMetrics, ObservabilityDefaults.tracing());
+        this(empRepo, trRepo, companyProvider, kronosMetrics, ObservabilityDefaults.tracing(), scheduleResolver);
     }
 
 
@@ -143,7 +148,7 @@ public class DayOffScheduler {
                 }
 
                 // Cálculo: Deve trabalhar hoje?
-                boolean isWorkDay = shouldWorkToday(employee, today);
+                boolean isWorkDay = scheduleResolver.resolveForDate(employee, today).isWorkDay();
 
                 // Se era dia de trabalho e está vazio = FALTA
                 // Se era dia de folga e está vazio = FOLGA
@@ -295,6 +300,8 @@ public class DayOffScheduler {
 
     // =========================================================================
     // LÓGICAS DE ESCALA DIÁRIA (VALIDAÇÃO DE FOLGA DUPLA NA SEMANA)
+    // Dead code — mantido temporariamente para evitar risco de regressão.
+    // Serão removidos em refatoração futura.
     // =========================================================================
 
     private boolean shouldWorkToday(Employee emp, LocalDate today) {

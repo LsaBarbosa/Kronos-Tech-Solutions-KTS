@@ -5,18 +5,21 @@ import com.itextpdf.layout.element.IBlockElement;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.ScheduleExceptionProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -30,6 +33,7 @@ import static com.kts.kronos.constants.Messages.EXPORT_PERIOD_TOO_LARGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
@@ -37,17 +41,22 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class PointMirrorPdfServiceSecurityTest {
 
-    @InjectMocks
+    @Mock private CompanyProvider companyProvider;
+    @Mock private TimeRecordProvider recordRepository;
+    @Mock private DomainAuthorizationService domainAuthorizationService;
+    @Mock private ScheduleExceptionProvider scheduleExceptionProvider;
+
     private PointMirrorPdfService service;
 
-    @Mock
-    private CompanyProvider companyProvider;
-    @Mock
-    private TimeRecordProvider recordRepository;
-    @Mock
-    private DomainAuthorizationService domainAuthorizationService;
+    @BeforeEach
+    void setUp() {
+        when(scheduleExceptionProvider.findByEmployeeAndDate(any(), any())).thenReturn(Optional.empty());
+        var resolver = new ScheduleResolverService(scheduleExceptionProvider, recordRepository);
+        service = new PointMirrorPdfService(companyProvider, recordRepository, domainAuthorizationService, null, null, resolver);
+    }
 
     @Test
     @DisplayName("espelho: permite geração para colaborador autorizado")

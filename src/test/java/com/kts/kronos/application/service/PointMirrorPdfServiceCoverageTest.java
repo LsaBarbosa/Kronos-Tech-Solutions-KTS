@@ -2,6 +2,7 @@ package com.kts.kronos.application.service;
 
 import com.kts.kronos.application.port.in.usecase.PointMirrorPdfUseCase;
 import com.kts.kronos.application.port.out.provider.CompanyProvider;
+import com.kts.kronos.application.port.out.provider.ScheduleExceptionProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Company;
@@ -12,7 +13,6 @@ import com.kts.kronos.observability.support.ObservabilityDefaults;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -42,11 +42,12 @@ import static org.mockito.Mockito.mockConstruction;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PointMirrorPdfServiceCoverageTest {
 
-    @InjectMocks private PointMirrorPdfService service;
-
     @Mock private CompanyProvider companyProvider;
     @Mock private TimeRecordProvider recordRepository;
     @Mock private DomainAuthorizationService domainAuthorizationService;
+    @Mock private ScheduleExceptionProvider scheduleExceptionProvider;
+
+    private PointMirrorPdfService service;
 
     private static final UUID EMPLOYEE_ID = UUID.randomUUID();
     private static final UUID COMPANY_ID = UUID.randomUUID();
@@ -58,6 +59,9 @@ class PointMirrorPdfServiceCoverageTest {
     void setUp() {
         company = buildCompany(COMPANY_ID);
         when(companyProvider.findById(COMPANY_ID)).thenReturn(Optional.of(company));
+        when(scheduleExceptionProvider.findByEmployeeAndDate(any(), any())).thenReturn(Optional.empty());
+        var resolver = new ScheduleResolverService(scheduleExceptionProvider, recordRepository);
+        service = new PointMirrorPdfService(companyProvider, recordRepository, domainAuthorizationService, null, null, resolver);
     }
 
     // ── L74: generateMirrorWithSignatureStamp (null stamp) covers the overload ───
