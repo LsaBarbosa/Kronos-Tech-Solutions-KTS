@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.util.Collection;
 public interface EmployeeRepository extends JpaRepository<EmployeeEntity, UUID> {
     boolean existsByCpf(String cpf);
+    Optional<EmployeeEntity> findByPis(String pis);
+    Optional<EmployeeEntity> findByCompanyIdAndPisAndDeletedAtIsNull(UUID companyId, String pis);
     Optional<EmployeeEntity> findByCpf(String cpf);
 
     boolean existsByCompanyIdAndCpfAndDeletedAtIsNull(UUID companyId, String cpf);

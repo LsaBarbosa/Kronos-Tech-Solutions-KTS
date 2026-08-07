@@ -15,6 +15,8 @@ import static org.hibernate.jpa.HibernateHints.HINT_FETCH_SIZE;
 
 public interface AfdEntryRepository extends JpaRepository<AfdEntryEntity, Long> {
 
+    boolean existsByCompanyIdAndNsr(UUID companyId, Long nsr);
+
     @Query(
             value = """
                     SELECT current_hash

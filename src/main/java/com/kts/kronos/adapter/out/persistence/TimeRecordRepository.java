@@ -196,5 +196,6 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("end") LocalDateTime end
     );
 
+    boolean existsByEmployeeIdAndStartWork(UUID employeeId, LocalDateTime startWork);
 
 }
