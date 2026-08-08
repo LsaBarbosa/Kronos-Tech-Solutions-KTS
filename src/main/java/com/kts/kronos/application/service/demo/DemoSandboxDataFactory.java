@@ -25,7 +25,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DemoSandboxDataFactory {
 
-    private static final String SANDBOX_CNPJ       = "00000000000191";
+    static final String SANDBOX_CNPJ              = "00000000000191";
     private static final String SANDBOX_EMAIL       = "demo@kronos-sandbox.local";
     private static final String SANDBOX_CPF         = "000.000.000-00";
     private static final String SANDBOX_PIS         = "00000000000";

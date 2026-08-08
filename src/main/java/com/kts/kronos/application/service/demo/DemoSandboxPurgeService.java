@@ -51,7 +51,9 @@ public class DemoSandboxPurgeService {
         int sessions = 0, companies = 0, users = 0, employees = 0;
         int pointRecords = 0, approvals = 0, documents = 0, consents = 0, accesses = 0;
 
-        var companyOpt = companyRepo.findBySandboxKey(props.getSandboxKey());
+        var companyOpt = companyRepo.findBySandboxKey(props.getSandboxKey())
+                .or(() -> companyRepo.findByCnpj(DemoSandboxDataFactory.SANDBOX_CNPJ)
+                        .filter(c -> !c.isSandbox() || c.getSandboxKey() == null));
 
         if (companyOpt.isPresent()) {
             UUID companyId = companyOpt.get().getId();
