@@ -155,16 +155,21 @@ public class AuthService implements AuthUseCase {
             log.debug("Falha ao registrar auditoria de login bem-sucedido", auditEx);
         }
 
-        UUID activeCompanyId = resolveActiveCompanyId(user.userId(), user.employeeId());
+        var loginContext = resolveLoginContext(user.userId(), user.employeeId(), user.role().name());
+
+        var resolvedConsentStatus = loginContext.employeeId() != null
+                && !loginContext.employeeId().equals(user.employeeId())
+                ? acceptTermsUseCase.getBiometricConsentStatus(loginContext.employeeId())
+                : consentStatus;
 
         return jwtUtils.generateToken(
-                user.employeeId(),
+                loginContext.employeeId(),
                 user.username(),
-                user.role().name(),
+                loginContext.roleName(),
                 user.userId(),
-                consentStatus,
+                resolvedConsentStatus,
                 user.sessionVersion(),
-                activeCompanyId
+                loginContext.companyId()
         );
     }
 
@@ -203,16 +208,21 @@ public class AuthService implements AuthUseCase {
                     );
                 }
 
-                UUID activeCompanyIdFace = resolveActiveCompanyId(user.userId(), user.employeeId());
+                var loginContextFace = resolveLoginContext(user.userId(), user.employeeId(), user.role().name());
+
+                var resolvedConsentFace = loginContextFace.employeeId() != null
+                        && !loginContextFace.employeeId().equals(user.employeeId())
+                        ? acceptTermsUseCase.getBiometricConsentStatus(loginContextFace.employeeId())
+                        : consentStatus;
 
                 return jwtUtils.generateToken(
-                        user.employeeId(),
+                        loginContextFace.employeeId(),
                         user.username(),
-                        user.role().name(),
+                        loginContextFace.roleName(),
                         user.userId(),
-                        consentStatus,
+                        resolvedConsentFace,
                         user.sessionVersion(),
-                        activeCompanyIdFace
+                        loginContextFace.companyId()
                 );
             });
 
@@ -607,21 +617,35 @@ public class AuthService implements AuthUseCase {
                 .toList();
     }
 
-    private UUID resolveActiveCompanyId(UUID userId, UUID employeeId) {
+    private record LoginContext(UUID companyId, UUID employeeId, String roleName) {}
+
+    private LoginContext resolveLoginContext(UUID userId, UUID defaultEmployeeId, String defaultRole) {
         var defaultAccess = userCompanyAccessProvider.findDefaultActiveByUserId(userId);
         if (defaultAccess.isPresent()) {
-            return defaultAccess.get().companyId();
+            var a = defaultAccess.get();
+            return new LoginContext(
+                    a.companyId(),
+                    a.employeeId() != null ? a.employeeId() : defaultEmployeeId,
+                    a.role() != null ? a.role() : defaultRole
+            );
         }
         var activeAccesses = userCompanyAccessProvider.findActiveByUserId(userId);
         if (!activeAccesses.isEmpty()) {
-            return activeAccesses.get(0).companyId();
+            var a = activeAccesses.get(0);
+            return new LoginContext(
+                    a.companyId(),
+                    a.employeeId() != null ? a.employeeId() : defaultEmployeeId,
+                    a.role() != null ? a.role() : defaultRole
+            );
         }
-        if (employeeId != null) {
-            return employeeProvider.findById(employeeId)
-                    .map(e -> e.companyId())
-                    .orElse(null);
-        }
-        return null;
+        UUID companyId = defaultEmployeeId != null
+                ? employeeProvider.findById(defaultEmployeeId).map(e -> e.companyId()).orElse(null)
+                : null;
+        return new LoginContext(companyId, defaultEmployeeId, defaultRole);
+    }
+
+    private UUID resolveActiveCompanyId(UUID userId, UUID employeeId) {
+        return resolveLoginContext(userId, employeeId, null).companyId();
     }
 
     // Método auxiliar (copiado de UserService) para validar a política de senha

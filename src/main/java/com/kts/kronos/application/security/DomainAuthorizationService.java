@@ -132,6 +132,13 @@ public class DomainAuthorizationService {
     }
 
     private User authorizeResolvedUserAccess(User targetUser) {
+        var authenticatedUserId = jwtAuthenticatedUser.getuserId();
+
+        // Self-access is always permitted regardless of role or active company
+        if (targetUser.userId().equals(authenticatedUserId)) {
+            return targetUser;
+        }
+
         var role = jwtAuthenticatedUser.getCurrentRole();
         if (isCto(role)) {
             return targetUser;
@@ -145,11 +152,7 @@ public class DomainAuthorizationService {
             return targetUser;
         }
 
-        var authenticatedUserId = jwtAuthenticatedUser.getuserId();
-        if (!targetUser.userId().equals(authenticatedUserId)) {
-            throw new ForbiddenException(FORBIDDEN_OTHER_USER_RESOURCE);
-        }
-        return targetUser;
+        throw new ForbiddenException(FORBIDDEN_OTHER_USER_RESOURCE);
     }
 
     private void validateSameTenant(Employee authenticatedEmployee, Employee targetEmployee) {

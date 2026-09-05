@@ -17,4 +17,6 @@ public interface UserCompanyAccessProvider {
     Optional<UserCompanyAccess> findDefaultActiveByUserId(UUID userId);
 
     boolean existsActiveByUserIdAndCompanyId(UUID userId, UUID companyId);
+
+    List<UserCompanyAccess> findActiveByCompanyId(UUID companyId);
 }

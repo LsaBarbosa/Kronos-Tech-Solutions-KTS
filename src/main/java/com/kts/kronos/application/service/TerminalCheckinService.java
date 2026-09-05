@@ -10,6 +10,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.TerminalCheckinUseCase;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
@@ -25,8 +26,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.kts.kronos.domain.model.UserCompanyAccess;
+
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 import static com.kts.kronos.application.service.AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN;
@@ -45,6 +49,7 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
+    private final CompanyProvider companyProvider;
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final TimeRecordService timeRecordService;
     private final JwtUtils jwtUtils;
@@ -88,24 +93,28 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
                     );
                 }
 
-                // Registra o ponto reaproveitando a identidade já confirmada acima
+                // Resolve qual empresa registrar com base na geolocalização do terminal
+                var resolution = resolveTerminalTarget(
+                        user.userId(), employeeId, user.role().name(),
+                        request.latitude(), request.longitude()
+                );
+
                 var geoRequest = new GeolocationRequest(
                         request.latitude(),
                         request.longitude(),
                         request.faceImageBase64(),
                         request.livenessPassed()
                 );
-                var actionResponse = timeRecordService.registerTimeForEmployee(employeeId, geoRequest);
+                var actionResponse = timeRecordService.registerTimeFromTerminal(resolution.employeeId(), geoRequest);
 
-                UUID activeCompanyId = resolveActiveCompanyId(user.userId(), user.employeeId());
                 String jwtToken = jwtUtils.generateToken(
-                        user.employeeId(),
+                        resolution.employeeId(),
                         user.username(),
-                        user.role().name(),
+                        resolution.role(),
                         user.userId(),
                         consentStatus,
                         user.sessionVersion(),
-                        activeCompanyId
+                        resolution.companyId()
                 );
 
                 metrics().authFaceLoginSuccess();
@@ -146,21 +155,45 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
         }
     }
 
-    private UUID resolveActiveCompanyId(UUID userId, UUID employeeId) {
-        var defaultAccess = userCompanyAccessProvider.findDefaultActiveByUserId(userId);
-        if (defaultAccess.isPresent()) {
-            return defaultAccess.get().companyId();
+    private record TerminalResolution(UUID employeeId, UUID companyId, String role) {}
+
+    private TerminalResolution resolveTerminalTarget(
+            UUID userId, UUID fallbackEmployeeId, String fallbackRole,
+            double latitude, double longitude
+    ) {
+        List<UserCompanyAccess> accesses =
+                userCompanyAccessProvider.findActiveByUserId(userId);
+
+        for (var access : accesses) {
+            if (access.employeeId() == null) continue;
+            var companyOpt = companyProvider.findById(access.companyId());
+            if (companyOpt.isEmpty()) continue;
+            var location = companyOpt.get().location();
+            if (location == null) continue;
+            double dist = geoDistanceMeters(location.latitude(), location.longitude(), latitude, longitude);
+            if (dist <= 80.0) {
+                String role = access.role() != null ? access.role() : fallbackRole;
+                log.info("event=terminal_company_resolved companyId={} distance_m={}", access.companyId(), (int) dist);
+                return new TerminalResolution(access.employeeId(), access.companyId(), role);
+            }
         }
-        var activeAccesses = userCompanyAccessProvider.findActiveByUserId(userId);
-        if (!activeAccesses.isEmpty()) {
-            return activeAccesses.get(0).companyId();
-        }
-        if (employeeId != null) {
-            return employeeProvider.findById(employeeId)
-                    .map(e -> e.companyId())
-                    .orElse(null);
-        }
-        return null;
+
+        // Fallback: empresa do employee original
+        UUID companyId = employeeProvider.findById(fallbackEmployeeId)
+                .map(e -> e.companyId())
+                .orElse(null);
+        log.info("event=terminal_company_resolved_fallback companyId={}", companyId);
+        return new TerminalResolution(fallbackEmployeeId, companyId, fallbackRole);
+    }
+
+    private double geoDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000;
     }
 
     private KronosMetrics metrics() {

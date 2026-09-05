@@ -45,4 +45,11 @@ public class UserCompanyAccessProviderImpl implements UserCompanyAccessProvider 
     public boolean existsActiveByUserIdAndCompanyId(UUID userId, UUID companyId) {
         return repository.existsByUserIdAndCompanyIdAndActiveTrue(userId, companyId);
     }
+
+    @Override
+    public List<UserCompanyAccess> findActiveByCompanyId(UUID companyId) {
+        return repository.findByCompanyIdAndActiveTrue(companyId).stream()
+                .map(UserCompanyAccessEntity::toDomain)
+                .toList();
+    }
 }

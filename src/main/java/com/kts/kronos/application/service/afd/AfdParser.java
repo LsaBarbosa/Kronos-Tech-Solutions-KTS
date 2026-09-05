@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service.afd;
 
+import com.kts.kronos.application.exceptions.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -113,7 +114,7 @@ public class AfdParser {
         }
 
         if (header == null) {
-            throw new IllegalArgumentException("Arquivo AFD inválido: cabeçalho tipo 1 não encontrado.");
+            throw new BadRequestException("Arquivo AFD inválido: cabeçalho tipo 1 não encontrado.");
         }
 
         return new AfdParseResult(header, employees, marks, skipped);

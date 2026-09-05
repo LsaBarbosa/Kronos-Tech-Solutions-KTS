@@ -6,6 +6,7 @@ import com.kts.kronos.config.demo.DemoSandboxProperties;
 import com.kts.kronos.domain.model.enuns.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,9 @@ public class DemoSandboxDataFactory {
     private final TimeRecordApprovalRepository approvalRepo;
     private final PasswordEncoder              passwordEncoder;
     private final DemoSandboxProperties        props;
+
+    @Value("${file.storage.root-path:/opt/kronos/documents}")
+    private String storageRootPath;
 
     public record SeedResult(
             UUID companyId,
@@ -210,7 +214,7 @@ public class DemoSandboxDataFactory {
         for (DocumentType type : types) {
             UUID docId = UUID.randomUUID();
             String relativePath = "company/" + companyId + "/documents/" + type.name().toLowerCase() + "/" + docId + ".pdf";
-            Path fullPath = Path.of(props.getLocalStorageRoot(), relativePath);
+            Path fullPath = Path.of(storageRootPath, relativePath);
 
             writeSyntheticFile(fullPath, "DOCUMENTO SINTETICO - " + type.name() + " - SANDBOX KRONOS TESTE");
 
@@ -273,7 +277,7 @@ public class DemoSandboxDataFactory {
         TimeRecordEntity adjustment = TimeRecordEntity.builder()
                 .startWork(today.minusDays(2).atTime(8, 0))
                 .endWork(today.minusDays(2).atTime(17, 0))
-                .statusRecord(StatusRecord.WORK_TIME_REQUEST)
+                .statusRecord(StatusRecord.PENDING_APPROVAL)
                 .active(true)
                 .edited(false)
                 .employeeId(employeeId)

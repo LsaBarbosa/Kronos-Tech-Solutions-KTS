@@ -162,9 +162,30 @@ public class UserService implements UserUseCase {
                 : userProvider.findByEmployeeIdsAndActive(employeeIdsFromCompany, active);
 
         if (currentRole == Role.PARTNER) {
-            return usersFromTenant.stream()
+            var directManagers = usersFromTenant.stream()
                     .filter(user -> user.role() == Role.MANAGER)
-                    .toList();
+                    .collect(Collectors.toList());
+
+            // Gestores de múltiplas empresas: tb_user.employee_id aponta para a empresa
+            // original, então não aparecem via findByEmployeeIds. Buscamos via UCA.
+            var directManagerIds = directManagers.stream()
+                    .map(User::userId)
+                    .collect(Collectors.toSet());
+
+            var ucaManagerIds = userCompanyAccessProvider.findActiveByCompanyId(companyId).stream()
+                    .filter(uca -> Role.MANAGER.name().equals(uca.role()))
+                    .map(UserCompanyAccess::userId)
+                    .filter(uid -> !directManagerIds.contains(uid))
+                    .collect(Collectors.toSet());
+
+            if (!ucaManagerIds.isEmpty()) {
+                var extraManagers = userProvider.findAllByIds(ucaManagerIds).stream()
+                        .filter(u -> active == null || u.active() == active)
+                        .toList();
+                directManagers.addAll(extraManagers);
+            }
+
+            return directManagers;
         }
 
         return usersFromTenant;
