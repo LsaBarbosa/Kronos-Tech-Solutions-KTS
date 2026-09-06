@@ -213,7 +213,7 @@ public class TimeRecordService implements TimeRecordUseCase {
             var open = openRecordOpt.get();
             var openRecordDate = open.startWork().atZone(SAO_PAULO).toLocalDate();
 
-            if (openRecordDate.isEqual(todayDate)) {
+            if (shouldCloseOpenRecord(company, openRecordDate, todayDate)) {
                 if (open.statusRecord() != PENDING) {
                     throw new BadRequestException(STATUS_CHECKOUT + open.statusRecord() + ")");
                 }
@@ -345,6 +345,13 @@ public class TimeRecordService implements TimeRecordUseCase {
         } finally {
             releaseCheckinLock(employee.employeeId(), todayDate, checkinLockOwner);
         }
+    }
+
+    static boolean shouldCloseOpenRecord(Company company, LocalDate openRecordDate, LocalDate currentDate) {
+        if (openRecordDate.equals(currentDate)) {
+            return true;
+        }
+        return company.midnightShiftFlag() && openRecordDate.plusDays(1).equals(currentDate);
     }
 
     @Override

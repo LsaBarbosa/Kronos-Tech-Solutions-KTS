@@ -18,14 +18,22 @@ public record Company(
         LocalDateTime deletedAt,
         UUID deletedBy,
         String deactivationReason,
-        boolean terminalFlag
+        boolean terminalFlag,
+        boolean midnightShiftFlag
 ) {
     public Company(UUID companyId, String name, String cnpj, String email, boolean active, Address address, Location location, long activeEmployees, long inactiveEmployees) {
-        this(companyId, name, cnpj, email, active, address, location, activeEmployees, inactiveEmployees, null, null, null, false);
+        this(companyId, name, cnpj, email, active, address, location, activeEmployees, inactiveEmployees, null, null, null, false, false);
+    }
+
+    public Company(UUID companyId, String name, String cnpj, String email, boolean active, Address address, Location location,
+                   long activeEmployees, long inactiveEmployees, LocalDateTime deletedAt, UUID deletedBy,
+                   String deactivationReason, boolean terminalFlag) {
+        this(companyId, name, cnpj, email, active, address, location, activeEmployees, inactiveEmployees,
+                deletedAt, deletedBy, deactivationReason, terminalFlag, false);
     }
 
     public Company(String name, String cnpj, String email, Address address, Location location) {
-        this(UUID.randomUUID(), name, cnpj, email, true, address, location, 0, 0, null, null, null, false);
+        this(UUID.randomUUID(), name, cnpj, email, true, address, location, 0, 0, null, null, null, false, false);
     }
 
     public Company withActive(boolean active) {
@@ -36,7 +44,8 @@ public record Company(
                 active ? null : deletedAt,
                 active ? null : deletedBy,
                 active ? null : deactivationReason,
-                terminalFlag
+                terminalFlag,
+                midnightShiftFlag
         );
     }
 
@@ -48,7 +57,8 @@ public record Company(
                 LocalDateTime.now(),
                 deletedBy,
                 reason,
-                terminalFlag
+                terminalFlag,
+                midnightShiftFlag
         );
     }
 
@@ -58,7 +68,8 @@ public record Company(
                 active, address, location,
                 employeActive, employeeInactive,
                 deletedAt, deletedBy, deactivationReason,
-                terminalFlag
+                terminalFlag,
+                midnightShiftFlag
         );
     }
 
@@ -68,7 +79,19 @@ public record Company(
                 active, address, location,
                 activeEmployees, inactiveEmployees,
                 deletedAt, deletedBy, deactivationReason,
-                terminalFlag
+                terminalFlag,
+                midnightShiftFlag
+        );
+    }
+
+    public Company withMidnightShiftFlag(boolean midnightShiftFlag) {
+        return new Company(
+                companyId, name, cnpj, email,
+                active, address, location,
+                activeEmployees, inactiveEmployees,
+                deletedAt, deletedBy, deactivationReason,
+                terminalFlag,
+                midnightShiftFlag
         );
     }
 }

@@ -143,7 +143,12 @@ public class CompanyService implements CompanyUseCase {
                 updateAddress,
                 updateLocation,
                 company.activeEmployees(),
-                company.inactiveEmployees()
+                company.inactiveEmployees(),
+                company.deletedAt(),
+                company.deletedBy(),
+                company.deactivationReason(),
+                company.terminalFlag(),
+                company.midnightShiftFlag()
         );
         companyProvider.save(updatedCompany);
         kronosMetrics.companyUpdated();
@@ -155,6 +160,14 @@ public class CompanyService implements CompanyUseCase {
         var company = companyProvider.findByCnpj(cnpj)
                 .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
         companyProvider.save(company.withTerminalFlag(!company.terminalFlag()));
+        invalidateCompanyCaches();
+    }
+
+    @Override
+    public void toggleMidnightShiftFlag(String cnpj) {
+        var company = companyProvider.findByCnpj(cnpj)
+                .orElseThrow(() -> new ResourceNotFoundException(COMPANY_NOT_FOUND + cnpj));
+        companyProvider.save(company.withMidnightShiftFlag(!company.midnightShiftFlag()));
         invalidateCompanyCaches();
     }
 

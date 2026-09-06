@@ -173,6 +173,27 @@ class CompanyServiceCoverageTest {
         verify(companyProvider).save(argThat(saved -> !saved.terminalFlag()));
     }
 
+    @Test
+    @DisplayName("toggleMidnightShiftFlag: inverte a flag, salva empresa e invalida caches")
+    void toggleMidnightShiftFlag_flipsFlag() {
+        var co = company(UUID.randomUUID());
+        when(companyProvider.findByCnpj(co.cnpj())).thenReturn(Optional.of(co));
+
+        service().toggleMidnightShiftFlag(co.cnpj());
+
+        verify(companyProvider).save(argThat(saved -> saved.midnightShiftFlag() != co.midnightShiftFlag()));
+        verify(cacheProvider, atLeastOnce()).evictNamespace(any());
+    }
+
+    @Test
+    @DisplayName("toggleMidnightShiftFlag: CNPJ inexistente → ResourceNotFoundException")
+    void toggleMidnightShiftFlag_cnpjNotFound_throws() {
+        when(companyProvider.findByCnpj("00000000000000")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service().toggleMidnightShiftFlag("00000000000000"));
+    }
+
     // ── deleteByCnpj — empresa sem funcionários retorna cedo ─────────────────
 
     @Test

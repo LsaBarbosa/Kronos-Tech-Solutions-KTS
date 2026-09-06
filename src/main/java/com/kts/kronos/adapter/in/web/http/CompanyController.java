@@ -73,6 +73,13 @@ public class CompanyController {
     }
 
     @PreAuthorize(KRONOS)
+    @PatchMapping(TOGGLE_MIDNIGHT_SHIFT)
+    public ResponseEntity<Void> toggleMidnightShiftFlag(@PathVariable String cnpj) {
+        useCase.toggleMidnightShiftFlag(cnpj);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PreAuthorize(KRONOS)
     @DeleteMapping(BY_CNPJ)
     public ResponseEntity<Void> deleteCompany(@PathVariable String cnpj) {
         useCase.deleteByCnpj(cnpj);
