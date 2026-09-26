@@ -397,6 +397,8 @@ public class TimeRecordService implements TimeRecordUseCase {
         } else if (userRole == Role.MANAGER || userRole == Role.CTO) {
             // Lógica para o MANAGER/CTO (aprovação direta)
 
+            validateNonBreakOverlap(employeeId, record.timeRecordId(), newStart, newEnd);
+
             // NOVO: Executa o ajuste dos registros de Pausa vizinhos
             adjustAdjacentRecordsOnUpdate(employeeId, record, newStart, newEnd);
 
@@ -1591,11 +1593,16 @@ public class TimeRecordService implements TimeRecordUseCase {
         LocalDate day = newStart.toLocalDate();
         LocalDateTime dayStart = day.atStartOfDay();
         LocalDateTime dayEnd = day.atTime(23, 59, 59);
-        Set<StatusRecord> nonBreakStatuses = EnumSet.complementOf(EnumSet.of(StatusRecord.IMPLICIT_BREAK, StatusRecord.DAY_OFF, StatusRecord.TIME_OFF, StatusRecord.ABSENCE));
+        Set<StatusRecord> nonBreakStatuses = EnumSet.of(
+                StatusRecord.CREATED,
+                StatusRecord.UPDATED,
+                StatusRecord.IMPORTED
+        );
 
         // 1. Buscar todos os registros de trabalho (non-breaks) do dia, exceto o que está sendo editado
         List<TimeRecord> workSegments = recordRepository.findByRange(employeeId, dayStart, dayEnd).stream()
             .filter(tr -> !tr.timeRecordId().equals(currentRecordId))
+            .filter(TimeRecord::active)
             .filter(tr -> nonBreakStatuses.contains(tr.statusRecord()))
             .filter(tr -> tr.endWork() != null)
             .sorted(Comparator.comparing(TimeRecord::startWork)).toList();

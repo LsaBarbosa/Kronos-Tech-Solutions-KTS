@@ -116,6 +116,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                                     startDate.atStartOfDay(),
                                     endDate.atTime(23, 59, 59)
                             ).stream()
+                            .filter(TimeRecord::active)
                             .filter(r -> r.startWork() != null)
                             .sorted(Comparator.comparing(TimeRecord::startWork))
                             .collect(Collectors.groupingBy(
@@ -252,22 +253,18 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
 
         var expected = Duration.ofMinutes(expectedMinutes);
 
-        // 2. Processa as marcações
+        // 2. Processa apenas marcações efetivas. Solicitações, folgas, ausências
+        // e pausas implícitas não são intervalos trabalhados do espelho.
         for (var r : records) {
-            // Formata Original
+            if (!isEffectiveWorkRecord(r)) {
+                continue;
+            }
+
             if (r.originalStartWork() != null) originalSb.append(r.originalStartWork().format(TIME_FORMATTER)).append("E ");
             if (r.originalEndWork() != null) originalSb.append(r.originalEndWork().format(TIME_FORMATTER)).append("S ");
-
-            // Formata Tratado
-            if (r.startWork() != null) treatedSb.append(r.startWork().format(TIME_FORMATTER)).append("E ");
-            if (r.endWork() != null) {
-                treatedSb.append(r.endWork().format(TIME_FORMATTER)).append("S ");
-
-                // Soma horas trabalhadas (ignora pausas implícitas no cálculo de 'trabalhado')
-                if (r.statusRecord() != StatusRecord.IMPLICIT_BREAK) {
-                    worked = worked.plus(Duration.between(r.startWork(), r.endWork()));
-                }
-            }
+            treatedSb.append(r.startWork().format(TIME_FORMATTER)).append("E ");
+            treatedSb.append(r.endWork().format(TIME_FORMATTER)).append("S ");
+            worked = worked.plus(Duration.between(r.startWork(), r.endWork()));
         }
 
         // 3. Calcula Saldo
@@ -297,8 +294,11 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         }
 
         // 6. Tratamento para Abonos/Férias
-        boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF);
-        boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION);
+        boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF
+                || r.statusRecord() == StatusRecord.TIME_OFF_REQUEST);
+        boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION
+                || r.statusRecord() == StatusRecord.REQUEST_VACATION);
+        boolean isWorkRequest = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.WORK_TIME_REQUEST);
 
         if (isAbono) {
             treatedSb = new StringBuilder("TIME_OFF_REQUEST");
@@ -306,9 +306,21 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         } else if (isFerias) {
             treatedSb = new StringBuilder("FÉRIAS");
             balance = Duration.ZERO;
+        } else if (isWorkRequest && worked.isZero()) {
+            treatedSb = new StringBuilder("WORK_TIME_REQUEST");
         }
 
         return new ProcessedDay(jornadaDisplay, originalSb.toString(), treatedSb.toString(), worked, balance);
+    }
+
+    private boolean isEffectiveWorkRecord(TimeRecord record) {
+        return record.active()
+                && record.startWork() != null
+                && record.endWork() != null
+                && switch (record.statusRecord()) {
+                    case CREATED, UPDATED, IMPORTED -> true;
+                    default -> false;
+                };
     }
 
     private String formatDuration(Duration d) {
