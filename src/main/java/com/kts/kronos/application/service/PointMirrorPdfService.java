@@ -294,8 +294,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         }
 
         // 6. Tratamento para Abonos/Férias
-        boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF
-                || r.statusRecord() == StatusRecord.TIME_OFF_REQUEST);
+        boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF);
+        boolean isAbonoRequest = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF_REQUEST);
         boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION
                 || r.statusRecord() == StatusRecord.REQUEST_VACATION);
         boolean isWorkRequest = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.WORK_TIME_REQUEST);
@@ -306,6 +306,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         } else if (isFerias) {
             treatedSb = new StringBuilder("FÉRIAS");
             balance = Duration.ZERO;
+        } else if (isAbonoRequest) {
+            treatedSb = new StringBuilder("TIME_OFF_REQUEST");
         } else if (isWorkRequest && worked.isZero()) {
             treatedSb = new StringBuilder("WORK_TIME_REQUEST");
         }
@@ -318,7 +320,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                 && record.startWork() != null
                 && record.endWork() != null
                 && switch (record.statusRecord()) {
-                    case CREATED, UPDATED, IMPORTED -> true;
+                    case CREATED, UPDATED, IMPORTED, TIME_OFF -> true;
                     default -> false;
                 };
     }
