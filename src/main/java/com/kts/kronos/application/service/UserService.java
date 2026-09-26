@@ -77,7 +77,8 @@ public class UserService implements UserUseCase {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
 
-        findById(req.employeeId());
+        var employee = employeeProvider.findById(req.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         if (userProvider.existsByEmployeeId(req.employeeId())) {
             throw new BadRequestException(USER_ALREADY_LINKED_TO_EMPLOYEE);
@@ -103,6 +104,23 @@ public class UserService implements UserUseCase {
         );
         try {
             userProvider.save(user);
+
+            // Keep the explicit user-company scope in sync with user creation.
+            // Without this row, /users/me/companies returns an empty list for a
+            // newly created MANAGER even though its employee is linked to a company.
+            if (requestedRole != Role.CTO) {
+                userCompanyAccessProvider.save(new UserCompanyAccess(
+                        UUID.randomUUID(),
+                        user.userId(),
+                        employee.companyId(),
+                        employee.employeeId(),
+                        requestedRole.name(),
+                        true,
+                        true,
+                        java.time.LocalDateTime.now(),
+                        null
+                ));
+            }
             kronosMetrics.userCreated();
 
             // Auditoria de criação de usuário
