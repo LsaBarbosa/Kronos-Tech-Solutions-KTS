@@ -1154,7 +1154,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         var manager = getEmployee(jwtAuthenticatedUser.getEmployeeId());
-        var employees = employeeProvider.findByCompanyId(manager.companyId());
+        var employees = employeeProvider.findByCompanyIdAndActive(manager.companyId(), true);
         var employeeIds = employees.stream().map(Employee::employeeId).collect(Collectors.toSet());
         var records = recordRepository.findByEmployeeIdsAndRange(
                 employeeIds,
@@ -1201,8 +1201,8 @@ public class TimeRecordService implements TimeRecordUseCase {
             }
         }
 
-        result.sort(Comparator.comparing(ManagerMonthlyAlertItemResponse::date)
-                .thenComparing(ManagerMonthlyAlertItemResponse::employeeName, String.CASE_INSENSITIVE_ORDER));
+        result.sort(Comparator.comparing(ManagerMonthlyAlertItemResponse::employeeName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(ManagerMonthlyAlertItemResponse::date));
         return new ManagerMonthlyAlertResponse(targetMonth.toString(), normalizedFilter, result);
     }
 
