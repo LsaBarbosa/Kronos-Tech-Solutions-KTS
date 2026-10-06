@@ -29,15 +29,17 @@ public class ScheduleResolverService {
             return DailySchedule.workDay(ex.workStartTime(), ex.workEndTime(), ex.breakStartTime(), ex.breakEndTime());
         }
 
-        // 2. Weekend schedule override
+        // 2. Resolve the weekly schedule before applying weekend hours.
+        // A configured day off (especially Sunday) must not be overridden by
+        // weekend start/end times.
         DayOfWeek dow = date.getDayOfWeek();
+        boolean isWorkDay = resolveIsWorkDay(emp, date);
+        if (!isWorkDay) return DailySchedule.dayOff();
+
+        // 3. Weekend schedule override for a day that is actually worked.
         if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && emp.weekendWorkStartTime() != null) {
             return DailySchedule.workDay(emp.weekendWorkStartTime(), emp.weekendWorkEndTime(), emp.weekendBreakStartTime(), emp.weekendBreakEndTime());
         }
-
-        // 3. Legacy schedule logic
-        boolean isWorkDay = resolveIsWorkDay(emp, date);
-        if (!isWorkDay) return DailySchedule.dayOff();
 
         // 4. Return employee default schedule
         return DailySchedule.workDay(

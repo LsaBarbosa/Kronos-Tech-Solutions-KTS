@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.FaceStorageProvider;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider.FaceMatchCandidate;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
@@ -178,6 +179,51 @@ public class RekognitionProviderImpl  implements FaceRecognitionProvider {
                     java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
             log.error("event=rekognition_search_face_error reason=sdk_exception exceptionType={}",
                     e.getClass().getSimpleName(), e);
+            throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
+        }
+    }
+
+    @Override
+    public List<FaceMatchCandidate> searchFacesByImage(InputStream imageStream) {
+        long startedAt = System.nanoTime();
+        try {
+            byte[] imageBytes = imageStream.readAllBytes();
+            SearchFacesByImageRequest searchRequest = SearchFacesByImageRequest.builder()
+                    .collectionId(collectionId)
+                    .image(Image.builder().bytes(SdkBytes.fromByteArray(imageBytes)).build())
+                    .faceMatchThreshold(FACE_MATCH_THRESHOLD)
+                    .maxFaces(10)
+                    .build();
+
+            SearchFacesByImageResponse response = kronosTracing.observe("kronos.external.rekognition",
+                    () -> rekognitionClient.searchFacesByImage(searchRequest),
+                    "provider", "rekognition", "operation", "search_faces");
+
+            return response.faceMatches().stream()
+                    .map(match -> new FaceMatchCandidate(
+                            UUID.fromString(match.face().externalImageId()),
+                            match.similarity() == null ? 0.0f : match.similarity()))
+                    .toList();
+        } catch (IOException e) {
+            kronosMetrics.recordExternalProviderRequest("rekognition", "search_faces", "failure", "io");
+            kronosMetrics.recordExternalProviderRequestDuration("rekognition", "search_faces",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=rekognition_search_faces_error reason=io exceptionType={}",
+                    e.getClass().getSimpleName());
+            throw new RuntimeException("Falha ao ler a imagem para reconhecimento.", e);
+        } catch (IllegalArgumentException e) {
+            kronosMetrics.recordExternalProviderRequest("rekognition", "search_faces", "failure", "invalid_external_image_id");
+            kronosMetrics.recordExternalProviderRequestDuration("rekognition", "search_faces",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=rekognition_search_faces_error reason=invalid_external_image_id exceptionType={}",
+                    e.getClass().getSimpleName());
+            throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
+        } catch (SdkException e) {
+            kronosMetrics.recordExternalProviderRequest("rekognition", "search_faces", "failure", "sdk_exception");
+            kronosMetrics.recordExternalProviderRequestDuration("rekognition", "search_faces",
+                    java.time.Duration.ofNanos(System.nanoTime() - startedAt), "failure");
+            log.error("event=rekognition_search_faces_error reason=sdk_exception exceptionType={}",
+                    e.getClass().getSimpleName());
             throw new RuntimeException("Falha no serviço de reconhecimento facial.", e);
         }
     }
