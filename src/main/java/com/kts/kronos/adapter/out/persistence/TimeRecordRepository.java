@@ -38,6 +38,11 @@ public interface TimeRecordRepository extends JpaRepository<TimeRecordEntity, Lo
             @Param("dayEnd")   LocalDateTime dayEnd
     );
     Optional<TimeRecordEntity>  findFirstByEmployeeIdAndEndWorkIsNullOrderByStartWorkDesc(UUID employeeId);
+    List<TimeRecordEntity> findByEmployeeIdAndActiveAndEndWorkIsNullAndStartWorkBeforeOrderByStartWorkAsc(
+            UUID employeeId,
+            boolean active,
+            LocalDateTime before
+    );
     List<TimeRecordEntity> findByEmployeeIdAndActive(UUID employeeId, boolean active);
     List<TimeRecordEntity> findByEmployeeId(UUID employeeId);
     Page<TimeRecordEntity> findByEmployeeIdOrderByStartWorkDesc(UUID employeeId, Pageable pageable);

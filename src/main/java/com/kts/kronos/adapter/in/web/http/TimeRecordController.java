@@ -189,4 +189,19 @@ public class TimeRecordController {
     ) {
         return ResponseEntity.ok(useCase.listMyRequests(Math.max(1, Math.min(limit, 50))));
     }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping(ME_PENDING_EXITS)
+    public ResponseEntity<PendingExitResponse> listMyPendingExits() {
+        return ResponseEntity.ok(useCase.listMyPendingExits());
+    }
+
+    @PreAuthorize(MANAGER)
+    @GetMapping(MANAGER_MONTHLY_ALERTS)
+    public ResponseEntity<ManagerMonthlyAlertResponse> listManagerMonthlyAlerts(
+            @RequestParam String month,
+            @RequestParam String filter
+    ) {
+        return ResponseEntity.ok(useCase.listManagerMonthlyAlerts(month, filter));
+    }
 }

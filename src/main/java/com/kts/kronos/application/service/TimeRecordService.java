@@ -80,6 +80,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final PrivacyLogReferenceService privacyLogReferenceService;
     private final CacheProvider cacheProvider;
     private final UserCompanyAccessProvider userCompanyAccessProvider;
+    private final ScheduleResolverService scheduleResolverService;
 
     @Autowired(required = false)
     private DistributedLockProvider distributedLockProvider;
@@ -1108,6 +1109,135 @@ public class TimeRecordService implements TimeRecordUseCase {
                 MyRequestsResponse.class,
                 () -> loadMyRequests(normalizedLimit, employeeOpt)
         );
+    }
+
+    @Override
+    public PendingExitResponse listMyPendingExits() {
+        var employeeOpt = getAuthenticatedEmployeeIfPresent();
+        if (employeeOpt.isEmpty()) {
+            return new PendingExitResponse(List.of(), "PERSISTED");
+        }
+
+        var employee = employeeOpt.get();
+        var today = LocalDate.now(SAO_PAULO);
+        var companyName = companyProvider.findById(employee.companyId())
+                .map(Company::name)
+                .orElse("Empresa principal");
+
+        var items = recordRepository.findPendingExitsByEmployeeId(employee.employeeId(), today.atStartOfDay())
+                .stream()
+                .filter(record -> record.statusRecord() == StatusRecord.PENDING)
+                .filter(record -> record.startWork() != null)
+                .map(record -> new PendingExitItemResponse(
+                        record.timeRecordId(),
+                        record.startWork().toLocalDate(),
+                        record.startWork().toLocalTime().format(TIME_FORMATTER),
+                        companyName
+                ))
+                .toList();
+
+        return new PendingExitResponse(items, "PERSISTED");
+    }
+
+    @Override
+    public ManagerMonthlyAlertResponse listManagerMonthlyAlerts(String month, String filter) {
+        final YearMonth targetMonth;
+        try {
+            targetMonth = YearMonth.parse(month);
+        } catch (DateTimeException exception) {
+            throw new BadRequestException("O mês deve estar no formato YYYY-MM.");
+        }
+
+        var normalizedFilter = filter == null ? "" : filter.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("PENDING_EXIT", "OVERTIME", "NEGATIVE_BALANCE").contains(normalizedFilter)) {
+            throw new BadRequestException("Filtro de relatório gerencial inválido.");
+        }
+
+        var manager = getEmployee(jwtAuthenticatedUser.getEmployeeId());
+        var employees = employeeProvider.findByCompanyId(manager.companyId());
+        var employeeIds = employees.stream().map(Employee::employeeId).collect(Collectors.toSet());
+        var records = recordRepository.findByEmployeeIdsAndRange(
+                employeeIds,
+                targetMonth.atDay(1).atStartOfDay(),
+                targetMonth.atEndOfMonth().atTime(23, 59, 59)
+        );
+        var recordsByEmployeeAndDate = records.stream()
+                .filter(record -> record.startWork() != null)
+                .collect(Collectors.groupingBy(
+                        TimeRecord::employeeId,
+                        Collectors.groupingBy(record -> record.startWork().atZone(SAO_PAULO).toLocalDate())
+                ));
+
+        var result = new ArrayList<ManagerMonthlyAlertItemResponse>();
+        for (var employee : employees) {
+            var recordsByDate = recordsByEmployeeAndDate.getOrDefault(employee.employeeId(), Map.of());
+            for (var date = targetMonth.atDay(1); !date.isAfter(targetMonth.atEndOfMonth()); date = date.plusDays(1)) {
+                var dailyRecords = recordsByDate.getOrDefault(date, List.of());
+
+                if ("PENDING_EXIT".equals(normalizedFilter)) {
+                    if (dailyRecords.stream().anyMatch(record ->
+                            record.active()
+                                    && record.statusRecord() == StatusRecord.PENDING
+                                    && record.endWork() == null)) {
+                        result.add(new ManagerMonthlyAlertItemResponse(
+                                employee.employeeId(), employee.fullName(), date, "Saída pendente"
+                        ));
+                    }
+                    continue;
+                }
+
+                var balance = calculateManagerDailyBalance(employee, date, dailyRecords);
+                boolean match = "OVERTIME".equals(normalizedFilter)
+                        ? balance.compareTo(Duration.ofMinutes(5)) > 0
+                        : balance.isNegative();
+                if (match) {
+                    result.add(new ManagerMonthlyAlertItemResponse(
+                            employee.employeeId(),
+                            employee.fullName(),
+                            date,
+                            formatSignedDuration(balance)
+                    ));
+                }
+            }
+        }
+
+        result.sort(Comparator.comparing(ManagerMonthlyAlertItemResponse::date)
+                .thenComparing(ManagerMonthlyAlertItemResponse::employeeName, String.CASE_INSENSITIVE_ORDER));
+        return new ManagerMonthlyAlertResponse(targetMonth.toString(), normalizedFilter, result);
+    }
+
+    private Duration calculateManagerDailyBalance(Employee employee, LocalDate date, List<TimeRecord> records) {
+        var schedule = scheduleResolverService.resolveForDate(employee, date);
+        var expected = Duration.ofMinutes(schedule.expectedWorkMinutes());
+
+        if (records.stream().anyMatch(record -> record.statusRecord() == StatusRecord.TIME_OFF
+                || record.statusRecord() == StatusRecord.DAY_OFF
+                || record.statusRecord() == StatusRecord.VACATION)) {
+            return Duration.ZERO;
+        }
+
+        var worked = records.stream()
+                .filter(this::isManagerEffectiveWorkRecord)
+                .map(record -> Duration.between(record.startWork(), record.endWork()))
+                .reduce(Duration.ZERO, Duration::plus);
+
+        return worked.minus(expected);
+    }
+
+    private boolean isManagerEffectiveWorkRecord(TimeRecord record) {
+        return record.active()
+                && record.startWork() != null
+                && record.endWork() != null
+                && switch (record.statusRecord()) {
+                    case CREATED, UPDATED, IMPORTED, TIME_OFF -> true;
+                    default -> false;
+                };
+    }
+
+    private String formatSignedDuration(Duration duration) {
+        var absolute = duration.abs();
+        return (duration.isNegative() ? "-" : "+")
+                + String.format("%02d:%02d", absolute.toHours(), absolute.toMinutesPart());
     }
 
     private List<Long> parseTimeRecordIdsCsv(String csv) {

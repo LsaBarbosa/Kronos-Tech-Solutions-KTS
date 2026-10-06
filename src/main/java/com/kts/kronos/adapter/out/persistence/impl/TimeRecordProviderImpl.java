@@ -62,6 +62,15 @@ public class TimeRecordProviderImpl implements TimeRecordProvider {
     }
 
     @Override
+    public List<TimeRecord> findPendingExitsByEmployeeId(UUID employeeId, LocalDateTime before) {
+        return jpa.findByEmployeeIdAndActiveAndEndWorkIsNullAndStartWorkBeforeOrderByStartWorkAsc(
+                        employeeId, true, before)
+                .stream()
+                .map(TimeRecordEntity::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<TimeRecord> findByEmployeeIdAndActive(UUID employeeId, boolean active) {
         return jpa.findByEmployeeIdAndActive(employeeId, active)
                 .stream()

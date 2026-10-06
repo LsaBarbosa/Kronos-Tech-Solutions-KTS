@@ -24,6 +24,7 @@ public interface TimeRecordProvider {
     void deleteTimeRecord(TimeRecord timeRecord);
 
     Optional<TimeRecord> findOpenByEmployeeId(UUID employeeId);
+    List<TimeRecord> findPendingExitsByEmployeeId(UUID employeeId, LocalDateTime before);
 
     List<TimeRecord> findByEmployeeIdAndActive(UUID employeeId, boolean active);
 

@@ -30,4 +30,6 @@ public interface TimeRecordUseCase {
     TodayTimeRecordStatusResponse getTodayStatus();
     RecentTimeRecordsResponse listMyRecentRecords(int limit);
     MyRequestsResponse listMyRequests(int limit);
+    PendingExitResponse listMyPendingExits();
+    ManagerMonthlyAlertResponse listManagerMonthlyAlerts(String month, String filter);
 }
