@@ -112,6 +112,23 @@ class TimeRecordApprovalProviderImplTest {
         verify(repository).deleteById(77L);
     }
 
+    @Test
+    @DisplayName("findByRequestingEmployeeId: deve paginar e retornar lista mapeada")
+    void shouldFindByRequestingEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        TimeRecordApprovalRequest req = approvalRequest(55L);
+        org.springframework.data.domain.PageRequest page = org.springframework.data.domain.PageRequest.of(0, 10);
+        when(repository.findByRequestingEmployeeIdOrderByCreatedAtDesc(employeeId, page))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(
+                        java.util.List.of(TimeRecordApprovalEntity.fromDomain(req)), page, 1));
+
+        var result = provider.findByRequestingEmployeeId(employeeId, 10);
+
+        assertEquals(1, result.size());
+        assertEquals(55L, result.get(0).timeRecordId());
+    }
+
+
     private TimeRecordApprovalRequest approvalRequest(Long timeRecordId) {
         return new TimeRecordApprovalRequest(
                 timeRecordId,

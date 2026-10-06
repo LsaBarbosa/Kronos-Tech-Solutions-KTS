@@ -131,4 +131,17 @@ class DemoSandboxDataFactoryStoragePathTest {
             assertThat(path).doesNotContain("opt");
         });
     }
+    @Test
+    void createAll_onLastDayOfMonth_loopExitsByEndOfMonth() {
+        // BR L165 A=false: cursor exceeds lastDay (only possible when today == lastDay of month)
+        // Mock LocalDate.now() to return the last day of a month so the while loop
+        // runs through all days and exits via the A=false branch (cursor > lastDay).
+        java.time.LocalDate lastDay = java.time.LocalDate.of(2026, 6, 30); // June 30 = last day
+        try (var mocked = org.mockito.Mockito.mockStatic(java.time.LocalDate.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mocked.when(java.time.LocalDate::now).thenReturn(lastDay);
+            assertThatCode(() -> factory.createAll()).doesNotThrowAnyException();
+        }
+    }
+
 }

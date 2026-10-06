@@ -160,4 +160,49 @@ class ClientIpResolverTest {
         String result = resolver.resolve(request);
         assertEquals("2001:db8::1", result);
     }
+
+    @Test
+    @DisplayName("Returns unknown when remoteAddr is null")
+    void resolve_nullRemoteAddr_returnsUnknown() {
+        when(request.getRemoteAddr()).thenReturn(null);
+        // null remoteAddr → isTrustedProxy(null, ...) is false → resolveDirect(null)
+        String result = resolver.resolve(request);
+        assertEquals("unknown", result);
+    }
+
+    @Test
+    @DisplayName("Falls back to remoteAddr when intermediate hop is not trusted proxy")
+    void resolve_untrustedIntermediateProxy_fallsBack() {
+        // All hops are valid IPs, but the intermediate (8.8.8.8) is not a trusted proxy
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.1, 8.8.8.8");
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+        // validateProxyChain will return false because 8.8.8.8 is not a trusted proxy
+        String result = resolver.resolve(request);
+        // Falls back to remoteAddr since chain invalid and X-Real-IP is null
+        assertEquals("127.0.0.1", result);
+    }
+
+    @Test
+    @DisplayName("Returns remoteAddr when X-Forwarded-For starts with comma (blank first hop)")
+    void resolve_blankFirstHopInForwardedFor_fallsBackToRemoteAddr() {
+        // ",203.0.113.1" splits to ["", "203.0.113.1"] → hops[0].trim().isBlank() → invalid
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn(",203.0.113.1");
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+        String result = resolver.resolve(request);
+        assertEquals("127.0.0.1", result);
+    }
+
+    @Test
+    @DisplayName("resolveWithDetails returns REMOTE_ADDR source when no headers present")
+    void resolveWithDetails_noHeaders_returnsRemoteAddrSource() {
+        properties.setTrustForwardedHeaders(false);
+        resolver = new ClientIpResolver(properties);
+        when(request.getRemoteAddr()).thenReturn("10.0.0.5");
+        ClientIpResolution resolution = resolver.resolveWithDetails(request);
+        assertEquals("10.0.0.5", resolution.ipAddress());
+        assertEquals("REMOTE_ADDR", resolution.source());
+    }
+
 }

@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.FaqProvider;
+import com.kts.kronos.adapter.in.web.dto.faq.FaqArticleResponse;
+import com.kts.kronos.adapter.in.web.dto.faq.FaqSearchItemResponse;
 import com.kts.kronos.domain.model.FaqArticle;
 import com.kts.kronos.domain.model.FaqCategory;
 import com.kts.kronos.domain.model.enuns.FaqStatus;
@@ -24,6 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -297,4 +301,33 @@ class FaqServiceTest {
                 null
         );
     }
+
+    // ── FaqArticleResponse.fromDomain null category (BR L27) ──────────────────
+    @Test
+    void faqArticleResponse_fromDomain_nullCategory_producesNullCategory() {
+        var article = new FaqArticle(
+                java.util.UUID.randomUUID(), "Title", "Short", "Full answer",
+                FaqStatus.ACTIVE, 1, null,
+                java.util.List.of(), java.util.List.of("SCREEN"), java.util.List.of("tag"),
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), null
+        );
+        var response = FaqArticleResponse.fromDomain(article);
+        assertNull(response.category());
+        assertEquals("Title", response.title());
+    }
+
+    // ── FaqSearchItemResponse.fromDomain null category (BR L30) ───────────────
+    @Test
+    void faqSearchItemResponse_fromDomain_nullCategory_producesNullCategory() {
+        var article = new FaqArticle(
+                java.util.UUID.randomUUID(), "Title", "Short", "Full",
+                FaqStatus.ACTIVE, 1, null,
+                java.util.List.of(), java.util.List.of("SCREEN"), java.util.List.of("tag"),
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now(), 0.85
+        );
+        var response = FaqSearchItemResponse.fromDomain(article);
+        assertNull(response.category());
+        assertEquals(0.85, response.relevanceScore());
+    }
+
 }

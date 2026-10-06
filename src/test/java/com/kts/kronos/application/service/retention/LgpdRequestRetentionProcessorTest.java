@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -128,4 +129,10 @@ class LgpdRequestRetentionProcessorTest {
                 Instant.now()
         );
     }
+
+    @Test
+    void supportsApply_returnsTrue() {
+        assertTrue(processor.supportsApply());
+    }
+
 }

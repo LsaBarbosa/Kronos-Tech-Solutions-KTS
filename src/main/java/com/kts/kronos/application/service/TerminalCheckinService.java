@@ -10,12 +10,14 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.TerminalCheckinUseCase;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider;
 import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.service.AuditRequestContextService;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
@@ -27,13 +29,15 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.kts.kronos.application.service.AuthService.BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN;
 import static com.kts.kronos.application.service.AuthService.FACE_NOT_RECOGNIZE;
-import static com.kts.kronos.application.service.AuthService.INACTIVE_USER;
 import static com.kts.kronos.application.service.AuthService.INVALID_IMAGE;
 import static com.kts.kronos.application.service.AuthService.NO_USER_LINKED_TO_THIS_EMPLOYEE;
+import com.kts.kronos.application.port.out.provider.FaceRecognitionProvider.FaceMatchCandidate;
 
 @Slf4j
 @Service
@@ -45,6 +49,7 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
     private final FaceRecognitionProvider faceRecognitionProvider;
     private final UserProvider userProvider;
     private final EmployeeProvider employeeProvider;
+    private final CompanyProvider companyProvider;
     private final AcceptTermsUseCase acceptTermsUseCase;
     private final TimeRecordService timeRecordService;
     private final JwtUtils jwtUtils;
@@ -67,17 +72,18 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
                 byte[] imageBytes = Base64.getDecoder().decode(request.faceImageBase64());
                 var inputStream = new ByteArrayInputStream(imageBytes);
 
-                // Única chamada ao Rekognition — resultado reaproveitado para auth e checkin
-                var employeeId = faceRecognitionProvider.searchFaceByImage(inputStream);
-                if (employeeId == null) {
+                var faceMatches = faceRecognitionProvider.searchFacesByImage(inputStream);
+                if (faceMatches == null || faceMatches.isEmpty()) {
                     throw new ForbiddenException(FACE_NOT_RECOGNIZE);
                 }
 
-                var user = userProvider.findByEmployeeId(employeeId)
-                        .orElseThrow(() -> new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE));
-
-                if (!user.active()) {
-                    throw new BadRequestException(INACTIVE_USER);
+                var resolved = resolveUserAndTerminalTarget(faceMatches, request.latitude(), request.longitude())
+                        .orElseThrow(() -> new ForbiddenException(FACE_NOT_RECOGNIZE));
+                var user = resolved.user();
+                var resolution = resolved.resolution();
+                var employeeId = user.employeeId();
+                if (employeeId == null) {
+                    throw new ResourceNotFoundException(NO_USER_LINKED_TO_THIS_EMPLOYEE);
                 }
 
                 var consentStatus = acceptTermsUseCase.getBiometricConsentStatus(user.employeeId());
@@ -88,24 +94,22 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
                     );
                 }
 
-                // Registra o ponto reaproveitando a identidade já confirmada acima
                 var geoRequest = new GeolocationRequest(
                         request.latitude(),
                         request.longitude(),
                         request.faceImageBase64(),
                         request.livenessPassed()
                 );
-                var actionResponse = timeRecordService.registerTimeForEmployee(employeeId, geoRequest);
+                var actionResponse = timeRecordService.registerTimeFromTerminal(resolution.employeeId(), geoRequest);
 
-                UUID activeCompanyId = resolveActiveCompanyId(user.userId(), user.employeeId());
                 String jwtToken = jwtUtils.generateToken(
-                        user.employeeId(),
+                        resolution.employeeId(),
                         user.username(),
-                        user.role().name(),
+                        resolution.role(),
                         user.userId(),
                         consentStatus,
                         user.sessionVersion(),
-                        activeCompanyId
+                        resolution.companyId()
                 );
 
                 metrics().authFaceLoginSuccess();
@@ -146,21 +150,78 @@ public class TerminalCheckinService implements TerminalCheckinUseCase {
         }
     }
 
-    private UUID resolveActiveCompanyId(UUID userId, UUID employeeId) {
-        var defaultAccess = userCompanyAccessProvider.findDefaultActiveByUserId(userId);
-        if (defaultAccess.isPresent()) {
-            return defaultAccess.get().companyId();
+    private record TerminalResolution(UUID employeeId, UUID companyId, String role) {}
+
+    private record ResolvedTerminalUser(User user, TerminalResolution resolution) {}
+
+    private record NearbyTerminalTarget(TerminalResolution resolution, double distanceMeters) {}
+
+    private Optional<ResolvedTerminalUser> resolveUserAndTerminalTarget(
+            List<FaceMatchCandidate> faceMatches, double latitude, double longitude) {
+        ResolvedTerminalUser fallback = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (var faceMatch : faceMatches) {
+            var userOpt = userProvider.findByEmployeeId(faceMatch.employeeId());
+            if (userOpt.isEmpty() || !userOpt.get().active()) {
+                continue;
+            }
+
+            var user = userOpt.get();
+            if (fallback == null) {
+                fallback = new ResolvedTerminalUser(user,
+                        resolveTerminalTargetFallback(user.employeeId(), user.role().name()));
+            }
+
+            var nearby = resolveNearbyTerminalTarget(user.userId(), user.employeeId(), user.role().name(), latitude, longitude);
+            if (nearby.isPresent() && nearby.get().distanceMeters() < nearestDistance) {
+                nearestDistance = nearby.get().distanceMeters();
+                fallback = new ResolvedTerminalUser(user, nearby.get().resolution());
+            }
         }
-        var activeAccesses = userCompanyAccessProvider.findActiveByUserId(userId);
-        if (!activeAccesses.isEmpty()) {
-            return activeAccesses.get(0).companyId();
+
+        return Optional.ofNullable(fallback);
+    }
+
+    private Optional<NearbyTerminalTarget> resolveNearbyTerminalTarget(
+            UUID userId, UUID fallbackEmployeeId, String fallbackRole,
+            double latitude, double longitude) {
+        NearbyTerminalTarget nearest = null;
+        for (var access : userCompanyAccessProvider.findActiveByUserId(userId)) {
+            if (access.employeeId() == null) continue;
+            var companyOpt = companyProvider.findById(access.companyId());
+            if (companyOpt.isEmpty() || companyOpt.get().location() == null) continue;
+            var location = companyOpt.get().location();
+            double distance = geoDistanceMeters(location.latitude(), location.longitude(), latitude, longitude);
+            if (distance <= 80.0 && (nearest == null || distance < nearest.distanceMeters())) {
+                String role = access.role() != null ? access.role() : fallbackRole;
+                nearest = new NearbyTerminalTarget(
+                        new TerminalResolution(access.employeeId(), access.companyId(), role), distance);
+            }
         }
-        if (employeeId != null) {
-            return employeeProvider.findById(employeeId)
-                    .map(e -> e.companyId())
-                    .orElse(null);
+        if (nearest != null) {
+            log.info("event=terminal_company_resolved companyId={} distance_m={}",
+                    nearest.resolution().companyId(), (int) nearest.distanceMeters());
         }
-        return null;
+        return Optional.ofNullable(nearest);
+    }
+
+    private TerminalResolution resolveTerminalTargetFallback(UUID fallbackEmployeeId, String fallbackRole) {
+        UUID companyId = employeeProvider.findById(fallbackEmployeeId)
+                .map(e -> e.companyId())
+                .orElse(null);
+        log.info("event=terminal_company_resolved_fallback companyId={}", companyId);
+        return new TerminalResolution(fallbackEmployeeId, companyId, fallbackRole);
+    }
+
+    private double geoDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 1000;
     }
 
     private KronosMetrics metrics() {

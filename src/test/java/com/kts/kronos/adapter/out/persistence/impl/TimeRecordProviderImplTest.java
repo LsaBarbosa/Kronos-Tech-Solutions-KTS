@@ -420,4 +420,33 @@ class TimeRecordProviderImplTest {
             }
         };
     }
+
+    @Test
+    @DisplayName("findRecentByEmployeeId: deve paginar e mapear")
+    void shouldFindRecentByEmployeeId() {
+        UUID employeeId = UUID.randomUUID();
+        TimeRecordEntity entity = entity(timeRecord(employeeId), 99L, null);
+
+        when(jpa.findByEmployeeIdOrderByStartWorkDesc(eq(employeeId), any(org.springframework.data.domain.PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(entity)));
+
+        List<TimeRecord> result = provider.findRecentByEmployeeId(employeeId, 5);
+
+        assertEquals(1, result.size());
+        assertEquals(99L, result.get(0).timeRecordId());
+    }
+
+    @Test
+    @DisplayName("buildSearchName: null name retorna null")
+    void shouldReturnNullSearchNameWhenNull() {
+        var pageable = PageRequest.of(0, 10);
+        UUID companyId = UUID.randomUUID();
+        when(jpa.findVacationRequestPeriodsByCompanyId(any(), any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0));
+
+        provider.findVacationRequestPeriodsByCompanyId(pageable, companyId, List.of(), null);
+
+        verify(jpa).findVacationRequestPeriodsByCompanyId(eq(pageable), eq(companyId), any(), org.mockito.ArgumentMatchers.isNull());
+    }
+
 }

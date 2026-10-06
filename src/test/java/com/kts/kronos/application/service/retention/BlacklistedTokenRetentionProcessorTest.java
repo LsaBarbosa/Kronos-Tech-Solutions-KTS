@@ -106,6 +106,17 @@ class BlacklistedTokenRetentionProcessorTest {
         assertTrue(result.notes().contains("Database error"));
     }
 
+
+    @Test
+    void testSupportsApply() {
+        assertTrue(processor.supportsApply());
+    }
+
+    @Test
+    void testIsDestructive() {
+        assertTrue(processor.isDestructive());
+    }
+
     private RetentionPolicy createPolicy(RetentionResourceType resourceType) {
         return new RetentionPolicy(
                 UUID.randomUUID(),

@@ -110,6 +110,19 @@ class BiometricTermPdfServiceTest {
         }
     }
 
+    @Test
+    @DisplayName("generateConsentTerm: deve usar fallback quando userAgent é null")
+    void shouldGenerateConsentTermWithNullUserAgent() {
+        byte[] pdf = service.generateConsentTerm(
+                employee(UUID.randomUUID(), UUID.randomUUID()),
+                company(UUID.randomUUID()),
+                "198.51.100.1",
+                null,
+                legalText()
+        );
+        assertTrue(pdf.length > 0);
+    }
+
     private static Company company(UUID companyId) {
         return new Company(
                 companyId,

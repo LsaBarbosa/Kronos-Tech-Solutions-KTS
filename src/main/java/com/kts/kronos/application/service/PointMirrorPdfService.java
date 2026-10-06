@@ -15,6 +15,7 @@ import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Company;
+import com.kts.kronos.domain.model.DailySchedule;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.TimeRecord;
 import com.kts.kronos.domain.model.enuns.StatusRecord;
@@ -54,6 +55,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
     private final DomainAuthorizationService domainAuthorizationService;
     private final KronosMetrics kronosMetrics;
     private final KronosTracing kronosTracing;
+    private final ScheduleResolverService scheduleResolver;
 
 
 
@@ -114,6 +116,7 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
                                     startDate.atStartOfDay(),
                                     endDate.atTime(23, 59, 59)
                             ).stream()
+                            .filter(TimeRecord::active)
                             .filter(r -> r.startWork() != null)
                             .sorted(Comparator.comparing(TimeRecord::startWork))
                             .collect(Collectors.groupingBy(
@@ -245,32 +248,23 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         var worked = Duration.ZERO;
 
         // 1. Determina a expectativa de trabalho para este dia específico
-        long expectedMinutes = employee.getDailyWorkMinutes(); // Método real do Employee
-        boolean isWeekend = (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY);
-
-        // Em produção, se for FDS, a expectativa padrão é zero (hora extra 100% se trabalhar)
-        if (isWeekend) {
-            expectedMinutes = 0;
-        }
+        DailySchedule dailySchedule = scheduleResolver.resolveForDate(employee, date);
+        long expectedMinutes = dailySchedule.expectedWorkMinutes();
 
         var expected = Duration.ofMinutes(expectedMinutes);
 
-        // 2. Processa as marcações
+        // 2. Processa apenas marcações efetivas. Solicitações, folgas, ausências
+        // e pausas implícitas não são intervalos trabalhados do espelho.
         for (var r : records) {
-            // Formata Original
+            if (!isEffectiveWorkRecord(r)) {
+                continue;
+            }
+
             if (r.originalStartWork() != null) originalSb.append(r.originalStartWork().format(TIME_FORMATTER)).append("E ");
             if (r.originalEndWork() != null) originalSb.append(r.originalEndWork().format(TIME_FORMATTER)).append("S ");
-
-            // Formata Tratado
-            if (r.startWork() != null) treatedSb.append(r.startWork().format(TIME_FORMATTER)).append("E ");
-            if (r.endWork() != null) {
-                treatedSb.append(r.endWork().format(TIME_FORMATTER)).append("S ");
-
-                // Soma horas trabalhadas (ignora pausas implícitas no cálculo de 'trabalhado')
-                if (r.statusRecord() != StatusRecord.IMPLICIT_BREAK) {
-                    worked = worked.plus(Duration.between(r.startWork(), r.endWork()));
-                }
-            }
+            treatedSb.append(r.startWork().format(TIME_FORMATTER)).append("E ");
+            treatedSb.append(r.endWork().format(TIME_FORMATTER)).append("S ");
+            worked = worked.plus(Duration.between(r.startWork(), r.endWork()));
         }
 
         // 3. Calcula Saldo
@@ -280,8 +274,8 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         String jornadaDisplay;
         if (expectedMinutes > 0) {
             // Exibe horário contratual (Ex: 08:00 - 17:00)
-            var start = employee.workStartTime() != null ? employee.workStartTime() : LocalTime.of(8,0);
-            var end = employee.workEndTime() != null ? employee.workEndTime() : LocalTime.of(17,0);
+            var start = dailySchedule.workStart() != null ? dailySchedule.workStart() : LocalTime.of(8,0);
+            var end = dailySchedule.workEnd() != null ? dailySchedule.workEnd() : LocalTime.of(17,0);
             jornadaDisplay = start.format(TIME_FORMATTER) + " - " + end.format(TIME_FORMATTER);
         } else {
             jornadaDisplay = "FOLGA / DSR";
@@ -301,7 +295,10 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
 
         // 6. Tratamento para Abonos/Férias
         boolean isAbono = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF);
-        boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION);
+        boolean isAbonoRequest = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.TIME_OFF_REQUEST);
+        boolean isFerias = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.VACATION
+                || r.statusRecord() == StatusRecord.REQUEST_VACATION);
+        boolean isWorkRequest = records.stream().anyMatch(r -> r.statusRecord() == StatusRecord.WORK_TIME_REQUEST);
 
         if (isAbono) {
             treatedSb = new StringBuilder("TIME_OFF_REQUEST");
@@ -309,9 +306,23 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         } else if (isFerias) {
             treatedSb = new StringBuilder("FÉRIAS");
             balance = Duration.ZERO;
+        } else if (isAbonoRequest) {
+            treatedSb = new StringBuilder("TIME_OFF_REQUEST");
+        } else if (isWorkRequest && worked.isZero()) {
+            treatedSb = new StringBuilder("WORK_TIME_REQUEST");
         }
 
         return new ProcessedDay(jornadaDisplay, originalSb.toString(), treatedSb.toString(), worked, balance);
+    }
+
+    private boolean isEffectiveWorkRecord(TimeRecord record) {
+        return record.active()
+                && record.startWork() != null
+                && record.endWork() != null
+                && switch (record.statusRecord()) {
+                    case CREATED, UPDATED, IMPORTED, TIME_OFF -> true;
+                    default -> false;
+                };
     }
 
     private String formatDuration(Duration d) {

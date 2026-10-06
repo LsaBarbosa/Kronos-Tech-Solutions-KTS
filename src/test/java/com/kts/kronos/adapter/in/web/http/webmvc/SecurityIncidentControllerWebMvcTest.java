@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.in.web.http.webmvc;
 
 import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentResponse;
+import com.kts.kronos.adapter.in.web.dto.security.SecurityIncidentReportResponse;
 import com.kts.kronos.adapter.in.web.http.SecurityIncidentController;
 import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.adapter.in.web.exceptions.RestExceptionHandler;
@@ -173,4 +174,154 @@ class SecurityIncidentControllerWebMvcTest {
                 false, null, null, null, null, null, null, null, null, null, null, null, null
         );
     }
+    @Test
+    void shouldCreateIncidentWithNullUserAgent() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.createIncident(any(), anyString(), eq("unknown"))).thenReturn(response);
+
+        mockMvc.perform(post("/security-incidents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "title": "Test Incident",
+                            "description": "Test description",
+                            "severity": "HIGH",
+                            "personalDataInvolved": true,
+                            "sensitiveDataInvolved": false,
+                            "affectedSubjectsEstimate": 10
+                        }
+                        """))
+                .andExpect(status().isCreated());
+
+        verify(securityIncidentUseCase).createIncident(any(), anyString(), eq("unknown"));
+    }
+
+    @Test
+    void shouldUpdateIncidentWithNullUserAgent() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.updateIncident(eq(incidentId), any(), anyString(), eq("unknown")))
+                .thenReturn(response);
+
+        mockMvc.perform(patch("/security-incidents/" + incidentId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\": \"CONFIRMED\", \"confirmedAt\": \"2026-05-21T10:00:00Z\"}"))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).updateIncident(eq(incidentId), any(), anyString(), eq("unknown"));
+    }
+
+    @Test
+    void shouldEvaluateRiskSuccessfully() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.evaluateRisk(eq(incidentId), any(), anyString(), anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/security-incidents/" + incidentId + "/evaluate-risk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("User-Agent", "JUnit")
+                .content("""
+                        {
+                            "dataCategories": "PII",
+                            "incidentCause": "Misconfiguration",
+                            "confidentialityImpact": "HIGH",
+                            "integrityImpact": "MEDIUM",
+                            "availabilityImpact": "LOW",
+                            "riskToSubjects": "Identity theft risk",
+                            "communicationRequired": true
+                        }
+                        """))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).evaluateRisk(eq(incidentId), any(), anyString(), anyString());
+    }
+
+    @Test
+    void shouldEvaluateRiskWithNullUserAgent() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.evaluateRisk(eq(incidentId), any(), anyString(), eq("unknown")))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/security-incidents/" + incidentId + "/evaluate-risk")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "dataCategories": "PII",
+                            "incidentCause": "Misconfiguration",
+                            "confidentialityImpact": "HIGH",
+                            "integrityImpact": "MEDIUM",
+                            "availabilityImpact": "LOW",
+                            "riskToSubjects": "Identity theft risk",
+                            "communicationRequired": false
+                        }
+                        """))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).evaluateRisk(eq(incidentId), any(), anyString(), eq("unknown"));
+    }
+
+    @Test
+    void shouldSubmitCorrectionPlanSuccessfully() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.submitCorrectionPlan(eq(incidentId), any(), anyString(), anyString()))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/security-incidents/" + incidentId + "/correction-plan")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("User-Agent", "JUnit")
+                .content("""
+                        {
+                            "containmentActions": "Isolated affected systems",
+                            "correctiveActions": "Patched vulnerability",
+                            "evidenceLinks": "https://jira.example.com/KTS-123"
+                        }
+                        """))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).submitCorrectionPlan(eq(incidentId), any(), anyString(), anyString());
+    }
+
+    @Test
+    void shouldSubmitCorrectionPlanWithNullUserAgent() throws Exception {
+        var incidentId = UUID.randomUUID();
+        var response = buildResponse(incidentId);
+
+        when(securityIncidentUseCase.submitCorrectionPlan(eq(incidentId), any(), anyString(), eq("unknown")))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/security-incidents/" + incidentId + "/correction-plan")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                            "containmentActions": "Isolated affected systems",
+                            "correctiveActions": "Patched vulnerability"
+                        }
+                        """))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).submitCorrectionPlan(eq(incidentId), any(), anyString(), eq("unknown"));
+    }
+
+    @Test
+    void shouldGenerateIncidentReport() throws Exception {
+        var incidentId = UUID.randomUUID();
+        when(securityIncidentUseCase.generateReport(incidentId))
+                .thenReturn(null);
+
+        mockMvc.perform(get("/security-incidents/{incidentId}/report", incidentId))
+                .andExpect(status().isOk());
+
+        verify(securityIncidentUseCase).generateReport(incidentId);
+    }
+
+
 }

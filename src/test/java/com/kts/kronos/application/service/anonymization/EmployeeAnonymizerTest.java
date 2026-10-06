@@ -166,6 +166,20 @@ class EmployeeAnonymizerTest {
         assertEquals(1, result.errorCount());
     }
 
+    @Test
+    void testExecuteApplyWithNoEmployeeFound() {
+        when(employeeRepository.findById(any())).thenReturn(Optional.empty());
+
+        var plan = createPlan();
+        var result = anonymizer.execute(plan, "APPLY");
+
+        assertEquals("APPLY", result.executionMode());
+        assertEquals("SUCCESS", result.status());
+        assertEquals(0, result.scannedCount());
+        assertEquals(0, result.affectedCount());
+        verify(employeeRepository, never()).save(any());
+    }
+
     private AnonymizationPlan createPlan() {
         return new AnonymizationPlan(
                 UUID.randomUUID(),

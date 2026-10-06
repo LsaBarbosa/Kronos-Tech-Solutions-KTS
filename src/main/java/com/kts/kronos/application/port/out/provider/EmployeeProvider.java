@@ -24,4 +24,6 @@ public interface EmployeeProvider {
     boolean cpfExistsInCompany(UUID companyId, String cpf);
     Optional<Employee> findByCompanyIdAndCpf(UUID companyId, String cpf);
     List<Employee> findAllByCpf(String cpf);
+    Optional<Employee> findByPis(String pis);
+    Optional<Employee> findByCompanyIdAndPis(UUID companyId, String pis);
 }

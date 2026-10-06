@@ -737,6 +737,136 @@ class DocumentServiceSecurityTest {
         assertEquals(storageFailure, exception);
     }
 
+    // ==================== DOWNLOAD COVERAGE GAPS ====================
+
+    @Test
+    @DisplayName("download: storagePath null lanca ResourceNotFoundException imediatamente")
+    void downloadDocument_nullStoragePath() {
+        UUID docId = UUID.randomUUID();
+        Document doc = buildDocument(docId, loggedEmployeeId, null);
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.downloadDocument(loggedEmployeeId, docId));
+        verify(bucketStorageProvider, never()).downloadFile(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("download: storagePath blank lanca ResourceNotFoundException imediatamente")
+    void downloadDocument_blankStoragePath() {
+        UUID docId = UUID.randomUUID();
+        Document doc = buildDocument(docId, loggedEmployeeId, "   ");
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.downloadDocument(loggedEmployeeId, docId));
+        verify(bucketStorageProvider, never()).downloadFile(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("download: ResourceNotFoundException com 'Arquivo nao encontrado' resulta em DOCUMENT_NOT_FOUND")
+    void downloadDocument_arquivoNaoEncontradoMappedToDocumentNotFound() {
+        UUID docId = UUID.randomUUID();
+        Document doc = buildDocument(docId, loggedEmployeeId, "valid/path.pdf");
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+        when(bucketStorageProvider.downloadFile(any(), anyString()))
+                .thenThrow(new ResourceNotFoundException("Arquivo não encontrado no storage."));
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> service.downloadDocument(loggedEmployeeId, docId));
+        assertEquals(DOCUMENT_NOT_FOUND, ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("download: documento com tipo null usa 'unknown' como documentType")
+    void downloadDocument_nullDocumentType() {
+        UUID docId = UUID.randomUUID();
+        Document doc = new Document(docId, loggedEmployeeId, null,
+                "file.pdf", "application/pdf", "safe/file.pdf",
+                java.time.LocalDateTime.now(), null, false, false);
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+        when(bucketStorageProvider.downloadFile(any(), any())).thenReturn(new byte[]{1, 2, 3});
+
+        assertDoesNotThrow(() -> service.downloadDocument(loggedEmployeeId, docId));
+    }
+
+    // ==================== DELETE COVERAGE GAPS ====================
+
+    @Test
+    @DisplayName("delete: TIME_OFF de propriedade do proprio colaborador pode ser excluido")
+    void deleteDocument_timeOffByOwnerSucceeds() {
+        UUID docId = UUID.randomUUID();
+        Document doc = new Document(docId, loggedEmployeeId, DocumentType.TIME_OFF,
+                "atestado.pdf", "application/pdf", "safe/time-off.pdf",
+                java.time.LocalDateTime.now(), null, false, false);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+
+        service.deleteDocument(loggedEmployeeId, docId);
+
+        verify(documentProvider).save(any(Document.class));
+    }
+
+    @Test
+    @DisplayName("delete: RuntimeException durante exclusao fisica e propagada pelo catch")
+    void deleteDocument_physicalDeleteStorageException() {
+        UUID docId = UUID.randomUUID();
+        // doc already soft-deleted by employee → manager delete triggers physical delete
+        Document doc = new Document(docId, loggedEmployeeId, DocumentType.PAYSLIP,
+                "payslip.pdf", "application/pdf", "safe/payslip.pdf",
+                java.time.LocalDateTime.now(), null, true, false);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmployeeId);
+        when(domainAuthorizationService.authorizeDocumentAccess(docId, loggedEmployeeId)).thenReturn(doc);
+        doThrow(new RuntimeException("storage down")).when(bucketStorageProvider).deleteFile(any(), any());
+
+        assertThrows(RuntimeException.class, () -> service.deleteDocument(loggedEmployeeId, docId));
+    }
+
+    // ==================== UPLOAD / MIME DETECTION COVERAGE GAPS ====================
+
+    @Test
+    @DisplayName("upload: arquivo com assinatura DOCX valida e rejeitado pois MIME nao e permitido")
+    void upload_validDocxStructureIsRejected() throws Exception {
+        // File named .pdf but contains valid DOCX bytes → isDocx() returns true →
+        // detectRealMimeType returns docx MIME → not in ALLOWED_MIME_TYPES → rejected
+        MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf",
+                docxBytes(true));
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, loggedEmployeeId, file));
+    }
+
+    @Test
+    @DisplayName("upload: arquivo com assinatura OLE2 (DOC antigo) e rejeitado pois MIME nao e permitido")
+    void upload_oldDocFormatIsRejected() throws Exception {
+        // OLE2 magic bytes (legacy .doc format) → detectRealMimeType returns "application/msword"
+        // → not in ALLOWED_MIME_TYPES → rejected
+        byte[] oleBytes = new byte[]{
+            (byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0,
+            (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1, 0x00, 0x00
+        };
+        MockMultipartFile file = new MockMultipartFile("file", "test.pdf", "application/pdf", oleBytes);
+
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> service.uploadDocument(DocumentType.PAYSLIP, loggedEmployeeId, file));
+    }
+
+    @Test
+    @DisplayName("upload: excecao em getuserId durante auditoria e swallowed pela operacao")
+    void upload_currentUserIdThrowsIsSwallowed() throws Exception {
+        Employee emp = buildEmployee(loggedEmployeeId, companyAId);
+        byte[] pdfBytes = new byte[]{(byte) 0x25, 0x50, 0x44, 0x46, 0x01, 0x00};
+        MockMultipartFile file = new MockMultipartFile("file", "doc.pdf", "application/pdf", pdfBytes);
+
+        lenient().when(domainAuthorizationService.authorizeEmployeeAccess(loggedEmployeeId)).thenReturn(emp);
+        when(bucketStorageProvider.uploadFile(any(), anyString(), any(), anyString())).thenReturn("path/doc.pdf");
+        when(jwtAuthenticatedUser.getuserId()).thenThrow(new RuntimeException("JWT unavailable"));
+
+        assertDoesNotThrow(() -> service.uploadDocument(DocumentType.PAYSLIP, loggedEmployeeId, file));
+    }
+
     private Employee buildEmployee(UUID employeeId, UUID companyId) {
         return new Employee(
                 employeeId,

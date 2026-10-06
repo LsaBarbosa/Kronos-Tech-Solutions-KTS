@@ -19,7 +19,8 @@ public enum StatusRecord {
     VACATION,          
     VACATION_REJECTED,
     WORK_TIME_REQUEST,
-    WORK_TIME_REJECTED;
+    WORK_TIME_REJECTED,
+    IMPORTED;
 
 
     public StatusRecord onCheckout() {

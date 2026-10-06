@@ -53,6 +53,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.util.ReflectionTestUtils;
+import com.kts.kronos.domain.model.AnonymizationConsolidatedResult;
+import com.kts.kronos.domain.model.enuns.AnonymizationConsolidatedStatus;
+
 
 @WebMvcTest(LgpdController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -969,4 +972,14 @@ class LgpdControllerWebMvcTest {
                 Instant.now()
         );
     }
+    @Test
+    @WithMockUser(roles = "CTO")
+    void shouldReturnNoContentWhenAnonymizationResultIsNull() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        when(lgpdUseCase.getAnonymizationResult(requestId)).thenReturn(null);
+
+        mockMvc.perform(get("/lgpd/admin/requests/" + requestId + "/anonymization-result"))
+                .andExpect(status().isNoContent());
+    }
+
 }

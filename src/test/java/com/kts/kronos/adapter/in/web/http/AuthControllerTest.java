@@ -13,7 +13,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -58,5 +60,17 @@ class AuthControllerTest {
 
     private AuthCookieService authCookieService() {
         return new AuthCookieService("KRONOS_ACCESS_TOKEN", true, "Lax", "/", "", 900);
+    }
+
+    // L95: switchCompany — extractToken returns empty → orElseThrow fires IllegalArgumentException
+    @Test
+    void switchCompany_noAuthCookie_throwsIllegalArgument() {
+        UUID companyId = UUID.randomUUID();
+        // No cookie set → extractToken returns empty → MockMvc wraps in ServletException
+        assertThatThrownBy(() ->
+            mockMvc.perform(post("/auth/switch-company")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"companyId\":\"" + companyId + "\"}")))
+            .hasCauseInstanceOf(IllegalArgumentException.class);
     }
 }

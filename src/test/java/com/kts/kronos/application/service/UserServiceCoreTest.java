@@ -9,6 +9,7 @@ import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
+import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
@@ -43,6 +44,8 @@ class UserServiceCoreTest {
 
     @Mock
     private UserProvider userProvider;
+    @Mock
+    private UserCompanyAccessProvider userCompanyAccessProvider;
     @Mock
     private DocumentProvider documentProvider;
     @Mock
@@ -94,6 +97,7 @@ class UserServiceCoreTest {
         assertEquals(Role.MANAGER, saved.role());
         assertEquals(employeeId, saved.employeeId());
         assertEquals(0L, saved.sessionVersion());
+        verify(userCompanyAccessProvider).save(any());
     }
 
     @Test

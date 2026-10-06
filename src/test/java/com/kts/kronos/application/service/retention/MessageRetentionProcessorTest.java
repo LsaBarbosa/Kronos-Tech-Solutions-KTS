@@ -192,4 +192,10 @@ class MessageRetentionProcessorTest {
                 null
         );
     }
+
+    @Test
+    void isDestructive_returnsTrue() {
+        assertTrue(processor.isDestructive());
+    }
+
 }

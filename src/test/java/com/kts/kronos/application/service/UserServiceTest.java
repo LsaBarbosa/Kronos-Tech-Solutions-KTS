@@ -1,21 +1,29 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.security.ChangePasswordRequest;
+import com.kts.kronos.adapter.in.web.dto.user.AddCompanyAccessRequest;
 import com.kts.kronos.adapter.in.web.dto.user.CreateUserRequest;
 import com.kts.kronos.adapter.in.web.dto.user.UpdateUserRequest;
+import com.kts.kronos.adapter.in.web.dto.user.UserListResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ConflictException;
+import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.EmployeeUseCase;
+import com.kts.kronos.application.port.out.provider.CacheProvider;
+import com.kts.kronos.application.port.out.provider.CompanyProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.application.port.out.provider.EmployeeProvider;
 import com.kts.kronos.application.port.out.provider.TimeRecordProvider;
+import com.kts.kronos.application.port.out.provider.UserCompanyAccessProvider;
 import com.kts.kronos.application.port.out.provider.UserProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
+import com.kts.kronos.application.security.ClientIpResolver;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Address;
+import com.kts.kronos.domain.model.Company;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -34,14 +42,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,28 +61,24 @@ class UserServiceTest {
     @InjectMocks
     private UserService service;
 
-    @Mock
-    private UserProvider userProvider;
-    @Mock
-    private DocumentProvider documentProvider;
-    @Mock
-    private TimeRecordProvider timeRecordProvider;
-    @Mock
-    private EmployeeProvider employeeProvider;
-    @Mock
-    private PasswordEncoder passwordEncoder;
-    @Mock
-    private JwtAuthenticatedUser jwtAuthenticatedUser;
-    @Mock
-    private EmployeeUseCase employeeUseCase;
-    @Mock
-    private DomainAuthorizationService domainAuthorizationService;
-    @Mock
-    private AcceptTermsUseCase acceptTermsUseCase;
-    @Mock
-    private AuthenticationRateLimitService authenticationRateLimitService;
-    @Mock
-    private KronosMetrics kronosMetrics;
+    @Mock private UserProvider userProvider;
+    @Mock private DocumentProvider documentProvider;
+    @Mock private TimeRecordProvider timeRecordProvider;
+    @Mock private EmployeeProvider employeeProvider;
+    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private JwtAuthenticatedUser jwtAuthenticatedUser;
+    @Mock private EmployeeUseCase employeeUseCase;
+    @Mock private DomainAuthorizationService domainAuthorizationService;
+    @Mock private AcceptTermsUseCase acceptTermsUseCase;
+    @Mock private AuthenticationRateLimitService authenticationRateLimitService;
+    @Mock private KronosMetrics kronosMetrics;
+    @Mock private AuditService auditService;
+    @Mock private CacheProvider cacheProvider;
+    @Mock private ClientIpResolver clientIpResolver;
+    @Mock private UserCompanyAccessProvider userCompanyAccessProvider;
+    @Mock private CompanyProvider companyProvider;
+
+    // ──── createUser ────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("createUser: deve rejeitar username ja existente")
@@ -106,6 +112,7 @@ class UserServiceTest {
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
         when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("hashed-random");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
 
         service.createUser(new CreateUserRequest("Manager@KTS.com", "MANAGER", employeeId));
 
@@ -126,6 +133,7 @@ class UserServiceTest {
         when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
         when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("hashed-random");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         doThrow(new DataIntegrityViolationException("duplicate key"))
                 .when(userProvider).save(any(User.class));
 
@@ -150,6 +158,38 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("createUser: nao-CTO nao pode criar usuario CTO")
+    void shouldRejectCtoCreationByNonCto() {
+        UUID employeeId = UUID.randomUUID();
+        when(userProvider.existsByUsername("manager@kts.com")).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(
+                ForbiddenException.class,
+                () -> service.createUser(new CreateUserRequest("Manager@KTS.com", "CTO", employeeId))
+        );
+    }
+
+    @Test
+    @DisplayName("createUser: CTO pode criar usuario CTO")
+    void shouldAllowCtoToCreateCtoUser() {
+        UUID employeeId = UUID.randomUUID();
+        when(userProvider.existsByUsername("manager@kts.com")).thenReturn(false);
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, UUID.randomUUID())));
+        when(userProvider.existsByEmployeeId(employeeId)).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("hashed");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+
+        service.createUser(new CreateUserRequest("Manager@KTS.com", "CTO", employeeId));
+
+        verify(userProvider).save(any(User.class));
+    }
+
+    // ──── getUserByUsername / getUserById ────────────────────────────────────
+
+    @Test
     @DisplayName("getUserByUsername/getUserById: devem delegar autorizacao de dominio")
     void shouldDelegateUserLookupsToDomainAuthorization() {
         UUID userId = UUID.randomUUID();
@@ -160,6 +200,8 @@ class UserServiceTest {
         assertEquals(user, service.getUserByUsername("manager@kts.com"));
         assertEquals(user, service.getUserById(userId));
     }
+
+    // ──── listUsers ──────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("listUsers: CTO deve listar todos ou filtrar por ativo")
@@ -207,6 +249,54 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("listUsersResponse: deve retornar lista via cache para CTO")
+    @SuppressWarnings("unchecked")
+    void shouldReturnUserListResponseViaCacheAsCto() {
+        UUID userId1 = UUID.randomUUID();
+        UUID empId1 = UUID.randomUUID();
+        User u = user(userId1, empId1, Role.MANAGER, true);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(userProvider.findAll()).thenReturn(List.of(u));
+        when(acceptTermsUseCase.hasAcceptedBiometricTerm(empId1)).thenReturn(false);
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(3)).get());
+
+        UserListResponse result = service.listUsersResponse(null);
+
+        assertNotNull(result);
+        assertEquals(1, result.users().size());
+    }
+
+    // ──── getOwnProfile ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("getOwnProfile: deve retornar usuario autenticado")
+    void shouldReturnOwnProfile() {
+        UUID userId = UUID.randomUUID();
+        User user = user(userId, UUID.randomUUID(), Role.MANAGER, true);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user);
+
+        assertEquals(user, service.getOwnProfile());
+    }
+
+    @Test
+    @DisplayName("getOwnProfileResponse: deve retornar UserResponse via cache")
+    @SuppressWarnings("unchecked")
+    void shouldReturnOwnProfileResponseViaCache() {
+        UUID userId = UUID.randomUUID();
+        User user = user(userId, UUID.randomUUID(), Role.MANAGER, true);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(userId);
+        when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user);
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(3)).get());
+
+        assertNotNull(service.getOwnProfileResponse());
+    }
+
+    // ──── updateUser ─────────────────────────────────────────────────────────
+
+    @Test
     @DisplayName("updateUser: deve atualizar campos informados")
     void shouldUpdateUserWithProvidedFields() {
         UUID userId = UUID.randomUUID();
@@ -214,6 +304,7 @@ class UserServiceTest {
         User existing = user(userId, employeeId, Role.MANAGER, true);
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
         when(passwordEncoder.encode("Abcdef12")).thenReturn("hashed-new");
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
 
         service.updateUser(userId, new UpdateUserRequest("New@KTS.com", "Abcdef12", "PARTNER", false));
 
@@ -228,11 +319,26 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("updateUser: nao-CTO nao pode atribuir papel CTO")
+    void shouldRejectCtoRoleAssignmentByNonCto() {
+        UUID userId = UUID.randomUUID();
+        when(domainAuthorizationService.authorizeUserAccess(userId))
+                .thenReturn(user(userId, UUID.randomUUID(), Role.MANAGER, true));
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+
+        assertThrows(
+                ForbiddenException.class,
+                () -> service.updateUser(userId, new UpdateUserRequest(null, null, "CTO", null))
+        );
+    }
+
+    @Test
     @DisplayName("updateUser: corrida de username duplicado deve virar 409")
     void shouldTranslateDuplicateUsernameRaceToConflictOnUpdate() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user(userId, employeeId, Role.MANAGER, true));
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
         doThrow(new DataIntegrityViolationException("duplicate key"))
                 .when(userProvider).save(any(User.class));
 
@@ -248,6 +354,7 @@ class UserServiceTest {
         UUID userId = UUID.randomUUID();
         User existing = user(userId, UUID.randomUUID(), Role.MANAGER, true);
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(existing);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
 
         service.updateUser(userId, new UpdateUserRequest(null, " ", null, null));
 
@@ -271,6 +378,8 @@ class UserServiceTest {
                 () -> service.updateUser(userId, new UpdateUserRequest(null, "weak", null, null))
         );
     }
+
+    // ──── deleteUser ─────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("deleteUser: deve inativar usuario e colaborador preservando dados legais")
@@ -305,12 +414,15 @@ class UserServiceTest {
         verify(employeeProvider, never()).deleteById(any());
     }
 
+    // ──── toggleActivate ─────────────────────────────────────────────────────
+
     @Test
     @DisplayName("toggleActivate: deve inverter usuario e colaborador")
     void shouldToggleUserAndEmployeeActivation() {
         UUID userId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
         when(domainAuthorizationService.authorizeUserAccess(userId)).thenReturn(user(userId, employeeId, Role.MANAGER, false));
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
 
         service.toggleActivate(userId);
 
@@ -319,6 +431,8 @@ class UserServiceTest {
         assertTrue(captor.getValue().active());
         verify(employeeUseCase).toggleActivate(employeeId);
     }
+
+    // ──── changeOwnPassword ───────────────────────────────────────────────────
 
     @Test
     @DisplayName("changeOwnPassword: deve validar senha atual e confirmacao")
@@ -360,13 +474,142 @@ class UserServiceTest {
         assertEquals(5L, captor.getValue().sessionVersion());
     }
 
+    // ──── addCompanyAccess ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("addCompanyAccess: deve salvar acesso quando todos os dados sao validos")
+    void shouldSaveCompanyAccessWhenValid() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        User u = user(userId, UUID.randomUUID(), Role.MANAGER, true);
+        Company company = new Company(companyId, "Acme", "00.000.000/0001-00", "acme@kts.com", true, null, null, 1, 0);
+        Employee emp = employee(employeeId, companyId);
+
+        when(userProvider.findById(userId)).thenReturn(Optional.of(u));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(emp));
+        when(userCompanyAccessProvider.existsActiveByUserIdAndCompanyId(userId, companyId)).thenReturn(false);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+
+        service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, employeeId, "MANAGER", false));
+
+        verify(userCompanyAccessProvider).save(argThat(a ->
+                a.userId().equals(userId)
+                        && a.companyId().equals(companyId)
+                        && a.employeeId().equals(employeeId)
+                        && a.active()
+        ));
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: usuario nao encontrado lanca 404")
+    void shouldThrowWhenUserNotFoundOnAddCompanyAccess() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        when(userProvider.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, UUID.randomUUID(), "MANAGER", false))
+        );
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: empresa nao encontrada lanca 404")
+    void shouldThrowWhenCompanyNotFoundOnAddCompanyAccess() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user(userId, UUID.randomUUID(), Role.MANAGER, true)));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, UUID.randomUUID(), "MANAGER", false))
+        );
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: empresa inativa lanca BadRequest")
+    void shouldThrowWhenCompanyInactiveOnAddCompanyAccess() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        Company inactiveCompany = new Company(companyId, "Acme", "00.000.000/0001-00", "acme@kts.com", false, null, null, 0, 0);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user(userId, UUID.randomUUID(), Role.MANAGER, true)));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(inactiveCompany));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, UUID.randomUUID(), "MANAGER", false))
+        );
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: colaborador nao encontrado lanca 404")
+    void shouldThrowWhenEmployeeNotFoundOnAddCompanyAccess() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        Company company = new Company(companyId, "Acme", "00.000.000/0001-00", "acme@kts.com", true, null, null, 1, 0);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user(userId, UUID.randomUUID(), Role.MANAGER, true)));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, employeeId, "MANAGER", false))
+        );
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: colaborador de empresa errada lanca BadRequest")
+    void shouldThrowWhenEmployeeBelongsToDifferentCompany() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        UUID otherCompanyId = UUID.randomUUID();
+        Company company = new Company(companyId, "Acme", "00.000.000/0001-00", "acme@kts.com", true, null, null, 1, 0);
+        Employee empFromOtherCompany = employee(employeeId, otherCompanyId);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user(userId, UUID.randomUUID(), Role.MANAGER, true)));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(empFromOtherCompany));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, employeeId, "MANAGER", false))
+        );
+    }
+
+    @Test
+    @DisplayName("addCompanyAccess: acesso ja existe lanca Conflict")
+    void shouldThrowWhenAccessAlreadyExistsOnAddCompanyAccess() {
+        UUID userId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        Company company = new Company(companyId, "Acme", "00.000.000/0001-00", "acme@kts.com", true, null, null, 1, 0);
+        when(userProvider.findById(userId)).thenReturn(Optional.of(user(userId, UUID.randomUUID(), Role.MANAGER, true)));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee(employeeId, companyId)));
+        when(userCompanyAccessProvider.existsActiveByUserIdAndCompanyId(userId, companyId)).thenReturn(true);
+
+        assertThrows(
+                ConflictException.class,
+                () -> service.addCompanyAccess(userId, new AddCompanyAccessRequest(companyId, employeeId, "MANAGER", false))
+        );
+    }
+
+    // ──── usernameExists ─────────────────────────────────────────────────────
+
     @Test
     @DisplayName("usernameExists: deve normalizar username")
     void shouldNormalizeUsernameExists() {
         when(userProvider.existsByUsername("manager@kts.com")).thenReturn(true);
 
         assertTrue(service.usernameExists("Manager@KTS.com"));
+        verify(authenticationRateLimitService).checkAdminSearchRateLimit();
     }
+
+    // ──── helpers ────────────────────────────────────────────────────────────
 
     private static User user(UUID userId, UUID employeeId, Role role, boolean active) {
         return new User(userId, "manager@kts.com", "stored-hash", role, active, employeeId);

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -147,6 +148,83 @@ class RetentionExecutionServiceTest {
                 false,
                 false,
                 true
+        );
+    }
+
+    @Test
+    void executeActivePolicies_withApplyMode_andJustification() {
+        when(retentionPolicyCatalog.getActivePolicies()).thenReturn(List.of(catalogPolicy()));
+        when(retentionPolicyExecutor.executePolicy(any())).thenReturn(
+            RetentionExecutionResult.success(UUID.randomUUID(), "CODE",
+                RetentionResourceType.MESSAGE, "APPLY", 10L, 10L, 0L)
+        );
+
+        var summary = retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.APPLY, "Legal compliance.", true, "manual");
+
+        assertEquals("APPLY", summary.mode());
+        assertEquals(10L, summary.totalEligible());
+    }
+
+    @Test
+    void validateApplyRequest_throwsWhenNoJustification() {
+        assertThrows(IllegalArgumentException.class, () ->
+            retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.APPLY, null, true, "test"));
+    }
+
+    @Test
+    void validateApplyRequest_throwsWhenNotConfirmed() {
+        assertThrows(IllegalArgumentException.class, () ->
+            retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.APPLY, "Legal compliance.", false, "test"));
+    }
+
+    @Test
+    void executeCatalogPolicy_returnsErrorResultWhenExecutorThrows() {
+        when(retentionPolicyCatalog.getActivePolicies()).thenReturn(List.of(catalogPolicy()));
+        when(retentionPolicyExecutor.executePolicy(any())).thenThrow(new RuntimeException("executor error"));
+
+        var summary = retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.DRY_RUN, null, false, "test");
+
+        assertEquals(1, summary.totalPolicies());
+        assertEquals(1L, summary.totalErrors());
+    }
+
+    @Test
+    void executePolicy_withApplyMode() {
+        RetentionPolicy policy = samplePolicy();
+        when(retentionPolicyExecutor.executePolicy(any())).thenReturn(
+            RetentionExecutionResult.success(UUID.randomUUID(), "CODE",
+                RetentionResourceType.MESSAGE, "APPLY", 5L, 5L, 0L)
+        );
+
+        var result = retentionExecutionService.executePolicy(
+                policy, RetentionExecutionMode.APPLY, "Compliance required.", true, "admin");
+
+        assertEquals("SUCCESS", result.status());
+    }
+
+    @Test
+    void requiresAttention_trueForNonSuccessStatus() {
+        when(retentionPolicyCatalog.getActivePolicies()).thenReturn(List.of(catalogPolicy()));
+        when(retentionPolicyExecutor.executePolicy(any())).thenReturn(
+            RetentionExecutionResult.blocked(UUID.randomUUID(), "CODE",
+                RetentionResourceType.MESSAGE, "DRY_RUN", "blocked reason")
+        );
+
+        var summary = retentionExecutionService.executeActivePolicies(
+                RetentionExecutionMode.DRY_RUN, null, false, "test");
+
+        assertTrue(summary.hasFailures() || summary.results().stream().anyMatch(r -> r.requiresManualApproval()));
+    }
+
+    private RetentionPolicy samplePolicy() {
+        return new RetentionPolicy(
+                java.util.UUID.randomUUID(), "POLICY_MSG", "desc",
+                "MESSAGE", 30, RetentionExecutionMode.DRY_RUN,
+                true, true, false, null, java.time.Instant.now(), java.time.Instant.now()
         );
     }
 }

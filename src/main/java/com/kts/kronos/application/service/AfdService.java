@@ -60,7 +60,7 @@ public class AfdService implements AdfUseCase {
             var currentHash = calculateSha256(rawData);
 
             var entry = new AfdEntry(
-                    nsr, "7", date, employee.cpf(), employee.phone(),
+                    nsr, "7", date, employee.cpf(), employee.pis(),
                     company.companyId(), employee.employeeId(), previousHash, currentHash
             );
 

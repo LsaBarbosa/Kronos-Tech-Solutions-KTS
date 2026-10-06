@@ -37,7 +37,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,6 +51,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class AcceptTermsServiceTest {
@@ -84,6 +87,8 @@ class AcceptTermsServiceTest {
     private com.kts.kronos.application.port.out.provider.UserProvider userProvider;
     @Mock
     private com.kts.kronos.observability.application.KronosMetrics kronosMetrics;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     private static final HexFormat HEX = HexFormat.of();
 
@@ -901,4 +906,178 @@ class AcceptTermsServiceTest {
                 null
         );
     }
+
+    @Test
+    @DisplayName("getConsentHistory: retorna lista de consentimentos do colaborador")
+    void getConsentHistory_ReturnsConsentList() {
+        UUID employeeId = UUID.randomUUID();
+        var employee = buildEmployee(employeeId, UUID.randomUUID(), "12345678901");
+        var consent = activeBiometricConsent(employeeId, "2026.05.21", "current-hash");
+
+        when(employeeProvider.findById(employeeId)).thenReturn(java.util.Optional.of(employee));
+        when(legalConsentProvider.findAllByEmployeeId(employeeId)).thenReturn(java.util.List.of(consent));
+
+        var result = service.getConsentHistory(employeeId);
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    @DisplayName("getConsentHistory: lança exceção quando colaborador não existe")
+    void getConsentHistory_ThrowsWhenEmployeeNotFound() {
+        UUID employeeId = UUID.randomUUID();
+        when(employeeProvider.findById(employeeId)).thenReturn(java.util.Optional.empty());
+        assertThrows(com.kts.kronos.application.exceptions.ResourceNotFoundException.class,
+                () -> service.getConsentHistory(employeeId));
+    }
+
+    @Test
+    @DisplayName("getBiometricConsentStatus: consentimento com hash null → not accepted")
+    void getBiometricConsentStatus_WithNullConsentHash() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText currentTerm = currentBiometricTerm();
+        // consent with null contentHashSha256
+        LegalConsent nullHashConsent = new LegalConsent(
+                UUID.randomUUID(), employeeId, UUID.randomUUID(),
+                ConsentType.BIOMETRIC_AUTHENTICATION, LegalBasis.CONSENT,
+                "Biometric authentication and identity validation in authorized Kronos flows.",
+                "2026.05.21", null,
+                java.time.Instant.parse("2026-05-21T09:00:00Z"), null,
+                "10.0.0.1", "JUnit", UUID.randomUUID(), "pdf-hash",
+                java.time.Instant.parse("2026-05-21T09:00:00Z"), null
+        );
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(java.util.Optional.of(currentTerm));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(java.util.Optional.of(nullHashConsent));
+
+        var result = service.getBiometricConsentStatus(employeeId);
+        assertFalse(result.accepted());
+        assertTrue(result.requiresNewAcceptance());
+    }
+
+    @Test
+    @DisplayName("validateCurrentBiometricTerm: lança exceção quando hash é null")
+    void validateCurrentBiometricTerm_ThrowsWhenHashIsNull() {
+        UUID employeeId = UUID.randomUUID();
+        LegalText termWithNullHash = currentBiometricTermWithHash(null);
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(java.util.Optional.of(termWithNullHash));
+
+        // acceptBiometricTerms triggers validateCurrentBiometricTerm
+        assertThrows(IllegalStateException.class,
+                () -> service.acceptBiometricTerms(employeeId, UUID.randomUUID(),
+                        "127.0.0.1", "JUnit", "2026.05.21", "some-hash"));
+    }
+
+    @Test
+    @DisplayName("revokeBiometricTerms: funciona quando faceS3ObjectKey é null (sem deleção S3)")
+    void revokeBiometricTerms_WhenFaceKeyIsNull_SkipsS3Deletion() {
+        UUID employeeId = UUID.randomUUID();
+        var employeeNoFace = employeeWithNoFace(employeeId);
+        var user = user(employeeId);
+        var updatedUser = user.incrementSessionVersion();
+
+        when(employeeProvider.findById(employeeId)).thenReturn(java.util.Optional.of(employeeNoFace));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(java.util.Optional.of(user));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(java.util.Optional.empty()); // no active consent
+        when(employeeProvider.save(org.mockito.ArgumentMatchers.any())).thenReturn(employeeNoFace);
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(java.util.List.of());
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(java.util.Optional.of(currentBiometricTerm()));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(java.util.Optional.empty());
+
+        var result = service.revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit");
+        assertNotNull(result);
+    }
+
+    @Test
+    @DisplayName("invalidateConsentCaches: exceção de cache é silenciada")
+    void invalidateConsentCaches_ExceptionIsSilenced() {
+        UUID employeeId = UUID.randomUUID();
+        var employeeNoFace = employeeWithNoFace(employeeId);
+        var user = user(employeeId);
+        var updatedUser = user.incrementSessionVersion();
+
+        when(employeeProvider.findById(employeeId)).thenReturn(java.util.Optional.of(employeeNoFace));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(java.util.Optional.of(user));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(java.util.Optional.empty());
+        when(employeeProvider.save(org.mockito.ArgumentMatchers.any())).thenReturn(employeeNoFace);
+        when(documentProvider.findByEmployeeAndType(employeeId, DocumentType.BIOMETRIC_CONSENT_TERM, true))
+                .thenReturn(java.util.List.of());
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(java.util.Optional.of(currentBiometricTerm()));
+        when(legalConsentProvider.findActive(employeeId, ConsentType.BIOMETRIC_AUTHENTICATION))
+                .thenReturn(java.util.Optional.empty());
+        // Make cache eviction throw → should be silenced
+        doThrow(new RuntimeException("Redis unavailable"))
+                .when(cacheProvider).evictNamespace(org.mockito.ArgumentMatchers.anyString());
+
+        // Should NOT throw despite cache error
+        assertDoesNotThrow(() -> service.revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit"));
+    }
+
+    private com.kts.kronos.domain.model.Employee employeeWithNoFace(UUID employeeId) {
+        return buildEmployee(employeeId, UUID.randomUUID(), "12345678901").withFaceS3ObjectKey(null);
+    }
+
+    private com.kts.kronos.domain.model.User user(UUID employeeId) {
+        return new com.kts.kronos.domain.model.User(
+                UUID.randomUUID(), "user@test.com", "hash",
+                com.kts.kronos.domain.model.enuns.Role.PARTNER, true, employeeId);
+    }
+
+
+    // ── L99: employeeProvider.findById returns empty in acceptBiometricTerms ──
+    @Test
+    @DisplayName("aceite: lança ResourceNotFoundException quando employeeProvider não encontra o employee (user existe)")
+    void acceptBiometricTerms_employeeNotFound_throwsAfterUserFound() {
+        UUID employeeId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm()));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.of(user(employeeId)));
+        when(legalConsentProvider.findValidCurrentConsent(
+                eq(employeeId), any(), any(), any())).thenReturn(Optional.empty());
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.acceptBiometricTerms(employeeId, userId, "127.0.0.1", "JUnit",
+                        "2026.05.21", "current-hash"));
+    }
+
+    // ── L180: userProvider.findByEmployeeId returns empty in revokeBiometricTerms ──
+    @Test
+    @DisplayName("revogar: lança ResourceNotFoundException quando user não existe após employee encontrado")
+    void revokeBiometricTerms_userNotFound_throwsAfterEmployeeFound() {
+        UUID employeeId = UUID.randomUUID();
+        var employee = employeeWithNoFace(employeeId);
+
+        when(employeeProvider.findById(employeeId)).thenReturn(Optional.of(employee));
+        when(userProvider.findByEmployeeId(employeeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.revokeBiometricTerms(employeeId, "127.0.0.1", "JUnit"));
+    }
+
+    // ── BR L308 B=true: version matches but hash doesn't ─────────────────────
+    @Test
+    @DisplayName("validação: lança BadRequestException quando versão confere mas hash não confere")
+    void acceptBiometricTerms_versionMatchesButHashDoesNot_throwsBadRequest() {
+        UUID employeeId = UUID.randomUUID();
+
+        when(legalTextProvider.findActiveByDocumentType(DocumentType.BIOMETRIC_CONSENT_TERM))
+                .thenReturn(Optional.of(currentBiometricTerm())); // version=2026.05.21, hash=current-hash
+
+        assertThrows(BadRequestException.class,
+                () -> service.acceptBiometricTerms(employeeId, UUID.randomUUID(), "10.0.0.1", "JUnit",
+                        "2026.05.21", "wrong-hash")); // version matches, hash does NOT
+    }
+
 }

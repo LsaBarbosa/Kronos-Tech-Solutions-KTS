@@ -65,6 +65,10 @@ public class CompanyEntity {
     @Column(name = "terminal_flag", nullable = false)
     private boolean terminalFlag = false;
 
+    @Builder.Default
+    @Column(name = "midnight_shift_flag", nullable = false)
+    private boolean midnightShiftFlag = false;
+
     public Company toDomain(){
         return new Company(
                 id,
@@ -79,7 +83,8 @@ public class CompanyEntity {
                 deletedAt,
                 deletedBy,
                 deactivationReason,
-                terminalFlag
+                terminalFlag,
+                midnightShiftFlag
         );
     }
     public static CompanyEntity fromDomain(Company company) {
@@ -96,6 +101,7 @@ public class CompanyEntity {
                 .deletedBy(company.deletedBy())
                 .deactivationReason(company.deactivationReason())
                 .terminalFlag(company.terminalFlag())
+                .midnightShiftFlag(company.midnightShiftFlag())
                 .build();
     }
 }

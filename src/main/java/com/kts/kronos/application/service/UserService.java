@@ -77,7 +77,8 @@ public class UserService implements UserUseCase {
             throw new BadRequestException(USERNAME_ALREADY_EXIST);
         }
 
-        findById(req.employeeId());
+        var employee = employeeProvider.findById(req.employeeId())
+                .orElseThrow(() -> new ResourceNotFoundException(EMPLOYEE_NOT_FOUND));
 
         if (userProvider.existsByEmployeeId(req.employeeId())) {
             throw new BadRequestException(USER_ALREADY_LINKED_TO_EMPLOYEE);
@@ -103,6 +104,23 @@ public class UserService implements UserUseCase {
         );
         try {
             userProvider.save(user);
+
+            // Keep the explicit user-company scope in sync with user creation.
+            // Without this row, /users/me/companies returns an empty list for a
+            // newly created MANAGER even though its employee is linked to a company.
+            if (requestedRole != Role.CTO) {
+                userCompanyAccessProvider.save(new UserCompanyAccess(
+                        UUID.randomUUID(),
+                        user.userId(),
+                        employee.companyId(),
+                        employee.employeeId(),
+                        requestedRole.name(),
+                        true,
+                        true,
+                        java.time.LocalDateTime.now(),
+                        null
+                ));
+            }
             kronosMetrics.userCreated();
 
             // Auditoria de criação de usuário
@@ -162,9 +180,30 @@ public class UserService implements UserUseCase {
                 : userProvider.findByEmployeeIdsAndActive(employeeIdsFromCompany, active);
 
         if (currentRole == Role.PARTNER) {
-            return usersFromTenant.stream()
+            var directManagers = usersFromTenant.stream()
                     .filter(user -> user.role() == Role.MANAGER)
-                    .toList();
+                    .collect(Collectors.toList());
+
+            // Gestores de múltiplas empresas: tb_user.employee_id aponta para a empresa
+            // original, então não aparecem via findByEmployeeIds. Buscamos via UCA.
+            var directManagerIds = directManagers.stream()
+                    .map(User::userId)
+                    .collect(Collectors.toSet());
+
+            var ucaManagerIds = userCompanyAccessProvider.findActiveByCompanyId(companyId).stream()
+                    .filter(uca -> Role.MANAGER.name().equals(uca.role()))
+                    .map(UserCompanyAccess::userId)
+                    .filter(uid -> !directManagerIds.contains(uid))
+                    .collect(Collectors.toSet());
+
+            if (!ucaManagerIds.isEmpty()) {
+                var extraManagers = userProvider.findAllByIds(ucaManagerIds).stream()
+                        .filter(u -> active == null || u.active() == active)
+                        .toList();
+                directManagers.addAll(extraManagers);
+            }
+
+            return directManagers;
         }
 
         return usersFromTenant;

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -177,4 +178,114 @@ class EmployeeProviderImplTest {
                 .companyId(UUID.randomUUID())
                 .build();
     }
+
+    // ── cpfExistsInCompany ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("cpfExistsInCompany: retorna true quando repositorio encontra CPF na empresa")
+    void cpfExistsInCompany_returnsTrue_whenRepositoryFinds() {
+        UUID companyId = UUID.randomUUID();
+        String digits = "12345678901";
+        String masked = "123.456.789-01";
+
+        when(repository.existsByCompanyIdAndCpfAndDeletedAtIsNull(companyId, digits)).thenReturn(false);
+        when(repository.existsByCompanyIdAndCpfAndDeletedAtIsNull(companyId, masked)).thenReturn(true);
+
+        assertTrue(provider.cpfExistsInCompany(companyId, digits));
+    }
+
+    @Test
+    @DisplayName("cpfExistsInCompany: retorna false quando nenhum candidato encontrado")
+    void cpfExistsInCompany_returnsFalse_whenNotFound() {
+        UUID companyId = UUID.randomUUID();
+        String digits = "12345678901";
+
+        when(repository.existsByCompanyIdAndCpfAndDeletedAtIsNull(eq(companyId), any())).thenReturn(false);
+
+        assertFalse(provider.cpfExistsInCompany(companyId, digits));
+    }
+
+    // ── findByCompanyIdAndCpf ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("findByCompanyIdAndCpf: retorna presente quando repositorio encontra CPF mascarado")
+    void findByCompanyIdAndCpf_returnsPresent_whenRepositoryFinds() {
+        UUID companyId = UUID.randomUUID();
+        String digits = "12345678901";
+        String masked = "123.456.789-01";
+        EmployeeEntity entity = employeeEntity(masked);
+        entity.setCompanyId(companyId);
+
+        when(repository.findByCompanyIdAndCpfAndDeletedAtIsNull(companyId, digits)).thenReturn(Optional.empty());
+        when(repository.findByCompanyIdAndCpfAndDeletedAtIsNull(companyId, masked)).thenReturn(Optional.of(entity));
+
+        var result = provider.findByCompanyIdAndCpf(companyId, digits);
+
+        assertTrue(result.isPresent());
+        assertEquals(masked, result.get().cpf());
+    }
+
+    @Test
+    @DisplayName("findByCompanyIdAndCpf: retorna vazio quando nenhum candidato encontrado")
+    void findByCompanyIdAndCpf_returnsEmpty_whenNotFound() {
+        UUID companyId = UUID.randomUUID();
+
+        when(repository.findByCompanyIdAndCpfAndDeletedAtIsNull(eq(companyId), any())).thenReturn(Optional.empty());
+
+        assertTrue(provider.findByCompanyIdAndCpf(companyId, "12345678901").isEmpty());
+    }
+
+    // ── findAllByCpf ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("findAllByCpf: retorna lista quando repositorio encontra registros")
+    void findAllByCpf_returnsList_whenRepositoryFinds() {
+        String digits = "12345678901";
+        EmployeeEntity entity = employeeEntity(digits);
+
+        when(repository.findAllByCpf(digits)).thenReturn(List.of(entity));
+
+        var result = provider.findAllByCpf(digits);
+
+        assertEquals(1, result.size());
+    }
+
+    @Test
+    @DisplayName("findAllByCpf: retorna lista vazia quando nenhum candidato encontrado")
+    void findAllByCpf_returnsEmpty_whenNotFound() {
+        when(repository.findAllByCpf(any())).thenReturn(List.of());
+
+        assertTrue(provider.findAllByCpf("12345678901").isEmpty());
+    }
+
+    // ── buildCpfCandidates edge cases ────────────────────────────────────────
+
+    @Test
+    @DisplayName("buildCpfCandidates: CPF com menos de 11 digitos nao formata como mascara")
+    void cpfExists_shortDigitsCpf_doesNotFormatAsMasked() {
+        // CPF com 8 digitos: digits.length() != 11 → nao formata mascara
+        String shortCpf = "12345678"; // 8 dígitos - não tem pontuação
+
+        when(repository.existsByCpf(shortCpf)).thenReturn(false);
+
+        boolean result = provider.cpfExists(shortCpf);
+
+        assertFalse(result);
+        verify(repository).existsByCpf(shortCpf); // candidate = raw + digits (same), sem mascara
+    }
+
+    @Test
+    @DisplayName("buildCpfCandidates: CPF sem digitos (apenas letras) gera somente candidato raw")
+    void cpfExists_noDigitsCpf_returnsOnlyRawCandidate() {
+        // CPF sem dígitos: digits="" -> !digits.isEmpty() = false -> candidates = [raw apenas]
+        String noDigitsCpf = "abc-def";
+
+        when(repository.existsByCpf(noDigitsCpf)).thenReturn(false);
+
+        boolean result = provider.cpfExists(noDigitsCpf);
+
+        assertFalse(result);
+        verify(repository).existsByCpf(noDigitsCpf);
+    }
+
 }

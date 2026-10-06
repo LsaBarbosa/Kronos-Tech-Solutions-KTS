@@ -80,4 +80,26 @@ class RetentionPolicyMapperTest {
                 .updatedAt(Instant.parse("2026-05-20T10:00:00Z"))
                 .build();
     }
+
+    @Test
+    void toDomain_nullPolicyType_defaultsToTimeBased() {
+        var entity = RetentionPolicyEntity.builder()
+                .policyId(java.util.UUID.randomUUID())
+                .policyCode("LGPD_REQUEST_RETENTION_REVIEW")
+                .description("Review LGPD request retention.")
+                .policyType(null)
+                .resourceType("LGPD_REQUEST")
+                .retentionDays(1825)
+                .executionMode(RetentionExecutionMode.DRY_RUN)
+                .enabled(true)
+                .preserveLaborData(true)
+                .preserveFiscalData(true)
+                .lastExecutedAt(java.time.Instant.parse("2026-05-20T10:00:00Z"))
+                .createdAt(java.time.Instant.parse("2026-05-19T10:00:00Z"))
+                .updatedAt(java.time.Instant.parse("2026-05-20T10:00:00Z"))
+                .build();
+        var domain = mapper.toDomain(entity);
+        assertEquals(RetentionPolicyType.TIME_BASED, domain.policyType());
+    }
+
 }

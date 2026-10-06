@@ -435,4 +435,114 @@ class DomainAuthorizationServiceTest {
                 false
         );
     }
+    @Test
+    @DisplayName("documentId: CTO acessa documento não deletado")
+    void shouldAllowCtoAccessNonDeletedDocument() {
+        var documentId = UUID.randomUUID();
+        var document = buildDocument(documentId, sameTenantEmployee.employeeId());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, sameTenantEmployee.employeeId()))
+                .thenReturn(Optional.of(document));
+
+        var result = service.authorizeDocumentAccess(documentId, sameTenantEmployee.employeeId());
+        assertEquals(documentId, result.documentId());
+    }
+
+    @Test
+    @DisplayName("documentId: CTO falha quando documento deletado por manager")
+    void shouldThrowWhenCtoAccessesManagerDeletedDocument() {
+        var documentId = UUID.randomUUID();
+        var document = buildManagerDeletedDocument(documentId, sameTenantEmployee.employeeId());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, sameTenantEmployee.employeeId()))
+                .thenReturn(Optional.of(document));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.authorizeDocumentAccess(documentId, sameTenantEmployee.employeeId()));
+    }
+
+    @Test
+    @DisplayName("documentId: partner acessa próprio documento (não deletado por ele mesmo)")
+    void shouldAllowPartnerAccessOwnDocument() {
+        UUID partnerEmployeeId = UUID.randomUUID();
+        Employee partnerEmployee = buildEmployee(partnerEmployeeId, companyAId);
+        var documentId = UUID.randomUUID();
+        var document = buildDocument(documentId, partnerEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(partnerEmployeeId);
+        when(employeeProvider.findById(partnerEmployeeId)).thenReturn(Optional.of(partnerEmployee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, partnerEmployeeId))
+                .thenReturn(Optional.of(document));
+
+        var result = service.authorizeDocumentAccess(documentId, partnerEmployeeId);
+        assertEquals(documentId, result.documentId());
+    }
+
+    @Test
+    @DisplayName("documentId: partner falha quando documento foi deletado pelo próprio colaborador")
+    void shouldThrowWhenPartnerAccessesOwnDeletedDocument() {
+        UUID partnerEmployeeId = UUID.randomUUID();
+        Employee partnerEmployee = buildEmployee(partnerEmployeeId, companyAId);
+        var documentId = UUID.randomUUID();
+        var document = buildEmployeeDeletedDocument(documentId, partnerEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(partnerEmployeeId);
+        when(employeeProvider.findById(partnerEmployeeId)).thenReturn(Optional.of(partnerEmployee));
+        when(documentProvider.findByIdAndEmployeeId(documentId, partnerEmployeeId))
+                .thenReturn(Optional.of(document));
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.authorizeDocumentAccess(documentId, partnerEmployeeId));
+    }
+
+    @Test
+    @DisplayName("companyId: CTO com null usa empresa do autenticado (ternário L97)")
+    void shouldAllowCtoAccessOwnCompanyWhenRequestedIdIsNull() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+
+        assertEquals(companyAId, service.authorizeCompanyAccess(null));
+    }
+
+    @Test
+    @DisplayName("companyId: manager usa activeCompanyId do JWT quando não é null (L105 false branch)")
+    void shouldUseActiveCompanyIdWhenNotNull() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyAId);
+
+        assertEquals(companyAId, service.authorizeCompanyAccess(companyAId));
+    }
+
+    @Test
+    @DisplayName("validateSameTenant: usa activeCompanyId não-nulo do JWT (L157 non-null branch)")
+    void shouldUseNonNullActiveCompanyIdInValidateSameTenant() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyAId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(authenticatedEmployee));
+        when(employeeProvider.findById(sameTenantEmployee.employeeId())).thenReturn(Optional.of(sameTenantEmployee));
+
+        var result = service.authorizeEmployeeAccess(sameTenantEmployee.employeeId());
+        assertEquals(sameTenantEmployee.employeeId(), result.employeeId());
+    }
+
+    private Document buildManagerDeletedDocument(UUID documentId, UUID employeeId) {
+        return new Document(documentId, employeeId, DocumentType.PAYSLIP,
+                "x.pdf", "application/pdf", "s3/x.pdf",
+                LocalDateTime.now(), null, false, true);
+    }
+
+    private Document buildEmployeeDeletedDocument(UUID documentId, UUID employeeId) {
+        return new Document(documentId, employeeId, DocumentType.PAYSLIP,
+                "x.pdf", "application/pdf", "s3/x.pdf",
+                LocalDateTime.now(), null, true, false);
+    }
+
 }

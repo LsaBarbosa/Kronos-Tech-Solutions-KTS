@@ -168,6 +168,37 @@ class RetentionControllerTest {
                 .andExpect(jsonPath("$.content[0].policyCode").value("POLICY_1"));
     }
 
+    @Test
+    void shouldExecuteDryRunForPolicy() throws Exception {
+        var policy = createPolicy("MESSAGE_POLICY", true);
+        var result = RetentionExecutionResult.success(UUID.randomUUID(), "MESSAGE_POLICY",
+                RetentionResourceType.MESSAGE, "DRY_RUN", 100, 50, 30);
+
+        when(retentionPolicyProvider.findByCode("MESSAGE_POLICY")).thenReturn(policy);
+        when(retentionPolicyExecutor.executePolicy(any(RetentionPolicy.class))).thenReturn(result);
+
+        mockMvc.perform(post("/admin/retention/policies/MESSAGE_POLICY/dry-run"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+    }
+
+    @Test
+    void shouldIncludeNullRetentionDaysInDashboard() throws Exception {
+        // Policy with null retentionDays covers the ternary branch in getDashboard lambda
+        var policyNullDays = new RetentionPolicy(
+                UUID.randomUUID(), "NULL_DAYS_POLICY", "Policy with null days",
+                com.kts.kronos.domain.model.enuns.RetentionPolicyType.LEGAL_HOLD,
+                "DOCUMENT", (Integer) null, RetentionExecutionMode.DRY_RUN,
+                true, false, false,
+                null, Instant.now(), Instant.now()
+        );
+        when(retentionPolicyProvider.findAll()).thenReturn(List.of(policyNullDays));
+        when(retentionExecutionLogProvider.findRecent(10)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/retention/dashboard"))
+                .andExpect(status().isOk());
+    }
+
     private RetentionPolicy createPolicy(String code, boolean enabled) {
         return new RetentionPolicy(
                 UUID.randomUUID(),

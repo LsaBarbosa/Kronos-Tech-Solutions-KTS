@@ -84,6 +84,19 @@ public class EmployeeEntity {
 
     @Column(name = "break_end_time")
     private LocalTime breakEndTime;
+
+    @Column(name = "weekend_work_start_time")
+    private LocalTime weekendWorkStartTime;
+
+    @Column(name = "weekend_work_end_time")
+    private LocalTime weekendWorkEndTime;
+
+    @Column(name = "weekend_break_start_time")
+    private LocalTime weekendBreakStartTime;
+
+    @Column(name = "weekend_break_end_time")
+    private LocalTime weekendBreakEndTime;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "schedule_type")
     private WorkScheduleType scheduleType;
@@ -123,6 +136,7 @@ public class EmployeeEntity {
                 homeOffice,
                 faceS3ObjectKey,
                 workStartTime, workEndTime, breakStartTime, breakEndTime,
+                weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
                 scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex,
                 convertStringToSet(this.fixedWorkDays), // Converte String -> Set<DayOfWeek>
                 deletedAt, deletedBy, deactivationReason
@@ -149,6 +163,10 @@ public class EmployeeEntity {
                 .workEndTime(domain.workEndTime())
                 .breakStartTime(domain.breakStartTime())
                 .breakEndTime(domain.breakEndTime())
+                .weekendWorkStartTime(domain.weekendWorkStartTime())
+                .weekendWorkEndTime(domain.weekendWorkEndTime())
+                .weekendBreakStartTime(domain.weekendBreakStartTime())
+                .weekendBreakEndTime(domain.weekendBreakEndTime())
                 // Novos campos
                 .scheduleType(domain.scheduleType())
                 .scaleStartDate(domain.scaleStartDate())

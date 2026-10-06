@@ -21,6 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.mockito.Mockito;
+import org.springframework.security.core.GrantedAuthority;
+
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -146,6 +149,41 @@ class JwtAuthenticatedUserRoleStrategyTest {
                 null,
                 List.of(new SimpleGrantedAuthority("SCOPE_read"))
         );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getCurrentRole());
+    }
+
+    @Test
+    void shouldExtractActiveCompanyIdFromToken() {
+        // getActiveCompanyId() — covers L=2 (lines never called before)
+        UUID companyId = UUID.randomUUID();
+        when(authCookieService.extractToken(request)).thenReturn(Optional.of("jwt-token"));
+        when(jwtUtils.getActiveCompanyIdFromToken("jwt-token")).thenReturn(companyId);
+
+        assertEquals(companyId, jwtAuthenticatedUser.getActiveCompanyId());
+    }
+
+    @Test
+    void shouldSkipNullAuthoritiesInRoleFilter() {
+        // authority = null → authority != null = FALSE (short-circuit in filter lambda) → B=1 covered
+        var nullAuthority = Mockito.mock(GrantedAuthority.class);
+        when(nullAuthority.getAuthority()).thenReturn(null);
+
+        var authentication = new UsernamePasswordAuthenticationToken(
+                "user", null, List.of(nullAuthority)
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // null authority filtered → no ROLE_ found → throws
+        assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getCurrentRole());
+    }
+
+    @Test
+    void shouldFailWhenAuthenticationIsNotAuthenticated() {
+        // !authentication.isAuthenticated() = TRUE (2-arg constructor creates unauthenticated token)
+        var authentication = new UsernamePasswordAuthenticationToken("user", "pass");
+        // 2-arg UPAT is NOT authenticated (setAuthenticated(false))
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         assertThrows(IllegalArgumentException.class, () -> jwtAuthenticatedUser.getCurrentRole());

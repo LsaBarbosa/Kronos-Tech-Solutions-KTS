@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /**
  * SPEC-002: DTO detalhado para consulta individual e detalhe gerencial.
- * Inclui dados administrativos necessários para gestor autorizado.
+ * Inclui dados administrativos necessarios para gestor autorizado.
  */
 public record EmployeeDetailResponse(
         UUID employeeId,
@@ -25,8 +25,11 @@ public record EmployeeDetailResponse(
         String email,
         double salary,
         String phone,
+        String pis,
         AddressResponse address,
+        UUID companyId,
         String companyName,
+        boolean active,
         boolean homeOffice,
         String role,
         boolean sandbox,
@@ -39,6 +42,10 @@ public record EmployeeDetailResponse(
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakEndTime,
         WorkScheduleType scheduleType,
 
         @JsonFormat(pattern = "yyyy-MM-dd")
@@ -65,8 +72,11 @@ public record EmployeeDetailResponse(
                 employee.email(),
                 employee.salary(),
                 employee.phone(),
-                AddressResponse.fromDomain(employee.address()),
+                employee.pis(),
+                employee.address() != null ? AddressResponse.fromDomain(employee.address()) : null,
+                employee.companyId(),
                 companyName,
+                employee.active(),
                 employee.homeOffice(),
                 role,
                 sandbox,
@@ -76,6 +86,47 @@ public record EmployeeDetailResponse(
                 employee.workEndTime(),
                 employee.breakStartTime(),
                 employee.breakEndTime(),
+                employee.weekendWorkStartTime(),
+                employee.weekendWorkEndTime(),
+                employee.weekendBreakStartTime(),
+                employee.weekendBreakEndTime(),
+                employee.scheduleType(),
+                employee.scaleStartDate(),
+                employee.preferredDayOff(),
+                employee.weekendOffIndex(),
+                employee.fixedWorkDays()
+        );
+    }
+
+    // Usado em lookups cross-company (onboarding): omite dados sensíveis do contrato de origem
+    // (salary, phone, email, address) pois pertencem a outra empresa e não devem ser expostos.
+    public static EmployeeDetailResponse forCrossCompanyOnboarding(Employee employee, String companyName) {
+        return new EmployeeDetailResponse(
+                employee.employeeId(),
+                employee.fullName(),
+                SensitiveDataMasker.maskCpf(employee.cpf()),
+                employee.jobPosition(),
+                null,
+                0.0,
+                null,
+                null,
+                null,
+                employee.companyId(),
+                companyName,
+                employee.active(),
+                employee.homeOffice(),
+                null,
+                false,
+                false,
+                null,
+                employee.workStartTime(),
+                employee.workEndTime(),
+                employee.breakStartTime(),
+                employee.breakEndTime(),
+                null,
+                null,
+                null,
+                null,
                 employee.scheduleType(),
                 employee.scaleStartDate(),
                 employee.preferredDayOff(),

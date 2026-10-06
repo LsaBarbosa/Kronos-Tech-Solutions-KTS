@@ -1,5 +1,6 @@
 package com.kts.kronos.application.service;
 
+import com.kts.kronos.adapter.in.web.dto.timesheetsignature.AdminTimesheetSignaturePageResponse;
 import com.kts.kronos.adapter.in.web.dto.timesheetsignature.PreviousMonthSignatureStatusResponse;
 import com.kts.kronos.adapter.in.web.dto.timesheetsignature.SignPreviousMonthTimesheetRequest;
 import com.kts.kronos.adapter.in.web.dto.timesheetsignature.SignPreviousMonthTimesheetResponse;
@@ -30,8 +31,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -76,6 +80,7 @@ class TimesheetSignatureServiceTest {
     @Mock EvidenceWatermarkService evidenceWatermarkService;
     @Mock BiometricProtectionService biometricProtectionService;
     @Mock FaceRecognitionProvider faceRecognitionProvider;
+    @Mock com.kts.kronos.application.security.PrivacyLogReferenceService privacyLogReferenceService;
 
     @InjectMocks
     TimesheetSignatureService service;
@@ -486,4 +491,647 @@ class TimesheetSignatureServiceTest {
                 null, null, null, null, null, null, null, null
         );
     }
+
+    private static TimeRecord timeOffRecord(UUID empId, LocalDate date) {
+        return new TimeRecord(
+                (long) (date.getDayOfYear() + 2000), date.atStartOfDay(), date.atTime(23, 59),
+                StatusRecord.TIME_OFF_REQUEST, false, true, empId,
+                null, null, null, null, null, null, null, null
+        );
+    }
+
+    private static TimeRecord workTimeRecord(UUID empId, LocalDate date) {
+        return new TimeRecord(
+                (long) (date.getDayOfYear() + 3000), date.atStartOfDay(), date.atTime(23, 59),
+                StatusRecord.WORK_TIME_REQUEST, false, true, empId,
+                null, null, null, null, null, null, null, null
+        );
+    }
+
+    private static TimeRecord openCheckoutRecord(UUID empId, LocalDate date) {
+        // startWork present, endWork null, status PENDING → "Registro aberto sem checkout"
+        return new TimeRecord(
+                (long) (date.getDayOfYear() + 4000), date.atTime(9, 0), null,
+                StatusRecord.PENDING, false, true, empId,
+                null, null, null, null, null, null, null, null
+        );
+    }
+
+    // ==================== PREVIEW MONTH MIRROR ====================
+
+    @Test
+    @DisplayName("previewMonthMirror: colaborador obtém PDF do espelho do mês anterior")
+    void previewMonthMirrorSuccess() {
+        byte[] result = service.previewMonthMirror(null, null, "127.0.0.1", "JUnit");
+
+        assertThat(result).isEqualTo(mirrorPdf);
+    }
+
+    // ==================== DOWNLOAD SIGNATURE DOCUMENT ====================
+
+    @Test
+    @DisplayName("downloadSignatureDocument: colaborador baixa seu próprio espelho (fallback sem doc)")
+    void downloadSelfFallback() {
+        TimesheetSignature sig = activeSignature();
+        // pointMirrorDocumentId is already null in activeSignature()
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(sig.periodStart()), eq(sig.periodEnd())))
+                .thenReturn(mirrorPdf);
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        assertThat(result.data()).isEqualTo(mirrorPdf);
+        assertThat(result.contentType()).isEqualTo("application/pdf");
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: divergência de hash resulta em nome de arquivo com _divergente")
+    void downloadDivergedHash() {
+        TimesheetSignature sig = activeSignature();
+        byte[] differentPdf = "different-content".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(sig.periodStart()), eq(sig.periodEnd())))
+                .thenReturn(differentPdf); // hash diverges
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        assertThat(result.fileName()).contains("divergente");
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: MANAGER do mesmo tenant pode baixar espelho de outro colaborador")
+    void downloadByAdminSameTenant() {
+        UUID managerEmpId = UUID.randomUUID();
+        Employee managerEmp = baseEmployee(managerEmpId, companyId, "Gestor");
+        TimesheetSignature sig = activeSignature(); // owned by employeeId
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(managerEmpId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findById(managerEmpId)).thenReturn(Optional.of(managerEmp));
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(sig.periodStart()), eq(sig.periodEnd())))
+                .thenReturn(mirrorPdf);
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        assertThat(result.data()).isEqualTo(mirrorPdf);
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: colaborador de outro tenant recebe ForbiddenException")
+    void downloadCrossTenantForbidden() {
+        UUID outsiderEmpId = UUID.randomUUID();
+        UUID otherCompany = UUID.randomUUID();
+        Employee outsider = baseEmployee(outsiderEmpId, otherCompany, "Outsider");
+        TimesheetSignature sig = activeSignature(); // owned by employeeId in companyId
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(outsiderEmpId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+        when(employeeProvider.findById(outsiderEmpId)).thenReturn(Optional.of(outsider));
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+
+        assertThatThrownBy(() -> service.downloadSignatureDocument(sig.signatureId(), "ip", "ua"))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: com pointMirrorDocumentId retorna documento persistido")
+    void downloadWithPersistedDocument() throws java.io.IOException {
+        UUID docId = UUID.randomUUID();
+        TimesheetSignature sig = new TimesheetSignature(
+                UUID.randomUUID(), employeeId, companyId, userId,
+                previous.getYear(), previous.getMonthValue(), periodStart, periodEnd,
+                java.time.Instant.now(), TimesheetSignatureService.TIMESHEET_ZONE.getId(),
+                TimesheetSignatureType.INTERNAL_ADVANCED, TimesheetSignatureMethod.PASSWORD_REAUTH,
+                TimesheetSignatureStatus.ACTIVE,
+                docId, // pointMirrorDocumentId != null
+                mirrorHash, "recordsHash",
+                TimesheetSignatureService.DECLARATION_VERSION_V1, declarationHash, declarationText,
+                "ip", "ua", "{}",
+                java.time.Instant.now(), null, null, null, null,
+                "POINT_MIRROR", "1.0", "evhash", UUID.randomUUID(), "SUCCESS"
+        );
+        DocumentWithData doc = new DocumentWithData(docId, employeeId, DocumentType.POINT_MIRROR_SIGNATURE,
+                "espelho.pdf", "application/pdf", mirrorPdf, java.time.LocalDateTime.now());
+
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(documentUseCase.downloadDocument(eq(employeeId), eq(docId))).thenReturn(doc);
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        assertThat(result.data()).isEqualTo(mirrorPdf);
+        assertThat(result.fileName()).isEqualTo("espelho.pdf");
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: IOException no download do documento faz fallback para regeneracao")
+    void downloadFallbackOnIOException() throws java.io.IOException {
+        UUID docId = UUID.randomUUID();
+        TimesheetSignature sig = new TimesheetSignature(
+                UUID.randomUUID(), employeeId, companyId, userId,
+                previous.getYear(), previous.getMonthValue(), periodStart, periodEnd,
+                java.time.Instant.now(), TimesheetSignatureService.TIMESHEET_ZONE.getId(),
+                TimesheetSignatureType.INTERNAL_ADVANCED, TimesheetSignatureMethod.PASSWORD_REAUTH,
+                TimesheetSignatureStatus.ACTIVE,
+                docId,
+                mirrorHash, "recordsHash",
+                TimesheetSignatureService.DECLARATION_VERSION_V1, declarationHash, declarationText,
+                "ip", "ua", "{}",
+                java.time.Instant.now(), null, null, null, null,
+                "POINT_MIRROR", "1.0", "evhash", UUID.randomUUID(), "SUCCESS"
+        );
+
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(documentUseCase.downloadDocument(eq(employeeId), eq(docId)))
+                .thenThrow(new java.io.IOException("S3 error"));
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), eq(periodStart), eq(periodEnd)))
+                .thenReturn(mirrorPdf);
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        // Fallback: regenerated
+        assertThat(result.data()).isEqualTo(mirrorPdf);
+    }
+
+    // ==================== FIND ADMIN ====================
+
+    @Test
+    @DisplayName("findAdmin: nao-MANAGER recebe ForbiddenException")
+    void findAdminBlocksNonManager() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.PARTNER);
+
+        assertThatThrownBy(() -> service.findAdmin(null, null, null, null, 0, 10))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    @DisplayName("findAdmin: MANAGER lista assinaturas sem filtro de nome")
+    void findAdminSuccess() {
+        TimesheetSignature sig = activeSignature();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        when(signatureProvider.findAdminFiltered(any(), eq(companyId), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(sig), PageRequest.of(0, 10), 1));
+
+        AdminTimesheetSignaturePageResponse response = service.findAdmin(null, null, null, null, 0, 10);
+
+        assertThat(response.items()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("findAdmin: filtro de nome sem resultados retorna pagina vazia")
+    void findAdminNameFilterNoMatch() {
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+
+        AdminTimesheetSignaturePageResponse response =
+                service.findAdmin(null, null, null, "NomeQuENaoExiste", 0, 10);
+
+        assertThat(response.items()).isEmpty();
+        assertThat(response.totalElements()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("findAdmin: filtro de nome com resultado retorna apenas os colaboradores filtrados")
+    void findAdminNameFilterWithMatch() {
+        TimesheetSignature sig = activeSignature();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        // "ana" matches "Ana Lima"
+        when(signatureProvider.findAdminFiltered(any(), eq(companyId), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(sig), PageRequest.of(0, 10), 1));
+
+        AdminTimesheetSignaturePageResponse response =
+                service.findAdmin(null, null, null, "ana", 0, 10);
+
+        assertThat(response.items()).hasSize(1);
+    }
+
+    // ==================== RESOLVE TARGET MONTH ====================
+
+    @Test
+    @DisplayName("resolveTargetMonth: apenas ano informado lanca BadRequestException")
+    void resolveTargetMonthOnlyYear() {
+        assertThatThrownBy(() -> service.previewMonthMirror(2026, null, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("ano E m");
+    }
+
+    @Test
+    @DisplayName("resolveTargetMonth: apenas mes informado lanca BadRequestException")
+    void resolveTargetMonthOnlyMonth() {
+        assertThatThrownBy(() -> service.previewMonthMirror(null, 6, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("ano E m");
+    }
+
+    @Test
+    @DisplayName("resolveTargetMonth: mes invalido (13) lanca BadRequestException")
+    void resolveTargetMonthInvalidDate() {
+        assertThatThrownBy(() -> service.previewMonthMirror(2025, 13, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("nv");
+    }
+
+    // ==================== BLOCKER LABEL ====================
+
+    @Test
+    @DisplayName("collectBlockers: TIME_OFF_REQUEST gera label de abono")
+    void collectBlockersTimeOffRequest() {
+        TimeRecord rec = timeOffRecord(employeeId, periodStart);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(anyList(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse status = service.getMonthStatus(null, null);
+
+        assertThat(status.status()).isEqualTo("BLOCKED");
+        assertThat(status.blockers().get(0)).contains("Abono");
+    }
+
+    @Test
+    @DisplayName("collectBlockers: REQUEST_VACATION gera label de ferias")
+    void collectBlockersVacationRequest() {
+        TimeRecord rec = vacationRequestRecord(employeeId, periodStart);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(anyList(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse status = service.getMonthStatus(null, null);
+
+        assertThat(status.blockers().get(0)).contains("rias");
+    }
+
+    @Test
+    @DisplayName("collectBlockers: WORK_TIME_REQUEST gera label de hora trabalhada")
+    void collectBlockersWorkTimeRequest() {
+        TimeRecord rec = workTimeRecord(employeeId, periodStart);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(anyList(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse status = service.getMonthStatus(null, null);
+
+        assertThat(status.blockers().get(0)).contains("hora trabalhada");
+    }
+
+    @Test
+    @DisplayName("collectBlockers: registro aberto sem checkout (PENDING, endWork null) gera label de checkout")
+    void collectBlockersOpenCheckout() {
+        TimeRecord rec = openCheckoutRecord(employeeId, periodStart);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(anyList(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse status = service.getMonthStatus(null, null);
+
+        assertThat(status.blockers().get(0)).contains("checkout");
+    }
+
+    // ==================== signMonth — paths adicionais ====================
+
+    @Test
+    @DisplayName("signMonth: face nao encontrada (null) → branch face_not_found")
+    void signMonth_faceNotFound() {
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(closedRecord(employeeId, periodStart)));
+        when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(null);
+
+        assertThatThrownBy(() -> service.signMonth(signRequest(VALID_FACE_IMAGE_BASE64), "ip", "ua"))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("facial");
+    }
+
+    @Test
+    @DisplayName("signMonth: versao da declaracao errada lanca BadRequestException")
+    void signMonth_declarationVersionMismatch() {
+        List<TimeRecord> records = List.of(closedRecord(employeeId, periodStart));
+        String recordsHash = TimesheetSignatureService.canonicalRecordsHash(records);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(records);
+
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                previous.getYear(), previous.getMonthValue(),
+                true, "2.0", declarationHash, recordsHash, VALID_FACE_IMAGE_BASE64
+        );
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("desatualizada");
+    }
+
+    @Test
+    @DisplayName("signMonth: DataIntegrityViolationException na persistencia → ConflictException")
+    void signMonth_dataIntegrityViolation() {
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(closedRecord(employeeId, periodStart)));
+        when(auditService.registerSecurityReturningId(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+        when(signatureProvider.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("dup"));
+
+        assertThatThrownBy(() -> service.signMonth(signRequest(VALID_FACE_IMAGE_BASE64), "ip", "ua"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("assinatura ativa");
+    }
+
+    @Test
+    @DisplayName("signMonth: RuntimeException no PAdES e relancada")
+    void signMonth_padesRuntimeException() {
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(closedRecord(employeeId, periodStart)));
+        when(auditService.registerSecurityReturningId(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+        when(digitalSignatureService.signPdf(any(), any(), any()))
+                .thenThrow(new RuntimeException("HSM offline"));
+
+        assertThatThrownBy(() -> service.signMonth(signRequest(VALID_FACE_IMAGE_BASE64), "ip", "ua"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("HSM");
+    }
+
+    @Test
+    @DisplayName("signMonth: ipAddress null cobre appendJson null-branch; userAgent especial cobre jsonEscape")
+    void signMonth_nullIpAndSpecialCharsUserAgent() {
+        List<TimeRecord> records = List.of(closedRecord(employeeId, periodStart));
+        String recordsHash = TimesheetSignatureService.canonicalRecordsHash(records);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(records);
+        when(auditService.registerSecurityReturningId(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(UUID.randomUUID());
+        when(signatureProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                previous.getYear(), previous.getMonthValue(),
+                true, TimesheetSignatureService.DECLARATION_VERSION_V1,
+                declarationHash, recordsHash, VALID_FACE_IMAGE_BASE64
+        );
+        // cobre: aspas, barra, \b, \f, \n, \r, \t, char de controle (<0x20)
+        String specialAgent = "\"\\\b\f\n\r\t\u0001normal";
+        SignPreviousMonthTimesheetResponse response = service.signMonth(req, null, specialAgent);
+        assertThat(response).isNotNull();
+    }
+
+    // ==================== collectBlockers / blockerLabel — paths adicionais ====================
+
+    @Test
+    @DisplayName("collectBlockers: record com statusRecord null nao gera bloqueio")
+    void collectBlockers_nullStatusRecord() {
+        TimeRecord nullStatusRec = new TimeRecord(
+                999L, periodStart.atTime(9, 0), periodStart.atTime(18, 0),
+                null, false, true, employeeId,
+                null, null, null, null, null, null, null, null
+        );
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(nullStatusRec));
+
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
+
+        assertThat(response.eligible()).isTrue();
+        assertThat(response.blockers()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("blockerLabel: startWork null e endWork presente usa data do endWork")
+    void blockerLabel_startWorkNullEndWorkPresent() {
+        TimeRecord rec = new TimeRecord(
+                777L, null, periodStart.atTime(18, 0),
+                StatusRecord.PENDING_APPROVAL, true, true, employeeId,
+                null, null, null, null, null, null, null, null
+        );
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
+
+        assertThat(response.status()).isEqualTo("BLOCKED");
+        assertThat(response.blockers().get(0)).contains("Ajuste");
+    }
+
+    @Test
+    @DisplayName("blockerLabel: startWork null e endWork null usa LocalDate.now")
+    void blockerLabel_startWorkNullEndWorkNull() {
+        TimeRecord rec = new TimeRecord(
+                888L, null, null,
+                StatusRecord.PENDING_APPROVAL, true, true, employeeId,
+                null, null, null, null, null, null, null, null
+        );
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
+
+        assertThat(response.status()).isEqualTo("BLOCKED");
+        assertThat(response.blockers().get(0)).contains("Ajuste");
+    }
+
+    // ==================== findAdmin — paths adicionais ====================
+
+    @Test
+    @DisplayName("findAdmin: employeeName em branco e tratado como sem filtro")
+    void findAdmin_blankEmployeeName() {
+        TimesheetSignature sig = activeSignature();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+        when(signatureProvider.findAdminFiltered(any(), eq(companyId), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(sig), PageRequest.of(0, 10), 1));
+
+        AdminTimesheetSignaturePageResponse response = service.findAdmin(null, null, null, "   ", 0, 10);
+
+        assertThat(response.items()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("findAdmin: colaborador com fullName null nao passa pelo filtro de nome")
+    void findAdmin_employeeNullFullName() {
+        Employee nullName = new Employee(
+                UUID.randomUUID(), null, "12345678901", "12345678901", "Dev", "x@e.com", 1000d,
+                "11999999999", true, null, companyId, null, false, null,
+                java.time.LocalTime.of(9, 0), java.time.LocalTime.of(18, 0),
+                java.time.LocalTime.of(12, 0), java.time.LocalTime.of(13, 0),
+                null, null, null, null, null
+        );
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(nullName));
+
+        AdminTimesheetSignaturePageResponse response = service.findAdmin(null, null, null, "ana", 0, 10);
+
+        assertThat(response.items()).isEmpty();
+    }
+
+    // ==================== downloadSignatureDocument — paths adicionais ====================
+
+    @Test
+    @DisplayName("downloadSignatureDocument: assinatura nao encontrada lanca ResourceNotFoundException")
+    void downloadSignatureDocument_notFound() {
+        UUID sigId = UUID.randomUUID();
+        when(signatureProvider.findById(sigId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.downloadSignatureDocument(sigId, "ip", "ua"))
+                .isInstanceOf(com.kts.kronos.application.exceptions.ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: MANAGER de outro tenant e bloqueado (cross-tenant)")
+    void downloadSignatureDocument_crossTenantAdmin() {
+        UUID otherCompany = UUID.randomUUID();
+        UUID mgId = UUID.randomUUID();
+        Employee mgOther = baseEmployee(mgId, otherCompany, "Gestor Externo");
+        TimesheetSignature sig = activeSignature();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(mgId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findById(mgId)).thenReturn(Optional.of(mgOther));
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+
+        assertThatThrownBy(() -> service.downloadSignatureDocument(sig.signatureId(), "ip", "ua"))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    @DisplayName("downloadSignatureDocument: CTO do mesmo tenant pode baixar espelho de outro colaborador")
+    void downloadSignatureDocument_ctoBySameTenant() {
+        UUID ctEmpId = UUID.randomUUID();
+        Employee ctoEmp = baseEmployee(ctEmpId, companyId, "CTO Admin");
+        TimesheetSignature sig = activeSignature();
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(ctEmpId);
+        when(jwtAuthenticatedUser.getuserId()).thenReturn(UUID.randomUUID());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(employeeProvider.findById(ctEmpId)).thenReturn(Optional.of(ctoEmp));
+        when(signatureProvider.findById(sig.signatureId())).thenReturn(Optional.of(sig));
+        when(pointMirrorPdfUseCase.generateMirror(eq(employeeId), any(), any()))
+                .thenReturn(mirrorPdf);
+
+        var result = service.downloadSignatureDocument(sig.signatureId(), "ip", "ua");
+
+        assertThat(result.data()).isEqualTo(mirrorPdf);
+    }
+
+    // ==================== getAuthenticatedEmployee — orElseThrow ====================
+
+    @Test
+    @DisplayName("getMonthStatus: colaborador autenticado nao encontrado lanca ResourceNotFoundException")
+    void getMonthStatus_employeeNotFound() {
+        UUID unknownId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(unknownId);
+        when(employeeProvider.findById(unknownId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getMonthStatus(null, null))
+                .isInstanceOf(com.kts.kronos.application.exceptions.ResourceNotFoundException.class)
+                .hasMessageContaining("autenticado");
+    }
+
+    // ==================== signMonth — additional branch coverage ====================
+
+    @Test
+    @DisplayName("signMonth: face encontrada mas errada cobre branch recognizedEmployeeId != null")
+    void signMonth_faceFoundButWrongPerson() {
+        UUID differentId = UUID.randomUUID();
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(closedRecord(employeeId, periodStart)));
+        when(faceRecognitionProvider.searchFaceByImage(any())).thenReturn(differentId);
+        when(privacyLogReferenceService.employeeRef(differentId)).thenReturn("ref-" + differentId);
+
+        assertThatThrownBy(() -> service.signMonth(signRequest(VALID_FACE_IMAGE_BASE64), "ip", "ua"))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("facial");
+    }
+
+    @Test
+    @DisplayName("signMonth: hash da declaracao incorreto lanca BadRequestException (hash branch do OR)")
+    void signMonth_declarationHashMismatch() {
+        List<TimeRecord> records = List.of(closedRecord(employeeId, periodStart));
+        String recordsHash = TimesheetSignatureService.canonicalRecordsHash(records);
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any())).thenReturn(records);
+
+        SignPreviousMonthTimesheetRequest req = new SignPreviousMonthTimesheetRequest(
+                previous.getYear(), previous.getMonthValue(),
+                true, "1.0", "hash-errado-deliberado", recordsHash, VALID_FACE_IMAGE_BASE64
+        );
+        assertThatThrownBy(() -> service.signMonth(req, "ip", "ua"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("desatualizada");
+    }
+
+    // ==================== findAdmin (TimesheetSignature) — CTO branch ====================
+
+    @Test
+    @DisplayName("findAdmin: CTO pode listar assinaturas (CTO branch)")
+    void findAdmin_ctoCanList() {
+        TimesheetSignature sig = activeSignature();
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+        when(signatureProvider.findAdminFiltered(any(), eq(companyId), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(sig), PageRequest.of(0, 10), 1));
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(employee));
+
+        AdminTimesheetSignaturePageResponse response = service.findAdmin(null, null, null, null, 0, 10);
+
+        assertThat(response.items()).hasSize(1);
+    }
+
+    // ==================== collectBlockers — else if branch paths ====================
+
+    @Test
+    @DisplayName("collectBlockers: registro CREATED com startWork nulo nao entra no else-if (A=false branch)")
+    void collectBlockers_nonBlockingStartWorkNull() {
+        TimeRecord rec = new TimeRecord(
+                5001L, null, periodStart.atTime(18, 0),
+                StatusRecord.CREATED, false, true, employeeId,
+                null, null, null, null, null, null, null, null
+        );
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
+
+        assertThat(response.eligible()).isTrue();
+        assertThat(response.blockers()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("collectBlockers: registro CREATED com startWork!=null e endWork==null avalia else-if (A=true B=true C=false branch)")
+    void collectBlockers_nonBlockingOpenCheckout() {
+        TimeRecord rec = new TimeRecord(
+                5002L, periodStart.atTime(9, 0), null,
+                StatusRecord.CREATED, false, true, employeeId,
+                null, null, null, null, null, null, null, null
+        );
+        when(signatureProvider.findActiveByEmployeeAndPeriod(employeeId, previous.getYear(), previous.getMonthValue()))
+                .thenReturn(Optional.empty());
+        when(timeRecordProvider.findByEmployeeIdsAndRange(any(), any(), any()))
+                .thenReturn(List.of(rec));
+
+        PreviousMonthSignatureStatusResponse response = service.getMonthStatus(null, null);
+
+        assertThat(response.eligible()).isTrue();
+        assertThat(response.blockers()).isEmpty();
+    }
+
 }

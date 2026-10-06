@@ -44,8 +44,12 @@ public record UpdateEmployeeManagerRequest(
         @JsonFormat(pattern = "HH:mm") LocalTime workEndTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakStartTime,
         @JsonFormat(pattern = "HH:mm") LocalTime breakEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendWorkEndTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakStartTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime weekendBreakEndTime,
 
-        // --- NOVOS CAMPOS DE ATUALIZAÇÃO DE ESCALA ---
+        // --- NOVOS CAMPOS DE ATUALIZACAO DE ESCALA ---
         WorkScheduleType scheduleType,
         @JsonFormat(pattern = "yyyy-MM-dd") LocalDate scaleStartDate,
         DayOfWeek preferredDayOff,

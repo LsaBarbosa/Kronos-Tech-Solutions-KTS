@@ -14,6 +14,7 @@ import com.kts.kronos.application.service.LgpdRetentionDryRunService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -305,6 +307,31 @@ class LgpdRetentionDryRunServiceTest {
         assertTrue(results.get(0).requiresManualApproval());
     }
 
+
+    @Test
+    @DisplayName("DRY_RUN: null resourceType in result produces 'UNKNOWN' resourceType string")
+    void testDryRun_nullResourceType_producesUnknownString() {
+        var policies = new ArrayList<RetentionPolicyCatalogEntry>();
+        policies.add(createMockPolicyCatalogEntry(
+                RetentionPolicyCode.RETENTION_INTERNAL_MESSAGE, "MESSAGE", "msg"));
+
+        when(retentionPolicyCatalog.getActivePolicies()).thenReturn(policies);
+        // Return a result with null resourceType to cover the ternary FALSE branch (L56)
+        when(retentionPolicyExecutor.executePolicy(any())).thenReturn(
+                new RetentionExecutionResult(
+                        java.util.UUID.randomUUID(), "TEST", null, "DRY_RUN",
+                        java.time.Instant.now(), java.time.Instant.now(),
+                        "SUCCESS", 0L, 0L, 0L, 0L, null
+                )
+        );
+
+        var results = dryRunService.executeDryRun();
+
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertEquals("UNKNOWN", results.get(0).resourceType());
+    }
+
     // Helper method
     private RetentionPolicyCatalogEntry createMockPolicyCatalogEntry(
             RetentionPolicyCode code,
@@ -324,4 +351,22 @@ class LgpdRetentionDryRunServiceTest {
                 true
         );
     }
+
+    // ── toSnakeCase dead-code branches (private method, reflection) ──────────
+    @Test
+    @DisplayName("toSnakeCase: null input returns null (private-method branch)")
+    void toSnakeCase_null_returnsNull() throws Exception {
+        Method m = LgpdRetentionDryRunService.class.getDeclaredMethod("toSnakeCase", String.class);
+        m.setAccessible(true);
+        assertNull(m.invoke(dryRunService, (String) null));
+    }
+
+    @Test
+    @DisplayName("toSnakeCase: empty input returns empty (private-method branch)")
+    void toSnakeCase_empty_returnsEmpty() throws Exception {
+        Method m = LgpdRetentionDryRunService.class.getDeclaredMethod("toSnakeCase", String.class);
+        m.setAccessible(true);
+        assertEquals("", m.invoke(dryRunService, ""));
+    }
+
 }

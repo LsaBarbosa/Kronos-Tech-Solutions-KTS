@@ -350,6 +350,44 @@ class LegalControllerWebMvcTest {
         );
     }
 
+    @Test
+    @DisplayName("downloadTechnicalCertificate: RuntimeException com mensagem null cobre BR L134 A=false")
+    void shouldReturnErrorWhenSignatureThrowsExceptionWithNullMessage() throws Exception {
+        UUID loggedEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        var employee = employee(loggedEmployeeId, companyId);
+        var company = company(companyId);
+        byte[] pdfBytes = "pdf".getBytes(StandardCharsets.UTF_8);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(certificateService.generateCertificate(company)).thenReturn(pdfBytes);
+        when(signatureService.signData(pdfBytes)).thenThrow(new RuntimeException((String) null));
+
+        mockMvc.perform(get("/legal/technical-certificate"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    @DisplayName("downloadTechnicalCertificate: RuntimeException com 'assinar' na mensagem cobre BR L134 A+B=true")
+    void shouldReturnErrorWhenSignatureThrowsExceptionWithAssinarInMessage() throws Exception {
+        UUID loggedEmployeeId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        var employee = employee(loggedEmployeeId, companyId);
+        var company = company(companyId);
+        byte[] pdfBytes = "pdf".getBytes(StandardCharsets.UTF_8);
+
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(employee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.of(company));
+        when(certificateService.generateCertificate(company)).thenReturn(pdfBytes);
+        when(signatureService.signData(pdfBytes)).thenThrow(new RuntimeException("falha ao assinar documento"));
+
+        mockMvc.perform(get("/legal/technical-certificate"))
+                .andExpect(status().isInternalServerError());
+    }
+
     private Company company(UUID companyId) {
         return new Company(
                 companyId,

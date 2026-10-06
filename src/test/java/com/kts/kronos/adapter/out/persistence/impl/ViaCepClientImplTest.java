@@ -99,4 +99,12 @@ class ViaCepClientImplTest {
                         .build()));
         return new ViaCepClientImpl(builder);
     }
+    @Test
+    @DisplayName("lookup: deve lançar ResourceNotFoundException quando bodyToMono retorna null (resp == null)")
+    void shouldThrowWhenBodyDeserializesToNull() {
+        // "null" JSON → bodyToMono deserializes to null ViaCepResponse → resp == null → cobre BR L40 A_TRUE
+        ViaCepClientImpl client = clientWithResponse(HttpStatus.OK, "null");
+        assertThrows(ResourceNotFoundException.class, () -> client.lookup("00000000"));
+    }
+
 }

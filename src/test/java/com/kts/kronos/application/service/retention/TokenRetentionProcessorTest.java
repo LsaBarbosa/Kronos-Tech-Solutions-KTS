@@ -38,6 +38,16 @@ class TokenRetentionProcessorTest {
     }
 
     @Test
+    void testSupportsApply() {
+        assertTrue(processor.supportsApply());
+    }
+
+    @Test
+    void testIsDestructive() {
+        assertTrue(processor.isDestructive());
+    }
+
+    @Test
     void testExecuteDryRunWithNoExpiredTokens() {
         when(blacklistedTokenRepository.countExpiredBefore(any())).thenReturn(0L);
         when(passwordResetTokenRepository.countExpiredBefore(any())).thenReturn(0L);

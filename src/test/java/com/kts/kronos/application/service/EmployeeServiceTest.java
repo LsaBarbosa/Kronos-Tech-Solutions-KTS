@@ -22,6 +22,12 @@ import com.kts.kronos.application.port.out.provider.LegalConsentProvider;
 import com.kts.kronos.application.security.AuthenticationRateLimitService;
 import com.kts.kronos.application.security.BiometricProtectionService;
 import com.kts.kronos.domain.model.Address;
+import com.kts.kronos.domain.model.Company;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.function.Supplier;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.User;
 import com.kts.kronos.domain.model.enuns.Role;
@@ -30,6 +36,7 @@ import com.kts.kronos.domain.model.enuns.ConsentType;
 import com.kts.kronos.domain.model.BiometricConsentStatus;
 import com.kts.kronos.domain.model.enuns.AuditAction;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +58,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -86,6 +94,10 @@ class EmployeeServiceTest {
     private AuditService auditService;
     @Mock
     private com.kts.kronos.application.port.out.provider.MessageDeliveryProvider messageDeliveryProvider;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.CompanyProvider companyProvider;
+    @Mock
+    private com.kts.kronos.application.port.out.provider.CacheProvider cacheProvider;
 
     private UUID loggedEmployeeId;
     private UUID companyId;
@@ -114,6 +126,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 companyId,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -170,6 +186,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 null,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -238,6 +258,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -286,6 +310,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 DayOfWeek.FRIDAY,
                 2,
                 Set.of(DayOfWeek.MONDAY)
@@ -313,6 +341,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 outraEmpresaId,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -360,6 +392,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -384,6 +420,10 @@ class EmployeeServiceTest {
                 new AddressRequest("12345678", "10"),
                 companyId,
                 false,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -423,6 +463,10 @@ class EmployeeServiceTest {
                 companyId,
                 false,
                 "%%%invalid%%%",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -543,6 +587,10 @@ class EmployeeServiceTest {
                 LocalTime.of(16, 0),
                 LocalTime.of(11, 30),
                 LocalTime.of(12, 30),
+                null,
+                null,
+                null,
+                null,
                 WorkScheduleType.TRADITIONAL_5X2,
                 LocalDate.of(2026, 4, 1),
                 DayOfWeek.FRIDAY,
@@ -578,7 +626,8 @@ class EmployeeServiceTest {
         Employee target = buildEmployee(targetId, companyId);
         UpdateEmployeeManagerRequest request = new UpdateEmployeeManagerRequest(
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null,
+                null, null, null, null, null
         );
 
         when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
@@ -790,6 +839,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 DayOfWeek.FRIDAY,
                 2,
                 Set.of(DayOfWeek.MONDAY)
@@ -822,6 +875,10 @@ class EmployeeServiceTest {
                 LocalTime.of(17, 0),
                 LocalTime.of(12, 0),
                 LocalTime.of(13, 0),
+                null,
+                null,
+                null,
+                null,
                 WorkScheduleType.TRADITIONAL_5X2,
                 null,
                 DayOfWeek.FRIDAY,
@@ -883,6 +940,10 @@ class EmployeeServiceTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -912,6 +973,10 @@ class EmployeeServiceTest {
                 LocalTime.of(17, 0),
                 LocalTime.of(12, 0),
                 LocalTime.of(13, 0),
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -1064,7 +1129,304 @@ class EmployeeServiceTest {
         verify(biometricProtectionService, never()).protectEnrollment(any(), anyString(), any());
     }
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void setupSecurityContext() {
+        var auth = new UsernamePasswordAuthenticationToken("testuser", "pass",
+                List.of(new SimpleGrantedAuthority("ROLE_MANAGER")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    // ==================== LIST EMPLOYEES RESPONSE ====================
+
     @Test
+    @DisplayName("listEmployeesResponse: retorna lista de colaboradores via cache (cacheProvider presente)")
+    void listEmployeesResponseWithCache() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(loggedEmployee));
+        when(companyProvider.findById(loggedEmployee.companyId()))
+                .thenReturn(Optional.of(new Company(loggedEmployee.companyId(), "Empresa Teste", "00.000.000/0001-00", "e@e.com", true, null, null, 1, 0)));
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(3)).get());
+
+        var response = service.listEmployeesResponse(null);
+
+        assertNotNull(response);
+    }
+
+    // ==================== LIST EMPLOYEES BY COMPANY ====================
+
+    @Test
+    @DisplayName("listEmployeesByCompany: retorna lista filtrada de colaboradores de uma empresa")
+    void listEmployeesByCompanySuccess() {
+        UUID companyId = UUID.randomUUID();
+        Employee emp = buildEmployee(UUID.randomUUID(), companyId);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(emp));
+        when(companyProvider.findById(companyId))
+                .thenReturn(Optional.of(new Company(companyId, "Empresa X", "00.000.000/0001-00", "e@x.com", true, null, null, 1, 0)));
+
+        var response = service.listEmployeesByCompany(companyId, null);
+
+        assertNotNull(response);
+        assertEquals(1, response.employees().size());
+    }
+
+    @Test
+    @DisplayName("listEmployeesByCompany: empresa nao encontrada lanca ResourceNotFoundException")
+    void listEmployeesByCompanyNotFound() {
+        UUID companyId = UUID.randomUUID();
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of());
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listEmployeesByCompany(companyId, null));
+    }
+
+    // ==================== GET OWN PROFILE RESPONSE ====================
+
+    @Test
+    @DisplayName("getOwnProfileResponse: retorna perfil do colaborador autenticado")
+    void getOwnProfileResponseSuccess() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(companyProvider.findById(companyId))
+                .thenReturn(Optional.of(new Company(companyId, "Empresa Teste", "00.000.000/0001-00", "e@e.com", true, null, null, 1, 0)));
+        when(companyProvider.isSandbox(companyId)).thenReturn(false);
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((Supplier<?>) inv.getArgument(3)).get());
+
+        var response = service.getOwnProfileResponse();
+
+        assertNotNull(response);
+    }
+
+    // ==================== CPF EXISTS ====================
+
+    @Test
+    @DisplayName("cpfExistsInActiveCompany: delega ao provider com companyId do loggedUser")
+    void cpfExistsInActiveCompany() {
+        UUID companyId = UUID.randomUUID();
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.cpfExistsInCompany(companyId, "12345678901")).thenReturn(true);
+
+        assertTrue(service.cpfExistsInActiveCompany("12345678901"));
+    }
+
+    @Test
+    @DisplayName("cpfExistsInCompany: delega ao provider com companyId informado")
+    void cpfExistsInCompany() {
+        UUID companyId = UUID.randomUUID();
+        when(employeeProvider.cpfExistsInCompany(companyId, "98765432100")).thenReturn(false);
+
+        assertFalse(service.cpfExistsInCompany(companyId, "98765432100"));
+    }
+
+    // ==================== FIND BY CPF GLOBAL ====================
+
+    @Test
+    @DisplayName("findByCpfGlobal: retorna employee quando encontrado")
+    void findByCpfGlobalFound() {
+        UUID companyId = UUID.randomUUID();
+        Employee emp = buildEmployee(UUID.randomUUID(), companyId);
+        when(employeeProvider.findAllByCpf("12345678901")).thenReturn(List.of(emp));
+        when(companyProvider.findById(companyId))
+                .thenReturn(Optional.of(new Company(companyId, "Empresa G", "00.000.000/0001-00", "g@g.com", true, null, null, 1, 0)));
+
+        var result = service.findByCpfGlobal("12345678901");
+
+        assertTrue(result.isPresent());
+    }
+
+    @Test
+    @DisplayName("findByCpfGlobal: retorna empty quando nao encontrado")
+    void findByCpfGlobalNotFound() {
+        when(employeeProvider.findAllByCpf("00000000000")).thenReturn(List.of());
+
+        var result = service.findByCpfGlobal("00000000000");
+
+        assertTrue(result.isEmpty());
+    }
+
+    // ==================== BUILD EMPLOYEE LIST RESPONSE COMPANY NOT FOUND ====================
+
+    @Test
+    @DisplayName("listEmployeesResponse: lanca ResourceNotFoundException quando empresa nao encontrada")
+    void listEmployeesResponseCompanyNotFound() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of(loggedEmployee));
+        when(companyProvider.findById(loggedEmployee.companyId())).thenReturn(Optional.empty());
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(3)).get());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listEmployeesResponse(null));
+    }
+
+    // ==================== HANDLE FACE REGISTRATION EXCEPTION PATHS ====================
+
+    @Test
+    @DisplayName("handleFaceRegistration: lanca BadRequestException quando faceId e null")
+    void handleFaceRegistrationFaceIdNull() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        var consent = new com.kts.kronos.domain.model.BiometricConsentStatus(true, "1.0", "h", "1.0", "h", false);
+        when(acceptTermsUseCase.getBiometricConsentStatus(loggedEmployeeId)).thenReturn(consent);
+        String base64 = java.util.Base64.getEncoder().encodeToString("img".getBytes());
+        when(faceStorageProvider.uploadFaceImage(any(), any(), any())).thenReturn("new-s3-key");
+        when(faceRecognitionProvider.indexFace(any(), any())).thenReturn(null);
+
+        var req = new RegisterFaceRequest(base64, loggedEmployeeId, true);
+        assertThrows(RuntimeException.class,
+                () -> service.enrollBiometricByManager(loggedEmployeeId, req));
+    }
+
+    @Test
+    @DisplayName("handleFaceRegistration: IllegalArgumentException base64 invalido lanca BadRequestException")
+    void handleFaceRegistrationBadBase64() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        var consent = new com.kts.kronos.domain.model.BiometricConsentStatus(true, "1.0", "h", "1.0", "h", false);
+        when(acceptTermsUseCase.getBiometricConsentStatus(loggedEmployeeId)).thenReturn(consent);
+
+        var req = new RegisterFaceRequest("@@not-valid-base64@@", loggedEmployeeId, true);
+        assertThrows(com.kts.kronos.application.exceptions.BadRequestException.class,
+                () -> service.enrollBiometricByManager(loggedEmployeeId, req));
+    }
+
+    @Test
+    @DisplayName("handleFaceRegistration: RuntimeException de S3 lanca RuntimeException")
+    void handleFaceRegistrationRuntimeException() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        var consent = new com.kts.kronos.domain.model.BiometricConsentStatus(true, "1.0", "h", "1.0", "h", false);
+        when(acceptTermsUseCase.getBiometricConsentStatus(loggedEmployeeId)).thenReturn(consent);
+        String base64 = java.util.Base64.getEncoder().encodeToString("img".getBytes());
+        when(faceStorageProvider.uploadFaceImage(any(), any(), any()))
+                .thenThrow(new RuntimeException("S3 down"));
+
+        var req = new RegisterFaceRequest(base64, loggedEmployeeId, true);
+        assertThrows(RuntimeException.class,
+                () -> service.enrollBiometricByManager(loggedEmployeeId, req));
+    }
+
+        // ==================== CACHE NULL BRANCH ====================
+
+    @Test
+    @DisplayName("cache: delega ao loader quando cacheProvider e null")
+    void cacheDelegatesWhenNull() {
+        ReflectionTestUtils.setField(service, "cacheProvider", null);
+        try {
+            when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+            when(employeeProvider.findByCompanyId(companyId)).thenReturn(List.of());
+
+            var response = service.listEmployeesResponse(null);
+
+            assertNotNull(response);
+        } finally {
+            ReflectionTestUtils.setField(service, "cacheProvider", cacheProvider);
+        }
+    }
+
+    // ==================== INVALIDATE CACHES EXCEPTION ====================
+
+    @Test
+    @DisplayName("invalidateEmployeeCaches: captura RuntimeException do evictNamespace")
+    void invalidateCachesSwallowsException() {
+        doThrow(new RuntimeException("redis down")).when(cacheProvider).evictNamespace(any());
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.CTO);
+
+        var req = createRequest("Nome Teste", "11122233344", companyId, null);
+        when(employeeProvider.cpfExistsInCompany(companyId, req.cpf())).thenReturn(false);
+        when(viaCep.lookup(req.address().postalCode())).thenReturn(lookedUpAddress);
+        when(employeeProvider.save(any())).thenReturn(loggedEmployee);
+
+        assertDoesNotThrow(() -> service.createEmployee(req));
+    }
+
+    // ==================== CURRENT USER ID NULL ====================
+
+    @Test
+    @DisplayName("currentUserIdOrNull: retorna null quando getuserId lanca excecao")
+    void currentUserIdOrNullReturnsNullOnException() {
+        when(jwtAuthenticatedUser.getActiveCompanyId()).thenReturn(companyId);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(userProvider.existsByEmployeeId(loggedEmployeeId)).thenReturn(false);
+        when(employeeProvider.save(any())).thenReturn(loggedEmployee);
+        doThrow(new RuntimeException("no user")).when(jwtAuthenticatedUser).getuserId();
+
+        service.deleteEmployee(loggedEmployeeId);
+
+        verify(employeeProvider).save(any());
+    }
+
+    // ==================== COMPANY NOT FOUND IN LIST BUILD ====================
+
+    @Test
+    @DisplayName("listEmployeesByCompany: company nao encontrada em buildEmployeeListResponse lanca excecao")
+    void buildEmployeeListResponseCompanyNotFound() {
+        UUID cid = UUID.randomUUID();
+        Employee emp = buildEmployee(UUID.randomUUID(), cid);
+        when(employeeProvider.findByCompanyId(cid)).thenReturn(List.of(emp));
+        when(companyProvider.findById(cid)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.listEmployeesByCompany(cid, null));
+    }
+
+    // ==================== COMPANY NOT FOUND IN OWN PROFILE ====================
+
+    @Test
+    @DisplayName("getOwnProfileResponse: company nao encontrada lanca ResourceNotFoundException")
+    void getOwnProfileResponseCompanyNotFound() {
+        when(jwtAuthenticatedUser.getEmployeeId()).thenReturn(loggedEmployeeId);
+        when(jwtAuthenticatedUser.getCurrentRole()).thenReturn(Role.MANAGER);
+        when(employeeProvider.findById(loggedEmployeeId)).thenReturn(Optional.of(loggedEmployee));
+        when(companyProvider.findById(companyId)).thenReturn(Optional.empty());
+        when(cacheProvider.getOrLoad(any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(3)).get());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.getOwnProfileResponse());
+    }
+
+    // ==================== UPDATE ORPHAN EMPLOYEE (PRIVATE VIA REFLECTION) ====================
+
+    @Test
+    @DisplayName("updateOrphanEmployee: reconstroi colaborador mantendo id original")
+    void updateOrphanEmployeeViaReflection() {
+        UUID existingId = UUID.randomUUID();
+        Employee existing = buildEmployee(existingId, companyId);
+        var req = createRequest("Novo Nome", "12345678901", companyId, null);
+        when(viaCep.lookup(req.address().postalCode())).thenReturn(lookedUpAddress);
+        when(employeeProvider.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Employee result = (Employee) ReflectionTestUtils.invokeMethod(
+                service, "updateOrphanEmployee", existing, req, companyId);
+
+        assertNotNull(result);
+        assertEquals(existingId, result.employeeId());
+        assertTrue(result.active());
+    }
+
+    @Test
+    @DisplayName("updateOrphanEmployee: lanca ConflictException quando CPF duplicado")
+    void updateOrphanEmployeeConflict() {
+        UUID existingId = UUID.randomUUID();
+        Employee existing = buildEmployee(existingId, companyId);
+        var req = createRequest("Novo Nome", "12345678901", companyId, null);
+        when(viaCep.lookup(req.address().postalCode())).thenReturn(lookedUpAddress);
+        when(employeeProvider.save(any())).thenThrow(new org.springframework.dao.DataIntegrityViolationException("dup"));
+
+        assertThrows(com.kts.kronos.application.exceptions.ConflictException.class,
+                () -> ReflectionTestUtils.invokeMethod(
+                        service, "updateOrphanEmployee", existing, req, companyId));
+    }
+
+        @Test
     @DisplayName("enrollBiometricByManager: registra auditoria com REPLACED quando há biometria anterior")
     void shouldRegisterAuditOnBiometricReplacement() {
         UUID managerId = UUID.randomUUID();

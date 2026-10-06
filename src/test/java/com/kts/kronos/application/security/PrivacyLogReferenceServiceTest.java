@@ -51,4 +51,39 @@ class PrivacyLogReferenceServiceTest {
         assertEquals("storage_ref_none", service.storageRef(null));
         assertEquals("storage_ref_empty", service.storageRef(" "));
     }
+    @Test
+    void constructorWithNullHashSecret_usesDefault() {
+        var service = new PrivacyLogReferenceService(null);
+        // should not throw and should produce stable refs
+        var ref = service.employeeRef(java.util.UUID.randomUUID());
+        assertTrue(ref.startsWith("employee_ref_"));
+    }
+
+    @Test
+    void constructorWithBlankHashSecret_usesDefault() {
+        var service = new PrivacyLogReferenceService("   ");
+        var ref = service.storageRef("/path/to/file");
+        assertTrue(ref.startsWith("storage_ref_"));
+    }
+
+    @Test
+    void emailRefWithNull_returnsNoneRef() {
+        var service = new PrivacyLogReferenceService("test-secret");
+        assertEquals("email_ref_none", service.emailRef(null));
+    }
+
+    @Test
+    void genericRefWithNullType_usesValueAsType() {
+        var service = new PrivacyLogReferenceService("test-secret");
+        var ref = service.genericRef(null, "something");
+        assertTrue(ref.startsWith("value_ref_"));
+    }
+
+    @Test
+    void genericRefWithBlankType_usesValueAsType() {
+        var service = new PrivacyLogReferenceService("test-secret");
+        var ref = service.genericRef("   ", "something");
+        assertTrue(ref.startsWith("value_ref_"));
+    }
+
 }

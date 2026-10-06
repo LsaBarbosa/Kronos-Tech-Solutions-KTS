@@ -32,9 +32,12 @@ public class EmployeeProviderImpl implements EmployeeProvider {
     @Override
     public Optional<Employee> findByCpf(String cpf) {
         for (String candidate : buildCpfCandidates(cpf)) {
-            Optional<EmployeeEntity> opt = repository.findByCpf(candidate);
-            if (opt.isPresent()) {
-                return opt.map(EmployeeEntity::toDomain);
+            Optional<Employee> found = repository.findAllByCpf(candidate)
+                    .stream()
+                    .findFirst()
+                    .map(EmployeeEntity::toDomain);
+            if (found.isPresent()) {
+                return found;
             }
         }
         return Optional.empty();
@@ -127,6 +130,24 @@ public class EmployeeProviderImpl implements EmployeeProvider {
             }
         }
         return List.of();
+    }
+
+    @Override
+    public Optional<Employee> findByPis(String pis) {
+        if (pis == null || pis.isBlank()) {
+            return Optional.empty();
+        }
+        return repository.findByPis(pis.trim())
+                .map(EmployeeEntity::toDomain);
+    }
+
+    @Override
+    public Optional<Employee> findByCompanyIdAndPis(UUID companyId, String pis) {
+        if (pis == null || pis.isBlank()) {
+            return Optional.empty();
+        }
+        return repository.findByCompanyIdAndPisAndDeletedAtIsNull(companyId, pis.trim())
+                .map(EmployeeEntity::toDomain);
     }
 
     private List<String> buildCpfCandidates(String cpf) {
