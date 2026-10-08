@@ -17,5 +17,8 @@ public enum WorkScheduleType {
     SIX_BY_ONE_TWO_WEEKENDS,
 
     // 6. 6x1 + 1 Final de Semana por mês (Índice fixo)
-    SIX_BY_ONE_ONE_WEEKEND
+    SIX_BY_ONE_ONE_WEEKEND,
+
+    // Dias de trabalho definidos manualmente em fixedWorkDays
+    CUSTOM_DAYS
 }

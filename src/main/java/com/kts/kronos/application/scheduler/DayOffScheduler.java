@@ -316,6 +316,8 @@ public class DayOffScheduler {
             // Lógicas com Folga Adicional no Mês
             case SIX_BY_ONE_TWO_WEEKENDS -> calculateType5_TwoWeekends(emp, today);
             case SIX_BY_ONE_ONE_WEEKEND -> calculateType6_OneWeekend(emp, today);
+            case CUSTOM_DAYS -> emp.fixedWorkDays() != null
+                    && emp.fixedWorkDays().contains(today.getDayOfWeek());
 
             default -> true;
         };

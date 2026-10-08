@@ -60,6 +60,8 @@ public class ScheduleResolverService {
             case ROTATING_12X36 -> calculateRotating(emp.scaleStartDate(), date, 2);
             case SIX_BY_ONE_TWO_WEEKENDS -> calculateType5TwoWeekends(emp, date);
             case SIX_BY_ONE_ONE_WEEKEND -> calculateType6OneWeekend(emp, date);
+            case CUSTOM_DAYS -> emp.fixedWorkDays() != null
+                    && emp.fixedWorkDays().contains(date.getDayOfWeek());
         };
     }
 
