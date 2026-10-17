@@ -38,16 +38,16 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
             @Param("employeeId") UUID employeeId
     );
 
-    @EntityGraph(attributePaths = "deliveries")
     @Query(value = """
-        SELECT DISTINCT m FROM MessageEntity m
+        SELECT m.messageId FROM MessageEntity m
         LEFT JOIN m.deliveries d
         WHERE m.deletedAt IS NULL
           AND (
             d.recipientEmployeeId = :employeeId
             OR (m.employeeId = :employeeId AND m.companyId = :companyId)
           )
-        ORDER BY m.createdAt DESC
+        GROUP BY m.messageId, m.createdAt
+        ORDER BY m.createdAt DESC, m.messageId DESC
     """,
             countQuery = """
         SELECT COUNT(DISTINCT m.messageId) FROM MessageEntity m
@@ -58,7 +58,7 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
             OR (m.employeeId = :employeeId AND m.companyId = :companyId)
           )
     """)
-    Page<MessageEntity> findVisibleMessagesByCompanyIdAndEmployeeId(
+    Page<UUID> findVisibleMessageIdsByCompanyIdAndEmployeeId(
             @Param("companyId") UUID companyId,
             @Param("employeeId") UUID employeeId,
             Pageable pageable
@@ -77,16 +77,16 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
     """)
     List<MessageEntity> findVisibleMessagesByEmployeeId(@Param("employeeId") UUID employeeId);
 
-    @EntityGraph(attributePaths = "deliveries")
     @Query(value = """
-        SELECT DISTINCT m FROM MessageEntity m
+        SELECT m.messageId FROM MessageEntity m
         LEFT JOIN m.deliveries d
         WHERE m.deletedAt IS NULL
           AND (
             d.recipientEmployeeId = :employeeId
             OR m.employeeId = :employeeId
           )
-        ORDER BY m.createdAt DESC
+        GROUP BY m.messageId, m.createdAt
+        ORDER BY m.createdAt DESC, m.messageId DESC
     """,
             countQuery = """
         SELECT COUNT(DISTINCT m.messageId) FROM MessageEntity m
@@ -97,7 +97,11 @@ public interface MessageRepository extends JpaRepository<MessageEntity, UUID> {
             OR m.employeeId = :employeeId
           )
     """)
-    Page<MessageEntity> findVisibleMessagesByEmployeeId(@Param("employeeId") UUID employeeId, Pageable pageable);
+    Page<UUID> findVisibleMessageIdsByEmployeeId(@Param("employeeId") UUID employeeId, Pageable pageable);
+
+    @EntityGraph(attributePaths = "deliveries")
+    @Query("SELECT DISTINCT m FROM MessageEntity m WHERE m.messageId IN :messageIds")
+    List<MessageEntity> findWithDeliveriesByMessageIdIn(@Param("messageIds") List<UUID> messageIds);
 
     @EntityGraph(attributePaths = "deliveries")
     Optional<MessageEntity> findByMessageIdAndDeletedAtIsNull(UUID messageId);

@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence.entity;
 
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentScanStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -42,6 +43,15 @@ public class DocumentEntity {
 
     @Column(name = "checksum_sha256", length = 128)
     private String checksumSha256;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "scan_status", nullable = false)
+    private DocumentScanStatus scanStatus = DocumentScanStatus.CLEAN;
+
+    @JdbcTypeCode(SqlTypes.VARBINARY)
+    @Column(name = "pending_scan_payload")
+    private byte[] pendingScanPayload;
 
     @CreationTimestamp // Esta anotação fará com que o Hibernate defina a data automaticamente
     @Column(name = "uploaded_at", nullable = false)
@@ -93,6 +103,7 @@ public class DocumentEntity {
                 .contentType(document.contentType())
                 .storagePath(document.storagePath())
                 .checksumSha256(document.checksumSha256())
+                .scanStatus(DocumentScanStatus.CLEAN)
                 .uploadedAt(document.uploadeAt())
                 .type(document.type())
                 .timeRecordId(document.timeRecordId())

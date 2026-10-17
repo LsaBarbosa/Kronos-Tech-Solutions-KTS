@@ -12,8 +12,11 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Component
@@ -45,10 +48,8 @@ public class MessageProviderImpl implements MessageProvider {
 
     @Override
     public List<Message> findVisibleMessagesByCompanyIdAndEmployeeId(UUID companyId, UUID employeeId, Pageable pageable) {
-        return repository.findVisibleMessagesByCompanyIdAndEmployeeId(companyId, employeeId, pageable)
-                .stream()
-                .map(entity -> toVisibleDomain(entity, employeeId))
-                .toList();
+        var ids = repository.findVisibleMessageIdsByCompanyIdAndEmployeeId(companyId, employeeId, pageable).getContent();
+        return loadVisiblePage(ids, employeeId);
     }
 
     @Override
@@ -61,9 +62,21 @@ public class MessageProviderImpl implements MessageProvider {
 
     @Override
     public List<Message> findVisibleMessagesByEmployeeId(UUID employeeId, Pageable pageable) {
-        return repository.findVisibleMessagesByEmployeeId(employeeId, pageable)
-                .stream()
-                .map(entity -> toVisibleDomain(entity, employeeId))
+        var ids = repository.findVisibleMessageIdsByEmployeeId(employeeId, pageable).getContent();
+        return loadVisiblePage(ids, employeeId);
+    }
+
+    private List<Message> loadVisiblePage(List<UUID> ids, UUID viewerEmployeeId) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, MessageEntity> entitiesById = repository.findWithDeliveriesByMessageIdIn(ids).stream()
+                .collect(Collectors.toMap(MessageEntity::getMessageId, Function.identity()));
+        return ids.stream()
+                .map(entitiesById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(entity -> toVisibleDomain(entity, viewerEmployeeId))
                 .toList();
     }
 

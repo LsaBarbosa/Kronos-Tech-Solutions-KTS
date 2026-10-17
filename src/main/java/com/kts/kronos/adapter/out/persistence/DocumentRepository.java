@@ -2,6 +2,7 @@ package com.kts.kronos.adapter.out.persistence;
 
 import com.kts.kronos.adapter.out.persistence.entity.DocumentEntity;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentScanStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +17,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> {
+    List<DocumentEntity> findByScanStatusAndPendingScanPayloadIsNotNullOrderByUploadedAtAsc(
+            DocumentScanStatus status, org.springframework.data.domain.Pageable pageable);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE DocumentEntity d SET d.scanStatus = :status, d.pendingScanPayload = null WHERE d.storagePath = :storagePath AND d.type = :type AND d.scanStatus = 'PENDING'")
+    int updateScanStatusByStoragePath(@Param("storagePath") String storagePath, @Param("type") DocumentType type,
+                                      @Param("status") DocumentScanStatus status);
+
+    boolean existsByTimeRecordIdAndScanStatus(Long timeRecordId, DocumentScanStatus status);
+    Optional<DocumentEntity> findFirstByTimeRecordIdOrderByUploadedAtAsc(Long timeRecordId);
     List<DocumentEntity> findByEmployeeIdAndType(UUID employeeId, DocumentType type);
     Optional<DocumentEntity> findByDocumentIdAndEmployeeId(UUID documentId, UUID employeeId);
 
@@ -34,7 +46,8 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
     );
     void deleteByEmployeeId(UUID employeeId);
 
-    List<DocumentEntity> findByTimeRecordId(Long timeRecordId);
+    @Query("SELECT d FROM DocumentEntity d WHERE d.timeRecordId = :timeRecordId AND d.scanStatus = 'CLEAN'")
+    List<DocumentEntity> findByTimeRecordId(@Param("timeRecordId") Long timeRecordId);
 
     boolean existsByEmployeeIdAndType(UUID employeeId, DocumentType type);
 
@@ -44,6 +57,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
           AND d.type = :type
           AND d.uploadedAt BETWEEN :start AND :end
           AND d.deletedByManager = false
+          AND d.scanStatus = 'CLEAN'
     """)
     List<DocumentEntity> findVisibleToManagerByDate(
             @Param("employeeId") UUID employeeId,
@@ -59,6 +73,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
           AND d.type = :type
           AND d.uploadedAt BETWEEN :start AND :end
           AND d.deletedByEmployee = false
+          AND d.scanStatus = 'CLEAN'
     """)
     List<DocumentEntity> findVisibleToEmployeeByDate(
             @Param("employeeId") UUID employeeId,
@@ -67,15 +82,17 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, UUID> 
             @Param("type") DocumentType type
     );
 
-    List<DocumentEntity> findByTimeRecordIdIn(Collection<Long> timeRecordIds);
+    @Query("SELECT d FROM DocumentEntity d WHERE d.timeRecordId IN :timeRecordIds AND d.scanStatus = 'CLEAN'")
+    List<DocumentEntity> findByTimeRecordIdIn(@Param("timeRecordIds") Collection<Long> timeRecordIds);
 
-    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByManager = false")
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByManager = false AND d.scanStatus = 'CLEAN'")
     List<DocumentEntity> findVisibleToManager(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
 
-    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false")
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.type = :type AND d.deletedByEmployee = false AND d.scanStatus = 'CLEAN'")
     List<DocumentEntity> findVisibleToEmployee(@Param("employeeId") UUID employeeId, @Param("type") DocumentType type);
 
-    List<DocumentEntity> findByEmployeeIdOrderByUploadedAtDesc(UUID employeeId);
+    @Query("SELECT d FROM DocumentEntity d WHERE d.employeeId = :employeeId AND d.scanStatus = 'CLEAN' ORDER BY d.uploadedAt DESC")
+    List<DocumentEntity> findByEmployeeIdOrderByUploadedAtDesc(@Param("employeeId") UUID employeeId);
 
     @Query("""
         SELECT d FROM DocumentEntity d

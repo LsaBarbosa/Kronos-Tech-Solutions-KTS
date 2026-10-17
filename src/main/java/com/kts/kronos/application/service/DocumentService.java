@@ -13,6 +13,7 @@ import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.Employee;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentScanStatus;
 import com.kts.kronos.domain.model.enuns.Role;
 import com.kts.kronos.observability.application.KronosMetrics;
 import com.kts.kronos.observability.application.KronosTracing;
@@ -22,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.multipart.MultipartFile;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import java.io.ByteArrayInputStream;
@@ -79,6 +82,9 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public DocumentWithData downloadDocument(UUID employeeId, UUID documentId) throws IOException {
         var doc = domainAuthorizationService.authorizeDocumentAccess(documentId, employeeId);
+        if (documentProvider.getScanStatus(documentId) != DocumentScanStatus.CLEAN) {
+            throw new ResourceNotFoundException(DOCUMENT_NOT_FOUND);
+        }
         var documentType = normalizeDocumentType(doc.type());
 
         try {
@@ -159,6 +165,52 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public void uploadDocumentForTimeRecord(DocumentType type, UUID employeeId, Long timeRecordId, MultipartFile file) throws IOException {
         uploadDocumentInternal(type, employeeId, timeRecordId, file);
+    }
+
+    @Override
+    public Document uploadDocumentForTimeRecordPendingScan(DocumentType type, UUID employeeId, Long timeRecordId,
+                                                           MultipartFile file) throws IOException {
+        var uploadData = validateAndPrepareUpload(file, false);
+        var employee = getAuthorizedEmployee(employeeId);
+        var storagePath = buildStorageKey(employee, type, uploadData.fileName());
+        var document = new Document(employee.employeeId(), type, uploadData.fileName(), uploadData.contentType(),
+                storagePath, TIME_ZONE_BRAZIL, timeRecordId, false, false, calculateSha256(uploadData.data()));
+        documentProvider.savePendingScan(document, uploadData.data());
+        registerDocumentAudit(AuditAction.DOCUMENT_UPLOADED, document, employee.companyId(),
+                String.format("timeRecordId=%d scanStatus=PENDING", timeRecordId));
+        log.info("event=document_upload_scan result=pending document_type={} time_record_id={}",
+                normalizeDocumentType(type), timeRecordId);
+        return document;
+    }
+
+    @Scheduled(fixedDelayString = "${kronos.security.upload.scan.poll-ms:10000}")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void processPendingDocumentScans() {
+        var processedObjects = new java.util.HashSet<String>();
+        for (var document : documentProvider.findPendingScans(20)) {
+            var objectIdentity = document.type() + ":" + document.storagePath();
+            if (!processedObjects.add(objectIdentity)) {
+                continue;
+            }
+            try {
+                var content = documentProvider.getPendingScanPayload(document.documentId());
+                fileScanningProvider.scanOrThrow(document.fileName(), document.contentType(), content);
+                bucketStorageProvider.uploadFile(document.type(), document.storagePath(), content, document.contentType());
+                documentProvider.updateScanStatusByStoragePath(document.storagePath(), document.type(), DocumentScanStatus.CLEAN);
+                log.info("event=document_upload_scan result=clean document_type={} document_id={}",
+                        normalizeDocumentType(document.type()), document.documentId());
+            } catch (BadRequestException malwareDetected) {
+                documentProvider.updateScanStatusByStoragePath(document.storagePath(), document.type(), DocumentScanStatus.REJECTED);
+                log.warn("event=document_upload_scan result=rejected document_type={} document_id={}",
+                        normalizeDocumentType(document.type()), document.documentId());
+            } catch (UploadScannerUnavailableException unavailable) {
+                log.warn("event=document_upload_scan result=pending reason=scanner_unavailable document_id={}",
+                        document.documentId());
+            } catch (RuntimeException failure) {
+                log.error("event=document_upload_scan result=pending reason=processing_error exception_type={} document_id={}",
+                        failure.getClass().getSimpleName(), document.documentId());
+            }
+        }
     }
 
     @Override
@@ -355,6 +407,10 @@ public class DocumentService implements DocumentUseCase {
     }
 
     private UploadData validateAndPrepareUpload(MultipartFile file) throws IOException {
+        return validateAndPrepareUpload(file, true);
+    }
+
+    private UploadData validateAndPrepareUpload(MultipartFile file, boolean scanImmediately) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
@@ -384,7 +440,9 @@ public class DocumentService implements DocumentUseCase {
             throw new BadRequestException(INVALID_DOCUMENT_TYPE);
         }
 
-        fileScanningProvider.scanOrThrow(safeFileName, detectedContentType, bytes);
+        if (scanImmediately) {
+            fileScanningProvider.scanOrThrow(safeFileName, detectedContentType, bytes);
+        }
 
         return new UploadData(bytes, safeFileName, detectedContentType);
     }
