@@ -1,6 +1,7 @@
 package com.kts.kronos.adapter.out.persistence.impl;
 
 import com.kts.kronos.application.exceptions.BadRequestException;
+import com.kts.kronos.application.exceptions.UploadScannerUnavailableException;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,6 +50,13 @@ public class FileScanningProviderImpl implements FileScanningProvider {
             try (var output = new BufferedOutputStream(socket.getOutputStream());
                  var input = new BufferedInputStream(socket.getInputStream())) {
 
+                output.write("PING\0".getBytes(StandardCharsets.US_ASCII));
+                output.flush();
+                String readiness = readNullTerminatedResponse(input);
+                if (!"PONG".equals(readiness)) {
+                    throw new IOException("Antivirus scanner did not report readiness");
+                }
+
                 output.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));
 
                 int offset = 0;
@@ -62,7 +70,7 @@ public class FileScanningProviderImpl implements FileScanningProvider {
                 output.write(new byte[]{0, 0, 0, 0});
                 output.flush();
 
-                String response = new String(input.readNBytes(512), StandardCharsets.US_ASCII).trim();
+                String response = readNullTerminatedResponse(input);
 
                 if (response.contains("FOUND")) {
                     log.warn("event=document_upload_scan result=failure reason=malicious_file");
@@ -70,16 +78,30 @@ public class FileScanningProviderImpl implements FileScanningProvider {
                 }
 
                 if (!response.contains("OK")) {
-                    log.error("event=document_upload_scan result=failure reason=unexpected_response");
-                    throw new RuntimeException(FILE_SCAN_FAILED);
+                    throw new IOException("Antivirus scanner returned an unexpected response");
                 }
             }
         } catch (BadRequestException e) {
             throw e;
         } catch (IOException e) {
-            log.error("event=document_upload_scan result=failure reason=io exception_type={}",
+            log.warn("event=document_upload_scan result=unavailable exception_type={}",
                     e.getClass().getSimpleName());
-            throw new RuntimeException(FILE_SCAN_FAILED, e);
+            throw new UploadScannerUnavailableException(FILE_SCAN_FAILED, e);
         }
+    }
+
+    private String readNullTerminatedResponse(BufferedInputStream input) throws IOException {
+        var response = new StringBuilder();
+        int value;
+        while ((value = input.read()) != -1 && value != 0 && value != '\n') {
+            if (response.length() >= 512) {
+                throw new IOException("Antivirus scanner response exceeded limit");
+            }
+            response.append((char) value);
+        }
+        if (value == -1) {
+            throw new IOException("Antivirus scanner closed the connection without a response");
+        }
+        return response.toString().trim();
     }
 }
