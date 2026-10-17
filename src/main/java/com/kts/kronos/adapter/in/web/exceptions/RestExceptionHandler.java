@@ -8,6 +8,7 @@ import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
+import com.kts.kronos.application.exceptions.UploadScannerUnavailableException;
 import com.kts.kronos.infrastructure.security.SensitiveDataMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -162,6 +163,21 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "DIGITAL_SIGNATURE_UNAVAILABLE",
                 "Serviço de assinatura digital indisponível no momento. Tente novamente em alguns minutos ou contate o administrador.",
+                request,
+                null,
+                null);
+    }
+
+    @ExceptionHandler(UploadScannerUnavailableException.class)
+    public ResponseEntity<Object> handleUploadScannerUnavailable(
+            UploadScannerUnavailableException ex,
+            WebRequest request
+    ) {
+        return buildResponseEntity(
+                ex,
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "UPLOAD_SCANNER_UNAVAILABLE",
+                "A validação de segurança está temporariamente indisponível. Tente novamente em instantes.",
                 request,
                 null,
                 null);

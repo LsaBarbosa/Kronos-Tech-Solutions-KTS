@@ -55,7 +55,6 @@ public class KronosMetrics {
             "kronos_time_off_rejected_total",
             "kronos_redis_cache_hit_total", "kronos_redis_cache_miss_total",
             "kronos_redis_cache_invalidated_total",
-            "kronos_redis_rate_limit_allowed_total", "kronos_redis_rate_limit_blocked_total",
             "kronos_redis_blacklist_added_total", "kronos_redis_blacklist_checked_total",
             "kronos_redis_reset_token_created_total", "kronos_redis_reset_token_validated_total",
             "kronos_redis_reset_token_deleted_total",

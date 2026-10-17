@@ -114,8 +114,11 @@ class FileScanningProviderImplTest {
                  var output = new BufferedOutputStream(socket.getOutputStream())) {
                 ready.countDown();
                 readCommand(input);
+                output.write("PONG\0".getBytes(StandardCharsets.US_ASCII));
+                output.flush();
+                readCommand(input);
                 readStreamPayload(input);
-                output.write(response.getBytes(StandardCharsets.US_ASCII));
+                output.write((response + "\0").getBytes(StandardCharsets.US_ASCII));
                 output.flush();
             } catch (Exception ignored) {
             }

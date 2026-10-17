@@ -4,6 +4,7 @@ import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
+import com.kts.kronos.application.exceptions.UploadScannerUnavailableException;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.application.port.out.provider.BucketStorageProvider;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
@@ -277,6 +278,9 @@ public class DocumentService implements DocumentUseCase {
             metrics().documentUploadFailure(normalizeDocumentType(type), "validation");
             log.warn("event=document_upload result=failure document_type={} reason=validation",
                     normalizeDocumentType(type));
+            throw e;
+        } catch (UploadScannerUnavailableException e) {
+            metrics().documentUploadFailure(normalizeDocumentType(type), "scanner_unavailable");
             throw e;
         } catch (IOException e) {
             metrics().documentUploadFailure(normalizeDocumentType(type), "io");
