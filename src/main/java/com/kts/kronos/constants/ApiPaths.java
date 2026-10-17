@@ -52,6 +52,7 @@ public class ApiPaths {
     public static final String ME_REQUESTS = "/me/requests";
     public static final String ME_PENDING_EXITS = "/me/pending-exits";
     public static final String MANAGER_MONTHLY_ALERTS = "/manager/monthly-alerts";
+    public static final String MANAGER_MONTHLY_ALERTS_PDF = "/manager/monthly-alerts/pdf";
 
     // Timesheet signatures (assinatura eletrônica do espelho de ponto)
     public static final String TIMESHEET_SIGNATURES = "/timesheet-signatures";

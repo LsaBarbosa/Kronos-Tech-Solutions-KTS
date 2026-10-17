@@ -32,4 +32,6 @@ public interface TimeRecordUseCase {
     MyRequestsResponse listMyRequests(int limit);
     PendingExitResponse listMyPendingExits();
     ManagerMonthlyAlertResponse listManagerMonthlyAlerts(String month, String filter);
+
+    byte[] generateManagerMonthlyAlertsPdf(String month, String filter);
 }
