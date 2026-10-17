@@ -204,4 +204,18 @@ public class TimeRecordController {
     ) {
         return ResponseEntity.ok(useCase.listManagerMonthlyAlerts(month, filter));
     }
+
+    @PreAuthorize(MANAGER)
+    @GetMapping(MANAGER_MONTHLY_ALERTS_PDF)
+    public ResponseEntity<byte[]> downloadManagerMonthlyAlertsPdf(
+            @RequestParam String month,
+            @RequestParam String filter
+    ) {
+        var bytes = useCase.generateManagerMonthlyAlertsPdf(month, filter);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=alertas-ponto-" + month.replaceAll("[^0-9-]", "") + ".pdf")
+                .body(bytes);
+    }
 }

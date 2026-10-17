@@ -81,6 +81,7 @@ public class TimeRecordService implements TimeRecordUseCase {
     private final CacheProvider cacheProvider;
     private final UserCompanyAccessProvider userCompanyAccessProvider;
     private final ScheduleResolverService scheduleResolverService;
+    private final ManagerMonthlyAlertsPdfService managerMonthlyAlertsPdfService;
 
     @Autowired(required = false)
     private DistributedLockProvider distributedLockProvider;
@@ -1149,7 +1150,7 @@ public class TimeRecordService implements TimeRecordUseCase {
         }
 
         var normalizedFilter = filter == null ? "" : filter.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("PENDING_EXIT", "OVERTIME", "NEGATIVE_BALANCE").contains(normalizedFilter)) {
+        if (!Set.of("PENDING_EXIT", "OVERTIME", "NEGATIVE_BALANCE", "LATE", "SHORT_BREAK", "ABSENCE").contains(normalizedFilter)) {
             throw new BadRequestException("Filtro de relatório gerencial inválido.");
         }
 
@@ -1186,6 +1187,36 @@ public class TimeRecordService implements TimeRecordUseCase {
                     continue;
                 }
 
+                if ("ABSENCE".equals(normalizedFilter)) {
+                    if (dailyRecords.stream().anyMatch(record ->
+                            record.active() && record.statusRecord() == StatusRecord.ABSENCE)) {
+                        result.add(new ManagerMonthlyAlertItemResponse(
+                                employee.employeeId(), employee.fullName(), date, "Falta"
+                        ));
+                    }
+                    continue;
+                }
+
+                if ("LATE".equals(normalizedFilter)) {
+                    var delay = calculateManagerDelay(employee, date, dailyRecords);
+                    if (!delay.isZero() && !delay.isNegative()) {
+                        result.add(new ManagerMonthlyAlertItemResponse(
+                                employee.employeeId(), employee.fullName(), date, "Atraso " + formatSignedDuration(delay)
+                        ));
+                    }
+                    continue;
+                }
+
+                if ("SHORT_BREAK".equals(normalizedFilter)) {
+                    var shortBreak = findShortBreak(dailyRecords);
+                    if (shortBreak != null) {
+                        result.add(new ManagerMonthlyAlertItemResponse(
+                                employee.employeeId(), employee.fullName(), date, "Pausa " + formatDuration(shortBreak)
+                        ));
+                    }
+                    continue;
+                }
+
                 var balance = calculateManagerDailyBalance(employee, date, dailyRecords);
                 boolean match = "OVERTIME".equals(normalizedFilter)
                         ? balance.compareTo(Duration.ofMinutes(5)) > 0
@@ -1204,6 +1235,11 @@ public class TimeRecordService implements TimeRecordUseCase {
         result.sort(Comparator.comparing(ManagerMonthlyAlertItemResponse::employeeName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(ManagerMonthlyAlertItemResponse::date));
         return new ManagerMonthlyAlertResponse(targetMonth.toString(), normalizedFilter, result);
+    }
+
+    @Override
+    public byte[] generateManagerMonthlyAlertsPdf(String month, String filter) {
+        return managerMonthlyAlertsPdfService.generate(listManagerMonthlyAlerts(month, filter));
     }
 
     private Duration calculateManagerDailyBalance(Employee employee, LocalDate date, List<TimeRecord> records) {
@@ -1232,6 +1268,62 @@ public class TimeRecordService implements TimeRecordUseCase {
                     case CREATED, UPDATED, IMPORTED, TIME_OFF -> true;
                     default -> false;
                 };
+    }
+
+    private boolean isManagerPunchRecord(TimeRecord record) {
+        return record.active()
+                && record.startWork() != null
+                && record.endWork() != null
+                && switch (record.statusRecord()) {
+                    case CREATED, UPDATED, IMPORTED -> true;
+                    default -> false;
+                };
+    }
+
+    private Duration calculateManagerDelay(Employee employee, LocalDate date, List<TimeRecord> records) {
+        var schedule = scheduleResolverService.resolveForDate(employee, date);
+        if (!schedule.isWorkDay() || schedule.workStart() == null) {
+            return Duration.ZERO;
+        }
+
+        var firstRecord = records.stream()
+                .filter(this::isManagerPunchRecord)
+                .filter(record -> record.startWork().atZone(SAO_PAULO).toLocalDate().equals(date))
+                .min(Comparator.comparing(TimeRecord::startWork))
+                .orElse(null);
+        if (firstRecord == null) {
+            return Duration.ZERO;
+        }
+
+        var expectedStart = date.atTime(schedule.workStart());
+        var actualStart = firstRecord.startWork().atZone(SAO_PAULO).toLocalDateTime();
+        return actualStart.isAfter(expectedStart)
+                ? Duration.between(expectedStart, actualStart)
+                : Duration.ZERO;
+    }
+
+    private Duration findShortBreak(List<TimeRecord> records) {
+        var segments = records.stream()
+                .filter(this::isManagerPunchRecord)
+                .sorted(Comparator.comparing(TimeRecord::startWork))
+                .toList();
+        Duration shortest = null;
+        for (int index = 0; index < segments.size() - 1; index++) {
+            var current = segments.get(index);
+            var next = segments.get(index + 1);
+            if (current.endWork() == null || next.startWork() == null) continue;
+            if (!current.startWork().toLocalDate().equals(next.startWork().toLocalDate())) continue;
+            var pause = Duration.between(current.endWork(), next.startWork());
+            if (!pause.isNegative() && pause.compareTo(Duration.ofHours(1)) < 0
+                    && (shortest == null || pause.compareTo(shortest) < 0)) {
+                shortest = pause;
+            }
+        }
+        return shortest;
+    }
+
+    private String formatDuration(Duration duration) {
+        return String.format("%02d:%02d", duration.toHours(), duration.toMinutesPart());
     }
 
     private String formatSignedDuration(Duration duration) {
