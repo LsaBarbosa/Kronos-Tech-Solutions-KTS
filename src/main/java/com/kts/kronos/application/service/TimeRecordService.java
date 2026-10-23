@@ -211,6 +211,10 @@ public class TimeRecordService implements TimeRecordUseCase, PasswordlessTimeRec
         var response = registerTimeFromTerminal(employeeId, requestForCore);
         var markedAt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employeeId)
                 .map(record -> CHECKOUT.equals(response.actionType()) ? record.endWork() : record.startWork())
+                .orElseGet(() -> LocalDateTime.now(SAO_PAULO));
+        return new com.kts.kronos.application.port.in.usecase.TimeRecordRegistrationResult(
+                response.message(), response.actionType(), markedAt.atZone(SAO_PAULO).toOffsetDateTime());
+    }
 
     private ActionResponse doCheckinCore(
             Employee employee,
