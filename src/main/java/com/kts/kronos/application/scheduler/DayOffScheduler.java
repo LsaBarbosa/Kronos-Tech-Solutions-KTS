@@ -319,6 +319,16 @@ public class DayOffScheduler {
             case CUSTOM_DAYS -> emp.fixedWorkDays() != null
                     && emp.fixedWorkDays().contains(today.getDayOfWeek());
 
+            // Dias específicos definidos individualmente: fixedWorkDays determina se hoje é trabalho
+            case CUSTOM_DAYS -> {
+                if (emp.fixedWorkDays() == null || emp.fixedWorkDays().isEmpty()) {
+                    log.warn("event=scheduler_custom_days result=fallback employee_id={} reason=empty_work_days",
+                            emp.employeeId());
+                    yield false;
+                }
+                yield emp.fixedWorkDays().contains(today.getDayOfWeek());
+            }
+
             default -> true;
         };
     }

@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -462,6 +463,113 @@ class DayOffSchedulerTest {
         verify(timeRecordProvider, never()).save(any());
     }
 
+    // =========================================================================
+    // CUSTOM_DAYS
+    // =========================================================================
+
+    @Test
+    @DisplayName("CUSTOM_DAYS: cria ABSENCE em dia que está na lista de trabalho")
+    void shouldCreateAbsenceForCustomDaysOnWorkDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider, kronosMetrics);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.CUSTOM_DAYS, null, null, null,
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY));
+        LocalDate monday = LocalDate.of(2026, 4, 13); // segunda-feira
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), monday)).thenReturn(false);
+
+        DayOffScheduler.DailyRunStats stats = scheduler.ensureDayOffRecords(monday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.ABSENCE, captor.getValue().statusRecord());
+        assertEquals(1, stats.absencesCreated());
+        assertEquals(0, stats.dayOffsCreated());
+    }
+
+    @Test
+    @DisplayName("CUSTOM_DAYS: cria DAY_OFF em dia que não está na lista de trabalho")
+    void shouldCreateDayOffForCustomDaysOnOffDay() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider, kronosMetrics);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.CUSTOM_DAYS, null, null, null,
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY));
+        LocalDate saturday = LocalDate.of(2026, 4, 18); // sábado — não está na lista
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), saturday)).thenReturn(false);
+
+        DayOffScheduler.DailyRunStats stats = scheduler.ensureDayOffRecords(saturday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+        assertEquals(0, stats.absencesCreated());
+        assertEquals(1, stats.dayOffsCreated());
+    }
+
+    @Test
+    @DisplayName("CUSTOM_DAYS: fixedWorkDays null usa fallback seguro (DAY_OFF)")
+    void shouldFallbackToDayOffForCustomDaysWhenFixedWorkDaysIsNull() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider, kronosMetrics);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.CUSTOM_DAYS, null, null, null, null);
+        LocalDate monday = LocalDate.of(2026, 4, 13);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), monday)).thenReturn(false);
+
+        DayOffScheduler.DailyRunStats stats = scheduler.ensureDayOffRecords(monday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+        assertEquals(0, stats.absencesCreated());
+        assertEquals(1, stats.dayOffsCreated());
+    }
+
+    @Test
+    @DisplayName("CUSTOM_DAYS: fixedWorkDays vazio usa fallback seguro (DAY_OFF)")
+    void shouldFallbackToDayOffForCustomDaysWhenFixedWorkDaysIsEmpty() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider, kronosMetrics);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.CUSTOM_DAYS, null, null, null, Set.of());
+        LocalDate monday = LocalDate.of(2026, 4, 13);
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+        when(timeRecordProvider.existsByEmployeeIdAndDate(employee.employeeId(), monday)).thenReturn(false);
+
+        DayOffScheduler.DailyRunStats stats = scheduler.ensureDayOffRecords(monday);
+
+        ArgumentCaptor<TimeRecord> captor = ArgumentCaptor.forClass(TimeRecord.class);
+        verify(timeRecordProvider).save(captor.capture());
+        assertEquals(StatusRecord.DAY_OFF, captor.getValue().statusRecord());
+        assertEquals(0, stats.absencesCreated());
+        assertEquals(1, stats.dayOffsCreated());
+    }
+
+    @Test
+    @DisplayName("CUSTOM_DAYS: não elegível para reconcileWeeklySwaps")
+    void shouldSkipCustomDaysForWeeklySwapReconciliation() {
+        DayOffScheduler scheduler = new DayOffScheduler(employeeProvider, timeRecordProvider, companyProvider, kronosMetrics);
+        Company company = buildCompany();
+        Employee employee = buildEmployee(WorkScheduleType.CUSTOM_DAYS, null, null, null,
+                Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY));
+
+        when(companyProvider.findByActive(true)).thenReturn(List.of(company));
+        when(employeeProvider.findByCompanyIdAndActive(company.companyId(), true)).thenReturn(List.of(employee));
+
+        DayOffScheduler.WeeklyRunStats stats = scheduler.reconcileWeeklySwaps(LocalDate.of(2026, 4, 20));
+
+        assertEquals(0, stats.employeesEligibleForSwap());
+        verify(timeRecordProvider, never()).findByRange(any(), any(), any());
+    }
+
     private TimeRecord record(Long id, LocalDate day, StatusRecord status) {
         return new TimeRecord(id, day.atTime(8,0), day.atTime(17,0), status, false, true, UUID.randomUUID(), null, null, null, null, null, null, null, null);
     }
@@ -470,7 +578,46 @@ class DayOffSchedulerTest {
         return new Company(UUID.randomUUID(), "KTS", "00000000000100", "kts@kts.com", true, new Address("Rua A", "10", "12345678", "Rio", "RJ"), new Location(-22.9, -43.2), 0, 0);
     }
 
-    private Employee buildEmployee(WorkScheduleType scheduleType, LocalDate scaleStartDate, DayOfWeek preferredDayOff, Integer weekendOffIndex) {
-        return new Employee(UUID.randomUUID(), "Funcionario", "12345678901", "12345678901", "Developer", "func@kts.com", 3000.0, "21999999999", true, new Address("Rua A", "10", "12345678", "Rio", "RJ"), UUID.randomUUID(), null, false, null, LocalTime.of(8,0), LocalTime.of(17,0), LocalTime.of(12,0), LocalTime.of(13,0), scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, null);
+    private Employee buildEmployee(
+            WorkScheduleType scheduleType,
+            LocalDate scaleStartDate,
+            DayOfWeek preferredDayOff,
+            Integer weekendOffIndex
+    ) {
+        return buildEmployee(scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, null);
+    }
+
+    private Employee buildEmployee(
+            WorkScheduleType scheduleType,
+            LocalDate scaleStartDate,
+            DayOfWeek preferredDayOff,
+            Integer weekendOffIndex,
+            Set<DayOfWeek> fixedWorkDays
+    ) {
+        return new Employee(
+                UUID.randomUUID(),
+                "Funcionario",
+                "12345678901",
+                "12345678901",
+                "Developer",
+                "func@kts.com",
+                3000.0,
+                "21999999999",
+                true,
+                new Address("Rua A", "10", "12345678", "Rio", "RJ"),
+                UUID.randomUUID(),
+                null,
+                false,
+                null,
+                LocalTime.of(8, 0),
+                LocalTime.of(17, 0),
+                LocalTime.of(12, 0),
+                LocalTime.of(13, 0),
+                scheduleType,
+                scaleStartDate,
+                preferredDayOff,
+                weekendOffIndex,
+                fixedWorkDays
+        );
     }
 }
