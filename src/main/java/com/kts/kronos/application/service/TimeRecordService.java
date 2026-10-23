@@ -902,22 +902,12 @@ public class TimeRecordService implements TimeRecordUseCase {
                 if (i == 0) {
                     // Primeiro dia (i=0): Faz upload físico e salva a primeira Document Entity.
                     try {
-                        documentService.uploadDocumentForTimeRecord(
+                        var uploadedDoc = documentService.uploadDocumentForTimeRecordPendingScan(
                                 DocumentType.TIME_OFF,
                                 employeeId,
                                 savedRecord.timeRecordId(),
                                 document
                         );
-
-                        // --- CORREÇÃO AQUI: Trata o retorno como LISTA ---
-                        var uploadedDocs = documentProvider.findByTimeRecordId(savedRecord.timeRecordId());
-
-                        if (uploadedDocs.isEmpty()) {
-                            throw new IllegalStateException(DOC_NOT_FOUND);
-                        }
-
-                        // Pega o primeiro (ou único) documento da lista
-                        var uploadedDoc = uploadedDocs.getFirst();
 
                         uploadedStoragePath = uploadedDoc.storagePath();
                         documentFileName = uploadedDoc.fileName();
@@ -944,7 +934,7 @@ public class TimeRecordService implements TimeRecordUseCase {
                             false,
                             documentChecksumSha256
                     );
-                    documentProvider.save(docToLink);
+                    documentProvider.savePendingScanLink(docToLink);
                 }
             }
         }
@@ -958,9 +948,22 @@ public class TimeRecordService implements TimeRecordUseCase {
     }
 
     @Override
+    public String getTimeOffAttachmentScanStatus(Long timeRecordId) {
+        var record = getTimeRecord(timeRecordId);
+        domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
+        return documentProvider.findScanStatusByTimeRecordId(timeRecordId)
+                .map(Enum::name)
+                .orElse("NOT_APPLICABLE");
+    }
+
+    @Override
     public void approveTimeOff(Long timeRecordId) {
         var record = getTimeRecord(timeRecordId);
         domainAuthorizationService.authorizeEmployeeAccess(record.employeeId());
+
+        if (documentProvider.hasPendingScanForTimeRecord(timeRecordId)) {
+            throw new BadRequestException("O anexo ainda está em análise de segurança. Tente novamente em instantes.");
+        }
 
         if (record.statusRecord() == StatusRecord.TIME_OFF_REQUEST) {
             var approvedRecord = record.withStatus(StatusRecord.TIME_OFF);

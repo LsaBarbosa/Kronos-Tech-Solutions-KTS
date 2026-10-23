@@ -180,6 +180,9 @@ aws:
     collection-id: ${AWS_REKOGNITION_COLLECTION_ID}
 
 kronos:
+  ntp:
+    server: ${NTP_SERVER:a.st1.ntp.br}
+    timeout: ${NTP_TIMEOUT:5000}
   redis:
     enabled: ${KRONOS_REDIS_ENABLED:true}
     namespace: ${REDIS_NAMESPACE:kronos}

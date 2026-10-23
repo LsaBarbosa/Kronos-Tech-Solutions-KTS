@@ -137,7 +137,17 @@ public class TimeRecordController {
             @RequestPart(value = "document", required = false) MultipartFile document
     ) {
         var createdId = useCase.requestTimeOff(request, document);
-        return ResponseEntity.status(HttpStatus.CREATED).body(new TimeOffCreatedResponse(createdId));
+        var attachmentStatus = document == null || document.isEmpty() ? "NOT_APPLICABLE" : "PENDING";
+        return ResponseEntity.status(HttpStatus.CREATED).body(new TimeOffCreatedResponse(createdId, attachmentStatus));
+    }
+
+    @PreAuthorize(ANY_EMPLOYEE)
+    @GetMapping("time-off/{timeRecordId}/attachment-scan-status")
+    public ResponseEntity<TimeOffAttachmentScanStatusResponse> getTimeOffAttachmentScanStatus(
+            @PathVariable Long timeRecordId
+    ) {
+        return ResponseEntity.ok(new TimeOffAttachmentScanStatusResponse(
+                useCase.getTimeOffAttachmentScanStatus(timeRecordId)));
     }
 
     @PreAuthorize(MANAGER)

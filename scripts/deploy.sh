@@ -14,7 +14,7 @@ JAR_STAGING="/opt/kronos/app/kronos-backend-new.jar"
 FRONTEND_DEST="/var/www/kronos-platform"
 HEALTH_URL="http://127.0.0.1:8081/actuator/health"
 SERVICE="kronos-backend"
-HEALTH_TIMEOUT=120   # seconds to wait for Spring Boot to be UP
+HEALTH_TIMEOUT="${KRONOS_DEPLOY_HEALTH_TIMEOUT:-300}"   # seconds to wait for Spring Boot to be UP
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -83,6 +83,8 @@ deploy_backend() {
   # 2. Stage new JAR before touching the service
   log "Copying JAR to staging..."
   cp "$BUILT_JAR" "$JAR_STAGING"
+  sudo chown kronos:kronos "$JAR_STAGING"
+  sudo chmod 750 "$JAR_STAGING"
   ok "Staged at $JAR_STAGING"
 
   # 3. Backup current JAR
@@ -137,6 +139,8 @@ _rollback_backend() {
   sudo systemctl stop "$SERVICE" 2>/dev/null || true
   if [[ -f "$JAR_BACKUP" ]]; then
     mv "$JAR_BACKUP" "$JAR_DEST"
+    sudo chown kronos:kronos "$JAR_DEST"
+    sudo chmod 750 "$JAR_DEST"
     sudo systemctl start "$SERVICE"
     warn "Rollback complete — previous JAR restored"
   else

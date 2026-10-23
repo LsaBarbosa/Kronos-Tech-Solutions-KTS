@@ -2,6 +2,7 @@ package com.kts.kronos.application.port.out.provider;
 
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentScanStatus;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -11,6 +12,14 @@ import java.util.UUID;
 
 public interface DocumentProvider {
     void save(Document doc);
+    void savePendingScan(Document doc, byte[] payload);
+    void savePendingScanLink(Document doc);
+    List<Document> findPendingScans(int limit);
+    byte[] getPendingScanPayload(UUID documentId);
+    void updateScanStatusByStoragePath(String storagePath, DocumentType type, DocumentScanStatus status);
+    DocumentScanStatus getScanStatus(UUID documentId);
+    Optional<DocumentScanStatus> findScanStatusByTimeRecordId(Long timeRecordId);
+    boolean hasPendingScanForTimeRecord(Long timeRecordId);
     Document findById(UUID documentId);
     Optional<Document> findByIdAndEmployeeId(UUID documentId, UUID employeeId);
     List<Document> findByEmployeeAndType(UUID employeeId, DocumentType type, boolean isManagerView);

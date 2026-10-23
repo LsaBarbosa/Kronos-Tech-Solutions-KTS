@@ -24,6 +24,7 @@ public interface TimeRecordUseCase {
     void rejectVacation(VacationApprovalRequest request);
     VacationRequestPageResponse listVacationRequests(String statusFilter, String employeeName, int page, int size);
     Long requestTimeOff(RequestTimeOffRequest request, MultipartFile document);
+    String getTimeOffAttachmentScanStatus(Long timeRecordId);
     void approveTimeOff(Long timeRecordId);
     void rejectTimeOff(Long timeRecordId);
     TimeRecordPageResponse listTimeOffRequests(String statusFilter, String employeeName, int page, int size);

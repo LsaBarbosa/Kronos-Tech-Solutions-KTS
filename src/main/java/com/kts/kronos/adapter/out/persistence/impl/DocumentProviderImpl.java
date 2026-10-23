@@ -8,6 +8,7 @@ import com.kts.kronos.application.exceptions.ResourceNotFoundException;
 import com.kts.kronos.application.port.out.provider.DocumentProvider;
 import com.kts.kronos.domain.model.Document;
 import com.kts.kronos.domain.model.enuns.DocumentType;
+import com.kts.kronos.domain.model.enuns.DocumentScanStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +34,60 @@ public class DocumentProviderImpl implements DocumentProvider {
         var entity = DocumentEntity.fromDomain(doc);
         var saved = documentRepository.save(entity);
         saved.toDomain();
+    }
+
+    @Override
+    public void savePendingScan(Document doc, byte[] payload) {
+        var entity = DocumentEntity.fromDomain(doc);
+        entity.setScanStatus(DocumentScanStatus.PENDING);
+        entity.setPendingScanPayload(payload.clone());
+        documentRepository.save(entity);
+    }
+
+    @Override
+    public void savePendingScanLink(Document doc) {
+        var entity = DocumentEntity.fromDomain(doc);
+        entity.setScanStatus(DocumentScanStatus.PENDING);
+        documentRepository.save(entity);
+    }
+
+    @Override
+    public List<Document> findPendingScans(int limit) {
+        return documentRepository.findByScanStatusAndPendingScanPayloadIsNotNullOrderByUploadedAtAsc(DocumentScanStatus.PENDING,
+                        org.springframework.data.domain.PageRequest.of(0, limit))
+                .stream().map(DocumentEntity::toDomain).toList();
+    }
+
+    @Override
+    public byte[] getPendingScanPayload(UUID documentId) {
+        return documentRepository.findById(documentId)
+                .filter(entity -> entity.getScanStatus() == DocumentScanStatus.PENDING)
+                .map(DocumentEntity::getPendingScanPayload)
+                .filter(java.util.Objects::nonNull)
+                .map(byte[]::clone)
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+    }
+
+    @Override
+    public void updateScanStatusByStoragePath(String storagePath, DocumentType type, DocumentScanStatus status) {
+        documentRepository.updateScanStatusByStoragePath(storagePath, type, status);
+    }
+
+    @Override
+    public DocumentScanStatus getScanStatus(UUID documentId) {
+        return documentRepository.findById(documentId).map(DocumentEntity::getScanStatus)
+                .orElseThrow(() -> new ResourceNotFoundException(DOCUMENT_NOT_FOUND));
+    }
+
+    @Override
+    public Optional<DocumentScanStatus> findScanStatusByTimeRecordId(Long timeRecordId) {
+        return documentRepository.findFirstByTimeRecordIdOrderByUploadedAtAsc(timeRecordId)
+                .map(DocumentEntity::getScanStatus);
+    }
+
+    @Override
+    public boolean hasPendingScanForTimeRecord(Long timeRecordId) {
+        return documentRepository.existsByTimeRecordIdAndScanStatus(timeRecordId, DocumentScanStatus.PENDING);
     }
 
     @Override
