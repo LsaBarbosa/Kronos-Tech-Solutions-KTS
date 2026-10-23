@@ -60,7 +60,12 @@ public class NtpTimeService {
             } catch (IOException e) {
                 kronosMetrics.setNtpDriftMillis(null);
                 kronosMetrics.recordExternalProviderRequest("ntp", "time_check", "failure", "io");
-                log.warn("event=ntp_check result=failure reason=io");
+                log.warn(
+                        "event=ntp_check result=failure reason=io server={} exception_type={} detail={}",
+                        ntpServer,
+                        e.getClass().getSimpleName(),
+                        e.getMessage()
+                );
                 return null;
             } finally {
                 if (client.isOpen()) {
