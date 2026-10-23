@@ -12,6 +12,8 @@ import com.kts.kronos.application.exceptions.TermsNotAcceptedException;
 import com.kts.kronos.application.exceptions.TooManyRequestsException;
 import com.kts.kronos.application.port.in.usecase.AcceptTermsUseCase;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.application.port.in.usecase.FaceAuthenticationResult;
+import com.kts.kronos.application.port.in.usecase.FaceAuthenticationUseCase;
 import com.kts.kronos.application.port.out.provider.*;
 
 import java.util.List;
@@ -43,7 +45,7 @@ import static com.kts.kronos.constants.Messages.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuthService implements AuthUseCase {
+public class AuthService implements AuthUseCase, FaceAuthenticationUseCase {
     public static final String FACE_NOT_RECOGNIZE = "Face não reconhecida ou não cadastrada.";
     public static final String NO_USER_LINKED_TO_THIS_EMPLOYEE = "Nenhum usuário vinculado a este colaborador.";
     public static final String INACTIVE_USER = "Usuário inativo.";
@@ -174,7 +176,7 @@ public class AuthService implements AuthUseCase {
     }
 
     @Override
-    public String loginFace(String faceImageBase64, Boolean livenessPassed) {
+    public FaceAuthenticationResult authenticateFace(String faceImageBase64, Boolean livenessPassed) {
         biometricProtectionService.protectPublicLogin(faceImageBase64, livenessPassed);
         var auditContext = auditRequestContextService.extractContext();
         String ipAddress = auditContext.ipAddress();
@@ -182,7 +184,7 @@ public class AuthService implements AuthUseCase {
         User[] authenticatedFaceUser = new User[1];
 
         try {
-            String token = tracing().observe("kronos.auth.face_login", () -> {
+            FaceAuthenticationResult result = tracing().observe("kronos.auth.face_login", () -> {
                 byte[] imageBytes = Base64.getDecoder().decode(faceImageBase64);
                 var inputStream = new ByteArrayInputStream(imageBytes);
 
@@ -215,15 +217,7 @@ public class AuthService implements AuthUseCase {
                         ? acceptTermsUseCase.getBiometricConsentStatus(loginContextFace.employeeId())
                         : consentStatus;
 
-                return jwtUtils.generateToken(
-                        loginContextFace.employeeId(),
-                        user.username(),
-                        loginContextFace.roleName(),
-                        user.userId(),
-                        resolvedConsentFace,
-                        user.sessionVersion(),
-                        loginContextFace.companyId()
-                );
+                return new FaceAuthenticationResult(user, resolvedConsentFace, loginContextFace.companyId());
             });
 
             metrics().authFaceLoginSuccess();
@@ -246,7 +240,7 @@ public class AuthService implements AuthUseCase {
                 log.debug("Falha ao registrar auditoria de login facial bem-sucedido", auditEx);
             }
 
-            return token;
+            return result;
         } catch (IllegalArgumentException e) {
             metrics().authFaceLoginFailure("invalid_image");
             log.warn("event=auth_face_login result=failure reason=invalid_image");
@@ -318,6 +312,21 @@ public class AuthService implements AuthUseCase {
 
             throw new BadRequestException(ERROR_FACIAL_AUTHENTICATION);
         }
+    }
+
+    @Override
+    public String loginFace(String faceImageBase64, Boolean livenessPassed) {
+        var faceAuthentication = authenticateFace(faceImageBase64, livenessPassed);
+
+        return jwtUtils.generateToken(
+                faceAuthentication.user().employeeId(),
+                faceAuthentication.user().username(),
+                faceAuthentication.user().role().name(),
+                faceAuthentication.user().userId(),
+                faceAuthentication.biometricConsentStatus(),
+                faceAuthentication.user().sessionVersion(),
+                faceAuthentication.activeCompanyId()
+        );
     }
 
     @Override
@@ -668,6 +677,9 @@ public class AuthService implements AuthUseCase {
         }
         if (INACTIVE_USER.equals(message)) {
             return "inactive_user";
+        }
+        if (BIOMETRIC_CONSENT_REQUIRED_FOR_FACE_LOGIN.equals(message)) {
+            return "biometric_consent_missing";
         }
         return "unknown";
     }

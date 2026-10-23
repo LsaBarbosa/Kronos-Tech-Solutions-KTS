@@ -14,12 +14,14 @@ import com.kts.kronos.application.cache.ApplicationCacheNames;
 import com.kts.kronos.application.cache.CacheScopes;
 import com.kts.kronos.application.port.in.usecase.AdfUseCase;
 import com.kts.kronos.application.port.in.usecase.CompanyUseCase;
+import com.kts.kronos.application.port.in.usecase.PasswordlessTimeRecordUseCase;
 import com.kts.kronos.application.port.in.usecase.TimeRecordUseCase;
 import com.kts.kronos.application.port.out.projection.VacationRequestPeriodProjection;
 import com.kts.kronos.application.port.out.provider.*;
 import com.kts.kronos.application.port.out.provider.CacheProvider;
 import com.kts.kronos.application.port.out.provider.DistributedLockProvider;
 import com.kts.kronos.application.security.BiometricProtectionService;
+import com.kts.kronos.adapter.in.web.dto.security.FaceCheckinRequest;
 import com.kts.kronos.application.security.DomainAuthorizationService;
 import com.kts.kronos.application.security.PrivacyLogReferenceService;
 import com.kts.kronos.domain.model.*;
@@ -58,7 +60,7 @@ import static com.kts.kronos.domain.model.enuns.StatusRecord.UPDATE_REJECTED;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class TimeRecordService implements TimeRecordUseCase {
+public class TimeRecordService implements TimeRecordUseCase, PasswordlessTimeRecordUseCase {
 
     private final TimeRecordProvider recordRepository;
     private final EmployeeProvider employeeProvider;
@@ -196,6 +198,19 @@ public class TimeRecordService implements TimeRecordUseCase {
             throw e;
         }
     }
+
+    @Override
+    public com.kts.kronos.application.port.in.usecase.TimeRecordRegistrationResult registerTimeForEmployee(
+            UUID employeeId,
+            FaceCheckinRequest request
+    ) {
+        var employee = getEmployee(employeeId);
+        var requestForCore = new GeolocationRequest(request.latitude(), request.longitude(),
+                request.faceImageBase64(), request.livenessPassed());
+        isHomeOffice(requestForCore, employee, employeeId);
+        var response = registerTimeFromTerminal(employeeId, requestForCore);
+        var markedAt = recordRepository.findTopByEmployeeIdOrderByStartWorkDesc(employeeId)
+                .map(record -> CHECKOUT.equals(response.actionType()) ? record.endWork() : record.startWork())
 
     private ActionResponse doCheckinCore(
             Employee employee,

@@ -127,6 +127,23 @@ frontend:
   base-url-local-2: ${FRONTEND_BASE_URL_LOCAL_2}
   allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:}
 
+support:
+  chat:
+    tawk:
+      enabled: ${SUPPORT_CHAT_TAWK_ENABLED:false}
+      property-id: ${SUPPORT_CHAT_TAWK_PROPERTY_ID:}
+      widget-id: ${SUPPORT_CHAT_TAWK_WIDGET_ID:}
+      secure-key: ${SUPPORT_CHAT_TAWK_SECURE_KEY:}
+      webhook-secret: ${SUPPORT_CHAT_TAWK_WEBHOOK_SECRET:}
+      identity-ttl-seconds: ${SUPPORT_CHAT_TAWK_IDENTITY_TTL_SECONDS:3600}
+      retention-days: ${SUPPORT_CHAT_TAWK_RETENTION_DAYS:90}
+      retention-cleanup-enabled: ${SUPPORT_CHAT_TAWK_RETENTION_CLEANUP_ENABLED:false}
+      retention-cleanup-cron: ${SUPPORT_CHAT_TAWK_RETENTION_CLEANUP_CRON:0 0 3 * * ?}
+      max-metadata-entries: ${SUPPORT_CHAT_TAWK_MAX_METADATA_ENTRIES:20}
+      max-value-length: ${SUPPORT_CHAT_TAWK_MAX_VALUE_LENGTH:500}
+      max-search-query-length: ${SUPPORT_CHAT_TAWK_MAX_SEARCH_QUERY_LENGTH:200}
+      max-webhook-payload-characters: ${SUPPORT_CHAT_TAWK_MAX_WEBHOOK_PAYLOAD_CHARACTERS:8192}
+
 integration:
   here:
     base-url: ${HERE_BASE_URL:https://geocode.search.hereapi.com}

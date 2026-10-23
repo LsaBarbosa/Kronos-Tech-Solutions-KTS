@@ -74,6 +74,7 @@ public class ApiPaths {
     public static final String OWN_USER_PROFILE = "/own-profile";
     public static final String CHECK_USERNAME = "/check-username";
     public static final String LOGIN_FACE = "/login-face";
+    public static final String CHECKIN_FACE = "/checkin-face";
 
 
 
@@ -144,6 +145,12 @@ public class ApiPaths {
     public static final String FAQ_CATEGORIES = "/categories";
     public static final String FAQ_BY_ID = "/{faqId}";
     public static final String FAQ_HELPFUL = "/{faqId}/helpful";
+
+    // Support Chat
+    public static final String SUPPORT_CHAT = "/support/chat";
+    public static final String SUPPORT_CHAT_CONFIG = "/config";
+    public static final String SUPPORT_CHAT_IDENTITY = "/identity";
+    public static final String SUPPORT_CHAT_WEBHOOK = "/tawk/webhook";
 
     // Service contracts (assinatura eletrônica de contrato de serviço)
     public static final String SERVICE_CONTRACTS = "/service-contracts";

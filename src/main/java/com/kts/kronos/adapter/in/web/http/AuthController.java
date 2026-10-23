@@ -3,12 +3,15 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.auth.SwitchCompanyRequest;
 import com.kts.kronos.adapter.in.web.dto.employee.RecoverPasswordRequest;
 import com.kts.kronos.adapter.in.web.dto.security.CsrfTokenResponse;
+import com.kts.kronos.adapter.in.web.dto.security.FaceCheckinRequest;
+import com.kts.kronos.adapter.in.web.dto.security.FaceCheckinResponse;
 import com.kts.kronos.adapter.in.web.dto.security.FaceLoginRequest;
 import com.kts.kronos.adapter.in.web.dto.security.LoginRequest;
 import com.kts.kronos.adapter.in.web.dto.security.ResetPasswordRequest;
 import com.kts.kronos.adapter.out.security.AuthCookieService;
 import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.application.port.in.usecase.PasswordlessCheckinUseCase;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,7 @@ import static com.kts.kronos.constants.Messages.*;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthUseCase authUseCase;
+    private final PasswordlessCheckinUseCase passwordlessCheckinUseCase;
     private final AuthCookieService authCookieService;
     private final JwtUtils jwtUtils;
 
@@ -49,6 +53,11 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, authCookieService.createAccessTokenCookie(token).toString())
                 .build();
+    }
+
+    @PostMapping(CHECKIN_FACE)
+    public ResponseEntity<FaceCheckinResponse> checkinFace(@Valid @RequestBody FaceCheckinRequest req) {
+        return ResponseEntity.ok(passwordlessCheckinUseCase.checkinFace(req));
     }
 
     @PostMapping(RESET_PASSWORD)

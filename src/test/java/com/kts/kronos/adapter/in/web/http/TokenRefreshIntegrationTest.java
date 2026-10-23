@@ -15,6 +15,7 @@ import com.kts.kronos.adapter.out.security.JwtUtils;
 import com.kts.kronos.application.exceptions.BadRequestException;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.port.in.usecase.AuthUseCase;
+import com.kts.kronos.application.port.in.usecase.PasswordlessCheckinUseCase;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,6 +40,9 @@ class TokenRefreshIntegrationTest {
 
     @MockitoBean
     private JwtUtils jwtUtils;
+
+    @MockitoBean
+    private PasswordlessCheckinUseCase passwordlessCheckinUseCase;
 
     private static final String REFRESH_ENDPOINT = "/auth/refresh";
     private static final String TEST_TOKEN = "expired.test.token";

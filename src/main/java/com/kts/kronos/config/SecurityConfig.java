@@ -114,6 +114,7 @@ public class SecurityConfig {
                                 post("/auth/login"),
                                 post("/auth/login-face"),
                                 post("/auth/terminal-checkin"),
+                                post("/auth/checkin-face"),
                                 post("/auth/recover-password"),
                                 post("/auth/reset-password"),
                                 post("/public/commercial-leads")
@@ -139,6 +140,7 @@ public class SecurityConfig {
                     "/auth/login",
                     "/auth/login-face",
                     "/auth/terminal-checkin",
+                    "/auth/checkin-face",
                     "/auth/recover-password",
                     "/auth/reset-password",
                     "/auth/logout",
@@ -166,6 +168,14 @@ public class SecurityConfig {
             auth.requestMatchers(
                     org.springframework.http.HttpMethod.POST,
                     "/public/commercial-leads"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.GET,
+                    "/support/chat/config"
+            ).permitAll();
+            auth.requestMatchers(
+                    org.springframework.http.HttpMethod.POST,
+                    "/support/chat/tawk/webhook"
             ).permitAll();
 
             if (publicDocsEnabled) {
