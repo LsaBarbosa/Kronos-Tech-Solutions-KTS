@@ -43,20 +43,16 @@ public class FileScanningProviderImpl implements FileScanningProvider {
             return;
         }
 
+        String stage = "connect";
         try (var socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), timeoutMs);
             socket.setSoTimeout(timeoutMs);
 
             try (var output = new BufferedOutputStream(socket.getOutputStream());
                  var input = new BufferedInputStream(socket.getInputStream())) {
-
-                output.write("PING\0".getBytes(StandardCharsets.US_ASCII));
-                output.flush();
-                String readiness = readNullTerminatedResponse(input);
-                if (!"PONG".equals(readiness)) {
-                    throw new IOException("Antivirus scanner did not report readiness");
-                }
-
+                // clamd closes the command connection after PING/PONG. Send the
+                // scan command first instead of reusing a health-check socket.
+                stage = "send_stream";
                 output.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));
 
                 int offset = 0;
@@ -70,6 +66,7 @@ public class FileScanningProviderImpl implements FileScanningProvider {
                 output.write(new byte[]{0, 0, 0, 0});
                 output.flush();
 
+                stage = "read_result";
                 String response = readNullTerminatedResponse(input);
 
                 if (response.contains("FOUND")) {
@@ -84,10 +81,19 @@ public class FileScanningProviderImpl implements FileScanningProvider {
         } catch (BadRequestException e) {
             throw e;
         } catch (IOException e) {
-            log.warn("event=document_upload_scan result=unavailable exception_type={}",
-                    e.getClass().getSimpleName());
+            log.warn("event=document_upload_scan result=unavailable stage={} exception_type={} detail={}",
+                    stage, e.getClass().getSimpleName(), safeExceptionDetail(e));
             throw new UploadScannerUnavailableException(FILE_SCAN_FAILED, e);
         }
+    }
+
+    private String safeExceptionDetail(IOException exception) {
+        var detail = exception.getMessage();
+        if (detail == null || detail.isBlank()) {
+            return "n/a";
+        }
+        detail = detail.replace('\r', ' ').replace('\n', ' ');
+        return detail.substring(0, Math.min(detail.length(), 160));
     }
 
     private String readNullTerminatedResponse(BufferedInputStream input) throws IOException {
