@@ -1,6 +1,7 @@
 package com.kts.kronos.application.service;
 
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
+import com.kts.kronos.adapter.in.web.dto.document.PayslipImportPreviewResponse;
 import com.kts.kronos.adapter.out.security.JwtAuthenticatedUser;
 import com.kts.kronos.application.exceptions.ForbiddenException;
 import com.kts.kronos.application.exceptions.ResourceNotFoundException;
@@ -40,10 +41,17 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipInputStream;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.kts.kronos.constants.Messages.*;
 import com.kts.kronos.application.port.out.provider.FileScanningProvider;
 import org.springframework.beans.factory.annotation.Value;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
+import com.itextpdf.kernel.pdf.canvas.parser.listener.LocationTextExtractionStrategy;
 
 @Slf4j
 @Service
@@ -54,6 +62,8 @@ public class DocumentService implements DocumentUseCase {
     private static final String FORBIDDEN_OTHER_EMPLOYEE_DELETE = "Você não pode apagar documentos de outro funcionário.";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
     private static final HexFormat HEX = HexFormat.of();
+    private static final Pattern CPF_PATTERN = Pattern.compile("(?<!\\d)(?:\\d{3}[.\\s]?){2}\\d{3}[-\\s]?\\d{2}(?!\\d)");
+    private static final int MAX_PAYSLIP_PDF_PAGES = 100;
     private static final Map<String, Set<String>> ALLOWED_EXTENSIONS_BY_MIME = Map.of(
             "application/pdf", Set.of("pdf"),
             "image/jpeg", Set.of("jpg", "jpeg"),
@@ -77,6 +87,204 @@ public class DocumentService implements DocumentUseCase {
     @Override
     public void uploadDocument(DocumentType type, UUID employeeId, MultipartFile file) throws IOException {
         uploadDocumentInternal(type, employeeId, null, file);
+    }
+
+    @Override
+    public PayslipImportPreviewResponse previewPayslipImport(MultipartFile file) throws IOException {
+        ensurePayslipManager();
+        var uploadData = validatePayslipPdf(file);
+        fileScanningProvider.scanOrThrow(uploadData.fileName(), uploadData.contentType(), uploadData.data());
+        var identity = extractPayslipIdentity(uploadData.data());
+        var companyId = domainAuthorizationService.authorizeCompanyAccess(null);
+        var response = buildPayslipPreview(uploadData.fileName(), companyId, identity);
+        log.info("event=payslip_batch_preview result={} reason=completed", response.status());
+        return response;
+    }
+
+    @Override
+    public void importPayslip(UUID employeeId, boolean manualReviewConfirmed, MultipartFile file) throws IOException {
+        ensurePayslipManager();
+        var companyId = domainAuthorizationService.authorizeCompanyAccess(null);
+        var employee = domainAuthorizationService.authorizeEmployeeAccess(employeeId);
+        if (!companyId.equals(employee.companyId())) {
+            throw new ResourceNotFoundException(EMPLOYEE_NOT_FOUND);
+        }
+
+        var uploadData = validatePayslipPdf(file);
+        fileScanningProvider.scanOrThrow(uploadData.fileName(), uploadData.contentType(), uploadData.data());
+        var identity = extractPayslipIdentity(uploadData.data());
+        var employeeCpf = normalizeCpf(employee.cpf());
+        var cpfMatches = identity.validCpfs().contains(employeeCpf);
+        var nameMatches = containsEmployeeName(identity.normalizedText(), employee.fullName());
+        if (!identity.validCpfs().isEmpty()) {
+            if (!cpfMatches) {
+                throw new BadRequestException("O CPF encontrado no PDF não corresponde ao colaborador selecionado.");
+            }
+            if ((identity.validCpfs().size() > 1 || !nameMatches) && !manualReviewConfirmed) {
+                throw new BadRequestException("Confira o nome e os CPFs do PDF e confirme manualmente a associação.");
+            }
+        } else if (!manualReviewConfirmed) {
+            throw new BadRequestException("O PDF não contém CPF válido legível. Confira o documento e confirme manualmente a associação.");
+        }
+
+        // Reutiliza a validação, a varredura e a auditoria do fluxo documental existente.
+        uploadDocumentInternal(DocumentType.PAYSLIP, employeeId, null, file);
+        log.info("event=payslip_batch_import result=success document_type=PAYSLIP");
+    }
+
+    private void ensurePayslipManager() {
+        if (jwtAuthenticatedUser.getCurrentRole() != Role.MANAGER) {
+            throw new ForbiddenException("A importação de contracheques está disponível apenas para gestores.");
+        }
+    }
+
+    private UploadData validatePayslipPdf(MultipartFile file) throws IOException {
+        var uploadData = validateAndPrepareUpload(file, false);
+        if (!"application/pdf".equals(uploadData.contentType())) {
+            throw new BadRequestException("A importação em lote aceita somente arquivos PDF.");
+        }
+        return uploadData;
+    }
+
+    private PayslipImportPreviewResponse buildPayslipPreview(String fileName, UUID companyId, PayslipIdentity identity) {
+        if (identity.text().isBlank()) {
+            return payslipPreview(fileName, PayslipImportPreviewResponse.Status.UNREADABLE_PDF, null, null, null,
+                    "O PDF não contém texto legível para identificar o colaborador.");
+        }
+
+        if (identity.validCpfs().size() == 1) {
+            var cpf = identity.validCpfs().iterator().next();
+            var employee = employeeProvider.findByCompanyIdAndCpf(companyId, cpf).orElse(null);
+            if (employee == null || employee.deletedAt() != null) {
+                return payslipPreview(fileName, PayslipImportPreviewResponse.Status.EMPLOYEE_NOT_FOUND, null, null,
+                        maskCpf(cpf), "O CPF não corresponde a um colaborador disponível desta empresa.");
+            }
+            if (containsEmployeeName(identity.normalizedText(), employee.fullName())) {
+                return payslipPreview(fileName, PayslipImportPreviewResponse.Status.MATCHED, employee.employeeId(),
+                        employee.fullName(), maskCpf(cpf), "CPF e nome conferem.");
+            }
+            return payslipPreview(fileName, PayslipImportPreviewResponse.Status.MANUAL_REVIEW, employee.employeeId(),
+                    employee.fullName(), maskCpf(cpf), "O CPF confere, mas o nome não foi localizado exatamente no PDF. Confira antes de confirmar.");
+        }
+
+        if (identity.validCpfs().size() > 1) {
+            var employees = identity.validCpfs().stream()
+                    .map(cpf -> employeeProvider.findByCompanyIdAndCpf(companyId, cpf).orElse(null))
+                    .filter(java.util.Objects::nonNull)
+                    .filter(employee -> employee.deletedAt() == null)
+                    .distinct()
+                    .toList();
+            if (employees.size() == 1) {
+                var employee = employees.get(0);
+                return payslipPreview(fileName, PayslipImportPreviewResponse.Status.MANUAL_REVIEW, employee.employeeId(),
+                        employee.fullName(), null, "O PDF contém mais de um CPF. Confira o documento e confirme a associação.");
+            }
+            return payslipPreview(fileName, PayslipImportPreviewResponse.Status.AMBIGUOUS, null, null, null,
+                    "O PDF contém mais de um CPF de colaboradores desta empresa; não foi possível sugerir um destinatário.");
+        }
+
+        var nameMatches = employeeProvider.findByCompanyId(companyId).stream()
+                .filter(employee -> employee.deletedAt() == null)
+                .filter(employee -> containsEmployeeName(identity.normalizedText(), employee.fullName()))
+                .toList();
+        if (nameMatches.size() == 1) {
+            var employee = nameMatches.get(0);
+            var status = identity.cpfCandidateFound()
+                    ? PayslipImportPreviewResponse.Status.INVALID_CPF
+                    : PayslipImportPreviewResponse.Status.MANUAL_REVIEW;
+            return payslipPreview(fileName, status, employee.employeeId(), employee.fullName(), null,
+                    "O nome sugere este colaborador, mas não foi encontrado um CPF válido. Confira o PDF antes de confirmar.");
+        }
+        if (nameMatches.size() > 1) {
+            return payslipPreview(fileName, PayslipImportPreviewResponse.Status.AMBIGUOUS, null, null, null,
+                    "O nome aparece em mais de um cadastro. Não foi possível sugerir um destinatário.");
+        }
+        var status = identity.cpfCandidateFound()
+                ? PayslipImportPreviewResponse.Status.INVALID_CPF
+                : PayslipImportPreviewResponse.Status.NO_MATCH;
+        return payslipPreview(fileName, status, null, null, null,
+                "Não foi possível associar o PDF a um colaborador desta empresa.");
+    }
+
+    private PayslipImportPreviewResponse payslipPreview(
+            String fileName, PayslipImportPreviewResponse.Status status, UUID employeeId, String employeeName,
+            String maskedCpf, String message
+    ) {
+        return new PayslipImportPreviewResponse(fileName, status, employeeId, employeeName, maskedCpf,
+                status != PayslipImportPreviewResponse.Status.MATCHED, message);
+    }
+
+    private PayslipIdentity extractPayslipIdentity(byte[] bytes) {
+        var text = new StringBuilder();
+        try (var pdf = new PdfDocument(new PdfReader(new ByteArrayInputStream(bytes)))) {
+            if (pdf.getNumberOfPages() > MAX_PAYSLIP_PDF_PAGES) {
+                throw new BadRequestException("O PDF excede o limite de páginas para identificação automática.");
+            }
+            for (int page = 1; page <= pdf.getNumberOfPages(); page++) {
+                text.append(PdfTextExtractor.getTextFromPage(pdf.getPage(page), new LocationTextExtractionStrategy())).append(' ');
+                if (text.length() > 1_000_000) {
+                    break;
+                }
+            }
+        } catch (BadRequestException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BadRequestException("PDF inválido, protegido por senha ou não legível.");
+        }
+
+        var rawText = text.toString();
+        var normalizedText = normalizeIdentityText(rawText);
+        var validCpfs = new LinkedHashSet<String>();
+        boolean cpfCandidateFound = false;
+        Matcher matcher = CPF_PATTERN.matcher(rawText);
+        while (matcher.find()) {
+            cpfCandidateFound = true;
+            var cpf = normalizeCpf(matcher.group());
+            if (isValidCpf(cpf)) {
+                validCpfs.add(cpf);
+            }
+        }
+        return new PayslipIdentity(rawText, normalizedText, Set.copyOf(validCpfs), cpfCandidateFound);
+    }
+
+    private String normalizeCpf(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
+    }
+
+    private boolean isValidCpf(String cpf) {
+        if (cpf == null || cpf.length() != 11 || cpf.chars().distinct().count() == 1) {
+            return false;
+        }
+        int firstDigit = cpfDigit(cpf, 9, 10);
+        int secondDigit = cpfDigit(cpf, 10, 11);
+        return cpf.charAt(9) - '0' == firstDigit && cpf.charAt(10) - '0' == secondDigit;
+    }
+
+    private int cpfDigit(String cpf, int length, int initialWeight) {
+        int sum = 0;
+        for (int index = 0; index < length; index++) {
+            sum += (cpf.charAt(index) - '0') * (initialWeight - index);
+        }
+        int remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
+    }
+
+    private String maskCpf(String cpf) {
+        return "***.***.***-" + cpf.substring(cpf.length() - 2);
+    }
+
+    private boolean containsEmployeeName(String normalizedText, String fullName) {
+        var normalizedName = normalizeIdentityText(fullName);
+        return !normalizedName.isBlank() && (" " + normalizedText + " ").contains(" " + normalizedName + " ");
+    }
+
+    private String normalizeIdentityText(String value) {
+        return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
     }
 
     @Override
@@ -630,6 +838,8 @@ public class DocumentService implements DocumentUseCase {
             // Não bloqueia operação se auditoria falhar
         }
     }
+
+    private record PayslipIdentity(String text, String normalizedText, Set<String> validCpfs, boolean cpfCandidateFound) {}
 
     private record UploadData(byte[] data, String fileName, String contentType) {}
 

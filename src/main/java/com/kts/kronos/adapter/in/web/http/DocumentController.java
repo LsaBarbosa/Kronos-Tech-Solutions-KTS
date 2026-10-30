@@ -3,6 +3,7 @@ package com.kts.kronos.adapter.in.web.http;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponse;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentResponseList;
 import com.kts.kronos.adapter.in.web.dto.document.DocumentWithData;
+import com.kts.kronos.adapter.in.web.dto.document.PayslipImportPreviewResponse;
 import com.kts.kronos.application.port.in.usecase.DocumentUseCase;
 import com.kts.kronos.domain.model.enuns.DocumentType;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,25 @@ public class DocumentController {
             @RequestPart("file") MultipartFile file
     ) throws Exception {
         useCase.uploadDocument(type,employeeId, file);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PreAuthorize("hasRole('MANAGER')")
+    @PostMapping(value = "/payslips/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<PayslipImportPreviewResponse> previewPayslipImport(
+            @RequestPart("file") MultipartFile file
+    ) throws IOException {
+        return ResponseEntity.ok(useCase.previewPayslipImport(file));
+    }
+
+    @PreAuthorize("hasRole('MANAGER')")
+    @PostMapping(value = "/payslips/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Void> importPayslip(
+            @RequestParam UUID employeeId,
+            @RequestParam(defaultValue = "false") boolean manualReviewConfirmed,
+            @RequestPart("file") MultipartFile file
+    ) throws IOException {
+        useCase.importPayslip(employeeId, manualReviewConfirmed, file);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
