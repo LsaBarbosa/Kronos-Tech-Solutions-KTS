@@ -132,6 +132,7 @@ public class EmployeeService implements EmployeeUseCase {
                 req.preferredDayOff(),
                 req.weekendOffIndex(),
                 req.fixedWorkDays(),
+                req.weeklyRestDays(),
                 null,
                 null,
                 null
@@ -242,6 +243,7 @@ public class EmployeeService implements EmployeeUseCase {
                 req.preferredDayOff() != null ? req.preferredDayOff() : existingEmployee.preferredDayOff(),
                 req.weekendOffIndex() != null ? req.weekendOffIndex() : existingEmployee.weekendOffIndex(),
                 req.fixedWorkDays() != null ? req.fixedWorkDays() : existingEmployee.fixedWorkDays(),
+                req.weeklyRestDays() != null ? req.weeklyRestDays() : existingEmployee.weeklyRestDays(),
                 existingEmployee.deletedAt(),
                 existingEmployee.deletedBy(),
                 existingEmployee.deactivationReason()
@@ -558,6 +560,7 @@ public class EmployeeService implements EmployeeUseCase {
                 req.preferredDayOff(),
                 req.weekendOffIndex(),
                 req.fixedWorkDays(),
+                req.weeklyRestDays(),
                 null,
                 null,
                 null

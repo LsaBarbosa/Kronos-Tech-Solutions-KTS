@@ -115,6 +115,9 @@ public class EmployeeEntity {
     @Column(name = "fixed_work_days")
     private String fixedWorkDays;
 
+    @Column(name = "weekly_rest_days")
+    private Integer weeklyRestDays;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -138,7 +141,7 @@ public class EmployeeEntity {
                 workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
                 scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex,
-                convertStringToSet(this.fixedWorkDays), // Converte String -> Set<DayOfWeek>
+                convertStringToSet(this.fixedWorkDays), weeklyRestDays, // Converte String -> Set<DayOfWeek>
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -173,6 +176,7 @@ public class EmployeeEntity {
                 .preferredDayOff(domain.preferredDayOff())
                 .weekendOffIndex(domain.weekendOffIndex())
                 .fixedWorkDays(convertSetToString(domain.fixedWorkDays())) // Converte Set<DayOfWeek> -> String
+                .weeklyRestDays(domain.weeklyRestDays())
                 .deletedAt(domain.deletedAt())
                 .deletedBy(domain.deletedBy())
                 .deactivationReason(domain.deactivationReason())

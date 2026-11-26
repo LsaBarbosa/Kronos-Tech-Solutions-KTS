@@ -53,7 +53,8 @@ public record EmployeeDetailResponse(
 
         DayOfWeek preferredDayOff,
         Integer weekendOffIndex,
-        Set<DayOfWeek> fixedWorkDays
+        Set<DayOfWeek> fixedWorkDays,
+        Integer weeklyRestDays
 ) {
     public static EmployeeDetailResponse fromDomain(Employee employee, String companyName, String role) {
         return fromDomain(employee, companyName, role, false, false);
@@ -94,7 +95,8 @@ public record EmployeeDetailResponse(
                 employee.scaleStartDate(),
                 employee.preferredDayOff(),
                 employee.weekendOffIndex(),
-                employee.fixedWorkDays()
+                employee.fixedWorkDays(),
+                employee.weeklyRestDays()
         );
     }
 
@@ -131,7 +133,8 @@ public record EmployeeDetailResponse(
                 employee.scaleStartDate(),
                 employee.preferredDayOff(),
                 employee.weekendOffIndex(),
-                employee.fixedWorkDays()
+                employee.fixedWorkDays(),
+                employee.weeklyRestDays()
         );
     }
 }

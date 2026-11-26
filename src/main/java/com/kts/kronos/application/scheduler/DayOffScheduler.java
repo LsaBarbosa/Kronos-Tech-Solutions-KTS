@@ -25,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import static com.kts.kronos.constants.Messages.SAO_PAULO;
@@ -140,6 +141,13 @@ public class DayOffScheduler {
                 employeesProcessed++;
                 var empId = employee.employeeId();
 
+                if (employee.weeklyRestDays() != null) {
+                    var createdStatus = ensureWeeklyRestQuotaRecord(employee, today);
+                    if (createdStatus == StatusRecord.ABSENCE) absencesCreated++;
+                    if (createdStatus == StatusRecord.DAY_OFF) dayOffsCreated++;
+                    continue;
+                }
+
                 // BLINDAGEM: Se já existe registro hoje (Trabalho, Folga Manual, Atestado),
                 // não fazemos nada. Respeitamos o status atual.
                 if (trRepo.existsByEmployeeIdAndDate(empId, today)) {
@@ -176,6 +184,70 @@ public class DayOffScheduler {
                 absencesCreated,
                 dayOffsCreated
         );
+    }
+
+    /**
+     * Classifica os dias sem marcação em ordem cronológica dentro da semana
+     * (segunda a domingo). Os primeiros N dias sem ponto consomem a cota de
+     * folgas; os seguintes ficam como falta. Reprocessar o dia é idempotente.
+     */
+    private StatusRecord ensureWeeklyRestQuotaRecord(Employee employee, LocalDate today) {
+        var weekStart = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        var records = trRepo.findByRange(
+                employee.employeeId(),
+                weekStart.atStartOfDay(),
+                today.atTime(23, 59, 59)
+        );
+        var recordsByDate = new TreeMap<LocalDate, List<TimeRecord>>();
+        for (var record : records) {
+            if (record.startWork() != null) {
+                recordsByDate.computeIfAbsent(record.startWork().toLocalDate(), ignored -> new java.util.ArrayList<>())
+                        .add(record);
+            }
+        }
+
+        int restDaysAssigned = 0;
+        for (var entry : recordsByDate.entrySet()) {
+            var date = entry.getKey();
+            if (date.isAfter(today)) continue;
+
+            var dayRecords = entry.getValue();
+            var activeRecords = dayRecords.stream().filter(TimeRecord::active).toList();
+            if (activeRecords.isEmpty()) continue;
+
+            // Marcações, abonos, férias e solicitações são preservados e não
+            // consomem a cota de dias sem ponto.
+            if (activeRecords.stream().anyMatch(record -> !isWeeklyRestCandidate(record))) continue;
+
+            var targetStatus = restDaysAssigned < employee.weeklyRestDays()
+                    ? StatusRecord.DAY_OFF
+                    : StatusRecord.ABSENCE;
+            if (targetStatus == StatusRecord.DAY_OFF) restDaysAssigned++;
+
+            for (var record : activeRecords) {
+                if (record.statusRecord() != targetStatus) {
+                    trRepo.save(record.withStatus(targetStatus));
+                }
+            }
+        }
+
+        boolean hasActiveRecordToday = recordsByDate.getOrDefault(today, List.of()).stream()
+                .anyMatch(TimeRecord::active);
+        if (hasActiveRecordToday) return null;
+
+        var status = restDaysAssigned < employee.weeklyRestDays()
+                ? StatusRecord.DAY_OFF
+                : StatusRecord.ABSENCE;
+        var midnight = today.atStartOfDay();
+        trRepo.save(new TimeRecord(
+                null, midnight, midnight, status,
+                false, true, employee.employeeId(), null, null, null, null, null, null, null, null
+        ));
+        return status;
+    }
+
+    private boolean isWeeklyRestCandidate(TimeRecord record) {
+        return record.statusRecord() == StatusRecord.DAY_OFF || record.statusRecord() == StatusRecord.ABSENCE;
     }
 
     // =========================================================================
@@ -246,6 +318,7 @@ public class DayOffScheduler {
     }
 
     private boolean shouldAnalyzeSwap(Employee employee) {
+        if (employee.weeklyRestDays() != null) return false;
         if (employee.scheduleType() == null) return false;
 
         // CORREÇÃO: As escalas Tipo 5 e 6 foram REMOVIDAS daqui.

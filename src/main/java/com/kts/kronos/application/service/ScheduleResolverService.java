@@ -51,6 +51,9 @@ public class ScheduleResolverService {
     }
 
     private boolean resolveIsWorkDay(Employee emp, LocalDate date) {
+        // A quota-based employee can have any weekday as a rest day. The
+        // scheduler assigns DAY_OFF after evaluating the weekly quota.
+        if (emp.weeklyRestDays() != null) return true;
         if (emp.scheduleType() == null) return true;
 
         return switch (emp.scheduleType()) {

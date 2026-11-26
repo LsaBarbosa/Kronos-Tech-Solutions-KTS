@@ -248,7 +248,12 @@ public class PointMirrorPdfService implements PointMirrorPdfUseCase {
         var worked = Duration.ZERO;
 
         // 1. Determina a expectativa de trabalho para este dia específico
-        DailySchedule dailySchedule = scheduleResolver.resolveForDate(employee, date);
+        boolean classifiedAsRestDay = records.stream()
+                .filter(TimeRecord::active)
+                .anyMatch(record -> record.statusRecord() == StatusRecord.DAY_OFF);
+        DailySchedule dailySchedule = classifiedAsRestDay
+                ? DailySchedule.dayOff()
+                : scheduleResolver.resolveForDate(employee, date);
         long expectedMinutes = dailySchedule.expectedWorkMinutes();
 
         var expected = Duration.ofMinutes(expectedMinutes);

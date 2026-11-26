@@ -40,7 +40,8 @@ public record EmployeeResponse(
 
         Integer weekendOffIndex,             // Controle de qual FDS é folga (para 6x1 variantes)
 
-        Set<DayOfWeek> fixedWorkDays         // Dias fixos de trabalho (para 5x2)
+        Set<DayOfWeek> fixedWorkDays,        // Dias fixos de trabalho (para 5x2)
+        Integer weeklyRestDays
 ) {
     public static EmployeeResponse fromDomain(Employee employee, String companyName, String role) {
         return new EmployeeResponse(
@@ -64,7 +65,8 @@ public record EmployeeResponse(
                 employee.scaleStartDate(),
                 employee.preferredDayOff(),
                 employee.weekendOffIndex(),
-                employee.fixedWorkDays()
+                employee.fixedWorkDays(),
+                employee.weeklyRestDays()
 
         );
     }

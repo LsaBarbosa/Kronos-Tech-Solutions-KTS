@@ -66,8 +66,26 @@ public record CreateEmployeeRequest(
 
         Integer weekendOffIndex,             // Indice do fim de semana (1, 2, 3...)
 
-        Set<DayOfWeek> fixedWorkDays         // Lista de dias fixos (Para escala tradicional)
+        Set<DayOfWeek> fixedWorkDays,        // Lista de dias fixos (Para escala tradicional)
+
+        @Min(0) @Max(6)
+        Integer weeklyRestDays
 ) {
+    public CreateEmployeeRequest(
+            String fullName, String cpf, String pis, String jobPosition, String email, Double salary,
+            String phone, AddressRequest address, UUID companyId, boolean homeOffice, String faceImageBase64,
+            LocalTime workStartTime, LocalTime workEndTime, LocalTime breakStartTime, LocalTime breakEndTime,
+            LocalTime weekendWorkStartTime, LocalTime weekendWorkEndTime,
+            LocalTime weekendBreakStartTime, LocalTime weekendBreakEndTime,
+            WorkScheduleType scheduleType, LocalDate scaleStartDate, DayOfWeek preferredDayOff,
+            Integer weekendOffIndex, Set<DayOfWeek> fixedWorkDays
+    ) {
+        this(fullName, cpf, pis, jobPosition, email, salary, phone, address, companyId, homeOffice,
+                faceImageBase64, workStartTime, workEndTime, breakStartTime, breakEndTime,
+                weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, null);
+    }
+
     @Override
     public String toString() {
         return "CreateEmployeeRequest[fullName=" + fullName + ", cpf=***.***.***-**, email=" + email

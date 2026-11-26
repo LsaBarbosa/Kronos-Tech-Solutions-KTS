@@ -112,6 +112,7 @@ public record LgpdEmployeeExportResponse(
             java.time.DayOfWeek preferredDayOff,
             Integer weekendOffIndex,
             Set<java.time.DayOfWeek> fixedWorkDays,
+            Integer weeklyRestDays,
             LocalDateTime deletedAt,
             UUID deletedBy,
             String deactivationReason
@@ -140,6 +141,7 @@ public record LgpdEmployeeExportResponse(
                     employee.preferredDayOff(),
                     employee.weekendOffIndex(),
                     employee.fixedWorkDays(),
+                    employee.weeklyRestDays(),
                     employee.deletedAt(),
                     employee.deletedBy(),
                     employee.deactivationReason()

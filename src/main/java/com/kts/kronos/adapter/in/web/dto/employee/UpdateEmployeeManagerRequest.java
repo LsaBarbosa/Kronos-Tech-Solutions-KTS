@@ -5,6 +5,8 @@ import com.kts.kronos.adapter.in.web.dto.address.UpdateAddressRequest;
 import com.kts.kronos.domain.model.enuns.WorkScheduleType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -54,8 +56,24 @@ public record UpdateEmployeeManagerRequest(
         @JsonFormat(pattern = "yyyy-MM-dd") LocalDate scaleStartDate,
         DayOfWeek preferredDayOff,
         Integer weekendOffIndex,
-        Set<DayOfWeek> fixedWorkDays
+        Set<DayOfWeek> fixedWorkDays,
+        @Min(0) @Max(6) Integer weeklyRestDays
 ) {
+    public UpdateEmployeeManagerRequest(
+            String fullName, String cpf, String pis, String jobPosition, String email, Double salary,
+            String phone, Boolean homeOffice, UpdateAddressRequest address, String faceImageBase64,
+            LocalTime workStartTime, LocalTime workEndTime, LocalTime breakStartTime, LocalTime breakEndTime,
+            LocalTime weekendWorkStartTime, LocalTime weekendWorkEndTime,
+            LocalTime weekendBreakStartTime, LocalTime weekendBreakEndTime,
+            WorkScheduleType scheduleType, LocalDate scaleStartDate, DayOfWeek preferredDayOff,
+            Integer weekendOffIndex, Set<DayOfWeek> fixedWorkDays
+    ) {
+        this(fullName, cpf, pis, jobPosition, email, salary, phone, homeOffice, address, faceImageBase64,
+                workStartTime, workEndTime, breakStartTime, breakEndTime,
+                weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, null);
+    }
+
     @Override
     public String toString() {
         return "UpdateEmployeeManagerRequest[fullName=" + fullName + ", cpf=***.***.***-**, email=" + email
