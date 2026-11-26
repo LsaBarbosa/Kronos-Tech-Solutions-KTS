@@ -37,10 +37,30 @@ public record Employee(
         DayOfWeek preferredDayOff,
         Integer weekendOffIndex,
         Set<DayOfWeek> fixedWorkDays,
+        Integer weeklyRestDays,
         LocalDateTime deletedAt,
         UUID deletedBy,
         String deactivationReason
 ) {
+
+    /** Compatibility constructor for callers created before weekly rest quota was added. */
+    public Employee(
+            UUID employeeId, String fullName, String cpf, String pis, String jobPosition, String email,
+            double salary, String phone, boolean active, Address address, UUID companyId,
+            LocalDateTime lastSeenMessageTimestamp, boolean homeOffice, String faceS3ObjectKey,
+            LocalTime workStartTime, LocalTime workEndTime, LocalTime breakStartTime, LocalTime breakEndTime,
+            LocalTime weekendWorkStartTime, LocalTime weekendWorkEndTime,
+            LocalTime weekendBreakStartTime, LocalTime weekendBreakEndTime,
+            WorkScheduleType scheduleType, LocalDate scaleStartDate, DayOfWeek preferredDayOff,
+            Integer weekendOffIndex, Set<DayOfWeek> fixedWorkDays,
+            LocalDateTime deletedAt, UUID deletedBy, String deactivationReason
+    ) {
+        this(employeeId, fullName, cpf, pis, jobPosition, email, salary, phone, active, address, companyId,
+                lastSeenMessageTimestamp, homeOffice, faceS3ObjectKey, workStartTime, workEndTime,
+                breakStartTime, breakEndTime, weekendWorkStartTime, weekendWorkEndTime,
+                weekendBreakStartTime, weekendBreakEndTime, scheduleType, scaleStartDate,
+                preferredDayOff, weekendOffIndex, fixedWorkDays, null, deletedAt, deletedBy, deactivationReason);
+    }
 
     public Employee(
             UUID employeeId,
@@ -95,6 +115,7 @@ public record Employee(
                 preferredDayOff,
                 weekendOffIndex,
                 fixedWorkDays,
+                null,
                 null,
                 null,
                 null
@@ -154,6 +175,7 @@ public record Employee(
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }
@@ -164,7 +186,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -175,7 +197,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 active ? null : deletedAt,
                 active ? null : deletedBy,
                 active ? null : deactivationReason
@@ -188,7 +210,7 @@ public record Employee(
                 false, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 LocalDateTime.now(), deletedBy, reason
         );
     }
@@ -199,7 +221,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -210,7 +232,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -221,7 +243,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -232,7 +254,7 @@ public record Employee(
                 active, address, companyId, lastSeenMessageTimestamp, homeOffice,
                 faceS3ObjectKey, workStartTime, workEndTime, breakStartTime, breakEndTime,
                 weekendWorkStartTime, weekendWorkEndTime, weekendBreakStartTime, weekendBreakEndTime,
-                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays,
+                scheduleType, scaleStartDate, preferredDayOff, weekendOffIndex, fixedWorkDays, weeklyRestDays,
                 deletedAt, deletedBy, deactivationReason
         );
     }
@@ -274,6 +296,7 @@ public record Employee(
                 preferredDayOff,
                 weekendOffIndex,
                 fixedWorkDays,
+                weeklyRestDays,
                 deletedAt,
                 deletedBy,
                 reason
